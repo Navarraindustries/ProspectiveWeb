@@ -42,10 +42,15 @@ export type Aviso = {
   tono: "warning" | "destructive" | "success";
   titulo: string;
   detalle: string;
+  /** Todos los nombres, para el `title` de la pastilla. */
+  completo: string;
   destino: "orders" | "studies" | null;
 };
 
-const tres = (xs: string[]) => xs.slice(0, 3).join(" · ");
+/** Dos nombres y « +N» con el resto: la pastilla es de una línea. */
+const resumen = (xs: string[]) =>
+  xs.length > 2 ? `${xs.slice(0, 2).join(" · ")} +${xs.length - 2}` : xs.join(" · ");
+const todos = (xs: string[]) => xs.join(" · ");
 
 export function avisosOficina(
   { patients, orders, ahora, dias = 7 }: { patients: PatientSummary[]; orders: ClipOrder[] | null; ahora: Date; dias?: number },
@@ -57,7 +62,8 @@ export function avisosOficina(
     avisos.push({
       tono: "warning",
       titulo: `${parados.length} ${parados.length === 1 ? "caso parado" : "casos parados"} antes del informe más de ${dias} días`,
-      detalle: tres(parados.map((p) => p.full_name)),
+      detalle: resumen(parados.map((p) => p.full_name)),
+      completo: todos(parados.map((p) => p.full_name)),
       destino: null,
     });
   }
@@ -68,7 +74,8 @@ export function avisosOficina(
     avisos.push({
       tono: "warning",
       titulo: `${pedidos.length} ${pedidos.length === 1 ? "pedido de clip parado" : "pedidos de clip parados"}`,
-      detalle: tres(pedidos.map((o) => o.part_no)),
+      detalle: resumen(pedidos.map((o) => o.part_no)),
+      completo: todos(pedidos.map((o) => o.part_no)),
       destino: "orders",
     });
   }
@@ -78,7 +85,8 @@ export function avisosOficina(
     avisos.push({
       tono: "success",
       titulo: `${hoy.length} ${hoy.length === 1 ? "sesión" : "sesiones"} de hoy`,
-      detalle: tres(hoy.map((p) => p.full_name)),
+      detalle: resumen(hoy.map((p) => p.full_name)),
+      completo: todos(hoy.map((p) => p.full_name)),
       destino: null,
     });
   }

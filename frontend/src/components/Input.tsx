@@ -13,9 +13,13 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   icon?: ReactNode;
   hint?: string;
   invalid?: boolean;
+  /** Marca el campo como obligatorio: asterisco mudo en el rótulo y aria-required (sin `required` nativo). */
+  obligatorio?: boolean;
 }
 
-export function Input({ label, icon, hint, invalid, multiline, style, ...rest }: InputProps) {
+const ROTULO = { fontSize: "var(--text-label)", fontWeight: "var(--weight-label)", color: "var(--muted-foreground)" } as const;
+
+export function Input({ label, icon, hint, invalid, obligatorio, multiline, style, ...rest }: InputProps) {
   const id = useId();
   // aria-invalid solo cuando el llamador lo pide: un campo vacío no nace en rojo (F2-63).
   // El anillo de foco se dibuja en el contorno (no en el campo) mientras el campo tiene el foco.
@@ -31,6 +35,7 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
       setFocused(false);
       onBlur?.(e as FocusEvent<HTMLInputElement>);
     },
+    ...(obligatorio ? { "aria-required": true as const } : {}),
     ...(invalid ? { "aria-invalid": true as const } : {}),
     style: {
       flex: 1,
@@ -50,12 +55,12 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
       {label && (
-        <label
-          htmlFor={id}
-          style={{ fontSize: "var(--text-label)", fontWeight: "var(--weight-label)", color: "var(--muted-foreground)" }}
-        >
-          {label}
-        </label>
+        // El asterisco va FUERA del <label> (y mudo): el nombre accesible es solo
+        // el rótulo («Apellidos») y lo obligatorio lo dice aria-required.
+        <div>
+          <label htmlFor={id} style={ROTULO}>{label}</label>
+          {obligatorio && <span aria-hidden="true" style={ROTULO}> *</span>}
+        </div>
       )}
       <div
         style={{

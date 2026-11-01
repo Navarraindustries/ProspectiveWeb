@@ -25,6 +25,8 @@ class AuditBlock(BaseModel):
     payload_json: str
     block_hash: str
     prev_hash: str
+    patient_id: int | None = None
+    patient_name: str = ""
 
 
 class BrokenBlock(BaseModel):

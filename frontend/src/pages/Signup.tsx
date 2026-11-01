@@ -153,7 +153,7 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
               <form onSubmit={submit}>
                 <div style={GROUP_LABEL}>Tus datos</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <Input label="Nombre completo *" value={form.full_name} onChange={set("full_name")} placeholder="Dr. …" {...props("full_name")} />
+                  <Input label="Nombre completo" obligatorio value={form.full_name} onChange={set("full_name")} placeholder="Dr. …" {...props("full_name")} />
                   <Input label="DNI / NIE (opcional)" hint="Solo si tu centro lo pide" value={form.national_id} onChange={set("national_id")} />
                   <FileField label="Foto de perfil" accept="image/*" file={photo} onPick={setPhoto} />
                 </div>
@@ -173,10 +173,10 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
 
                 <div style={GROUP_LABEL}>Credenciales de acceso</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <Input label="Usuario * (mín. 3)" value={form.username} onChange={set("username")} autoComplete="username" {...props("username")} />
+                  <Input label="Usuario (mín. 3)" obligatorio value={form.username} onChange={set("username")} autoComplete="username" {...props("username")} />
                   <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
-                    <Input label="Contraseña * (mín. 8)" type="password" value={form.password} onChange={set("password")} autoComplete="new-password" {...props("password")} />
-                    <Input label="Repite la contraseña *" type="password" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" {...props("confirm")} />
+                    <Input label="Contraseña (mín. 8)" obligatorio type="password" value={form.password} onChange={set("password")} autoComplete="new-password" {...props("password")} />
+                    <Input label="Repite la contraseña" obligatorio type="password" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" {...props("confirm")} />
                   </div>
                 </div>
 

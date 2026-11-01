@@ -29,8 +29,9 @@ interface Props {
   onNewPatient: () => void;
 }
 
-/** Cuántas entradas muestra «Actividad reciente». */
+/** Cuántas entradas pide «Actividad reciente» y cuántas enseña de entrada: el resto va tras «Ver más». */
 const LIMITE_ACTIVIDAD = 8;
+const VISIBLES_ACTIVIDAD = 5;
 
 type EstadoActividad =
   | { fase: "cargando" }
@@ -48,6 +49,7 @@ export function PatientsSidePanel({ patients, loading, error = false, version = 
   const estrecho = useEstrecho();
   // Plegada solo en la disposición estrecha; en la ancha siempre a la vista.
   const [verActividad, setVerActividad] = useState(false);
+  const [todaActividad, setTodaActividad] = useState(false);
   const actividadVisible = !estrecho || verActividad;
 
   const [actividad, setActividad] = useState<EstadoActividad>({ fase: "cargando" });
@@ -154,7 +156,7 @@ export function PatientsSidePanel({ patients, loading, error = false, version = 
         )}
         {actividad.fase === "lista" && actividad.items.length > 0 && (
           <ul className="pt-side-list">
-            {actividad.items.map((a, i) => (
+            {(todaActividad ? actividad.items : actividad.items.slice(0, VISIBLES_ACTIVIDAD)).map((a, i) => (
               <li key={`${a.patient_id}-${a.at}-${i}`}>
                 <button type="button" className="pt-side-activity" onClick={() => onOpenPatient(a.patient_id)}>
                   <span className="pt-side-activity-text">{a.patient_name} · {etiquetaAccion(a.action)}</span>
@@ -163,6 +165,12 @@ export function PatientsSidePanel({ patients, loading, error = false, version = 
               </li>
             ))}
           </ul>
+        )}
+        {actividad.fase === "lista" && actividad.items.length > VISIBLES_ACTIVIDAD && (
+          <Button variant="link" size="sm" className="pt-side-mas" aria-expanded={todaActividad}
+                  onClick={() => setTodaActividad((v) => !v)}>
+            {todaActividad ? "Ver menos" : "Ver más"}
+          </Button>
         )}
         </>}
         </div>

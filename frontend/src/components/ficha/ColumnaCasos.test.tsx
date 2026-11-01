@@ -10,9 +10,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const deleteStudy = vi.fn();
+const studyThumbnailObjectUrl = vi.fn();
 
 vi.mock("../../api/client", () => ({
-  api: { deleteStudy: (patientId: number, studyId: number) => deleteStudy(patientId, studyId) },
+  api: {
+    deleteStudy: (patientId: number, studyId: number) => deleteStudy(patientId, studyId),
+    studyThumbnailObjectUrl: (id: number) => studyThumbnailObjectUrl(id),
+  },
 }));
 vi.mock("../../pages/NuevoCaso", () => ({
   NuevoEstudioSheet: (p: { open: boolean; study?: { dx_principal?: string } | null; onCreated: (s?: unknown) => void; onClose: () => void }) =>
@@ -26,8 +30,8 @@ vi.mock("../../pages/NuevoCaso", () => ({
     ) : null,
 }));
 
-import { ColumnaCasos, type SeleccionCaso } from "./ColumnaCasos";
-import type { StudySummary } from "../../api/types";
+import { ColumnaCasos, casoEnFoco, ultimaSesionDelCaso, type SeleccionCaso } from "./ColumnaCasos";
+import type { PatientSessionInfo, StudySummary } from "../../api/types";
 
 const caso = (o: Partial<StudySummary> & { id: number }): StudySummary => ({
   patient_id: 2, dicom_path: "", modality: "", description: "", acquired_at: "", session_count: 0,
@@ -36,21 +40,27 @@ const caso = (o: Partial<StudySummary> & { id: number }): StudySummary => ({
   mod_pangio: false, ...o,
 });
 
+const ses = (o: Partial<PatientSessionInfo>): PatientSessionInfo => ({
+  session_id: "s1", label: "", current_step: 2, max_diameter_mm: null, rupture_risk_label: "Alto",
+  created_at: "2026-10-30T10:00:00", updated_at: "2026-10-30T10:00:00", size_bytes: 1, case_id: 7, imaging_study_id: 40, ...o,
+});
+
 const onPlanificar = vi.fn();
+const onResume = vi.fn();
 const onCambio = vi.fn();
 const onSeleccionar = vi.fn();
 const onReintentar = vi.fn();
 const onReintentarSesiones = vi.fn();
 
 /** La columna con la selección viva, como la monta la página. */
-function Arnes({ casos, puedePlanificar = true, puedeEliminar = true, nSesionesSinCaso = 0, error = null, sesionesError = null }: {
-  casos: StudySummary[] | null; puedePlanificar?: boolean; puedeEliminar?: boolean; nSesionesSinCaso?: number; error?: string | null;
+function Arnes({ casos, sesiones = [], puedePlanificar = true, puedeEliminar = true, nSesionesSinCaso = 0, error = null, sesionesError = null }: {
+  casos: StudySummary[] | null; sesiones?: PatientSessionInfo[]; puedePlanificar?: boolean; puedeEliminar?: boolean; nSesionesSinCaso?: number; error?: string | null;
   sesionesError?: string | null;
 }) {
   const [sel, setSel] = useState<SeleccionCaso | null>(null);
   return (
     <ColumnaCasos
-      patientId={2} patientName="Segura, Juan" casos={casos} error={error} onReintentar={onReintentar}
+      patientId={2} patientName="Segura, Juan" casos={casos} sesiones={sesiones} onResume={onResume} error={error} onReintentar={onReintentar}
       seleccionado={sel} onSeleccionar={(s) => { onSeleccionar(s); setSel(s); }}
       puedePlanificar={puedePlanificar} puedeEliminar={puedeEliminar} nSesionesSinCaso={nSesionesSinCaso}
       sesionesError={sesionesError} onReintentarSesiones={onReintentarSesiones}
@@ -60,7 +70,8 @@ function Arnes({ casos, puedePlanificar = true, puedeEliminar = true, nSesionesS
 }
 
 beforeEach(() => {
-  for (const f of [deleteStudy, onPlanificar, onCambio, onSeleccionar, onReintentar, onReintentarSesiones]) f.mockReset();
+  for (const f of [deleteStudy, studyThumbnailObjectUrl, onResume, onPlanificar, onCambio, onSeleccionar, onReintentar, onReintentarSesiones]) f.mockReset();
+  studyThumbnailObjectUrl.mockResolvedValue("blob:miniatura");
 });
 
 describe("casos (F2-28, F2-T5, fusión nº 9)", () => {
@@ -73,7 +84,7 @@ describe("casos (F2-28, F2-T5, fusión nº 9)", () => {
 
   it("cada caso dice su fecha, tipo, región y lateralidad", () => {
     render(<Arnes casos={[caso({ id: 9, dx_principal: "Aneurisma ACM", acquired_at: "2026-10-01", tipo_aneurisma: "Sacular", region_anatomica: "ACM", lateralidad: "Izquierda" })]} />);
-    expect(screen.getByText("Fecha: 2026-10-01")).toBeTruthy();
+    expect(screen.getByText("Fecha: 1/10/26")).toBeTruthy();
     expect(screen.getByText("Tipo: Sacular · ACM (Izquierda)")).toBeTruthy();
   });
 
@@ -101,7 +112,7 @@ describe("casos (F2-28, F2-T5, fusión nº 9)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Eliminar caso «Aneurisma ACM»" }));
     const dialogo = screen.getByRole("alertdialog", { name: "Eliminar caso" });
     expect(dialogo.textContent).toContain("Aneurisma ACM");
-    expect(dialogo.textContent).toContain("Sus 2 sesión(es) de planificación se conservarán pero quedarán desvinculadas.");
+    expect(dialogo.textContent).toContain("Sus 2 sesiones de planificación se conservarán pero quedarán desvinculadas.");
     fireEvent.click(within(dialogo).getByRole("button", { name: "Eliminar" }));
     await waitFor(() => expect(deleteStudy).toHaveBeenCalledWith(2, 9));
     await waitFor(() => expect(onCambio).toHaveBeenCalledWith(9));
@@ -114,6 +125,55 @@ describe("casos (F2-28, F2-T5, fusión nº 9)", () => {
     fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Eliminar" }));
     expect(await screen.findByText("Solo quien creó al paciente puede borrar casos.")).toBeTruthy();
     expect(onCambio).not.toHaveBeenCalled();
+  });
+});
+
+describe("ficha del caso: miniatura, paso, riesgo y Reanudar (A37, A41)", () => {
+  it("cada caso: fecha dd/mm/aa sin desfase, paso, riesgo, miniatura y Reanudar", async () => {
+    onResume.mockImplementation(() => Promise.resolve());
+    render(<Arnes casos={[caso({ id: 7, acquired_at: "2026-10-30" })]}
+                  sesiones={[ses({}), ses({ session_id: "s0", updated_at: "2026-10-01T10:00:00" })]} />);
+    expect(screen.getByText(/30\/10\/26/)).toBeInTheDocument();
+    expect(screen.getByText("Paso 3 · Detección")).toBeInTheDocument();
+    expect(screen.getByText("Riesgo alto")).toBeInTheDocument();
+    await waitFor(() => expect(studyThumbnailObjectUrl).toHaveBeenCalledWith(40));
+    fireEvent.click(screen.getByRole("button", { name: "Reanudar" }));
+    expect(onResume).toHaveBeenCalledWith("s1");
+    expect(await screen.findByText("Abriendo…")).toBeInTheDocument();
+  });
+
+  it("sin sesiones del caso no hay Reanudar ni paso", () => {
+    render(<Arnes casos={[caso({ id: 7 })]} sesiones={[ses({ case_id: 8 })]} />);
+    expect(screen.queryByRole("button", { name: "Reanudar" })).toBeNull();
+    expect(screen.queryByText(/^Paso /)).toBeNull();
+  });
+
+  it("borrar caso: gris con rótulo, rojo solo al pasar (A41)", () => {
+    render(<Arnes casos={[caso({ id: 9, dx_principal: "Aneurisma ACM" })]} />);
+    const borrar = screen.getByRole("button", { name: "Eliminar caso «Aneurisma ACM»" });
+    expect(borrar).toHaveAttribute("data-variant", "destructive-ghost");
+    expect(borrar).toHaveAttribute("title", "Eliminar caso");
+  });
+
+  it("el aviso de borrado no escribe «sesión(es)»", () => {
+    const { unmount } = render(<Arnes casos={[caso({ id: 9, dx_principal: "A", session_count: 1 })]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar caso «A»" }));
+    expect(screen.getByRole("alertdialog").textContent).toContain("Su sesión de planificación se conservará");
+    expect(screen.getByRole("alertdialog").textContent).not.toContain("(es)");
+    unmount();
+  });
+
+  it("casoEnFoco y ultimaSesionDelCaso", () => {
+    const a = caso({ id: 3 });
+    const b = caso({ id: 8 });
+    expect(casoEnFoco([a, b], null)).toBe(b);
+    expect(casoEnFoco([a, b], 3)).toBe(a);
+    expect(casoEnFoco([a, b], "sin-caso")).toBe(b);
+    expect(casoEnFoco([], null)).toBeNull();
+    const s1 = ses({ session_id: "viejo", updated_at: "2026-10-01T10:00:00" });
+    const s2 = ses({ session_id: "nuevo", updated_at: "2026-10-05T10:00:00" });
+    expect(ultimaSesionDelCaso([s1, s2, ses({ session_id: "otro", case_id: 9, updated_at: "2026-11-01T10:00:00" })], 7)).toBe(s2);
+    expect(ultimaSesionDelCaso([], 7)).toBeNull();
   });
 });
 

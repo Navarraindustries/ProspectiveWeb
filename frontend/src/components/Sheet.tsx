@@ -117,6 +117,7 @@ export function Sheet({
             aria-label={title}
             tabIndex={-1}
             data-glass
+            data-hoja
             style={{
               ...glass("dense"),
               outline: "none",

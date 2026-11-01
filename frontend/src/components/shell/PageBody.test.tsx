@@ -10,6 +10,14 @@ it("lista: desplaza y limita el ancho", () => {
   expect(cuerpo).toHaveAttribute("data-modo", "lista");
   expect(cuerpo.firstElementChild).toHaveClass("page-body__ancho", "fade-rise");
 });
+it("lienzo quita el tope de --content-max", () => {
+  const { container } = render(<PageBody modo="pantalla" lienzo><p>x</p></PageBody>);
+  expect(container.querySelector(".page-body")).toHaveAttribute("data-lienzo", "true");
+  const { container: sin } = render(<PageBody modo="pantalla"><p>x</p></PageBody>);
+  expect(sin.querySelector(".page-body")).not.toHaveAttribute("data-lienzo");
+  const css = readFileSync(join(__dirname, "shell.css"), "utf8").replace(/\r\n/g, "\n");
+  expect(css).toMatch(/\.page-body\[data-lienzo="true"\]\s*>\s*\.page-body__ancho\s*\{\s*max-width:\s*none;?\s*\}/);
+});
 it("CSS: --content-max y márgenes por punto de corte (1024 y 640)", () => {
   const css = readFileSync(join(__dirname, "shell.css"), "utf8").replace(/\r\n/g, "\n");
   expect(css).toMatch(/\.page-body__ancho\s*\{[^}]*max-width:\s*var\(--content-max\)[^}]*padding:\s*28px\s+32px\s+48px/);
@@ -23,4 +31,9 @@ it("ninguna página interna lleva ancho propio y todas usan PageBody", () => {
     expect(src, p).toMatch(/<PageBody[\s>]/);
     expect(src, p).not.toMatch(/maxWidth:\s*(?:"var\(--content-max\)"|(?:900|1000|1100|1320|1440)\b)/);
   }
+});
+
+it("CSS: objetivos de 44 px en la oficina por debajo de 1024", () => {
+  const css = readFileSync(join(__dirname, "shell.css"), "utf8").replace(/\r\n/g, "\n");
+  expect(css).toMatch(/@media\s*\(\s*max-width:\s*1024px\s*\)\s*\{\s*\.page-body,\s*\[data-hoja\]\s*\{\s*--control-sm:\s*44px;\s*--control-icon:\s*44px;/);
 });

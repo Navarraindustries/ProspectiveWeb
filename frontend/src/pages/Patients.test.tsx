@@ -2,9 +2,10 @@
    solo se prueba que la tarjeta y el enlace antiguo ?paciente= llevan a ella;
    la ficha en sí se prueba en PatientPage.test.tsx. */
 
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
+import { simularPantalla } from "../test/pantalla";
 
 const listPatients = vi.fn();
 const getPatient = vi.fn();
@@ -90,6 +91,8 @@ const fila = (o: Partial<PatientSummary> & { id: number; full_name: string }): P
   ...o,
 });
 
+afterEach(() => vi.unstubAllGlobals());
+
 beforeEach(() => {
   listPatients.mockReset().mockResolvedValue([]);
   getPatient.mockReset();
@@ -150,7 +153,11 @@ describe("con el API fallando (F1-2, F1-29)", () => {
     // «Hoy» tampoco puede decir 0 pacientes: con el servidor caído parecería una pérdida.
     const hoy = screen.getByRole("region", { name: "Hoy" });
     expect(within(hoy).getByText("Pacientes").parentElement!.textContent).toContain("—");
-    expect(hoy.textContent).not.toMatch(/0/);
+    // Cada cifra del resumen, no el texto pegado («En curso0» no tiene frontera de palabra).
+    const cifras = within(hoy).getAllByRole("definition").map((d) => d.textContent);
+    expect(cifras.length).toBeGreaterThan(0);
+    expect(cifras).not.toContain("0");
+    expect(cifras.every((c) => c === "—")).toBe(true);
 
     listPatients.mockResolvedValueOnce([fila({ id: 7, full_name: "Restrepo, María" })]);
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
@@ -250,7 +257,7 @@ describe("la lista de pacientes (F2)", () => {
     ]);
     renderAt("/app/pacientes");
     await screen.findByText("Solo mío");
-    expect(within(screen.getByRole("tablist")).getAllByRole("tab")).toHaveLength(3);
+    expect(within(screen.getByRole("tablist", { name: "Qué pacientes ver" })).getAllByRole("tab")).toHaveLength(3);
     expect(screen.getByRole("tab", { name: "Todos" }).getAttribute("aria-selected")).toBe("true");
 
     fireEvent.click(screen.getByRole("tab", { name: "Míos" }));
@@ -350,7 +357,7 @@ describe("la lista de pacientes (F2)", () => {
     await screen.findByText(/^Ningún paciente · /);
     listPatients.mockResolvedValue([nuevo]);
     fireEvent.click(screen.getAllByRole("button", { name: /Nuevo paciente/ })[0]);
-    fireEvent.change(screen.getByLabelText("Apellidos"), { target: { value: "Restrepo" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Apellidos" }), { target: { value: "Restrepo" } });
     fireEvent.click(screen.getByRole("button", { name: "Crear paciente" }));
     const ofrece = await screen.findByRole("button", { name: "Crear un caso para Restrepo, María" });
     fireEvent.click(ofrece);
@@ -421,7 +428,7 @@ describe("avisos en franja y parámetros de URL", () => {
 
   it("?nuevo=paciente abre la hoja de nuevo paciente una vez y borra el parámetro", async () => {
     renderConSonda("/app/pacientes?nuevo=paciente");
-    expect(await screen.findByLabelText("Apellidos")).toBeTruthy();
+    expect(await screen.findByRole("textbox", { name: "Apellidos" })).toBeTruthy();
     await waitFor(() => expect(screen.getByTestId("busqueda").textContent).toBe(""));
   });
 
@@ -437,5 +444,42 @@ describe("avisos en franja y parámetros de URL", () => {
     await waitFor(() => expect(screen.getByTestId("ruta").textContent).toBe("/app/pacientes/7"));
     expect(screen.getByTestId("busqueda").textContent).toBe("");
     expect(screen.queryByText("Guardar cambios")).toBeNull();
+  });
+});
+
+describe("Pacientes: gestión (A23-A29)", () => {
+  it("el aviso de creación es de cristal y los avisos llevan title completo", async () => {
+    const nuevo = fila({ id: 7, full_name: "Restrepo, María" });
+    createPatient.mockResolvedValue(nuevo);
+    const parados = [1, 2, 3, 4].map((i) => fila({ id: 20 + i, full_name: `P${i}`, last_session_at: "2026-10-10T10:00:00", last_session_step: 2 }));
+    listPatients.mockResolvedValue(parados);
+    renderAt("/app/pacientes");
+    await screen.findByText(/4 casos parados/);
+    const detalle = document.querySelector(".pt-aviso-detalle")!;
+    expect(detalle.textContent).toBe("P1 · P2 +2");
+    expect(detalle.getAttribute("title")).toBe("P1 · P2 · P3 · P4");
+    listPatients.mockResolvedValue([nuevo]);
+    fireEvent.click(screen.getAllByRole("button", { name: /Nuevo paciente/ })[0]);
+    fireEvent.change(screen.getByRole("textbox", { name: "Apellidos" }), { target: { value: "Restrepo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Crear paciente" }));
+    const estado = (await screen.findByText("Paciente creado: Restrepo, María.")).closest("[role=status]") as HTMLElement;
+    expect(estado).toHaveAttribute("data-glass");
+    expect(within(estado).getByRole("button", { name: "Cerrar aviso" })).toHaveAttribute("data-size", "icon");
+  });
+
+  it("las pestañas son de Tabs", async () => {
+    listPatients.mockResolvedValue([fila({ id: 1, full_name: "De otro", is_shared_with_me: true, owner_id: 9 })]);
+    renderAt("/app/pacientes");
+    await screen.findByText("De otro");
+    expect(screen.getByRole("tab", { name: "Míos" })).toBeTruthy();
+    expect(document.querySelector(".pt-tab")).toBeNull();
+  });
+
+  it("a ≤ 1280 el panel va debajo y compacto", async () => {
+    simularPantalla(1280);
+    listPatients.mockResolvedValue([fila({ id: 1, full_name: "Solo mío" })]);
+    renderAt("/app/pacientes");
+    await screen.findByText("Solo mío");
+    expect(document.querySelector(".pt-side-stats--fila")).not.toBeNull();
   });
 });

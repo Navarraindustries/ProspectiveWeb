@@ -6,10 +6,8 @@
 import type { PatientSessionInfo, StudyCard } from "../../api/types";
 import { fechaHora } from "../../lib/fecha";
 import { STEP_LABELS, clampStep } from "../../pipeline/steps";
-import { Button } from "../Button";
-import { Icon } from "../Icon";
 import { MorphoRiskBadge } from "../morphometry/MorphoRiskBadge";
-import { MiniaturaEstudio } from "./ColumnaEstudios";
+import { BotonReanudar, MiniaturaEstudio } from "./ColumnaEstudios";
 import { etiquetaGuardada } from "./ColumnaSesiones";
 import { mm } from "../../lib/numero";
 import "./ficha.css";
@@ -21,21 +19,24 @@ const reanudarTitle = (paso: string) =>
 export function VistaPrevia({
   sesion,
   estudio,
+  estudioId,
   nombrePaciente,
   onResume,
 }: {
   sesion: PatientSessionInfo;
   /** El estudio de imagen de la sesión, si se conoce (null = sin vista previa). */
   estudio: StudyCard | null;
+  /** Sin tarjeta, el id del estudio para pedir su miniatura igualmente. */
+  estudioId?: number | null;
   nombrePaciente: string;
   /** Sin él (no se sabe a qué paciente llevarla) no hay «Reanudar». */
-  onResume?: (sessionId: string) => void;
+  onResume?: (sessionId: string) => void | Promise<unknown>;
 }) {
   const step = clampStep(sesion.current_step);
   const paso = STEP_LABELS[step];
   return (
     <div className="fc-vista">
-      <MiniaturaEstudio estudio={estudio} grande />
+      <MiniaturaEstudio estudio={estudio} estudioId={estudioId} grande />
       <h3 className="fc-vista-nombre">{etiquetaGuardada(sesion, nombrePaciente)}</h3>
       <div className="fc-vista-datos">
         <span>{`Paso ${step + 1} · ${paso}`}</span>
@@ -48,10 +49,7 @@ export function VistaPrevia({
         <div><MorphoRiskBadge label={sesion.rupture_risk_label} /></div>
       )}
       {onResume && (
-        <Button type="button" leadingIcon={<Icon name="RESUME" />} title={reanudarTitle(paso)}
-                onClick={() => onResume(sesion.session_id)}>
-          Reanudar
-        </Button>
+        <BotonReanudar size="md" onResume={onResume} sessionId={sesion.session_id} title={reanudarTitle(paso)} />
       )}
     </div>
   );

@@ -5,7 +5,7 @@
    NAVARRO™ no puede construir la forma que el caso pide. En un caso fenestrado
    no había ninguna puerta al taller. */
 
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const listWorkshops = vi.fn();
@@ -32,6 +32,12 @@ vi.mock("../store/auth", () => ({ useAuth: () => ({ user }) }));
 
 import { WorkshopsPage } from "./Workshops";
 import type { Workshop } from "../api/types";
+import { fechaEpoch } from "../lib/fecha";
+import { simularPantalla } from "../test/pantalla";
+
+// Con la lista vacía hay dos «Nuevo taller» (barra y estado vacío): la de la barra.
+const abrirDesdeBarra = async () =>
+  within(await screen.findByRole("banner")).getByRole("button", { name: /Nuevo taller/ });
 
 const shop = (over: Partial<Workshop> = {}): Workshop => ({
   id: "w1", name: "Taller Mecánico Sur", contact_name: "J. Pérez",
@@ -58,8 +64,8 @@ describe("registering a workshop without opening an order", () => {
     // formulario del pedido no los pedía, así que un convenio real no cabía.
     listWorkshops.mockResolvedValue([]);
     render(<WorkshopsPage />);
-    fireEvent.click(await screen.findByRole("button", { name: /Nuevo taller/ }));
-    fireEvent.change(screen.getByLabelText("Nombre"), { target: { value: "Precisión Andina" } });
+    fireEvent.click(await abrirDesdeBarra());
+    fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: "Precisión Andina" } });
     fireEvent.change(screen.getByLabelText(/NIF/), { target: { value: "B99999999" } });
     fireEvent.change(screen.getByLabelText("Notas"), { target: { value: "Titanio grado 5" } });
     fireEvent.click(screen.getByRole("button", { name: /Registrar taller/ }));
@@ -72,19 +78,23 @@ describe("registering a workshop without opening an order", () => {
   it("will not save one without a name, and says so only after trying", async () => {
     listWorkshops.mockResolvedValue([]);
     render(<WorkshopsPage />);
-    fireEvent.click(await screen.findByRole("button", { name: /Nuevo taller/ }));
+    fireEvent.click(await abrirDesdeBarra());
     // F2-63: antes de escribir nada el campo no nace en rojo.
-    expect(screen.getByLabelText("Nombre")).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByLabelText(/Nombre/)).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByRole("button", { name: /Registrar taller/ })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: /Registrar taller/ }));
     expect(addWorkshop).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Nombre")).toHaveAttribute("aria-invalid", "true");
+    fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: "X" } });
+    fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: "" } });
+    fireEvent.blur(screen.getByLabelText(/Nombre/));
+    expect(screen.getByLabelText(/Nombre/)).toHaveAttribute("aria-invalid", "true");
   });
 
   it("flags the name when it is cleared after typing", async () => {
     listWorkshops.mockResolvedValue([]);
     render(<WorkshopsPage />);
-    fireEvent.click(await screen.findByRole("button", { name: /Nuevo taller/ }));
-    const name = screen.getByLabelText("Nombre");
+    fireEvent.click(await abrirDesdeBarra());
+    const name = screen.getByLabelText(/Nombre/);
     fireEvent.change(name, { target: { value: "X" } });
     fireEvent.change(name, { target: { value: "" } });
     fireEvent.blur(name);
@@ -92,9 +102,9 @@ describe("registering a workshop without opening an order", () => {
   });
 
   it("states the copy rule once, under «Cómo se usa» (F2-64)", async () => {
-    listWorkshops.mockResolvedValue([]);
+    listWorkshops.mockResolvedValue([shop()]);
     render(<WorkshopsPage />);
-    fireEvent.click(await screen.findByRole("button", { name: /Nuevo taller/ }));
+    fireEvent.click(await abrirDesdeBarra());
     expect(screen.queryByText(/guardan su propia copia/)).toBeNull();
     expect(screen.getAllByText(/sigue diciendo a dónde se mandó/)).toHaveLength(1);
   });
@@ -111,7 +121,7 @@ describe("correcting one", () => {
     listWorkshops.mockResolvedValue([shop()]);
     render(<WorkshopsPage />);
     fireEvent.click(await screen.findByRole("button", { name: /Editar/ }));
-    expect((screen.getByLabelText("Nombre") as HTMLInputElement).value).toBe("Taller Mecánico Sur");
+    expect((screen.getByLabelText(/Nombre/) as HTMLInputElement).value).toBe("Taller Mecánico Sur");
     expect((screen.getByLabelText(/NIF/) as HTMLInputElement).value).toBe("B12345678");
   });
 });
@@ -171,7 +181,89 @@ describe("cristal (fase 2)", () => {
     const nombre = await screen.findByText("Taller Mecánico Sur");
     const panel = nombre.closest("[data-glass]");
     expect(panel).not.toBeNull();
-    // Panel denso: una sola superficie desenfocada por tabla, filas sin fondo propio.
-    expect(panel!.getAttribute("style")).toContain("--glass-dense");
+    expect(panel!.tagName).toBe("ARTICLE");
+  });
+});
+
+describe("Talleres con el estilo D (A47–A50)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("cada taller es una tarjeta de cristal con Editar y Borrar del mismo sistema (A47, A48)", async () => {
+    user.role = "admin";
+    listWorkshops.mockResolvedValue([shop({ name: "Taller Uno" })]);
+    render(<WorkshopsPage />);
+    const tarjeta = (await screen.findByText("Taller Uno")).closest("article")!;
+    expect(tarjeta).toHaveAttribute("data-glass");
+    expect(within(tarjeta).getByRole("button", { name: "Editar el taller Taller Uno" })).toHaveAttribute("data-variant", "outline");
+    expect(within(tarjeta).getByRole("button", { name: "Borrar el taller Taller Uno" })).toHaveAttribute("data-variant", "destructive-ghost");
+    // El rótulo visible sigue siendo corto.
+    expect(within(tarjeta).getByRole("button", { name: "Editar el taller Taller Uno" })).toHaveTextContent(/^Editar$/);
+  });
+
+  it("alta y último pedido en sans 13 px; mono solo en el NIF (M1)", async () => {
+    listWorkshops.mockResolvedValue([shop({ created_at: 1730000000, last_used_at: 1740000000 })]);
+    render(<WorkshopsPage />);
+    await screen.findByText("Taller Mecánico Sur");
+    const linea = screen.getByTestId("tl-alta");
+    expect(linea).toHaveStyle({ fontSize: "13px" });
+    expect(linea.getAttribute("style") ?? "").not.toContain("--font-mono");
+    expect([...linea.querySelectorAll("[data-mono]")].map((e) => e.textContent)).toEqual(["B12345678"]);
+    expect(within(linea).getByText(fechaEpoch(1730000000))).toHaveStyle({ fontVariantNumeric: "tabular-nums" });
+  });
+
+  it("fechas de alta y uso en dd/mm/aa y plural escrito", async () => {
+    listWorkshops.mockResolvedValue([shop({ created_at: 1730000000, last_used_at: 1740000000, order_count: 2 })]);
+    render(<WorkshopsPage />);
+    const tarjeta = (await screen.findByText("Taller Mecánico Sur")).closest("article")!;
+    expect(tarjeta.textContent).toContain(`alta ${fechaEpoch(1730000000)}`);
+    expect(tarjeta.textContent).toContain(`último pedido ${fechaEpoch(1740000000)}`);
+    expect(within(tarjeta).getByText("2 pedidos")).toBeInTheDocument();
+  });
+
+  it("hoja: nombre obligatorio, notas en varias líneas y registrar apagado sin nombre (A49)", async () => {
+    listWorkshops.mockResolvedValue([]);
+    render(<WorkshopsPage />);
+    fireEvent.click(await abrirDesdeBarra());
+    expect(screen.getByLabelText(/Nombre/)).toHaveAttribute("aria-required", "true");
+    expect(screen.getByLabelText("Notas").tagName).toBe("TEXTAREA");
+    expect(screen.getByRole("button", { name: "Registrar taller" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: "Taller Dos" } });
+    expect(screen.getByRole("button", { name: "Registrar taller" })).not.toBeDisabled();
+  });
+
+  it("«Cómo se usa» es una pista con icono, solo con talleres en la lista (A50, P4)", async () => {
+    listWorkshops.mockResolvedValue([shop()]);
+    render(<WorkshopsPage />);
+    await screen.findByText("Taller Mecánico Sur");
+    expect(screen.getByText("Cómo se usa")).toBeInTheDocument();
+    expect(screen.getByRole("note").querySelector("svg")).not.toBeNull();
+  });
+
+  it("con error de carga no sale «Cómo se usa» (P4)", async () => {
+    listWorkshops.mockRejectedValue(new Error("caído"));
+    render(<WorkshopsPage />);
+    expect(await screen.findByRole("button", { name: "Reintentar" })).toBeInTheDocument();
+    expect(screen.queryByText("Cómo se usa")).toBeNull();
+  });
+
+  it("sin talleres, estado vacío con botón y sin «Cómo se usa» (A50, P4)", async () => {
+    listWorkshops.mockResolvedValue([]);
+    render(<WorkshopsPage />);
+    expect(await screen.findByText("Todavía no hay talleres")).toBeInTheDocument();
+    expect(screen.queryByText("Cómo se usa")).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
+    const vacio = screen.getByText("Todavía no hay talleres").closest("[data-glass]") as HTMLElement;
+    fireEvent.click(within(vacio).getByRole("button", { name: "Nuevo taller" }));
+    expect(screen.getByRole("button", { name: "Registrar taller" })).toBeInTheDocument();
+  });
+
+  it("a 360 la rejilla es una columna y la hoja usa dos columnas hasta 640", async () => {
+    simularPantalla(360);
+    listWorkshops.mockResolvedValue([shop()]);
+    const { container } = render(<WorkshopsPage />);
+    await screen.findByText("Taller Mecánico Sur");
+    expect(container.querySelector(".tl-rejilla")).not.toBeNull();
+    fireEvent.click(await abrirDesdeBarra());
+    expect(document.querySelector(".hoja-dos-columnas")).not.toBeNull();
   });
 });

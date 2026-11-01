@@ -9,13 +9,15 @@ import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
-import { glass } from "../styles/glass";
+import { TablaTarjetas, type ColumnaTabla } from "../components/TablaTarjetas";
+import { EstadoVacio } from "../components/EstadoVacio";
 import { AppShell } from "../components/shell/AppShell";
 import { SectionLabel, Card, ErrorNote } from "../components/PanelHead";
 import { AdminOnlyCard } from "../components/AdminOnly";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
-import { fechaHora } from "../lib/fecha";
+import { ESTILO_FECHA, fechaHora } from "../lib/fecha";
+import { useTableta } from "../hooks/useEstrecho";
 import { detalleDelBloque, etiquetaAccion } from "../lib/auditoria";
 import "../styles/office.css";
 import { PageBody } from "../components/shell/PageBody";
@@ -36,8 +38,20 @@ export function AuditTrail({ onBack }: { onBack: () => void }) {
    la barra lateral). */
 const AUDIT_CRUMBS = [{ label: "Auditoría" }];
 
-/* Cabecera de tabla de la oficina: el rótulo mono lo da office.css; aquí el relleno. */
-const ENCABEZADO: React.CSSProperties = { padding: "10px 14px" };
+const SIN_PACIENTE = "Paciente borrado o editado";
+const SIN_PACIENTE_TITULO = "La cadena solo guarda una huella del paciente; no coincide con ningún paciente actual (borrado, o se cambió su HC o su fecha de nacimiento).";
+
+const plural = (n: number) => (n === 1 ? "1 bloque corrupto" : `${n} bloques corruptos`);
+
+const ROTULO: React.CSSProperties = { color: "var(--muted-foreground)" };
+const MONO: React.CSSProperties = { margin: 0, fontFamily: "var(--font-mono)", fontSize: 12, overflowWrap: "anywhere" };
+
+/** El paciente de un bloque: su nombre, el aviso de que ya no existe, o «—». */
+function PacienteDelBloque({ b }: { b: AuditBlock }) {
+  if (!b.patient_hash) return <>—</>;
+  if (b.patient_name) return <>{b.patient_name}</>;
+  return <span style={ROTULO} title={SIN_PACIENTE_TITULO}>{SIN_PACIENTE}</span>;
+}
 
 function AuditTrailPage() {
   const [blocks, setBlocks] = useState<AuditBlock[]>([]);
@@ -80,11 +94,10 @@ function AuditTrailPage() {
     // Sin la lista el filtro solo ofrece «Todos»: la página sigue sirviendo.
     api.listPatients().then(setPatients).catch(() => {});
   }, []);
-  const paciente = patients.find((p) => String(p.id) === patientId);
-  const toggle = (id: number) => setOpen((s) => {
-    const n = new Set(s);
-    if (n.has(id)) n.delete(id); else n.add(id);
-    return n;
+  const toggle = (id: number) => setOpen((previo) => {
+    const nuevo = new Set(previo);
+    if (nuevo.has(id)) nuevo.delete(id); else nuevo.add(id);
+    return nuevo;
   });
 
   const runVerify = async () => {
@@ -111,7 +124,7 @@ function AuditTrailPage() {
     return blocks.filter((b) => {
       if (action && b.action !== action) return false;
       if (!needle) return true;
-      return `${b.id} ${b.username} ${b.action} ${etiquetaAccion(b.action)} ${b.iso_ts} ${b.block_hash}`
+      return `${b.id} ${b.username} ${b.action} ${etiquetaAccion(b.action)} ${b.patient_name} ${b.iso_ts} ${b.block_hash}`
         .toLowerCase()
         .includes(needle);
     });
@@ -122,6 +135,32 @@ function AuditTrailPage() {
   const page = ordered.slice(0, shown);
 
   useEffect(() => setShown(PAGE), [q, action]);
+
+  // Hasta 1024 px: la fecha y la etiqueta de la acción pueden partir en líneas
+  // para que la tabla quepa sin scroll horizontal (y el título de la tarjeta, en móvil).
+  const partir = useTableta();
+  const columnas: ColumnaTabla<AuditBlock>[] = [
+    {
+      id: "fecha", titulo: "Fecha y hora", sinPartir: !partir,
+      // Hora local para leer; la UTC original, que es la que firma la cadena, queda en el tooltip.
+      celda: (b) => <span style={{ ...ESTILO_FECHA, fontSize: 13, color: "var(--muted-foreground)" }} title={`UTC: ${b.iso_ts}`}>{fechaHora(b.iso_ts)}</span>,
+    },
+    { id: "usuario", titulo: "Usuario", celda: (b) => b.username || "—" },
+    {
+      // Un solo chevron por fila: el de TablaTarjetas, que gira al desplegar.
+      id: "accion", titulo: "Acción", enTarjeta: "titulo",
+      celda: (b) => (
+        <Badge
+          title={b.action}
+          variant={b.action === "GENESIS" ? "outline" : b.action === "INTEGRITY_CHECK" ? "subtle" : "secondary"}
+          style={partir ? { whiteSpace: "normal" } : undefined}
+        >
+          {etiquetaAccion(b.action)}
+        </Badge>
+      ),
+    },
+    { id: "paciente", titulo: "Paciente", celda: (b) => <PacienteDelBloque b={b} /> },
+  ];
 
   return (
     <AppShell
@@ -139,16 +178,16 @@ function AuditTrailPage() {
             <Icon name={verify.ok ? "STATUS_OK" : "STATUS_WARN"} size={22} color={verify.ok ? "var(--success)" : "var(--destructive)"} />
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, color: verify.ok ? "var(--success)" : "var(--destructive)" }}>
-                {verify.ok ? "Integridad verificada" : `¡${verify.broken.length} bloque(s) corrupto(s)!`}
+                {verify.ok ? "Integridad verificada" : `¡${plural(verify.broken.length)}!`}
               </div>
-              <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{verify.total_blocks} bloques en la cadena</div>
+              <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>{verify.total_blocks} bloques en la cadena</div>
             </div>
           </Card>
         )}
 
         {verify && !verify.ok && verify.broken.map((b) => (
-          <div key={b.id} style={{ fontSize: 12, color: "var(--destructive)", marginBottom: 4 }}>
-            Bloque #{b.id} ({b.action}): {b.reason}
+          <div key={b.id} style={{ fontSize: 13, color: "var(--destructive)", marginBottom: 4 }}>
+            Bloque #{b.id} ({etiquetaAccion(b.action)}): {b.reason}
           </div>
         ))}
 
@@ -157,8 +196,9 @@ function AuditTrailPage() {
         <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginTop: 14 }}>
           <div style={{ flex: "1 1 260px", minWidth: 0 }}>
             <Input
-              label="Buscar"
-              placeholder="Usuario, acción, hash o fecha…"
+              icon={<Icon name="SEARCH" />}
+              aria-label="Buscar en la cadena"
+              placeholder="Usuario, acción, paciente, hash o fecha…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
@@ -176,7 +216,7 @@ function AuditTrailPage() {
             <Select
               label="Acción"
               options={[{ value: "", label: `Todas (${blocks.length})` },
-                        ...actions.map((a) => ({ value: a, label: etiquetaAccion(a) === a ? a : `${etiquetaAccion(a)} · ${a}` }))]}
+                        ...actions.map((a) => ({ value: a, label: etiquetaAccion(a) }))]}
               value={action}
               onChange={(e) => setAction(e.target.value)}
             />
@@ -186,81 +226,27 @@ function AuditTrailPage() {
         <SectionLabel style={{ marginTop: 14 }}>
           Bloques ({rows.length}{rows.length !== blocks.length ? ` de ${blocks.length}` : ""})
         </SectionLabel>
-        <div className="table-scroll" data-glass style={{ ...glass("dense"), borderRadius: "var(--radius-card-lg)", marginTop: 8 }}>
-          <table className="tabla-oficina" style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr style={{ textAlign: "left" }}>
-                {["Fecha y hora", "Usuario", "Acción", "Paciente"].map((h) => (
-                  <th key={h} style={ENCABEZADO}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {!loadError && page.map((b) => {
-                const abierto = open.has(b.id);
-                const etiqueta = etiquetaAccion(b.action);
-                const detalle = detalleDelBloque(b.payload_json);
-                return (
-                  <Fragment key={b.id}>
-                    <tr>
-                      {/* Hora local para leer; la UTC original, que es la que firma la cadena, queda en el tooltip. */}
-                      <td style={{ padding: "13px 14px", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }} title={`UTC: ${b.iso_ts}`}>{fechaHora(b.iso_ts)}</td>
-                      <td style={{ padding: "13px 14px" }}>{b.username || "—"}</td>
-                      <td style={{ padding: "13px 14px" }}>
-                        {/* La acción es el control que abre la fila: un botón real, no un clic en la celda. */}
-                        <button
-                          type="button"
-                          aria-expanded={abierto}
-                          onClick={() => toggle(b.id)}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: 0, padding: 0, cursor: "pointer", color: "inherit", font: "inherit", textAlign: "left" }}
-                        >
-                          <Icon name={abierto ? "CHEVRON_DOWN" : "CHEVRON_RIGHT"} size={14} />
-                          <Badge variant={b.action === "GENESIS" ? "outline" : b.action === "INTEGRITY_CHECK" ? "subtle" : "secondary"}>{etiqueta}</Badge>
-                        </button>
-                        {etiqueta !== b.action && (
-                          <span style={{ marginLeft: 8, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}>{b.action}</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "13px 14px" }}>
-                        {!b.patient_hash ? "—" : paciente ? paciente.full_name : (
-                          <span style={{ color: "var(--muted-foreground)" }} title="Huella del paciente; filtra por paciente para verlo">paciente</span>
-                        )}
-                      </td>
-                    </tr>
-                    {abierto && (
-                      <tr className="fila-detalle">
-                        <td colSpan={4} style={{ padding: "6px 14px 12px 38px" }}>
-                          <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 14px", margin: 0 }}>
-                            {detalle.map(([k, v]) => (
-                              <Fragment key={k}>
-                                <dt style={{ color: "var(--muted-foreground)" }}>{k}</dt>
-                                <dd style={{ margin: 0, overflowWrap: "anywhere" }}>{v}</dd>
-                              </Fragment>
-                            ))}
-                            <dt style={{ color: "var(--muted-foreground)" }}>Hash</dt>
-                            <dd style={{ margin: 0, fontFamily: "var(--font-mono)", overflowWrap: "anywhere" }}>{b.block_hash}</dd>
-                            <dt style={{ color: "var(--muted-foreground)" }}>Hash anterior</dt>
-                            <dd style={{ margin: 0, fontFamily: "var(--font-mono)", overflowWrap: "anywhere" }}>{b.prev_hash || "—"}</dd>
-                          </dl>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {loadError ? (
-          <LoadState state="error" mensaje={loadError} onRetry={load} />
-        ) : loading && blocks.length === 0 ? (
-          <LoadState state="cargando" />
-        ) : rows.length === 0 && (
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)", padding: "18px 0", textAlign: "center" }}>
-            {blocks.length === 0 ? "La cadena está vacía." : "Ningún bloque coincide con el filtro."}
-          </div>
-        )}
+        <TablaTarjetas<AuditBlock>
+          rotulo="Bloques de la cadena"
+          filas={loadError ? [] : page}
+          columnas={columnas}
+          clave={(b) => b.id}
+          onFila={(b) => toggle(b.id)}
+          detalle={(b) => (open.has(b.id) ? <DetalleBloque b={b} /> : null)}
+          vacio={loadError ? (
+            <LoadState state="error" mensaje={loadError} onRetry={load} />
+          ) : loading && blocks.length === 0 ? (
+            <LoadState state="cargando" />
+          ) : (
+            <EstadoVacio
+              icono={blocks.length === 0 && !patientId ? "SHIELD" : "FILTER"}
+              titulo={blocks.length > 0 ? "Ningún bloque coincide con el filtro."
+                // Un paciente sin eventos no es una cadena vacía (que sería una alarma).
+                : patientId ? "No hay registros de este paciente"
+                : "La cadena está vacía."}
+            />
+          )}
+        />
 
         {!loadError && page.length < ordered.length && (
           <div style={{ display: "flex", justifyContent: "center", marginTop: 14 }}>
@@ -274,5 +260,41 @@ function AuditTrailPage() {
         )}
       </PageBody>
     </AppShell>
+  );
+}
+
+/** El desplegable de un bloque: el código de máquina (que a la vista va en
+    castellano), el detalle traducido y las huellas de la cadena. */
+function DetalleBloque({ b }: { b: AuditBlock }) {
+  const detalle = detalleDelBloque(b.payload_json);
+  const sinResolver = !!b.patient_hash && !b.patient_name;
+  // Una sola fila «Paciente»: si el detalle ya la trae, el aviso de huella sin
+  // paciente va dentro de ella.
+  const conPaciente = detalle.some(([k]) => k === "Paciente");
+  const aviso = <div style={ROTULO}>{SIN_PACIENTE_TITULO}</div>;
+  return (
+    <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 14px", margin: 0 }}>
+      <dt style={ROTULO}>Código</dt>
+      <dd style={MONO}>{b.action}</dd>
+      {sinResolver && !conPaciente && (
+        <>
+          <dt style={ROTULO}>Paciente</dt>
+          <dd style={{ margin: 0 }}>{SIN_PACIENTE_TITULO}</dd>
+        </>
+      )}
+      {detalle.map(([k, v]) => (
+        <Fragment key={k}>
+          <dt style={ROTULO}>{k}</dt>
+          <dd style={{ margin: 0, overflowWrap: "anywhere" }}>
+            {v}
+            {sinResolver && k === "Paciente" && aviso}
+          </dd>
+        </Fragment>
+      ))}
+      <dt style={ROTULO}>Hash</dt>
+      <dd style={MONO}>{b.block_hash}</dd>
+      <dt style={ROTULO}>Hash anterior</dt>
+      <dd style={MONO}>{b.prev_hash || "—"}</dd>
+    </dl>
   );
 }

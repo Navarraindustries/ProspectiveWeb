@@ -57,8 +57,7 @@ function lineaNacimiento(dob: string): string | undefined {
   return edad ? `${dia} · ${edad} ${edad === "1" ? "año" : "años"}` : dia;
 }
 
-const fila: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 };
-const ayuda: React.CSSProperties = { fontSize: 12, color: "var(--muted-foreground)" };
+const ayuda: React.CSSProperties = { fontSize: 13, color: "var(--muted-foreground)" };
 
 export function PatientFormSheet({
   open,
@@ -160,16 +159,16 @@ export function PatientFormSheet({
           {soloLectura && (
             <div style={ayuda}>Solo lectura: los cambia quien lo creó o un administrador.</div>
           )}
-          <div style={fila}>
-            <Input {...ro} label="Apellidos" placeholder="Restrepo" value={form.surname} onChange={set("surname")} required
+          <div className="hoja-dos-columnas">
+            <Input {...ro} label="Apellidos" placeholder="Apellidos o código" value={form.surname} onChange={set("surname")} obligatorio
                    hint="Puedes usar iniciales o un código en lugar del nombre real" />
-            <Input {...ro} label="Nombre" placeholder="María" value={form.given_name} onChange={set("given_name")} />
+            <Input {...ro} label="Nombre" placeholder="Nombre o iniciales" value={form.given_name} onChange={set("given_name")} />
           </div>
-          <div style={fila}>
+          <div className="hoja-dos-columnas">
             <Input {...ro} label="N.º historia clínica" placeholder="HC-00000" value={form.hospital_id} onChange={set("hospital_id")} />
             <Select disabled={soloLectura} label="Sexo" options={SEXO_OPTS} value={form.sex} onChange={set("sex")} />
           </div>
-          <div style={fila}>
+          <div className="hoja-dos-columnas">
             <Input {...ro} label="Fecha de nacimiento" type="date" value={form.dob} onChange={set("dob")} hint={fechaNac} />
             <Input {...ro} label="Institución" placeholder="Hospital…" value={form.institution} onChange={set("institution")} />
           </div>

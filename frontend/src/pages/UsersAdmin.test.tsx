@@ -3,8 +3,8 @@
    El error salía junto a «0 usuarios» y «No hay usuarios que coincidan con la
    búsqueda»: parecía que la búsqueda no encontraba a nadie. */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const listUsers = vi.fn();
 const createUser = vi.fn();
@@ -30,6 +30,7 @@ vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user: { id: 1, role: "admin", username: "admin" } }) }));
 
 import { UsersAdmin } from "./UsersAdmin";
+import { simularPantalla } from "../test/pantalla";
 import { fechaHora } from "../lib/fecha";
 import { ROLE_PERMITE } from "../lib/roles";
 
@@ -40,7 +41,9 @@ beforeEach(() => {
   deleteUser.mockReset().mockResolvedValue(undefined);
   usersBrief.mockReset().mockResolvedValue([]);
   sessionStorage.clear();
+  simularPantalla(1707);
 });
+afterEach(() => vi.unstubAllGlobals());
 
 const cuenta = (o: Record<string, unknown> = {}) => ({
   id: 2, username: "mrestrepo", full_name: "María Restrepo", role: "medico", status: "active",
@@ -84,7 +87,7 @@ describe("la línea bajo «Rol» (F1-86)", () => {
     render(<UsersAdmin onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: /Nuevo usuario/ }));
     expect(screen.getByText("Médico: ves y editas los pacientes que creas; firmas pedidos")).toBeTruthy();
-    expect(screen.getByLabelText("Contraseña * (mín. 8)")).toBeTruthy();
+    expect(screen.getByLabelText(/^Contraseña \(mín\. 8\)/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Rol"), { target: { value: "viewer" } });
     expect(screen.getByText("Observador: ves y editas los pacientes que creas; no firmas pedidos")).toBeTruthy();
     expect(screen.queryByText(/^Médico: ves/)).toBeNull();
@@ -111,7 +114,7 @@ describe("«Editar usuario» (F2-45, F1-84)", () => {
   it("muestra los campos del alta y guarda lo cambiado sin enviar is_active si no cambió", async () => {
     listUsers.mockResolvedValue([cuenta()]);
     render(<UsersAdmin onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Editar a María Restrepo" }));
     for (const l of ["Nombre completo", "Rol", "Especialidad", "Hospital / Centro", "Universidad", "Cargo"]) {
       expect(screen.getByLabelText(l)).toBeTruthy();
     }
@@ -129,8 +132,8 @@ describe("«Editar usuario» (F2-45, F1-84)", () => {
   it("envía is_active cuando la casilla cambia", async () => {
     listUsers.mockResolvedValue([cuenta()]);
     render(<UsersAdmin onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
-    fireEvent.click(screen.getByLabelText(/Cuenta activa/));
+    fireEvent.click(await screen.findByRole("button", { name: "Editar a María Restrepo" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Cuenta activa (puede iniciar sesión)" }));
     fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
     await waitFor(() => expect(updateUser).toHaveBeenCalled());
     expect(updateUser.mock.calls[0][1].is_active).toBe(false);
@@ -140,7 +143,7 @@ describe("«Editar usuario» (F2-45, F1-84)", () => {
   it.each(["admin", "medico", "residente", "viewer"])("la línea del rol %s sale en la hoja", async (rol) => {
     listUsers.mockResolvedValue([cuenta({ role: rol })]);
     render(<UsersAdmin onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Editar a María Restrepo" }));
     expect(screen.getByText(ROLE_PERMITE[rol])).toBeTruthy();
   });
 });
@@ -196,7 +199,7 @@ describe("«Eliminar usuario» (F2-46)", () => {
     listUsers.mockResolvedValue([cuenta()]);
     usersBrief.mockResolvedValue(brief);
     render(<UsersAdmin onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Eliminar" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Eliminar a María Restrepo" }));
     return (await screen.findByLabelText("Reasignar sus pacientes a…")) as HTMLSelectElement;
   };
 
@@ -238,7 +241,7 @@ describe("«Restablecer contraseña»", () => {
   it("el campo conserva el foco al teclear y pulsar con el campo vacío dice el mínimo", async () => {
     listUsers.mockResolvedValue([cuenta()]);
     render(<UsersAdmin onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Restablecer contraseña" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Restablecer la contraseña de María Restrepo" }));
     const dialogo = screen.getByRole("alertdialog");
     fireEvent.click(within(dialogo).getByRole("button", { name: "Restablecer" }));
     expect(within(dialogo).getByText("Mínimo 8 caracteres.")).toBeTruthy();
@@ -255,13 +258,13 @@ describe("la fila de «Usuarios» en la oficina", () => {
     render(<UsersAdmin onBack={() => {}} />);
   };
 
-  it("cada acción de fila lleva palabra: Editar, Restablecer contraseña y Eliminar", async () => {
+  it("cada acción de fila lleva su nombre accesible", async () => {
     renderUsers();
     await screen.findByText("María Restrepo");
     const fila = screen.getAllByRole("row")[1];
-    expect(within(fila).getByRole("button", { name: "Editar" })).toBeInTheDocument();
-    expect(within(fila).getByRole("button", { name: "Restablecer contraseña" })).toBeInTheDocument();
-    expect(within(fila).getByRole("button", { name: "Eliminar" })).toHaveAttribute("data-variant", "destructive");
+    expect(within(fila).getByRole("button", { name: "Editar a María Restrepo" })).toBeInTheDocument();
+    expect(within(fila).getByRole("button", { name: "Restablecer la contraseña de María Restrepo" })).toBeInTheDocument();
+    expect(within(fila).getByRole("button", { name: "Eliminar a María Restrepo" })).toHaveAttribute("data-variant", "destructive-ghost");
   });
 
   it("el estado va con punto y texto, y el subtítulo cuenta usuarios y activos", async () => {
@@ -282,5 +285,86 @@ describe("cristal (fase 2)", () => {
     expect(panel!.getAttribute("style")).toContain("--glass-dense");
     // El estado de la cuenta es una insignia, no un punto suelto.
     expect(within(tabla).getByText("Activo").getAttribute("style")).toContain("--radius-full");
+  });
+});
+
+describe("Usuarios responsivo (A51–A55)", () => {
+  it("> 1024: acciones como iconos con nombre y sin scroll horizontal (A51, A52)", async () => {
+    listUsers.mockResolvedValue([cuenta({ full_name: "María Prueba" })]);
+    render(<UsersAdmin onBack={() => {}} />);
+    expect(await screen.findByRole("button", { name: "Editar a María Prueba" })).toHaveAttribute("title", "Editar");
+    expect(screen.getByRole("button", { name: "Restablecer la contraseña de María Prueba" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Eliminar a María Prueba" })).toHaveAttribute("data-variant", "destructive-ghost");
+    expect(document.body.innerHTML).not.toMatch(/overflow-x/);
+  });
+
+  it("no se puede eliminar la propia cuenta", async () => {
+    listUsers.mockResolvedValue([cuenta({ id: 1, username: "admin", full_name: "Admin" })]);
+    render(<UsersAdmin onBack={() => {}} />);
+    const b = await screen.findByRole("button", { name: "Eliminar a Admin" });
+    expect(b).toBeDisabled();
+    expect(b).toHaveAttribute("title", "No puedes eliminar tu propia cuenta");
+  });
+
+  it("«Creado» en una línea (A53)", async () => {
+    listUsers.mockResolvedValue([cuenta()]);
+    render(<UsersAdmin onBack={() => {}} />);
+    const celda = (await screen.findByText(fechaHora("2026-10-01T00:00:00Z"))).closest("td")!;
+    expect(celda.style.whiteSpace).toBe("nowrap");
+  });
+
+  it("≤ 1024: acciones en «⋯» táctil y sin la columna de especialidad", async () => {
+    simularPantalla(1024);
+    listUsers.mockResolvedValue([cuenta({ full_name: "María Prueba" })]);
+    render(<UsersAdmin onBack={() => {}} />);
+    const mas = await screen.findByRole("button", { name: "Acciones de María Prueba" });
+    expect(mas.style.height).toBe("44px");
+    expect(screen.queryByRole("columnheader", { name: "Especialidad / Hospital" })).toBeNull();
+    expect(screen.getByRole("columnheader", { name: "Usuario" })).toBeInTheDocument();
+    fireEvent.click(mas);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Editar" }));
+    expect(await screen.findByText("Editar usuario")).toBeInTheDocument();
+  });
+
+  it("≤ 640: tarjetas con el usuario de título", async () => {
+    simularPantalla(390);
+    listUsers.mockResolvedValue([cuenta()]);
+    const { container } = render(<UsersAdmin onBack={() => {}} />);
+    await screen.findByText("María Restrepo");
+    expect(container.querySelector('[data-vista="tarjetas"]')).not.toBeNull();
+    expect(container.querySelector(".tt-tarjeta-titulo")!.textContent).toContain("María Restrepo");
+    expect(screen.getByRole("button", { name: "Acciones de María Restrepo" })).toBeInTheDocument();
+  });
+
+  it("la búsqueda se conserva al pasar de 1280 a 390", async () => {
+    const pantalla = simularPantalla(1280);
+    listUsers.mockResolvedValue([cuenta({ full_name: "Ana Gil", username: "agil" }), cuenta({ id: 3, full_name: "Luis Soto", username: "lsoto" })]);
+    render(<UsersAdmin onBack={() => {}} />);
+    await screen.findByText("Luis Soto");
+    fireEvent.change(screen.getByRole("textbox", { name: "Buscar usuario" }), { target: { value: "ana" } });
+    act(() => pantalla.cambiar({ ancho: 390 }));
+    expect(screen.getByRole("textbox", { name: "Buscar usuario" })).toHaveValue("ana");
+    expect(screen.getByText("Ana Gil")).toBeInTheDocument();
+    expect(screen.queryByText("Luis Soto")).toBeNull();
+  });
+
+  it("editar: misma rejilla de dos columnas que el alta e interruptor de cuenta activa (A55)", async () => {
+    listUsers.mockResolvedValue([cuenta()]);
+    render(<UsersAdmin onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar a María Restrepo" }));
+    expect(screen.getByRole("switch", { name: "Cuenta activa (puede iniciar sesión)" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(document.querySelector(".hoja-dos-columnas")).not.toBeNull();
+  });
+
+  it("alta: obligatorios con la marca común y «Más datos» con chevron (A54)", async () => {
+    listUsers.mockResolvedValue([]);
+    render(<UsersAdmin onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Nuevo usuario/ }));
+    for (const l of [/^Nombre completo/, /^Usuario/, /^Contraseña/, /^Confirmar/]) {
+      expect(screen.getByLabelText(l)).toHaveAttribute("aria-required", "true");
+    }
+    expect(screen.getByLabelText(/^Contraseña/).closest("div")!.textContent).not.toMatch(/\*\s*\(/);
+    expect(document.querySelector("[data-chevron] svg")).not.toBeNull();
   });
 });

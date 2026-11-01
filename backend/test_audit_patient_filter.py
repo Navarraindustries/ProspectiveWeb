@@ -111,3 +111,53 @@ def test_informe_sin_sesion_adjunta_usa_la_historia_del_formulario():
         assert _paciente_auditoria(db, uuid.uuid4().hex, "HC-9") == {"patient_id": "HC-9"}
     finally:
         db.close()
+
+
+def test_cada_bloque_trae_su_paciente_y_el_borrado_queda_vacio():
+    p = _paciente()
+    _bloque(p, "CON_PACIENTE")
+    SkullChain.instance().append("SIN_COINCIDENCIA", {}, "admin", patient_id="HC-NO-EXISTE", patient_dob="1900-01-01")
+    todos = {b["action"]: b for b in admin.get("/api/audit/blocks").json()}
+    assert todos["CON_PACIENTE"]["patient_id"] == p.id
+    assert todos["CON_PACIENTE"]["patient_name"] != ""
+    assert todos["SIN_COINCIDENCIA"]["patient_id"] is None
+    assert todos["SIN_COINCIDENCIA"]["patient_name"] == ""
+    filtrado = admin.get(f"/api/audit/blocks?patient_id={p.id}").json()
+    assert all(b["patient_id"] == p.id for b in filtrado)
+
+
+def test_dos_fichas_con_la_misma_hc_y_fecha_el_filtro_manda_el_id_pedido():
+    # Comparten hash: sin filtro gana la más antigua (como en la actividad);
+    # con filtro, todos los bloques son del paciente pedido y llevan su id.
+    hc = f"HC-DUP-{uuid.uuid4().hex[:6]}"
+    vieja, nueva = _paciente(hospital_id=hc, dob="1970-07-07"), _paciente(hospital_id=hc, dob="1970-07-07")
+    _bloque(nueva, "DUPLICADA")
+    sin_filtro = {b["action"]: b for b in admin.get("/api/audit/blocks").json()}
+    assert sin_filtro["DUPLICADA"]["patient_id"] == vieja.id
+    con_filtro = admin.get(f"/api/audit/blocks?patient_id={nueva.id}").json()
+    assert [b["action"] for b in con_filtro] == ["DUPLICADA"]
+    assert con_filtro[0]["patient_id"] == nueva.id
+    assert con_filtro[0]["patient_name"] != ""
+
+
+def test_el_filtro_no_monta_el_mapa_de_todos(monkeypatch):
+    import routers.audit as ra
+    llamado = []
+    monkeypatch.setattr(ra, "pacientes_por_hash", lambda ps: llamado.append(1) or {})
+    p = _paciente()
+    _bloque(p, "SOLO_EL_SUYO")
+    filtrado = admin.get(f"/api/audit/blocks?patient_id={p.id}").json()
+    assert [b["patient_id"] for b in filtrado] == [p.id]
+    assert llamado == []
+    admin.get("/api/audit/blocks")
+    assert llamado == [1]
+
+
+def test_helpers_de_hash_compartidos():
+    from services.audit import hash_de_paciente, pacientes_por_hash
+    a = _paciente(hospital_id="HC-HELPER", dob="1960-01-01")
+    b = _paciente(hospital_id="HC-HELPER", dob="1960-01-01")
+    args = audit_patient(a)
+    assert hash_de_paciente(a) == patient_hash_for(args["patient_id"], args["patient_dob"])
+    assert hash_de_paciente(None) == ""
+    assert pacientes_por_hash([a, b])[hash_de_paciente(a)] is a

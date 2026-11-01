@@ -12,12 +12,15 @@ import { Icon } from "../components/Icon";
 import { Tabs } from "../components/Tabs";
 import { AdminOnlyCard } from "../components/AdminOnly";
 import { glass } from "../styles/glass";
+import { EstadoVacio } from "../components/EstadoVacio";
+import { TablaTarjetas, type ColumnaTabla } from "../components/TablaTarjetas";
+import { useMovil } from "../hooks/useEstrecho";
 import { AppShell } from "../components/shell/AppShell";
 import { useAuth } from "../store/auth";
 import { PENDING_CHANGED_EVENT } from "../components/shell/pendingEvents";
 import { ErrorNote, Card } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
-import { fechaHora } from "../lib/fecha";
+import { ESTILO_FECHA, fechaHora } from "../lib/fecha";
 import { ROLE_LABEL } from "../lib/roles";
 import { PageBody } from "../components/shell/PageBody";
 
@@ -31,7 +34,7 @@ const ROL_AL_APROBAR = "medico";
  *  donde alguien se pregunta por qué no sale una solicitud antigua. */
 function RechazadasNota() {
   return (
-    <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+    <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
       Solo salen las solicitudes rechazadas desde esta versión; las anteriores no tenían fecha y no se listan.
     </div>
   );
@@ -59,44 +62,47 @@ function History({ tab }: { tab: "Aprobadas" | "Rechazadas" }) {
   };
   useEffect(load, [tab]);
 
-  if (loadError) return <Card style={{ padding: "8px 20px" }}><LoadState state="error" mensaje={loadError} onRetry={load} /></Card>;
-  if (loading) return <LoadState state="cargando" mensaje="" onRetry={load} />;
-  if (rows.length === 0) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {tab === "Rechazadas" && <RechazadasNota />}
-        <Card style={{ padding: "28px 20px", textAlign: "center", color: "var(--muted-foreground)", fontSize: 13 }}>
-          {tab === "Aprobadas" ? "Ninguna cuenta aprobada todavía." : "Ninguna cuenta rechazada."}
-        </Card>
-      </div>
-    );
-  }
+  const columnas: ColumnaTabla<UserAdminInfo>[] = [
+    { id: "nombre", titulo: "Nombre", enTarjeta: "titulo", celda: (u) => <span style={{ fontWeight: 700, color: "var(--foreground)" }}>{u.full_name || u.username}</span> },
+    { id: "usuario", titulo: "Usuario", celda: (u) => <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }}>@{u.username}</span> },
+    { id: "especialidad", titulo: "Especialidad", celda: (u) => u.specialty || "—" },
+    ...(tab === "Aprobadas" ? [{ id: "rol", titulo: "Rol", celda: (u: UserAdminInfo) => <Badge variant="muted">{ROLE_LABEL[u.role] || u.role}</Badge> }] : []),
+    {
+      id: "fecha", titulo: "Fecha", sinPartir: true,
+      celda: (u) => tab === "Rechazadas" && u.rejected_at ? (
+        <>
+          <div>Rechazada: <span style={ESTILO_FECHA}>{fechaHora(u.rejected_at)}</span></div>
+          <div style={{ color: "var(--muted-foreground)" }}>Solicitada: <span style={ESTILO_FECHA}>{fechaHora(u.created_at)}</span></div>
+        </>
+      ) : <>{tab === "Aprobadas" ? "Alta" : "Solicitada"}: <span style={ESTILO_FECHA}>{fechaHora(u.created_at)}</span></>,
+    },
+  ];
+  const vacio = loadError || loading ? (
+    <LoadState state={loadError ? "error" : "cargando"} mensaje={loadError ?? ""} onRetry={load} />
+  ) : (
+    <EstadoVacio
+      icono={tab === "Aprobadas" ? "STATUS_OK" : "STATUS_FAIL"}
+      titulo={tab === "Aprobadas" ? "Ninguna cuenta aprobada todavía." : "Ninguna cuenta rechazada."}
+    />
+  );
+  // Solo se dice «acceso médico» si es verdad para todas: un rol cambiado en
+  // Usuarios (residente, observador) también sale aquí, con su rol en la fila.
+  const todasMedico = rows.length > 0 && rows.every((u) => u.role === ROL_AL_APROBAR);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {tab === "Rechazadas" && <RechazadasNota />}
-      {tab === "Aprobadas" && (
-        <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-          Cuentas activas que no son de administrador, con su fecha de alta. El servidor no distingue las
-          aprobadas desde una solicitud de las que creó un administrador.
+      {tab === "Rechazadas" && !loadError && !loading && <RechazadasNota />}
+      {tab === "Aprobadas" && rows.length > 0 && (
+        <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
+          {todasMedico ? "Cuentas activas con acceso médico." : "Cuentas activas; el rol de cada una va en su fila."}
         </div>
       )}
-      <div data-glass style={{ ...glass("dense"), borderRadius: "var(--radius-card-lg)", display: "flex", flexDirection: "column" }}>
-      {rows.map((u, i) => (
-        <div key={u.id} style={{ padding: "14px 20px", borderTop: i === 0 ? "none" : "1px solid var(--border)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: "var(--foreground)" }}>{u.full_name || u.username}</span>
-            <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }}>@{u.username}</span>
-            {u.specialty && <Badge variant="subtle">{u.specialty}</Badge>}
-            {tab === "Aprobadas" && <Badge variant="muted">{ROLE_LABEL[u.role] || u.role}</Badge>}
-          </div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", marginTop: 6 }}>
-            {tab === "Rechazadas" && u.rejected_at
-              ? `Rechazada: ${fechaHora(u.rejected_at)} · Solicitada: ${fechaHora(u.created_at)}`
-              : `${tab === "Aprobadas" ? "Alta" : "Solicitada"}: ${fechaHora(u.created_at)}`}
-          </div>
-        </div>
-      ))}
-      </div>
+      <TablaTarjetas<UserAdminInfo>
+        rotulo={tab === "Aprobadas" ? "Cuentas aprobadas" : "Cuentas rechazadas"}
+        filas={loadError || loading ? [] : rows}
+        columnas={columnas}
+        clave={(u) => u.id}
+        vacio={vacio}
+      />
     </div>
   );
 }
@@ -136,6 +142,7 @@ export function PendingRequests({ onBack }: { onBack: () => void }) {
 }
 
 function PendingRequestsPage() {
+  const movil = useMovil();
   const [tab, setTab] = useState<Pestana>("Pendientes");
   const [pending, setPending] = useState<PendingUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -183,7 +190,6 @@ function PendingRequestsPage() {
           ? (tab === "Aprobadas" ? "Cuentas que ya pueden entrar" : "Solicitudes que no se aceptaron")
           : loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : `${pending.length} pendiente${pending.length === 1 ? "" : "s"} de aprobación`
       }
-      acciones={tab === "Pendientes" ? [{ id: "actualizar", label: "Actualizar", icon: "REFRESH", onClick: load }] : undefined}
     >
       <ConfirmDialog
         open={toReject !== null}
@@ -197,8 +203,13 @@ function PendingRequestsPage() {
         rechaza y pasa a «Rechazadas»; no podrá entrar con esa cuenta.
       </ConfirmDialog>
       <PageBody className="fade-rise">
-          <div style={{ marginBottom: 18 }}>
+          <div style={{ marginBottom: 18, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             <Tabs tabs={TABS} value={tab} onChange={(t) => setTab(t as Pestana)} />
+            {tab === "Pendientes" && (
+              <Button size="icon" variant="ghost" aria-label="Actualizar la lista" title="Actualizar la lista" onClick={load}>
+                <Icon name="REFRESH" size={16} />
+              </Button>
+            )}
           </div>
 
           {tab !== "Pendientes" && <History key={tab} tab={tab} />}
@@ -212,20 +223,16 @@ function PendingRequestsPage() {
           )}
 
           {tab === "Pendientes" && !loading && !loadError && pending.length === 0 && (
-            <Card style={{ padding: "28px 20px", textAlign: "center" }}>
-              <div style={{ display: "flex", justifyContent: "center", marginBottom: 8, color: "var(--muted-foreground)" }}>
-                <Icon name="STATUS_OK" size={26} />
-              </div>
-              <div style={{ color: "var(--muted-foreground)", fontSize: 13 }}>
-                No hay cuentas pendientes.
-              </div>
-            </Card>
+            <EstadoVacio icono="PENDING" titulo="No hay cuentas pendientes">
+              Cuando alguien pida una cuenta desde «Crear cuenta», aparecerá aquí para que la apruebes o la rechaces.
+            </EstadoVacio>
           )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {tab === "Pendientes" && !loadError && pending.map((u) => (
-              <Card key={u.id} style={{ padding: "18px 20px" }}>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+              <article key={u.id} data-glass style={{ ...glass("normal"), borderRadius: "var(--radius-card-lg)", padding: "18px 20px" }}>
+                <div style={{ display: "flex", flexDirection: movil ? "column" : "row", alignItems: movil ? "stretch" : "flex-start", gap: 14 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 14, flex: 1, minWidth: 0 }}>
                   <PendingAvatar user={u} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -233,7 +240,7 @@ function PendingRequestsPage() {
                       <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }}>@{u.username}</span>
                       {u.specialty && <Badge variant="subtle">{u.specialty}</Badge>}
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "4px 20px", marginTop: 10 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: "4px 20px", marginTop: 10 }}>
                       {[
                         ["Cargo", u.position],
                         ["Hospital", u.hospital],
@@ -244,7 +251,7 @@ function PendingRequestsPage() {
                       ]
                         .filter(([, v]) => v)
                         .map(([k, v]) => (
-                          <div key={k} style={{ fontSize: 12 }}>
+                          <div key={k} style={{ fontSize: 13 }}>
                             <span style={{ color: "var(--muted-foreground)" }}>{k}: </span>
                             <span style={{ color: "var(--foreground)" }}>{v}</span>
                           </div>
@@ -252,26 +259,29 @@ function PendingRequestsPage() {
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
                       {u.has_cv && (
-                        <button
-                          type="button"
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          leadingIcon={<Icon name="EXPORT" size={13} />}
                           onClick={() => api.downloadPendingCv(u.id, u.username).catch(() => setError("No se pudo descargar el CV."))}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "5px 10px", fontSize: 12, fontWeight: 600, color: "var(--brand-deep)", cursor: "pointer" }}
                         >
-                          <Icon name="ATTACH" size={13} /> Descargar CV
-                        </button>
+                          Descargar CV
+                        </Button>
                       )}
-                      <span style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
-                        Solicitado: {fechaHora(u.created_at)}
+                      <span style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
+                        Solicitado: <span style={ESTILO_FECHA}>{fechaHora(u.created_at)}</span>
                       </span>
                     </div>
                     {/* F1-90: quien aprueba no ve con qué rol entra la cuenta. */}
-                    <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 8 }}>
+                    <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8 }}>
                       Entrará como {ROLE_LABEL[ROL_AL_APROBAR]}; cambia el rol en Usuarios.
                     </div>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
+                  </div>
+                  <div data-acciones style={{ display: "flex", flexDirection: movil ? "row" : "column", gap: 8, flexShrink: 0 }}>
                     <Button
                       size="sm"
+                      style={movil ? { flex: 1 } : undefined}
                       onClick={() => void act(u.id, "approve")}
                       disabled={busyId === u.id}
                       leadingIcon={<Icon name="STATUS_OK" size={13} />}
@@ -281,6 +291,7 @@ function PendingRequestsPage() {
                     <Button
                       size="sm"
                       variant="destructive"
+                      style={movil ? { flex: 1 } : undefined}
                       onClick={() => setToReject(u)}
                       disabled={busyId === u.id}
                       leadingIcon={<Icon name="STATUS_FAIL" size={13} />}
@@ -289,7 +300,7 @@ function PendingRequestsPage() {
                     </Button>
                   </div>
                 </div>
-              </Card>
+              </article>
             ))}
           </div>
       </PageBody>

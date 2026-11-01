@@ -9,16 +9,55 @@
   color: var(--muted-foreground); text-align: left; white-space: nowrap;
 }
 .tabla-oficina tbody tr { background: transparent; }
-.tabla-oficina tbody td { border-top: 1px solid var(--border); }
+/* La celda que identifica la fila es un <th scope="row">: las reglas de celda
+   casan td y th por igual. */
+.tabla-oficina tbody :is(td, th) { border-top: 1px solid var(--border); }
 /* El detalle desplegado de una fila (Auditoría) es parte de ella: sin línea
    que lo separe y sobre un fondo apagado que lo distingue. */
-.tabla-oficina tbody tr.fila-detalle td { border-top: 0; background: var(--muted); }
+.tabla-oficina tbody tr.fila-detalle :is(td, th) { border-top: 0; background: var(--muted); }
 
 .tabla-oficina tbody tr .fila-acciones { opacity: .6; transition: opacity var(--dur-1) var(--ease-out); }
 .tabla-oficina tbody tr:hover .fila-acciones,
 .tabla-oficina tbody tr:focus-within .fila-acciones { opacity: 1; }
 /* Sin puntero (táctil) no hay hover: las acciones de fila quedan a plena opacidad. */
 @media (hover: none) { .tabla-oficina tbody tr .fila-acciones { opacity: 1; } }
+
+/* TablaTarjetas: fila pulsable (cursor y hover de cristal; con el teclado se
+   enciende cuando su botón tiene el foco, y el anillo lo pone :focus-visible de
+   base.css) y fila seleccionada (fondo de cristal y filo izquierdo de 2 px en
+   el color primario, como sombra interior). */
+.tabla-oficina tbody tr[data-pulsable] { cursor: pointer; transition: background var(--dur-1) var(--ease-out); }
+.tabla-oficina tbody tr[data-pulsable]:hover,
+.tabla-oficina tbody tr[data-pulsable]:has(.tt-fila-boton:focus-visible) { background: var(--glass-hover); }
+/* El botón de la celda que identifica la fila se ve como su texto. */
+.tt-fila-boton {
+  appearance: none; background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; color: inherit; text-align: inherit; cursor: pointer;
+  overflow-wrap: anywhere; border-radius: 4px;
+}
+.tabla-oficina tbody tr[data-seleccionada="true"] { background: var(--glass-hover); }
+.tabla-oficina tbody tr[data-seleccionada="true"] > :first-child { box-shadow: inset 2px 0 0 var(--primary); }
+/* El chevron final gira cuando la fila tiene el detalle desplegado. */
+.tt-chevron svg { transition: transform var(--dur-1) var(--ease-out); }
+.tt-chevron[data-abierto="true"] svg { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .tabla-oficina tbody tr[data-pulsable], .tt-chevron svg { transition: none; } }
+
+/* TablaTarjetas en ≤ 640 px: lista de tarjetas de cristal (el cristal y la
+   marca de seleccionada van en línea). */
+.tt-tarjetas { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.tt-tarjeta { padding: 14px 16px; border-radius: var(--radius-card-lg); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.tt-tarjeta[data-pulsable] { cursor: pointer; }
+/* Hover de ratón: el cristal y su borde van en línea, así que el realce es un
+   contorno interior en el primario (sigue el radio de la tarjeta). */
+@media (hover: hover) {
+  .tt-tarjeta[data-pulsable]:hover { outline: 1px solid var(--primary); outline-offset: -1px; }
+}
+.tt-tarjeta-titulo { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.tt-tarjeta dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 13px; }
+.tt-tarjeta dt { color: var(--muted-foreground); }
+.tt-tarjeta dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.tt-tarjeta-detalle { font-size: 13px; overflow-wrap: anywhere; min-width: 0; }
+.tt-tarjeta-pie { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 
 @keyframes fila-nueva { from { background: var(--brand-subtle); } to { background: transparent; } }
 .fila-nueva { animation: fila-nueva 1.2s var(--ease-out) 1; }
@@ -36,8 +75,40 @@
 }
 
 .hoja-dos-columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
-@media (max-width: 760px) { .hoja-dos-columnas { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .hoja-dos-columnas { grid-template-columns: 1fr; } }
+
+/* Hojas de caso y paciente: filas del selector, rótulos de sección y notas. */
+.nc-fila {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+  padding: 10px 12px; border-radius: var(--radius-md); font-family: var(--font-sans);
+  background: var(--glass); border: 1px solid var(--glass-border); box-shadow: var(--glass-highlight);
+  transition: border-color var(--dur-1) var(--ease-out);
+}
+.nc-fila:hover, .nc-fila:focus-visible { border-color: var(--primary); }
+.nc-fila:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+@media (max-width: 1024px) { .nc-fila { min-height: 44px; } }
+.nc-seccion {
+  font-family: var(--font-mono); font-size: var(--text-eyebrow); font-weight: 600;
+  letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--muted-foreground);
+  margin: 20px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--glass-border);
+}
+.nc-nota { font-size: 13px; color: var(--muted-foreground); margin-bottom: 8px; }
 
 /* Tarjeta punteada «Subir un estudio nuevo»: se enciende al apuntarla o enfocarla. */
-.tarjeta-nueva { border: 1px dashed color-mix(in srgb, var(--foreground) 18%, transparent); background: transparent; border-radius: var(--radius-card-lg); transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out); }
+.tarjeta-nueva { min-height: 120px; border: 1px dashed color-mix(in srgb, var(--foreground) 18%, transparent); background: transparent; border-radius: var(--radius-card-lg); transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out); }
+.es-insignia { line-height: 1.3; pointer-events: none; }
 .tarjeta-nueva:hover, .tarjeta-nueva:focus-visible { border-color: var(--data); background: color-mix(in srgb, var(--data) 8%, transparent); }
+
+/* Detalle del pedido de clip (A43, A44): sans en los textos, mono solo en nº de pieza y medidas. */
+.po-datos { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 13px; font-family: var(--font-sans); }
+.po-datos dt { color: var(--muted-foreground); }
+.po-datos dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.po-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+/* Talleres: rejilla de tarjetas de cristal (una columna en móvil, sin scroll
+   horizontal) y pista «Cómo se usa». */
+.tl-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 12px; }
+.tl-tarjeta { padding: 16px 18px; border-radius: var(--radius-card-lg); display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+.tl-pie { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.pista { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px 14px; font-size: 13px; line-height: 1.55; color: var(--muted-foreground); background: var(--glass); border: 1px solid var(--glass-border); border-radius: var(--radius-card-lg); }
+.pista > svg, .pista > span:first-child { flex-shrink: 0; margin-top: 2px; }

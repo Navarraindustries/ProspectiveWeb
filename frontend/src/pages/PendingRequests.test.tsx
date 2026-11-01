@@ -30,6 +30,7 @@ vi.mock("../store/auth", () => ({ useAuth: () => ({ user: { role: "admin" } }) }
 
 import { PendingRequests } from "./PendingRequests";
 import { fechaHora } from "../lib/fecha";
+import { simularPantalla } from "../test/pantalla";
 
 beforeEach(() => {
   listPending.mockReset();
@@ -47,7 +48,7 @@ describe("«Solicitudes» con el API fallando", () => {
     render(<PendingRequests onBack={() => {}} />);
 
     expect(await screen.findByText("El servidor no responde")).toBeTruthy();
-    expect(screen.queryByText("No hay cuentas pendientes.")).toBeNull();
+    expect(screen.queryByText("No hay cuentas pendientes")).toBeNull();
     expect(screen.queryByText(/0 pendientes/)).toBeNull();
 
     listPending.mockResolvedValueOnce([{
@@ -62,7 +63,7 @@ describe("«Solicitudes» con el API fallando", () => {
   it("sin solicitudes y sin error sigue mostrando el vacío", async () => {
     listPending.mockResolvedValueOnce([]);
     render(<PendingRequests onBack={() => {}} />);
-    expect(await screen.findByText("No hay cuentas pendientes.")).toBeTruthy();
+    expect(await screen.findByText("No hay cuentas pendientes")).toBeTruthy();
   });
 });
 
@@ -99,7 +100,7 @@ describe("pestañas «Pendientes · Aprobadas · Rechazadas» (F2-51)", () => {
   it("cada pestaña vacía dice lo suyo", async () => {
     listPending.mockResolvedValue([]);
     render(<PendingRequests onBack={() => {}} />);
-    expect(await screen.findByText("No hay cuentas pendientes.")).toBeTruthy();
+    expect(await screen.findByText("No hay cuentas pendientes")).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "Aprobadas" }));
     expect(await screen.findByText("Ninguna cuenta aprobada todavía.")).toBeTruthy();
     expect(listUsers).toHaveBeenCalledWith("approved");
@@ -117,10 +118,13 @@ describe("pestañas «Pendientes · Aprobadas · Rechazadas» (F2-51)", () => {
     render(<PendingRequests onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("tab", { name: "Rechazadas" }));
     expect(await screen.findByText("Rita Rechazada")).toBeTruthy();
-    expect(screen.getByText(new RegExp(`Rechazada: ${fechaHora("2026-10-03T15:30:00+00:00")}`))).toBeTruthy();
+    const rechazo = screen.getByText(fechaHora("2026-10-03T15:30:00+00:00"));
+    expect(rechazo.parentElement).toHaveTextContent(`Rechazada: ${fechaHora("2026-10-03T15:30:00+00:00")}`);
+    // La fecha, en sans con cifras tabulares (M2).
+    expect(rechazo).toHaveStyle({ fontVariantNumeric: "tabular-nums" });
   });
 
-  it("«Aprobadas» deja fuera a los administradores y avisa de lo que no distingue", async () => {
+  it("«Aprobadas» deja fuera a los administradores y lleva su nota (A56)", async () => {
     listPending.mockResolvedValue([]);
     listUsers.mockResolvedValue([
       { id: 1, username: "admin", full_name: "Admin", role: "admin", status: "active", is_active: true, specialty: "", hospital: "", created_at: "2026-09-01T00:00:00+00:00", rejected_at: null },
@@ -130,7 +134,33 @@ describe("pestañas «Pendientes · Aprobadas · Rechazadas» (F2-51)", () => {
     fireEvent.click(await screen.findByRole("tab", { name: "Aprobadas" }));
     expect(await screen.findByText("Aitor Aprobado")).toBeTruthy();
     expect(screen.queryByText("Admin")).toBeNull();
-    expect(screen.getByText(/no distingue/)).toBeTruthy();
+    expect(screen.getByText("Cuentas activas con acceso médico.")).toBeTruthy();
+    expect(screen.queryByText(/El servidor no distingue/)).toBeNull();
+  });
+
+  it("«Aprobadas» con varios roles no afirma «acceso médico» y enseña el rol de cada fila (M8)", async () => {
+    listPending.mockResolvedValue([]);
+    listUsers.mockResolvedValue([
+      { id: 8, username: "apro", full_name: "Aitor Aprobado", role: "medico", status: "active", is_active: true, specialty: "", hospital: "", created_at: "2026-10-02T09:00:00+00:00", rejected_at: null },
+      { id: 9, username: "obs", full_name: "Olga Observadora", role: "observador", status: "active", is_active: true, specialty: "", hospital: "", created_at: "2026-10-03T09:00:00+00:00", rejected_at: null },
+    ]);
+    render(<PendingRequests onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Aprobadas" }));
+    expect(await screen.findByText("Olga Observadora")).toBeTruthy();
+    expect(screen.queryByText(/acceso médico/)).toBeNull();
+    expect(screen.getByText("Cuentas activas; el rol de cada una va en su fila.")).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Rol" })).toBeTruthy();
+  });
+
+  it("la fecha de la tarjeta de pendientes va en sans 13 px con cifras tabulares (M2)", async () => {
+    listPending.mockResolvedValue([solicitud]);
+    render(<PendingRequests onBack={() => {}} />);
+    const fecha = await screen.findByText(fechaHora(solicitud.created_at));
+    expect(fecha).toHaveStyle({ fontFamily: "var(--font-sans)", fontVariantNumeric: "tabular-nums" });
+    const linea = fecha.parentElement!;
+    expect(linea).toHaveTextContent(/^Solicitado:/);
+    expect(linea).toHaveStyle({ fontSize: "13px" });
+    expect(linea.getAttribute("style") ?? "").not.toContain("--font-mono");
   });
 
   it("falla la carga de una pestaña: error y «Reintentar», sin el vacío", async () => {
@@ -231,14 +261,15 @@ describe("la cabecera de «Cuentas pendientes» en la oficina", () => {
     await screen.findByText("Nuevo Residente");
     const barra = within(screen.getByRole("banner"));
     expect(barra.getByText("1 pendiente de aprobación")).toBeInTheDocument();
-    // «Actualizar» es una acción de la barra, solo en Pendientes.
-    expect(barra.getByRole("button", { name: "Actualizar" })).toBeInTheDocument();
+    // «Actualizar» es un botón de icono junto a las pestañas, solo en Pendientes (A57).
+    expect(barra.queryByRole("button", { name: "Actualizar" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Actualizar la lista" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
     expect(screen.queryByText("Cuentas pendientes")).toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: "Aprobadas" }));
     await screen.findByText("Ninguna cuenta aprobada todavía.");
     expect(within(screen.getByRole("banner")).getByText("Cuentas que ya pueden entrar")).toBeInTheDocument();
-    expect(within(screen.getByRole("banner")).queryByRole("button", { name: "Actualizar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Actualizar la lista" })).toBeNull();
   });
 });
 
@@ -250,7 +281,7 @@ describe("cristal (fase 2)", () => {
     expect(nombre.closest("[data-glass]")).not.toBeNull();
   });
 
-  it("el historial de «Rechazadas» es una lista en un panel denso", async () => {
+  it("el historial de «Rechazadas» es una tabla en un panel denso", async () => {
     listPending.mockResolvedValue([]);
     listUsers.mockImplementation((st: string) => Promise.resolve(st === "rejected" ? [{
       id: 9, username: "rech", full_name: "Rita Rechazada", role: "medico", status: "rejected", is_active: false,
@@ -261,5 +292,54 @@ describe("cristal (fase 2)", () => {
     const panel = (await screen.findByText("Rita Rechazada")).closest("[data-glass]");
     expect(panel).not.toBeNull();
     expect(panel!.getAttribute("style")).toContain("--glass-dense");
+  });
+});
+
+describe("Cuentas pendientes: estilo D (A56, A57)", () => {
+  const aprobada = { id: 8, username: "apro", full_name: "Aitor Aprobado", role: "medico", status: "active", is_active: true, specialty: "Neurología", hospital: "", created_at: "2026-10-02T09:00:00+00:00", rejected_at: null };
+
+  it("historial como tabla que pasa a tarjetas", async () => {
+    listPending.mockResolvedValue([]);
+    listUsers.mockResolvedValue([aprobada]);
+    simularPantalla(1280);
+    const { unmount } = render(<PendingRequests onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Aprobadas" }));
+    expect(await screen.findByRole("table", { name: "Cuentas aprobadas" })).toBeTruthy();
+    unmount();
+    simularPantalla(390);
+    render(<PendingRequests onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Aprobadas" }));
+    await screen.findByText("Aitor Aprobado");
+    expect(document.querySelector('[data-vista="tarjetas"]')).not.toBeNull();
+  });
+
+  it("sin pendientes: estado vacío que explica qué pasará (A57)", async () => {
+    listPending.mockResolvedValue([]);
+    render(<PendingRequests onBack={() => {}} />);
+    expect(await screen.findByText("No hay cuentas pendientes")).toBeTruthy();
+    expect(screen.getByText(/Cuando alguien pida una cuenta desde «Crear cuenta»/)).toBeTruthy();
+  });
+
+  it("«Actualizar» es un botón de icono junto a las pestañas (A57)", async () => {
+    listPending.mockResolvedValue([]);
+    render(<PendingRequests onBack={() => {}} />);
+    const b = await screen.findByRole("button", { name: "Actualizar la lista" });
+    expect(b).toHaveAttribute("title", "Actualizar la lista");
+    fireEvent.click(b);
+    expect(listPending).toHaveBeenCalledTimes(2);
+  });
+
+  it("solicitud: tarjeta de cristal, CV como botón con icono y a ≤ 640 Aprobar/Rechazar debajo", async () => {
+    simularPantalla(390);
+    listPending.mockResolvedValue([{ ...solicitud, has_cv: true }]);
+    render(<PendingRequests onBack={() => {}} />);
+    const cv = await screen.findByRole("button", { name: "Descargar CV" });
+    expect(cv).toHaveAttribute("data-variant", "outline");
+    const tarjeta = cv.closest("article");
+    expect(tarjeta).not.toBeNull();
+    expect(tarjeta).toHaveAttribute("data-glass");
+    const acciones = tarjeta!.querySelector("[data-acciones]") as HTMLElement;
+    expect(acciones.style.flexDirection).toBe("row");
+    expect(cv.compareDocumentPosition(acciones) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

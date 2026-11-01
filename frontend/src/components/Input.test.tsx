@@ -124,3 +124,20 @@ describe("Input", () => {
     expect(screen.getByText("Como en el DNI.")).toBeInTheDocument();
   });
 });
+
+it("obligatorio: asterisco mudo y aria-required", () => {
+  render(<Input label="Nombre" obligatorio />);
+  const campo = screen.getByLabelText(/Nombre/);
+  expect(campo).toHaveAttribute("aria-required", "true");
+  expect(campo).not.toHaveAttribute("required");
+  expect(screen.getByText("*")).toHaveAttribute("aria-hidden", "true");
+});
+
+it("obligatorio: el asterisco queda fuera del <label> y del nombre accesible (P1)", () => {
+  render(<Input label="Apellidos" obligatorio />);
+  const campo = screen.getByRole("textbox", { name: "Apellidos" });
+  expect(campo).toHaveAttribute("aria-required", "true");
+  const label = document.querySelector(`label[for="${campo.id}"]`)!;
+  expect(label.textContent).toBe("Apellidos");
+  expect(label.querySelector("[aria-hidden]")).toBeNull();
+});

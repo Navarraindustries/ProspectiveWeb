@@ -43,10 +43,10 @@ async function enviar(failure: unknown) {
       <Signup onBack={() => {}} onDone={() => {}} />
     </MemoryRouter>,
   );
-  fireEvent.change(screen.getByLabelText("Nombre completo *"), { target: { value: "María Restrepo" } });
-  fireEvent.change(screen.getByLabelText("Usuario * (mín. 3)"), { target: { value: "mrestrepo" } });
-  fireEvent.change(screen.getByLabelText("Contraseña * (mín. 8)"), { target: { value: "una-mucho-mejor" } });
-  fireEvent.change(screen.getByLabelText("Repite la contraseña *"), { target: { value: "una-mucho-mejor" } });
+  fireEvent.change(screen.getByLabelText("Nombre completo"), { target: { value: "María Restrepo" } });
+  fireEvent.change(screen.getByLabelText("Usuario (mín. 3)"), { target: { value: "mrestrepo" } });
+  fireEvent.change(screen.getByLabelText("Contraseña (mín. 8)"), { target: { value: "una-mucho-mejor" } });
+  fireEvent.change(screen.getByLabelText("Repite la contraseña"), { target: { value: "una-mucho-mejor" } });
   fireEvent.click(screen.getByRole("button", { name: "Enviar solicitud de registro" }));
 }
 
@@ -98,10 +98,20 @@ describe("rótulos y ayudas nuevos (F2-13…F2-17)", () => {
     expect(screen.queryByText(/Cédula/)).toBeNull();
   });
 
+  it("los obligatorios usan `obligatorio` de Input: aria-required y sin «*» en el rótulo (M9)", () => {
+    montar();
+    for (const nombre of ["Nombre completo", "Usuario (mín. 3)", "Contraseña (mín. 8)", "Repite la contraseña"]) {
+      const campo = screen.getByLabelText(nombre);
+      expect(campo).toHaveAttribute("aria-required", "true");
+      expect(document.querySelector(`label[for="${campo.id}"]`)!.textContent).toBe(nombre);
+    }
+    expect(screen.getByLabelText("Universidad")).not.toHaveAttribute("aria-required");
+  });
+
   it("repetir la contraseña lleva su rótulo (F2-17)", () => {
     montar();
-    expect(screen.getByLabelText("Repite la contraseña *")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Confirmar *")).toBeNull();
+    expect(screen.getByLabelText("Repite la contraseña")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Confirmar")).toBeNull();
   });
 
   it("el título y los pies no repiten «profesional» ni «VTK» ni «Datos cifrados»", () => {
@@ -116,15 +126,15 @@ describe("rótulos y ayudas nuevos (F2-13…F2-17)", () => {
 describe("la validación sale junto a cada campo (F1-49)", () => {
   it("muestra todos los errores a la vez y marca cada campo", () => {
     montar();
-    escribir("Usuario * (mín. 3)", "ab");
-    escribir("Contraseña * (mín. 8)", "corta");
-    escribir("Repite la contraseña *", "otra");
+    escribir("Usuario (mín. 3)", "ab");
+    escribir("Contraseña (mín. 8)", "corta");
+    escribir("Repite la contraseña", "otra");
     fireEvent.click(screen.getByRole("button", { name: "Enviar solicitud de registro" }));
     for (const [label, texto] of [
-      ["Nombre completo *", "El nombre completo es obligatorio."],
-      ["Usuario * (mín. 3)", "El usuario debe tener al menos 3 caracteres."],
-      ["Contraseña * (mín. 8)", "La contraseña debe tener al menos 8 caracteres."],
-      ["Repite la contraseña *", "Las contraseñas no coinciden."],
+      ["Nombre completo", "El nombre completo es obligatorio."],
+      ["Usuario (mín. 3)", "El usuario debe tener al menos 3 caracteres."],
+      ["Contraseña (mín. 8)", "La contraseña debe tener al menos 8 caracteres."],
+      ["Repite la contraseña", "Las contraseñas no coinciden."],
     ] as const) {
       expect(screen.getByLabelText(label)).toHaveAttribute("aria-invalid", "true");
       expect(screen.getByText(texto)).toBeInTheDocument();
@@ -134,17 +144,17 @@ describe("la validación sale junto a cada campo (F1-49)", () => {
 
   it("un campo correcto no queda marcado", () => {
     montar();
-    escribir("Usuario * (mín. 3)", "mrestrepo");
+    escribir("Usuario (mín. 3)", "mrestrepo");
     fireEvent.click(screen.getByRole("button", { name: "Enviar solicitud de registro" }));
-    expect(screen.getByLabelText("Usuario * (mín. 3)")).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByLabelText("Usuario (mín. 3)")).not.toHaveAttribute("aria-invalid");
   });
 
   it("avisa en vivo si la contraseña es corta o no coincide (F1-47)", () => {
     montar();
-    escribir("Contraseña * (mín. 8)", "corta");
+    escribir("Contraseña (mín. 8)", "corta");
     expect(screen.getByText("La contraseña debe tener al menos 8 caracteres.")).toBeInTheDocument();
-    escribir("Contraseña * (mín. 8)", "una-mucho-mejor");
-    escribir("Repite la contraseña *", "distinta");
+    escribir("Contraseña (mín. 8)", "una-mucho-mejor");
+    escribir("Repite la contraseña", "distinta");
     expect(screen.getByText("Las contraseñas no coinciden.")).toBeInTheDocument();
   });
 });
@@ -154,10 +164,10 @@ describe("tras la solicitud (F2-11)", () => {
     signup.mockResolvedValueOnce({ message: "texto del servidor" });
     const onDone = vi.fn();
     montar({ onDone });
-    escribir("Nombre completo *", "María Restrepo");
-    escribir("Usuario * (mín. 3)", "mrestrepo");
-    escribir("Contraseña * (mín. 8)", "una-mucho-mejor");
-    escribir("Repite la contraseña *", "una-mucho-mejor");
+    escribir("Nombre completo", "María Restrepo");
+    escribir("Usuario (mín. 3)", "mrestrepo");
+    escribir("Contraseña (mín. 8)", "una-mucho-mejor");
+    escribir("Repite la contraseña", "una-mucho-mejor");
     fireEvent.click(screen.getByRole("button", { name: "Enviar solicitud de registro" }));
     await vi.waitFor(() => expect(onDone).toHaveBeenCalledWith(
       "Un administrador revisará la solicitud. No recibirás ningún aviso: vuelve a intentar entrar en unos días.",
@@ -176,7 +186,7 @@ describe("la ventana de cristal de «Crear cuenta»", () => {
     );
     const ventana = screen.getByRole("region", { name: "Crear cuenta" });
     expect(ventana).toHaveAttribute("data-glass");
-    expect(ventana).toContainElement(screen.getByLabelText("Usuario * (mín. 3)"));
+    expect(ventana).toContainElement(screen.getByLabelText("Usuario (mín. 3)"));
   });
 
   it("la pantalla va sobre el Ambiente", () => {

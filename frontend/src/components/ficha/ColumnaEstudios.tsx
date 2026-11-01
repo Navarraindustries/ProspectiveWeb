@@ -9,10 +9,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api/client";
 import type { PatientSessionInfo, StudyCard, StudySummary } from "../../api/types";
+import { useEnCurso } from "../../hooks/useEnCurso";
+import { useTableta } from "../../hooks/useEstrecho";
+import { fechaDia } from "../../lib/fecha";
 import { Button } from "../Button";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { LoadState, loadErrorText } from "../LoadState";
+import { MenuMas, type ItemMenu } from "../MenuMas";
 import "./ficha.css";
 
 /** Lo elegido en la columna: un estudio de imagen, o las sesiones del caso sin estudio. */
@@ -22,12 +26,20 @@ const sesionesTexto = (n: number) =>
   n === 0 ? "Sin sesiones guardadas" : `${n} ${n === 1 ? "sesión guardada" : "sesiones guardadas"}`;
 
 /** La imagen de vista previa de un estudio. Va con el token, así que pasa por
- *  un blob; sin miniatura (o si falla) dice «Sin vista previa». */
-export function MiniaturaEstudio({ estudio, grande = false }: { estudio: StudyCard | null; grande?: boolean }) {
+ *  un blob; sin miniatura (o si falla) dice «Sin vista previa»: la grande con
+ *  texto; la pequeña de la fila, solo el icono con ese nombre accesible. */
+export function MiniaturaEstudio({ estudio, estudioId, grande = false, decorativa = false }: {
+  estudio: StudyCard | null;
+  /** Si viene, pide la miniatura de ese estudio aunque no haya tarjeta. */
+  estudioId?: number | null;
+  grande?: boolean;
+  /** Dentro de un botón que ya se llama por su texto: la imagen no añade nombre. */
+  decorativa?: boolean;
+}) {
   const [url, setUrl] = useState<string | null>(null);
   const [fallo, setFallo] = useState(false);
-  const id = estudio?.id;
-  const conMiniatura = !!estudio?.has_thumbnail;
+  const id = estudioId ?? estudio?.id;
+  const conMiniatura = estudioId != null ? true : !!estudio?.has_thumbnail;
 
   useEffect(() => {
     setUrl(null);
@@ -35,23 +47,44 @@ export function MiniaturaEstudio({ estudio, grande = false }: { estudio: StudyCa
     if (id == null || !conMiniatura) return;
     let vigente = true;
     let creada: string | null = null;
-    api.studyThumbnailObjectUrl(id)
+    Promise.resolve()
+      .then(() => api.studyThumbnailObjectUrl(id))
       .then((u) => { if (vigente) { creada = u; setUrl(u); } else URL.revokeObjectURL(u); })
       .catch(() => { if (vigente) setFallo(true); });
     return () => { vigente = false; if (creada) URL.revokeObjectURL(creada); };
   }, [id, conMiniatura]);
 
+  const conImagen = !!url;
+  const texto = conMiniatura && !fallo ? "Cargando…" : "Sin vista previa";
+  const soloIcono = !conImagen && !grande && !decorativa;
   return (
-    <span className="fc-miniatura" data-grande={grande}>
-      {url && estudio ? (
-        <img src={url} alt={`Vista previa de ${estudio.description || estudio.modality || "estudio"}`} />
+    <span className="fc-miniatura" data-grande={grande} {...(decorativa ? { "aria-hidden": true } : {})}
+          {...(soloIcono ? { role: "img", "aria-label": texto, title: texto } : {})}>
+      {conImagen ? (
+        <img src={url!} alt={`Vista previa de ${estudio?.description || estudio?.modality || "estudio"}`} />
       ) : (
         <>
           <Icon name="FOLDER" size={grande ? 22 : 16} />
-          {conMiniatura && !fallo ? "Cargando…" : "Sin vista previa"}
+          {grande && texto}
         </>
       )}
     </span>
+  );
+}
+
+/** «Reanudar» con su estado de carga: «Abriendo…» y sin segundo clic mientras dura. */
+export function BotonReanudar({ onResume, sessionId, title, size = "sm" }: {
+  onResume: (sessionId: string) => void | Promise<unknown>;
+  sessionId: string;
+  title?: string;
+  size?: "sm" | "md";
+}) {
+  const [abriendo, lanzar] = useEnCurso();
+  return (
+    <Button type="button" size={size} disabled={abriendo} leadingIcon={<Icon name="RESUME" size={size === "sm" ? 12 : undefined} />}
+            title={title} onClick={() => lanzar(() => onResume(sessionId))}>
+      {abriendo ? "Abriendo…" : "Reanudar"}
+    </Button>
   );
 }
 
@@ -63,6 +96,7 @@ export function ColumnaEstudios({
   seleccionado,
   onSeleccionar,
   onOpenStudy,
+  onResume,
   puedeBorrar,
   onEstudioBorrado,
 }: {
@@ -75,6 +109,8 @@ export function ColumnaEstudios({
   onSeleccionar: (s: StudyCard | "sin-estudio") => void;
   /** Abre un estudio archivado en el flujo. */
   onOpenStudy?: (img: StudyCard) => void;
+  /** «Reanudar» la sesión guardada de un estudio; la promesa dura lo que tarda en abrirse. */
+  onResume?: (sessionId: string) => void | Promise<unknown>;
   /** «Borrar estudio»: quien creó al paciente o un administrador. */
   puedeBorrar: boolean;
   /** El estudio se borró: sus sesiones pasan a no tener estudio archivado. */
@@ -86,6 +122,7 @@ export function ColumnaEstudios({
   const [aBorrar, setABorrar] = useState<StudyCard | null>(null);
   const [borrando, setBorrando] = useState(false);
   const [borrarError, setBorrarError] = useState<string | null>(null);
+  const tableta = useTableta();
 
   useEffect(() => {
     let vigente = true;
@@ -93,7 +130,7 @@ export function ColumnaEstudios({
     setError(null);
     Promise.resolve()
       .then(() => api.listStudies("", undefined, caso.id))
-      .then((s) => { if (vigente) setEstudios(s); })
+      .then((lista) => { if (vigente) setEstudios(lista); })
       .catch((e) => { if (vigente) setError(loadErrorText(e)); });
     return () => { vigente = false; };
   }, [caso.id, intento]);
@@ -119,6 +156,14 @@ export function ColumnaEstudios({
     }
   };
 
+  const menuDe = (img: StudyCard): ItemMenu[] => [
+    ...(onOpenStudy ? [{ id: "abrir", label: "Abrir estudio", icon: "OPEN" as const, onSelect: () => onOpenStudy(img) }] : []),
+    ...(puedeBorrar ? [{
+      id: "borrar", label: "Borrar estudio", icon: "DELETE" as const, destructive: true, abreDialogo: true,
+      separadoAntes: !!onOpenStudy, onSelect: () => { setBorrarError(null); setABorrar(img); },
+    }] : []),
+  ];
+
   const nSinEstudio = sesiones.filter((s) => s.case_id === caso.id && s.imaging_study_id == null).length;
 
   return (
@@ -136,29 +181,27 @@ export function ColumnaEstudios({
           {estudios.map((img) => {
             const elegido = seleccionado === img.id;
             const n = sesiones.filter((s) => s.imaging_study_id === img.id).length;
-            const detalle = [img.modality, img.acquired_at, img.n_slices > 0 ? `${img.n_slices} cortes` : ""].filter(Boolean).join(" · ");
+            const detalle = [img.modality, img.acquired_at ? fechaDia(img.acquired_at) : "", img.n_slices > 0 ? `${img.n_slices} cortes` : ""].filter(Boolean).join(" · ");
             return (
               <div key={img.id} className="fc-fila" data-elegida={elegido}>
                 <button type="button" className="fc-fila-boton" aria-pressed={elegido} onClick={() => onSeleccionar(img)}>
                   <span className="fc-fila-texto" style={{ flex: 1 }}>
                     <span className="fc-fila-titulo">{img.description || img.modality || "Estudio de imagen"}</span>
                     {detalle && <span className="fc-fila-meta fc-fila-mono">{detalle}</span>}
-                    <span className="fc-fila-meta">{sesionesTexto(n)}</span>
+                    <span className="fc-fila-meta">
+                      {sesionesTexto(n)}
+                      {n > 0 && <> <Icon name="CHEVRON_RIGHT" size={12} /></>}
+                    </span>
                   </span>
                   <MiniaturaEstudio estudio={img} />
                 </button>
                 <div className="fc-fila-acciones">
-                  {onOpenStudy && (
-                    <Button type="button" size="sm" variant="outline" leadingIcon={<Icon name="OPEN" size={12} />}
-                            onClick={() => onOpenStudy(img)}>
-                      Abrir estudio
-                    </Button>
+                  {img.resumable_session_id && onResume && (
+                    <BotonReanudar onResume={onResume} sessionId={img.resumable_session_id} />
                   )}
-                  {puedeBorrar && (
-                    <Button type="button" size="sm" variant="ghost" leadingIcon={<Icon name="DELETE" size={12} />}
-                            onClick={() => { setBorrarError(null); setABorrar(img); }}>
-                      Borrar estudio
-                    </Button>
+                  {menuDe(img).length > 0 && (
+                    <MenuMas items={menuDe(img)} tactil={tableta}
+                             label={`Más acciones del estudio ${img.description || img.modality}`} />
                   )}
                 </div>
               </div>
@@ -191,7 +234,7 @@ export function ColumnaEstudios({
           <>
             <b style={{ color: "var(--foreground)" }}>
               {[aBorrar.patient_name, aBorrar.description || aBorrar.dx_principal || "sin descripción",
-                aBorrar.acquired_at || "sin fecha", `${aBorrar.n_files} archivos`].join(" · ")}
+                aBorrar.acquired_at ? fechaDia(aBorrar.acquired_at) : "sin fecha", `${aBorrar.n_files} archivos`].join(" · ")}
             </b>
             <br />
             {"Se borra el DICOM archivado de este estudio. "}

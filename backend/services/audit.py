@@ -291,6 +291,33 @@ def audit_patient(patient) -> dict:
     return {"patient_id": patient.hospital_id or f"id:{patient.id}", "patient_dob": patient.dob or ""}
 
 
+def hash_de_paciente(patient) -> str:
+    """El hash con que la cadena guarda a este paciente: el de `audit_patient`
+    (historia clínica o `id:N`, y fecha de nacimiento). Vacío sin paciente."""
+    args = audit_patient(patient)
+    if not args:
+        return ""
+    return patient_hash_for(args["patient_id"], args["patient_dob"])
+
+
+def pacientes_por_hash(pacientes) -> dict:
+    """Invierte el hash de paciente de la cadena: hash → fila `Patient`.
+
+    La cadena no guarda el id del paciente sino el hash de su historia clínica
+    y su fecha de nacimiento, así que se invierte calculando el de cada ficha.
+    Dos fichas con la misma historia y fecha comparten hash (la HC no es única
+    en BD si viene vacía o de datos antiguos): gana la primera en el orden
+    recibido. Quien llama ordena por id, para que gane la más antigua y el
+    nombre no cambie de una petición a otra. Si se edita la historia o la
+    fecha, los bloques anteriores dejan de casar (límite aceptado, spec §4.4)."""
+    por_hash: dict = {}
+    for p in pacientes:
+        h = hash_de_paciente(p)
+        if h:
+            por_hash.setdefault(h, p)
+    return por_hash
+
+
 def audit_append(action: str, payload: dict, username: str = "",
                  patient_id: str = "", patient_dob: str = "") -> None:
     """Fire-and-forget append that never raises into the caller's flow."""

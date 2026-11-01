@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
+import { simularPantalla } from "../test/pantalla";
 
 const getPatient = vi.fn();
 const listPatients = vi.fn();
@@ -98,7 +99,10 @@ beforeEach(() => {
   for (const f of [onResume, onPlanCase, onOpenStudy]) f.mockReset();
   user.id = 1;
   user.role = "medico";
+  // Pantalla grande por defecto: caben las cinco columnas de la cascada.
+  simularPantalla(1920);
 });
+afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("PatientPage", () => {
   it("la miga dice «Pacientes» y el nombre del paciente", async () => {
@@ -145,6 +149,25 @@ describe("PatientPage", () => {
     await screen.findByText("Paciente no autorizado");
     expect(screen.queryByRole("button", { name: /Editar datos|Ver datos|Nuevo caso|Compartir con|Eliminar paciente/ })).toBeNull();
   });
+
+  it("modo de la ficha por tramo: lista en móvil, pantalla y lienzo a ≥ 1920", async () => {
+    getPatient.mockResolvedValue({ id: 42, surname: "Zenodo", given_name: "Caso 002", hospital_id: "HC-42", sex: "F" });
+    const ctl = simularPantalla(390);
+    const { container } = renderPage();
+    // En móvil la ficha abre con la columna Paciente a la vista (los datos del paciente).
+    await screen.findByRole("region", { name: "Paciente" });
+    expect(screen.queryByRole("region", { name: "Casos" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Volver a una columna anterior" })).toBeNull();
+    const cuerpo = () => container.querySelector(".page-body")!;
+    expect(cuerpo()).toHaveAttribute("data-modo", "lista");
+    expect(cuerpo()).not.toHaveAttribute("data-lienzo");
+    act(() => ctl.cambiar({ ancho: 1280 }));
+    expect(cuerpo()).toHaveAttribute("data-modo", "pantalla");
+    expect(cuerpo()).not.toHaveAttribute("data-lienzo");
+    act(() => ctl.cambiar({ ancho: 1920 }));
+    expect(cuerpo()).toHaveAttribute("data-modo", "pantalla");
+    expect(cuerpo()).toHaveAttribute("data-lienzo", "true");
+  });
 });
 
 describe("PatientPage · columna Datos", () => {
@@ -166,7 +189,7 @@ describe("PatientPage · columna Datos", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Editar datos" }));
     const hoja = await screen.findByRole("dialog", { name: "Zenodo, Caso 002" });
     expect(within(hoja).getByText("Datos del paciente")).toBeTruthy();
-    expect((within(hoja).getByLabelText("Apellidos") as HTMLInputElement).value).toBe("Zenodo");
+    expect((within(hoja).getByRole("textbox", { name: "Apellidos" }) as HTMLInputElement).value).toBe("Zenodo");
     expect(within(hoja).getByRole("button", { name: "Guardar cambios" })).toBeTruthy();
   });
 
@@ -179,7 +202,7 @@ describe("PatientPage · columna Datos", () => {
     expect(screen.queryByRole("button", { name: "Editar datos" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Eliminar paciente" })).toBeNull();
     const hoja = await screen.findByRole("dialog", { name: "Zenodo, Caso 002" });
-    expect((within(hoja).getByLabelText("Apellidos") as HTMLInputElement).readOnly).toBe(true);
+    expect((within(hoja).getByRole("textbox", { name: "Apellidos" }) as HTMLInputElement).readOnly).toBe(true);
     expect(within(hoja).queryByRole("button", { name: "Guardar cambios" })).toBeNull();
   });
 
@@ -210,7 +233,7 @@ describe("PatientPage · columna Datos", () => {
     expect(screen.queryByRole("button", { name: "Editar datos" })).toBeNull();
     expect(screen.getByText("No se pudieron comprobar tus permisos sobre este paciente; los datos se muestran de solo lectura.")).toBeTruthy();
     const hoja = await screen.findByRole("dialog", { name: "Zenodo, Caso 002" });
-    expect((within(hoja).getByLabelText("Apellidos") as HTMLInputElement).readOnly).toBe(true);
+    expect((within(hoja).getByRole("textbox", { name: "Apellidos" }) as HTMLInputElement).readOnly).toBe(true);
     expect(within(hoja).queryByRole("button", { name: "Guardar cambios" })).toBeNull();
   });
 
@@ -281,6 +304,46 @@ describe("PatientPage · casos, estudios y sesiones en cascada", () => {
     return region("Vista previa");
   };
 
+  it("en móvil la ficha abre con Paciente a la vista y Casos es su siguiente columna, desde su entrada", async () => {
+    simularPantalla(390);
+    renderPage();
+    const datos = await screen.findByRole("region", { name: "Paciente" });
+    expect(within(datos).getByRole("heading", { name: "Zenodo, Caso 002" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Casos" })).toBeNull();
+    fireEvent.click(within(datos).getByRole("button", { name: /^Casos/ }));
+    // Con una sola columna no hay vista previa por defecto: se ve Casos y Paciente queda de miga.
+    expect(await screen.findByRole("region", { name: "Casos" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Vista previa" })).toBeNull();
+    expect(within(screen.getByRole("navigation", { name: "Volver a una columna anterior" })).getByRole("button", { name: "Paciente" })).toBeTruthy();
+  });
+
+  it("sin caso elegido: Casos a 380 px y una vista previa del caso más reciente", async () => {
+    renderPage();
+    const vista = await screen.findByRole("region", { name: "Vista previa" });
+    expect(screen.getByRole("region", { name: "Casos" }).style.flex).toBe("0 1 380px");
+    expect(within(vista).getByRole("heading", { name: "Antes de medir" })).toBeTruthy();
+    expect(within(vista).getByRole("button", { name: "Reanudar" })).toBeTruthy();
+    // Elegir un caso la sustituye por sus estudios.
+    fireEvent.click(await screen.findByRole("button", { name: /^Aneurisma ACoA/ }));
+    expect(screen.queryByRole("region", { name: "Vista previa" })).toBeNull();
+  });
+
+  it("sin sesiones, la vista previa explica qué elegir", async () => {
+    patientSessions.mockResolvedValue([]);
+    renderPage();
+    expect(await screen.findByText("Elige un caso para ver sus estudios de imagen y sus sesiones guardadas.")).toBeTruthy();
+    expect(screen.getByText("Sin sesiones guardadas")).toBeTruthy();
+  });
+
+  it("Reanudar desde la ficha enseña «Abriendo…» mientras dura", async () => {
+    onResume.mockImplementation(() => new Promise(() => {}));
+    renderPage();
+    const vista = await screen.findByRole("region", { name: "Vista previa" });
+    fireEvent.click(await within(vista).findByRole("button", { name: "Reanudar" }));
+    const abriendo = await within(vista).findByRole("button", { name: "Abriendo…" });
+    expect(abriendo).toBeDisabled();
+  });
+
   it("la columna Casos se abre a la derecha de Datos con los casos del paciente", async () => {
     renderPage();
     const casos = await screen.findByRole("region", { name: "Casos" });
@@ -336,7 +399,8 @@ describe("PatientPage · casos, estudios y sesiones en cascada", () => {
   it("«Abrir estudio» lo abre en el flujo", async () => {
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: /^Aneurisma ACM/ }));
-    fireEvent.click(await within(region("Estudios de imagen")).findByRole("button", { name: "Abrir estudio" }));
+    fireEvent.click(await within(region("Estudios de imagen")).findByRole("button", { name: /Más acciones del estudio/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Abrir estudio" }));
     expect(onOpenStudy).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
   });
 
@@ -483,14 +547,7 @@ describe("PatientPage · casos, estudios y sesiones en cascada", () => {
   });
 
   describe("en pantalla estrecha (≤ 1280 px)", () => {
-    let original: typeof window.matchMedia;
-    beforeEach(() => {
-      original = window.matchMedia;
-      window.matchMedia = ((q: string) => ({
-        matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
-      })) as unknown as typeof window.matchMedia;
-    });
-    afterEach(() => { window.matchMedia = original; });
+    beforeEach(() => { simularPantalla(1280); });
     // La columna Datos vuelve a montarse al salir de las migas: que terminen sus cargas.
     const esperaColumnaDatos = async () => {
       await within(region("Paciente")).findByText("No está compartido con ninguna cuenta.");
@@ -504,10 +561,22 @@ describe("PatientPage · casos, estudios y sesiones en cascada", () => {
       const migas = screen.getByRole("navigation", { name: "Volver a una columna anterior" });
       fireEvent.click(within(migas).getByRole("button", { name: "Casos" }));
       expect(region("Casos")).toBeTruthy();
+      // Con dos columnas no hay vista previa por defecto: Datos y Casos vuelven
+      // a verse juntas y no queda ninguna miga.
       expect(region("Paciente")).toBeTruthy();
+      expect(screen.queryByRole("navigation", { name: "Volver a una columna anterior" })).toBeNull();
       expect(screen.queryByRole("region", { name: "Estudios de imagen" })).toBeNull();
       expect(screen.queryByRole("region", { name: /^Sesiones guardadas/ })).toBeNull();
       expect(screen.queryByRole("region", { name: "Vista previa" })).toBeNull();
+      await esperaColumnaDatos();
+    });
+
+    it("al abrir, Datos y Casos se ven juntas sin vista previa por defecto (I4)", async () => {
+      renderPage();
+      expect(await screen.findByRole("region", { name: "Casos" })).toBeTruthy();
+      expect(region("Paciente")).toBeTruthy();
+      expect(screen.queryByRole("region", { name: "Vista previa" })).toBeNull();
+      expect(screen.queryByRole("navigation", { name: "Volver a una columna anterior" })).toBeNull();
       await esperaColumnaDatos();
     });
 

@@ -14,15 +14,20 @@
       recibida cuya fuerza cayó fuera de la banda es justo lo que no puede
       quedar enterrado en una lista. */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { ClipOrder, OrderStatus, PatientSummary } from "../api/types";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icon";
+import { EstadoVacio } from "../components/EstadoVacio";
 import { Input } from "../components/Input";
-import { Card, ErrorNote, SectionLabel } from "../components/PanelHead";
+import { Pastillas } from "../components/Pastillas";
+import { Sheet } from "../components/Sheet";
+import { Switch } from "../components/Switch";
+import { TablaTarjetas, type ColumnaTabla } from "../components/TablaTarjetas";
+import { Card, ErrorNote } from "../components/PanelHead";
 import { glass } from "../styles/glass";
 import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
@@ -31,6 +36,8 @@ import { shapeLabel } from "../components/planning/clipShape";
 import { useAuth } from "../store/auth";
 import "../styles/office.css";
 import { cifra } from "../lib/numero";
+import { ESTILO_FECHA, fechaDia } from "../lib/fecha";
+import { useEstrecho, useMovil, useTableta } from "../hooks/useEstrecho";
 import { PageBody } from "../components/shell/PageBody";
 
 type Variant = "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive";
@@ -75,63 +82,100 @@ function attention(o: ClipOrder): { label: string; variant: Variant } | null {
   return null;
 }
 
-/* Ritmo de la tabla de la oficina: la cabecera (rótulo mono) la da office.css;
-   aquí solo el relleno. Filas de 13 px × 14 px. */
-const cellHead: React.CSSProperties = { padding: "10px 14px" };
+/** «T1 recto», «T3 angulado 60°», «T4 fenestrado ventana 5 mm»: la serie y la
+    forma en minúscula. `shapeLabel` queda como está porque lo usa el quirófano. */
+export function nombrePieza(o: Pick<ClipOrder, "series" | "shape" | "angle_deg" | "window_mm">): string {
+  const forma = shapeLabel(o.shape, o.angle_deg, o.window_mm);
+  return `${o.series} ${forma.charAt(0).toLowerCase()}${forma.slice(1)}`;
+}
 
-const cell: React.CSSProperties = {
-  fontSize: 12, padding: "13px 14px", verticalAlign: "top",
-};
+/** Más de 1280 px: el detalle del pedido va al lado de la lista; en menos, en una hoja. */
+export function useDetalleLateral(): boolean {
+  return !useEstrecho();
+}
 
-function Row({ order, onOpen, selected }: {
-  order: ClipOrder; onOpen: () => void; selected: boolean;
-}) {
-  const flag = attention(order);
-  return (
-    <tr
-      onClick={onOpen}
-      style={{ cursor: "pointer", background: selected ? "var(--brand-subtle)" : "transparent" }}
-    >
-      <td style={{ ...cell, fontFamily: "var(--font-mono)", fontWeight: 700 }}>
-        {order.part_no}
-      </td>
-      <td style={cell}>
-        <Badge variant={STATUS_VARIANT[order.status]}>{order.status_label}</Badge>
-        {flag && (
-          <div style={{ marginTop: 4 }}>
-            <Badge variant={flag.variant}>{flag.label}</Badge>
+const MONO: React.CSSProperties = { fontFamily: "var(--font-mono)", fontSize: 13 };
+const ATENUADO: React.CSSProperties = { fontSize: 13, color: "var(--muted-foreground)" };
+const ELIPSIS: React.CSSProperties = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 };
+/** Hasta 1024 px (tableta y táctil) el texto largo se parte en vez de
+    recortarse: no hay ancho para 220 px fijos ni ratón para leer el title. */
+const PARTIDO: React.CSSProperties = { overflowWrap: "anywhere" };
+
+/** `conTaller`: la columna Taller (se quita con el detalle al lado y en
+    641–1024 px). `partir`: ≤ 1024 px, las celdas de texto parten en líneas. */
+function columnasPedido(conTaller: boolean, partir = false): ColumnaTabla<ClipOrder>[] {
+  const recorte = partir ? PARTIDO : ELIPSIS;
+  // Una insignia larga («Enviado al taller», «fuera de especificación») también parte.
+  const insignia: React.CSSProperties | undefined = partir ? { whiteSpace: "normal" } : undefined;
+  const cols: ColumnaTabla<ClipOrder>[] = [
+    {
+      id: "pieza_no", titulo: "Nº de pieza", enTarjeta: "titulo", sinPartir: true,
+      celda: (o) => <span style={{ ...MONO, fontWeight: 600 }}>{o.part_no}</span>,
+    },
+    {
+      id: "estado", titulo: "Estado",
+      celda: (o) => {
+        const flag = attention(o);
+        return (
+          <>
+            <Badge variant={STATUS_VARIANT[o.status]} style={insignia}>{o.status_label}</Badge>
+            {flag && (
+              <div style={{ marginTop: 4 }}>
+                <Badge variant={flag.variant} style={insignia}>{flag.label}</Badge>
+              </div>
+            )}
+          </>
+        );
+      },
+    },
+    {
+      id: "paciente", titulo: "Paciente y caso",
+      celda: (o) => (
+        <>
+          <div title={o.patient || undefined} style={{ ...recorte, fontSize: 13 }}>{o.patient || "—"}</div>
+          <div title={o.case_label || undefined} style={{ ...recorte, ...ATENUADO }}>{o.case_label}</div>
+        </>
+      ),
+    },
+    {
+      id: "pieza", titulo: "Pieza",
+      celda: (o) => (
+        <>
+          <div style={{ fontSize: 13 }}>{nombrePieza(o)}</div>
+          <div style={ATENUADO}>
+            mordaza <span style={MONO}>{cifra(o.jaw_mm, 1)}</span> mm · <span style={MONO}>{o.total_pieces}</span>{" "}
+            {o.total_pieces === 1 ? "pieza" : "piezas"}
           </div>
-        )}
-      </td>
-      <td style={cell}>
-        <div className="truncate" style={{ maxWidth: 190 }}>{order.patient || "—"}</div>
-        <div className="truncate" style={{ maxWidth: 190, fontSize: 11, color: "var(--muted-foreground)" }}>
-          {order.case_label}
-        </div>
-      </td>
-      <td style={{ ...cell, fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>
-        {order.series} {shapeLabel(order.shape, order.angle_deg, order.window_mm)}
-        <div style={{ color: "var(--muted-foreground)" }}>
-          {cifra(order.jaw_mm, 1)} mm · {order.total_pieces} pza
-        </div>
-      </td>
-      <td style={cell}>
-        <div className="truncate" style={{ maxWidth: 150 }}>{order.workshop_name || "—"}</div>
-        {order.needed_by && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
-            para {order.needed_by}
-          </div>
-        )}
-      </td>
-    </tr>
-  );
+        </>
+      ),
+    },
+  ];
+  if (conTaller) {
+    cols.push({
+      id: "taller", titulo: "Taller",
+      celda: (o) => (
+        <>
+          <div title={o.workshop_name || undefined} style={{ ...recorte, fontSize: 13 }}>{o.workshop_name || "—"}</div>
+          {o.needed_by && <div style={ATENUADO}>para <span style={ESTILO_FECHA}>{fechaDia(o.needed_by)}</span></div>}
+        </>
+      ),
+    });
+  }
+  return cols;
 }
 
 /* ── Detalle ─────────────────────────────────────────────────────────────── */
 
-function Detail({ order, onChanged, onClose, onOpenSession }: {
+/** Una cifra dentro de un texto en sans: la única parte en mono. */
+function Cifra({ children }: { children: React.ReactNode }) {
+  return <span data-mono style={{ fontFamily: "var(--font-mono)" }}>{children}</span>;
+}
+
+function Detail({ order, onChanged, onClose, onOpenSession, enHoja = false }: {
   order: ClipOrder; onChanged: () => void; onClose: () => void;
   onOpenSession?: (sessionId: string, patientId: number | null) => Promise<void>;
+  /** Dentro de una hoja: la hoja trae su propio botón de cerrar. */
+  enHoja?: boolean;
 }) {
   const [error, setError] = useState("");
   // El servidor dijo que la sesión ya no existe: no tiene sentido reintentar.
@@ -159,80 +203,74 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
       .finally(() => setBusy(false));
   };
 
-  return (
-    <Card style={{ position: "sticky", top: 16 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
-        <b style={{ fontFamily: "var(--font-mono)", fontSize: 13, flex: 1 }}>{order.part_no}</b>
+  const siguientes = order.next_states.filter((s) => ADVANCE_LABEL[s]);
+  const cuerpo = (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <b data-mono style={{ fontFamily: "var(--font-mono)", fontSize: 15, fontWeight: 600, flex: 1, minWidth: 0 }}>
+          {order.part_no}
+        </b>
         <Badge variant={STATUS_VARIANT[order.status]}>{order.status_label}</Badge>
-        <button
-          onClick={onClose}
-          aria-label="Cerrar"
-          style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted-foreground)", fontSize: 14 }}
-        >
-          ✕
-        </button>
+        {!enHoja && (
+          <Button size="icon" variant="ghost" aria-label="Cerrar el detalle" title="Cerrar el detalle" onClick={onClose}>
+            <Icon name="CLOSE" size={14} />
+          </Button>
+        )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px", fontSize: 12 }}>
+      <dl className="po-datos">
         {([
           ["Paciente", order.patient || "—"],
           ["Caso", order.case_label || "—"],
-          ["Pieza", `${order.series} ${shapeLabel(order.shape, order.angle_deg, order.window_mm)} · mordaza ${cifra(order.jaw_mm, 1)} mm`],
-          ["Piezas", String(order.total_pieces)],
+          // El nombre de la pieza en sans («T1 recto»); mono solo en la cifra.
+          ["Pieza", <>{nombrePieza(order)} · mordaza <Cifra>{cifra(order.jaw_mm, 1)}</Cifra> mm</>],
+          ["Piezas", <Cifra>{order.total_pieces}</Cifra>],
           ["Cirujano", order.surgeon || "sin firmar"],
           ["Taller", order.workshop_name || "por asignar"],
-          ["Fecha necesaria", order.needed_by || "sin comprometer"],
+          ["Fecha necesaria", order.needed_by ? <span style={ESTILO_FECHA}>{fechaDia(order.needed_by)}</span> : "sin comprometer"],
           ["Uso previsto", order.intended_use],
-        ] as [string, string][]).map(([k, v]) => (
+        ] as [string, React.ReactNode][]).map(([k, v]) => (
           <div key={k} style={{ display: "contents" }}>
-            <div style={{ color: "var(--muted-foreground)" }}>{k}</div>
-            <div style={{ fontFamily: "var(--font-mono)" }}>{v}</div>
+            <dt>{k}</dt>
+            <dd>{v}</dd>
           </div>
         ))}
-      </div>
+      </dl>
 
       {order.override_reason && (
-        <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 10, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 13, color: "var(--warning)", marginTop: 10, lineHeight: 1.5 }}>
           Se aparta de lo recomendado ({order.advised_label}): {order.override_reason}
         </div>
       )}
 
       {order.status === "recibida" && (
-        <div style={{
-          fontSize: 11, marginTop: 10, fontFamily: "var(--font-mono)", lineHeight: 1.5,
+        <div data-testid="po-medido" style={{
+          fontSize: 13, marginTop: 10, lineHeight: 1.5,
           color: outOfSpec ? "var(--destructive)" : "var(--success)",
         }}>
-          Medido: mordaza {cifra(r.measured_jaw_mm, 2)} mm · fuerza {r.measured_force_g?.toFixed(0)} g
+          Medido: mordaza <Cifra>{cifra(r.measured_jaw_mm, 2)}</Cifra> mm · fuerza <Cifra>{cifra(r.measured_force_g, 0)}</Cifra> g
           {outOfSpec ? " — fuera de especificación" : " — dentro de especificación"}
         </div>
       )}
 
       {(order.files.packet || order.files.dossier_internal || order.files.stl) && (
-        <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
-          {order.files.packet && (
-            <Button size="sm" variant="ghost"
-                    onClick={() => void api.downloadClipOrderFile(order.part_no, "packet")}>
-              Paquete taller (ZIP)
+        <div role="group" aria-label="Descargas" style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
+          {([
+            ["packet", "Paquete del taller (ZIP)"],
+            ["dossier_internal", "Copia interna (PDF)"],
+            ["stl", "STL"],
+          ] as const).filter(([k]) => order.files[k]).map(([k, rotulo]) => (
+            <Button key={k} size="sm" variant="outline" leadingIcon={<Icon name="EXPORT" size={14} />}
+                    onClick={() => void api.downloadClipOrderFile(order.part_no, k)}>
+              {rotulo}
             </Button>
-          )}
-          {order.files.dossier_internal && (
-            <Button size="sm" variant="ghost"
-                    onClick={() => void api.downloadClipOrderFile(order.part_no, "dossier_internal")}>
-              Copia interna (PDF)
-            </Button>
-          )}
-          {order.files.stl && (
-            <Button size="sm" variant="ghost"
-                    onClick={() => void api.downloadClipOrderFile(order.part_no, "stl")}>
-              STL
-            </Button>
-          )}
+          ))}
         </div>
       )}
 
       {receiving && (
         <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8, lineHeight: 1.45 }}>
+          <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginBottom: 8, lineHeight: 1.45 }}>
             Aquí la fuerza deja de ser un objetivo: hay que medirla en la pieza que llegó.
           </div>
           <div style={{ display: "flex", gap: 10 }}>
@@ -256,9 +294,41 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
         </div>
       )}
 
-      {onOpenSession && (
-        <div style={{ marginTop: 12 }}>
-          <Button size="sm" variant="secondary" disabled={busy || sessionGone}
+      <div className="po-acciones" data-testid="po-acciones">
+        {siguientes.map((s, i) => {
+          const variante = i === 0 ? "default" : "outline";
+          return s === "recibida" ? (
+            <Button key={s} size="sm" variant={variante} disabled={busy}
+                    onClick={() => setReceiving(true)}>
+              {ADVANCE_LABEL[s]}
+            </Button>
+          ) : s === "firmado" ? (
+            <Button key={s} size="sm" variant={variante} disabled={busy || cannotSign}
+                    title={cannotSign ? SIGN_DENIED : undefined}
+                    onClick={() => setAsking("firmar")}>
+              {ADVANCE_LABEL[s]}
+            </Button>
+          ) : (
+            <Button key={s} size="sm" variant={variante} disabled={busy}
+                    onClick={() => act(api.advanceClipOrder(order.part_no, s))}>
+              {ADVANCE_LABEL[s]}
+            </Button>
+          );
+        })}
+        {order.status === "recibida" && (
+          <>
+            <Button size="sm" variant="default" disabled={busy}
+                    onClick={() => act(api.verifyClipOrder(order.part_no, deviation))}>
+              Aceptar la pieza
+            </Button>
+            <Button size="sm" variant="destructive" disabled={busy}
+                    onClick={() => setAsking("rechazar")}>
+              Rechazar
+            </Button>
+          </>
+        )}
+        {onOpenSession && (
+          <Button size="sm" variant="outline" disabled={busy || sessionGone}
                   title={sessionGone ? "La sesión de este pedido ya no existe" : undefined}
                   onClick={() => {
                     setBusy(true);
@@ -272,44 +342,10 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
                   }}>
             Abrir el caso
           </Button>
-        </div>
-      )}
-
-      <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
-        {order.next_states.filter((s) => ADVANCE_LABEL[s]).map((s) => (
-          s === "recibida" ? (
-            <Button key={s} size="sm" variant="outline" disabled={busy}
-                    onClick={() => setReceiving(true)}>
-              {ADVANCE_LABEL[s]}
-            </Button>
-          ) : s === "firmado" ? (
-            <Button key={s} size="sm" variant="outline" disabled={busy || cannotSign}
-                    title={cannotSign ? SIGN_DENIED : undefined}
-                    onClick={() => setAsking("firmar")}>
-              {ADVANCE_LABEL[s]}
-            </Button>
-          ) : (
-            <Button key={s} size="sm" variant="outline" disabled={busy}
-                    onClick={() => act(api.advanceClipOrder(order.part_no, s))}>
-              {ADVANCE_LABEL[s]}
-            </Button>
-          )
-        ))}
-        {order.status === "recibida" && (
-          <>
-            <Button size="sm" disabled={busy}
-                    onClick={() => act(api.verifyClipOrder(order.part_no, deviation))}>
-              Aceptar la pieza
-            </Button>
-            <Button size="sm" variant="destructive" disabled={busy}
-                    onClick={() => setAsking("rechazar")}>
-              Rechazar
-            </Button>
-          </>
         )}
       </div>
       {cannotSign && order.next_states.includes("firmado") && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>
+        <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>
           {SIGN_DENIED}
         </div>
       )}
@@ -340,8 +376,9 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
       </ConfirmDialog>
 
       <ErrorNote>{error}</ErrorNote>
-    </Card>
+    </>
   );
+  return enHoja ? <div>{cuerpo}</div> : <Card>{cuerpo}</Card>;
 }
 
 /* ── La pantalla ─────────────────────────────────────────────────────────── */
@@ -423,6 +460,14 @@ export function ClipOrdersPage({
   const counts: Record<string, number> = {};
   for (const o of base) counts[o.status] = (counts[o.status] ?? 0) + 1;
   const todosCount = openOnly ? base.filter((o) => !CLOSED.includes(o.status)).length : base.length;
+  const lateral = useDetalleLateral();
+  // 641–1024 px: sin la columna Taller y con las celdas de texto partidas, para
+  // que la tabla quepa sin scroll horizontal; ≤ 640 son tarjetas y partidas.
+  const movil = useMovil();
+  const tableta = useTableta();
+  // La hoja conserva el último pedido mientras se cierra (la salida dura unos ms).
+  const ultimo = useRef<ClipOrder | null>(null);
+  if (selected) ultimo.current = selected;
   const needAttention = sorted.filter((o) => attention(o) !== null).length;
 
   return (
@@ -439,15 +484,21 @@ export function ClipOrdersPage({
             vuelta al paciente; solo «Ver todos», que tampoco lleva a él. */}
         {onBackToPatient && (
           <div style={{ marginBottom: 8 }}>
-            <Button size="sm" variant="ghost" onClick={onBackToPatient}>← Volver a la ficha</Button>
+            <Button size="sm" variant="ghost" leadingIcon={<Icon name="BACK" size={14} />} onClick={onBackToPatient}>
+              Volver a la ficha
+            </Button>
           </div>
         )}
         {patientFilter && (
-          <div style={{
-            display: "flex", alignItems: "center", gap: 8, marginBottom: 12,
-            fontSize: 12, padding: "8px 10px", borderRadius: "var(--radius-md)",
-            background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)",
-          }}>
+          <div
+            data-glass
+            style={{
+              ...glass("normal"),
+              display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 12,
+              fontSize: 13, padding: "6px 8px 6px 14px", borderRadius: "var(--radius-full)",
+              color: "var(--foreground)",
+            }}
+          >
             <span>Filtrado por <b>{patientFilter.full_name}</b></span>
             {onClearPatient && (
               <Button size="sm" variant="ghost" onClick={onClearPatient}>Ver todos</Button>
@@ -456,114 +507,88 @@ export function ClipOrdersPage({
         )}
 
         {/* Los contadores no son decoración: dicen dónde está parado el trabajo. */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-          <button
-            onClick={() => setStatus(ALL)}
-            style={chip(status === ALL)}
-          >
-            Todos <span style={{ fontFamily: "var(--font-mono)", opacity: .7 }}>{todosCount}</span>
-          </button>
-          {Object.entries(labels).map(([key, label]) => (
-            <button key={key} style={chip(status === key)}
-                    onClick={() => {
-                      setStatus(key);
-                      // F1-96: con «solo los abiertos» puesto, estas dos darían siempre vacío.
-                      if (CLOSED.includes(key)) setOpenOnly(false);
-                    }}>
-              {label} <span style={{ fontFamily: "var(--font-mono)", opacity: .7 }}>{counts[key] ?? 0}</span>
-            </button>
-          ))}
+        <div style={{ marginBottom: 12 }}>
+          <Pastillas
+            rotulo="Filtrar por estado"
+            valor={status}
+            opciones={[
+              { id: ALL, label: "Todos", cuenta: todosCount },
+              ...Object.entries(labels).map(([key, label]) => ({ id: key, label, cuenta: counts[key] ?? 0 })),
+            ]}
+            onCambiar={(id) => {
+              setStatus(id);
+              // F1-96: con «solo los abiertos» puesto, estas dos darían siempre vacío.
+              if (CLOSED.includes(id)) setOpenOnly(false);
+            }}
+          />
         </div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "flex-end", marginBottom: 14, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 260px", minWidth: 0 }}>
             <Input
-              label="Buscar"
+              aria-label="Buscar pedidos"
               placeholder="Nº de pieza, paciente, caso, cirujano o taller"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              icon={<Icon name="SEARCH" size={13} />}
+              icon={<Icon name="SEARCH" size={14} />}
             />
           </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--foreground)", cursor: "pointer", paddingBottom: 10 }}>
-            <input type="checkbox" checked={openOnly} onChange={(e) => setOpenOnly(e.target.checked)} />
-            Solo los abiertos
-          </label>
+          <Switch label="Solo los abiertos" checked={openOnly} onChange={setOpenOnly} />
         </div>
 
         {needAttention > 0 && (
-          <div style={{ fontSize: 12, color: "var(--warning)", marginBottom: 10 }}>
-            {needAttention} pedido(s) piden atención: arriba del todo.
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--warning)", marginBottom: 10 }}>
+            <Icon name="STATUS_WARN" size={14} />
+            {needAttention === 1
+              ? "1 pedido pide atención: está arriba del todo"
+              : `${needAttention} pedidos piden atención: están arriba del todo`}
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-          <div style={{ flex: 1, minWidth: 0, overflowX: "auto" }}>
-            {error && (
-              <Card>
-                <LoadState state="error" mensaje={error} onRetry={load} />
-              </Card>
-            )}
-            {!error && loading && orders.length === 0 && (
-              <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Leyendo el registro…</div>
-            )}
-            {!error && !loading && sorted.length === 0 && (
-              <Card>
-                <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-                  {/* F2-53: «este filtro» se decía aunque no hubiese ningún pedido. */}
-                  {noOrdersAtAll
-                    ? <>{patientFilter ? "Este paciente aún no tiene pedidos." : "No hay pedidos todavía."} Los pedidos se crean en el paso <b>Fabricación</b> de un caso.</>
-                    : "Ningún pedido encaja con este filtro."}
-                </div>
-              </Card>
-            )}
-            {!error && sorted.length > 0 && (
-              <div data-glass style={{ ...glass("dense"), borderRadius: "var(--radius-card-lg)", padding: "4px 2px 0", overflowX: "auto" }}>
-                <table className="tabla-oficina" style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr>
-                      <th style={cellHead}>Nº de pieza</th>
-                      <th style={cellHead}>Estado</th>
-                      <th style={cellHead}>Paciente y caso</th>
-                      <th style={cellHead}>Pieza</th>
-                      <th style={cellHead}>Taller</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sorted.map((o) => (
-                      <Row
-                        key={o.part_no}
-                        order={o}
-                        selected={o.part_no === sel}
-                        onOpen={() => setSel(o.part_no === sel ? null : o.part_no)}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+        <div style={lateral && selected
+          ? { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 360px", gap: 16, alignItems: "start" }
+          : { display: "block" }}>
+          <div style={{ minWidth: 0 }}>
+            <TablaTarjetas
+              rotulo="Pedidos de clips"
+              filas={error ? [] : sorted}
+              columnas={columnasPedido(!(lateral && selected) && !(tableta && !movil), tableta)}
+              clave={(o) => o.part_no}
+              onFila={(o) => setSel(o.part_no === sel ? null : o.part_no)}
+              seleccionada={(o) => o.part_no === sel}
+              vacio={error ? (
+                <Card><LoadState state="error" mensaje={error} onRetry={load} /></Card>
+              ) : loading ? (
+                <div style={{ ...ATENUADO, padding: 16 }}>Leyendo el registro…</div>
+              ) : noOrdersAtAll ? (
+                <EstadoVacio icono="ORDER" titulo={patientFilter ? "Este paciente aún no tiene pedidos" : "No hay pedidos todavía"}>
+                  Los pedidos se crean en el paso <b>Fabricación</b> de un caso.
+                </EstadoVacio>
+              ) : (
+                <EstadoVacio icono="FILTER" titulo="Ningún pedido encaja con este filtro." />
+              )}
+            />
           </div>
 
-          {selected && (
-            <div style={{ width: 340, flexShrink: 0 }}>
-              <SectionLabel>Detalle</SectionLabel>
-              <Detail order={selected} onChanged={load} onClose={() => setSel(null)}
+          {lateral && selected && (
+            <aside
+              aria-label={`Detalle del pedido ${selected.part_no}`}
+              style={{ position: "sticky", top: 16, minWidth: 0 }}
+            >
+              {/* La clave rehace el detalle al cambiar de pedido: lo tecleado
+                  (justificación, medidas) no pasa de uno a otro. */}
+              <Detail key={selected.part_no} order={selected} onChanged={load} onClose={() => setSel(null)}
                       onOpenSession={onOpenSession} />
-            </div>
+            </aside>
           )}
         </div>
+        {!lateral && ultimo.current && (
+          <Sheet open={!!selected} title={`Pedido ${ultimo.current.part_no}`} width={460} onClose={() => setSel(null)}>
+            <Detail key={(selected ?? ultimo.current).part_no} order={selected ?? ultimo.current} enHoja onChanged={load} onClose={() => setSel(null)}
+                    onOpenSession={onOpenSession} />
+          </Sheet>
+        )}
       </PageBody>
     </AppShell>
   );
-}
-
-function chip(active: boolean): React.CSSProperties {
-  return {
-    padding: "5px 11px", borderRadius: "var(--radius-full)", cursor: "pointer",
-    border: "1px solid " + (active ? "transparent" : "var(--border)"),
-    background: active ? "var(--brand-deep)" : "var(--card)",
-    color: active ? "var(--primary-foreground)" : "var(--foreground)",
-    fontFamily: "var(--font-sans)", fontSize: 12, fontWeight: active ? 700 : 500,
-    whiteSpace: "nowrap",
-  };
 }

@@ -7,6 +7,7 @@ export function Tabs({
   value,
   onChange,
   size = "md",
+  "aria-label": ariaLabel,
 }: {
   tabs: readonly string[];
   value: string;
@@ -14,6 +15,8 @@ export function Tabs({
   /** `sm` for a second level of tabs nested under another bar: two bars at the
       same weight read as two choices of equal rank, and they are not. */
   size?: "md" | "sm";
+  /** Nombre accesible de la barra («Qué pacientes ver»). */
+  "aria-label"?: string;
 }) {
   const sm = size === "sm";
   // Un layoutId único por instancia: dos barras en pantalla no se roban el resalte.
@@ -21,7 +24,7 @@ export function Tabs({
   return (
     // Con `wrap`: seis pestañas no caben en el panel estrecho, y sin partirse
     // ensanchaban todo el panel y le sacaban una barra horizontal.
-    <div role="tablist" style={{ display: "flex", flexWrap: "wrap", gap: 2, padding: 3, width: "fit-content", maxWidth: "100%", borderRadius: "var(--radius-full)", background: "color-mix(in srgb, var(--foreground) 6%, transparent)" }}>
+    <div role="tablist" aria-label={ariaLabel} style={{ display: "flex", flexWrap: "wrap", gap: 2, padding: 3, width: "fit-content", maxWidth: "100%", borderRadius: "var(--radius-full)", background: "color-mix(in srgb, var(--foreground) 6%, transparent)" }}>
       {tabs.map((t) => {
         const active = t === value;
         return (

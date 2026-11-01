@@ -23,6 +23,9 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Input } from "../components/Input";
 import { Card, ErrorNote, SectionLabel } from "../components/PanelHead";
 import { Sheet } from "../components/Sheet";
+import { EstadoVacio } from "../components/EstadoVacio";
+import { Icon } from "../components/Icon";
+import { ESTILO_FECHA, fechaEpoch } from "../lib/fecha";
 import { glass } from "../styles/glass";
 import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
@@ -33,12 +36,6 @@ const BLANK: WorkshopIn = {
   name: "", contact_name: "", email: "", phone: "", address: "", tax_id: "", notes: "",
 };
 
-const row: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
-const cell: React.CSSProperties = { flex: "1 1 180px", minWidth: 0 };
-
-function fmtDate(ts: number): string {
-  return ts ? new Date(ts * 1000).toLocaleDateString() : "—";
-}
 
 /* ── Alta y edición ──────────────────────────────────────────────────────── */
 
@@ -71,7 +68,7 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
     setError("");
   }, [open, workshop]);
 
-  const set = (k: keyof WorkshopIn) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set = (k: keyof WorkshopIn) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm({ ...form, [k]: e.target.value });
 
   const nameMissing = !form.name.trim();
@@ -102,7 +99,7 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
               <ErrorNote>{error}</ErrorNote>
             </div>
           )}
-          <Button onClick={save} disabled={busy}>
+          <Button onClick={save} disabled={busy || nameMissing}>
             {busy ? "Guardando…" : workshop ? "Guardar cambios" : "Registrar taller"}
           </Button>
           <Button variant="outline" onClick={onClose} disabled={busy}>Cancelar</Button>
@@ -110,33 +107,22 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
       }
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <Input label="Nombre" value={form.name}
+        <Input label="Nombre" obligatorio value={form.name}
                onChange={(e) => { setTypedName(true); set("name")(e); }}
                onBlur={() => { if (typedName && nameMissing) setFlagName(true); }}
                invalid={flagName && nameMissing}
                hint={flagName && nameMissing
                  ? "Escribe el nombre del taller."
                  : "Como aparecerá en el desplegable al pedir una pieza."} />
-        <div style={row}>
-          <div style={cell}>
-            <Input label="Persona de contacto" value={form.contact_name} onChange={set("contact_name")} />
-          </div>
-          <div style={cell}>
-            <Input label="NIF / identificación fiscal" value={form.tax_id} onChange={set("tax_id")} />
-          </div>
-        </div>
-        <div style={row}>
-          <div style={cell}>
-            <Input label="Correo" type="email" value={form.email} onChange={set("email")} />
-          </div>
-          <div style={cell}>
-            <Input label="Teléfono" value={form.phone} onChange={set("phone")} />
-          </div>
+        <div className="hoja-dos-columnas">
+          <Input label="Persona de contacto" value={form.contact_name} onChange={set("contact_name")} />
+          <Input label="NIF / identificación fiscal" value={form.tax_id} onChange={set("tax_id")} />
+          <Input label="Correo" type="email" value={form.email} onChange={set("email")} />
+          <Input label="Teléfono" value={form.phone} onChange={set("phone")} />
         </div>
         <Input label="Dirección" value={form.address} onChange={set("address")} />
-        <Input label="Notas" value={form.notes} onChange={set("notes")}
+        <Input label="Notas" multiline value={form.notes} onChange={set("notes")}
                hint="Plazos habituales, capacidades, lo que convenga recordar." />
-
       </div>
     </Sheet>
   );
@@ -180,11 +166,13 @@ export function WorkshopsPage() {
       });
   };
 
+  const abrirAlta = () => { setEditing(null); setSheetOpen(true); };
+
   return (
     <AppShell
       crumbs={[{ label: "Talleres" }]}
       subtitle="Quién fabrica las piezas. Se escriben una vez y se eligen en cada pedido."
-      acciones={[{ id: "nuevo-taller", label: "Nuevo taller", icon: "PLUS", principal: true, abreDialogo: true, onClick: () => { setEditing(null); setSheetOpen(true); } }]}
+      acciones={[{ id: "nuevo-taller", label: "Nuevo taller", icon: "PLUS", principal: true, abreDialogo: true, onClick: abrirAlta }]}
     >
       <PageBody className="fade-rise">
         <ErrorNote>{error}</ErrorNote>
@@ -196,88 +184,89 @@ export function WorkshopsPage() {
         )}
 
         {!loadError && loading && workshops.length === 0 && (
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Leyendo el directorio…</div>
+          <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>Leyendo el directorio…</div>
         )}
 
         {!loadError && !loading && workshops.length === 0 && (
-          <Card>
-            <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-              Todavía no hay talleres. Registra aquí los del convenio y aparecerán en el
-              desplegable al pedir una pieza, en el paso <b>Fabricación</b> de un caso.
-            </div>
-          </Card>
+          <EstadoVacio
+            icono="WORKSHOP"
+            titulo="Todavía no hay talleres"
+            accion={<Button leadingIcon={<Icon name="PLUS" />} onClick={abrirAlta}>Nuevo taller</Button>}
+          >
+            Registra aquí los del convenio y aparecerán en el desplegable al pedir una pieza,
+            en el paso <b>Fabricación</b> de un caso.
+          </EstadoVacio>
         )}
 
         {!loadError && workshops.length > 0 && (
-        <div data-glass style={{ ...glass("dense"), borderRadius: "var(--radius-card-lg)", display: "flex", flexDirection: "column" }}>
-          {workshops.map((w, i) => (
-            <div key={w.id} style={{ padding: "16px 18px", borderTop: i === 0 ? "none" : "1px solid var(--border)" }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: "var(--foreground)" }}>
-                      {w.name}
-                    </div>
-                    {w.order_count > 0 && (
-                      <Badge variant="subtle">
-                        {w.order_count} pedido{w.order_count === 1 ? "" : "s"}
-                      </Badge>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 3 }}>
-                    {[w.contact_name, w.email, w.phone].filter(Boolean).join(" · ") || "Sin contacto registrado"}
-                  </div>
-                  {w.address && (
-                    <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
-                      {w.address}
-                    </div>
+          <div className="tl-rejilla">
+            {workshops.map((w) => (
+              <article key={w.id} data-glass className="tl-tarjeta" style={glass("normal")}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "var(--foreground)" }}>{w.name}</div>
+                  {w.order_count > 0 && (
+                    <Badge variant="subtle">
+                      {w.order_count === 1 ? "1 pedido" : `${w.order_count} pedidos`}
+                    </Badge>
                   )}
-                  {w.notes && (
-                    <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
-                      {w.notes}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, fontFamily: "var(--font-mono)" }}>
-                    {w.tax_id && <>NIF {w.tax_id} · </>}
-                    alta {fmtDate(w.created_at)}
-                    {w.last_used_at ? ` · último pedido ${fmtDate(w.last_used_at)}` : " · sin usar"}
-                  </div>
                 </div>
-
-                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                  <Button size="sm" variant="ghost"
+                <div style={{ fontSize: 13 }}>
+                  {[w.contact_name, w.email, w.phone].filter(Boolean).join(" · ") || "Sin contacto registrado"}
+                </div>
+                {w.address && (
+                  <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>{w.address}</div>
+                )}
+                {w.notes && (
+                  <div style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.5 }}>{w.notes}</div>
+                )}
+                {/* Sans 13 px; mono solo en el código (NIF) y fechas con cifras tabulares. */}
+                <div data-testid="tl-alta" style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
+                  {w.tax_id && <>NIF <span data-mono style={{ fontFamily: "var(--font-mono)" }}>{w.tax_id}</span> · </>}
+                  alta <span style={ESTILO_FECHA}>{fechaEpoch(w.created_at)}</span>
+                  {w.last_used_at
+                    ? <> · último pedido <span style={ESTILO_FECHA}>{fechaEpoch(w.last_used_at)}</span></>
+                    : " · sin usar"}
+                </div>
+                <div className="tl-pie">
+                  <Button size="sm" variant="outline" leadingIcon={<Icon name="EDIT" />}
+                          aria-label={`Editar el taller ${w.name}`}
                           onClick={() => { setEditing(w); setSheetOpen(true); }}>
                     Editar
                   </Button>
                   {isAdmin && (
-                    <Button size="sm" variant="destructive" onClick={() => setToDelete(w)}>
+                    <Button size="sm" variant="destructive-ghost" leadingIcon={<Icon name="DELETE" />}
+                            aria-label={`Borrar el taller ${w.name}`}
+                            onClick={() => setToDelete(w)}>
                       Borrar
                     </Button>
                   )}
                 </div>
-              </div>
-            </div>
-          ))}
-        </div>
+              </article>
+            ))}
+          </div>
         )}
 
         {workshops.length > 0 && !isAdmin && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 12 }}>
+          <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 12 }}>
             Borrar un taller es cosa del administrador: desaparece de la lista de todos.
           </div>
         )}
 
+        {/* Con la lista vacía lo explica el estado vacío; con error, no hay lista que explicar. */}
+        {!loadError && workshops.length > 0 && (
         <div style={{ marginTop: 20 }}>
           <SectionLabel>Cómo se usa</SectionLabel>
-          <Card style={{ background: "var(--muted)" }}>
-            <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.6 }}>
+          <p className="pista" role="note">
+            <Icon name="INFO" />
+            <span>
               Un taller registrado aquí aparece en el desplegable <b>Destinatario</b> del
               paso <b>Fabricación</b> de cualquier caso. Cuando se firma un pedido, sus
               datos se copian dentro: si más tarde cambian de dirección, el pedido antiguo
               sigue diciendo a dónde se mandó de verdad.
-            </div>
-          </Card>
+            </span>
+          </p>
         </div>
+        )}
       </PageBody>
 
       <WorkshopSheet

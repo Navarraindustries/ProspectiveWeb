@@ -7,7 +7,7 @@
    completa: el cierre por clic fuera escucha el documento, así que no captura
    el puntero cuando el menú está cerrado ni lo bloquea mientras se abre. */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "./Icon";
@@ -27,6 +27,10 @@ export interface ItemMenu {
   disabled?: boolean;
   /** `onSelect` abre un diálogo o una hoja que toma el foco: no se devuelve al disparador. */
   abreDialogo?: boolean;
+  /** Texto de ayuda: tooltip con el puntero y, además, línea de descripción
+      visible bajo el rótulo (en táctil no hay tooltip). Va en aria-describedby;
+      el nombre accesible sigue siendo solo el rótulo. */
+  title?: string;
   separadoAntes?: boolean;
 }
 
@@ -41,6 +45,7 @@ export function MenuMas({ items, label = "Más acciones", tactil = false }: {
   const [pos, setPos] = useState<{ derecha: number; top?: number; bottom?: number; lado: "arriba" | "abajo" } | null>(null);
   const boton = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
+  const base = useId();
 
   const cerrar = useCallback((devolverFoco: boolean) => {
     setAbierto(false);
@@ -50,7 +55,8 @@ export function MenuMas({ items, label = "Más acciones", tactil = false }: {
   const abrir = () => {
     const r = boton.current?.getBoundingClientRect();
     if (r) {
-      const estimada = 44 * items.length + 16;
+      // Cada línea de descripción suma una fila más (o dos, si parte).
+      const estimada = 44 * items.length + 36 * items.filter((it) => it.title).length + 16;
       const arriba = r.bottom + estimada > window.innerHeight;
       const derecha = Math.max(8, window.innerWidth - r.right);
       setPos(arriba
@@ -150,14 +156,36 @@ export function MenuMas({ items, label = "Más acciones", tactil = false }: {
           }}
         >
           {items.map((it) => {
+            const idRotulo = `${base}-${it.id}-rotulo`;
+            const idDescripcion = `${base}-${it.id}-descripcion`;
             const comunes = {
               role: "menuitem" as const,
               tabIndex: -1,
               "aria-disabled": it.disabled || undefined,
+              title: it.title,
+              // Con descripción visible, el nombre es solo el rótulo y la descripción la describe.
+              "aria-labelledby": it.title ? idRotulo : undefined,
+              "aria-describedby": it.title ? idDescripcion : undefined,
               "data-danger": it.destructive ? "true" : undefined,
-              style: { ...estiloItem, color: it.destructive ? "var(--destructive)" : "inherit", opacity: it.disabled ? 0.45 : 1, cursor: it.disabled ? "not-allowed" : "pointer" },
+              style: {
+                ...estiloItem,
+                ...(it.title ? { padding: "6px 12px" } : {}),
+                color: it.destructive ? "var(--destructive)" : "inherit", opacity: it.disabled ? 0.45 : 1, cursor: it.disabled ? "not-allowed" : "pointer",
+              },
             };
-            const contenido = (<>{it.icon && <Icon name={it.icon} size={15} />}<span>{it.label}</span></>);
+            const contenido = (
+              <>
+                {it.icon && <Icon name={it.icon} size={15} />}
+                {it.title ? (
+                  <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                    <span id={idRotulo} data-rotulo>{it.label}</span>
+                    <span id={idDescripcion} data-descripcion style={{ fontSize: 13, lineHeight: 1.35, whiteSpace: "normal", color: "var(--muted-foreground)" }}>
+                      {it.title}
+                    </span>
+                  </span>
+                ) : <span data-rotulo>{it.label}</span>}
+              </>
+            );
             return (
               <div key={it.id}>
                 {it.separadoAntes && <div role="separator" style={{ height: 1, margin: "4px 6px", background: "var(--glass-border)" }} />}

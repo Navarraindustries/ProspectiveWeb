@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { glass } from "../styles/glass";
+import { DUR, EASE, motion, useReducedMotion } from "../motion";
+import { Icon } from "./Icon";
 
 export function PanelHead({ title, desc, right }: { title: string; desc?: string; right?: ReactNode }) {
   return (
@@ -63,6 +65,7 @@ export function Collapsible({
   forceOpen?: boolean;
   children: ReactNode;
 }) {
+  const reducido = useReducedMotion();
   const [open, setOpen] = useState(() => {
     // sessionStorage puede lanzar (ventana privada, cookies bloqueadas); en ese
     // caso simplemente se usa el valor por defecto.
@@ -103,15 +106,16 @@ export function Collapsible({
           )}
         </span>
         {badge}
-        <span
+        <motion.span
           data-chevron
+          data-abierto={open}
           aria-hidden="true"
-          style={{
-            color: "var(--muted-foreground)", fontSize: 12, flexShrink: 0, display: "inline-block",
-            transform: open ? "rotate(90deg)" : "rotate(0deg)",
-            transition: "transform var(--dur-2) var(--ease-out, ease)",
-          }}
-        >▸</span>
+          animate={{ rotate: open ? 90 : 0 }}
+          transition={reducido ? { duration: 0 } : { duration: DUR.estado, ease: EASE }}
+          style={{ color: "var(--muted-foreground)", flexShrink: 0, display: "inline-flex" }}
+        >
+          <Icon name="CHEVRON_RIGHT" size={14} />
+        </motion.span>
       </button>
       {open && <div style={{ padding: "0 14px 16px", borderTop: "1px solid var(--border)" }}>
         <div style={{ paddingTop: 14 }}>{children}</div>

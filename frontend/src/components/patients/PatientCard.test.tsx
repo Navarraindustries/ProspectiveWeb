@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { PatientSummary } from "../../api/types";
 import { STEPS } from "../../pipeline/steps";
+import { simularPantalla } from "../../test/pantalla";
 
 const captureObjectUrl = vi.fn();
 const studyThumbnailObjectUrl = vi.fn();
@@ -39,7 +40,7 @@ beforeEach(() => {
   URL.createObjectURL = vi.fn(() => "blob:x");
   URL.revokeObjectURL = revoke as unknown as typeof URL.revokeObjectURL;
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("PatientCard", () => {
   it("con sesión en Detección: píldora «Paso 3 · Detección», barra al 37 %, botón «Reanudar» que no abre la ficha", () => {
@@ -53,9 +54,9 @@ describe("PatientCard", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("con la sesión en Informe: botón «Abrir informe» que reanuda esa sesión", () => {
+  it("con la sesión en Informe: botón «Informe» que reanuda esa sesión", () => {
     const { onResume } = montar(paciente({ last_session_step: STEPS.length - 1 }));
-    fireEvent.click(screen.getByRole("button", { name: /Abrir informe/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Informe" }));
     expect(onResume).toHaveBeenCalledWith("s-1", expect.objectContaining({ id: 7 }));
   });
 
@@ -172,5 +173,50 @@ describe("PatientCard", () => {
     await waitFor(() => expect(container.querySelector("img")).not.toBeNull());
     unmount();
     expect(revoke).toHaveBeenCalledWith("blob:x");
+  });
+});
+
+describe("PatientCard: gestión (A25-A29)", () => {
+  it("HC larga: title con el valor completo", () => {
+    const hc = "HC-" + "1234567890".repeat(3) + "abc";
+    montar(paciente({ hospital_id: hc }));
+    expect(document.querySelector(".pt-card-meta")!.getAttribute("title")).toContain(hc);
+  });
+
+  it("sin imagen ni sesión: iniciales y «Sin estudios aún», sin icono de paso", () => {
+    montar(paciente({ full_name: "Segura, Prueba", last_session_id: null, last_session_step: null, last_capture_id: null, last_imaging_study_id: null }));
+    expect(document.querySelector(".pt-card-iniciales")!.textContent).toBe("SP");
+    expect(screen.getByText("Sin estudios aún")).toBeInTheDocument();
+    expect(document.querySelector(".pt-card-media svg")).toBeNull();
+  });
+
+  it("«Informe» no se parte", () => {
+    montar(paciente({ last_session_step: STEPS.length - 1 }));
+    expect(screen.getByRole("button", { name: "Informe" }).style.whiteSpace).toBe("nowrap");
+  });
+
+  it("Reanudar: «Abriendo…» y tarjeta bloqueada mientras dura; vuelve si falla", async () => {
+    let rechazar!: (e: unknown) => void;
+    const onResume = vi.fn(() => new Promise((_, r) => { rechazar = r; }));
+    const onOpen = vi.fn();
+    render(<PatientCard patient={paciente({ last_session_id: "s1", last_session_step: 2 })} onOpen={onOpen} onResume={onResume} onPlan={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Reanudar" }));
+    expect(screen.getByRole("button", { name: "Abriendo…" })).toBeDisabled();
+    expect(screen.getByRole("article")).toHaveAttribute("aria-busy", "true");
+    fireEvent.click(screen.getByRole("article"));
+    fireEvent.keyDown(screen.getByRole("article"), { key: "Enter" });
+    expect(onOpen).not.toHaveBeenCalled();
+    await act(async () => { rechazar(new Error("caído")); });
+    expect(screen.getByRole("button", { name: "Reanudar" })).not.toBeDisabled();
+  });
+
+  it("botón de 44 px en ≤ 1024 (md) y sm por encima", () => {
+    simularPantalla(1024);
+    const a = montar(paciente());
+    expect(screen.getByRole("button", { name: "Reanudar" })).toHaveAttribute("data-size", "md");
+    a.unmount();
+    simularPantalla(1280);
+    montar(paciente());
+    expect(screen.getByRole("button", { name: "Reanudar" })).toHaveAttribute("data-size", "sm");
   });
 });

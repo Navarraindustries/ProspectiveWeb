@@ -5,8 +5,8 @@
    llegó fuera de especificación. Estas pruebas fijan ese orden y el aviso, que
    es lo único que distingue esta pantalla de un listado cualquiera. */
 
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const listClipOrders = vi.fn();
 const clipOrdersSummary = vi.fn();
@@ -46,7 +46,8 @@ vi.mock("../components/shell/AppShell", () => ({
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 vi.mock("../store/auth", () => ({ useAuth: () => auth }));
 
-import { ClipOrdersPage } from "./ClipOrders";
+import { ClipOrdersPage, nombrePieza } from "./ClipOrders";
+import { simularPantalla } from "../test/pantalla";
 import type { ClipOrder } from "../api/types";
 
 const DAY = 86400;
@@ -127,7 +128,7 @@ describe("what rises to the top", () => {
       order({ part_no: "B", updated_at: now() - 1 * DAY }),
     ]);
     render(<ClipOrdersPage />);
-    expect(await screen.findByText(/1 pedido\(s\) piden atención/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 pedido pide atención/)).toBeInTheDocument();
   });
 });
 
@@ -145,7 +146,7 @@ describe("the thresholds follow the state", () => {
     await waitFor(() => expect(rows()).toHaveLength(2));
     expect(rows()[0]).toHaveTextContent("RECIBIDA");
     expect(rows()[1]).toHaveTextContent("ENVIADO");
-    expect(screen.getByText(/1 pedido\(s\) piden atención/)).toBeInTheDocument();
+    expect(screen.getByText(/1 pedido pide atención/)).toBeInTheDocument();
   });
 });
 
@@ -214,7 +215,7 @@ describe("cómo se nombra la pieza en la lista", () => {
     ]);
     render(<ClipOrdersPage />);
     await waitFor(() => expect(rows()).toHaveLength(1));
-    expect(rows()[0]).toHaveTextContent("T2 Curvo");
+    expect(rows()[0]).toHaveTextContent("T2 curvo");
     expect(rows()[0]).not.toHaveTextContent("recto");
   });
 
@@ -227,7 +228,7 @@ describe("cómo se nombra la pieza en la lista", () => {
     ]);
     render(<ClipOrdersPage />);
     await waitFor(() => expect(rows()).toHaveLength(1));
-    expect(rows()[0]).toHaveTextContent("T4 Fenestrado ventana 5 mm");
+    expect(rows()[0]).toHaveTextContent("T4 fenestrado ventana 5 mm");
     expect(rows()[0]).not.toHaveTextContent("recto");
   });
 
@@ -239,8 +240,8 @@ describe("cómo se nombra la pieza en la lista", () => {
     render(<ClipOrdersPage />);
     await waitFor(() => expect(rows()).toHaveLength(2));
     const text = rows().map((r) => r.textContent).join(" | ");
-    expect(text).toContain("T1 Recto");
-    expect(text).toContain("T3 Angulado 60°");
+    expect(text).toContain("T1 recto");
+    expect(text).toContain("T3 angulado 60°");
   });
 });
 
@@ -364,7 +365,7 @@ describe("la vuelta a la ficha", () => {
     listClipOrders.mockResolvedValue([]);
     const volver = vi.fn();
     const r = render(<ClipOrdersPage patientFilter={{ id: 7, full_name: "Navarro, Ana" } as never} onBackToPatient={volver} />);
-    fireEvent.click(await screen.findByRole("button", { name: "← Volver a la ficha" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Volver a la ficha" }));
     expect(volver).toHaveBeenCalledTimes(1);
     r.unmount();
 
@@ -388,7 +389,7 @@ describe("empty states (F2-53)", () => {
     listClipOrders.mockImplementation(async (o: { q?: string }) => (o.q ? [] : [order()]));
     render(<ClipOrdersPage />);
     await waitFor(() => expect(rows()).toHaveLength(1));
-    fireEvent.change(screen.getByLabelText("Buscar"), { target: { value: "zzz" } });
+    fireEvent.change(screen.getByLabelText("Buscar pedidos"), { target: { value: "zzz" } });
     expect(await screen.findByText("Ningún pedido encaja con este filtro.")).toBeInTheDocument();
     expect(screen.queryByText(/No hay pedidos todavía/)).toBeNull();
   });
@@ -480,13 +481,13 @@ describe("closed states (F1-96)", () => {
     });
     listClipOrders.mockResolvedValue([]);
     render(<ClipOrdersPage />);
-    const box = await screen.findByLabelText("Solo los abiertos") as HTMLInputElement;
-    expect(box.checked).toBe(true);
+    const box = await screen.findByRole("switch", { name: "Solo los abiertos" });
+    expect(box).toHaveAttribute("aria-checked", "true");
     fireEvent.click(await screen.findByRole("button", { name: /Verificada/ }));
-    await waitFor(() => expect(box.checked).toBe(false));
+    await waitFor(() => expect(box).toHaveAttribute("aria-checked", "false"));
     fireEvent.click(box);
     fireEvent.click(screen.getByRole("button", { name: /Rechazada/ }));
-    await waitFor(() => expect(box.checked).toBe(false));
+    await waitFor(() => expect(box).toHaveAttribute("aria-checked", "false"));
   });
 });
 
@@ -508,5 +509,209 @@ describe("cristal (fase 2)", () => {
     expect(panel).not.toBeNull();
     // Panel denso: una sola superficie desenfocada por tabla, filas sin fondo propio.
     expect(panel!.getAttribute("style")).toContain("--glass-dense");
+  });
+});
+
+describe("la lista con el estilo D (A42, A45, A46, A13)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("buscador sin rótulo y con icono; «Solo los abiertos» es un interruptor", async () => {
+    listClipOrders.mockResolvedValue([order()]);
+    render(<ClipOrdersPage />);
+    expect(screen.queryByText("Buscar")).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Buscar pedidos" })).toBeInTheDocument();
+    const sw = screen.getByRole("switch", { name: "Solo los abiertos" });
+    expect(sw).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(sw);
+    await waitFor(() => expect(listClipOrders).toHaveBeenCalledWith(expect.objectContaining({ openOnly: false })));
+  });
+
+  it.each([[1, "1 pedido pide atención"], [2, "2 pedidos piden atención"]])(
+    "plural escrito con %i", async (n, texto) => {
+      listClipOrders.mockResolvedValue(Array.from({ length: n }, (_, i) => order({
+        part_no: `PR-FE${i}`, status: "recibida", status_label: "Recibida",
+        reception: { jaw_within_tolerance: true, force_within_band: false },
+      })));
+      render(<ClipOrdersPage />);
+      expect(await screen.findByText(texto, { exact: false })).toBeInTheDocument();
+    });
+
+  it("filtro por estado con pastillas y recuentos", async () => {
+    clipOrdersSummary.mockResolvedValue({ counts: {}, labels: { firmado: "Firmado" } });
+    listClipOrders.mockResolvedValue([order({ status: "firmado", status_label: "Firmado" })]);
+    render(<ClipOrdersPage />);
+    const grupo = await screen.findByRole("group", { name: "Filtrar por estado" });
+    const firmado = await within(grupo).findByRole("button", { name: /Firmado/ });
+    expect(firmado).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(firmado);
+    await waitFor(() => expect(firmado).toHaveAttribute("aria-pressed", "true"));
+  });
+
+  it("la pieza se llama «T1 recto»", () => {
+    expect(nombrePieza({ series: "T1", shape: "straight", angle_deg: 0, window_mm: 0 })).toBe("T1 recto");
+    expect(nombrePieza({ series: "T3", shape: "angled", angle_deg: 60, window_mm: 0 })).toBe("T3 angulado 60°");
+    expect(nombrePieza({ series: "T4", shape: "fenestrated", angle_deg: 0, window_mm: 5 })).toBe("T4 fenestrado ventana 5 mm");
+  });
+
+  it("fila pulsable con Intro y chevron (A45)", async () => {
+    listClipOrders.mockResolvedValue([order({ part_no: "PR-ENTER" })]);
+    render(<ClipOrdersPage />);
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    const boton = within(rows()[0]).getByRole("button", { name: /PR-ENTER/ });
+    boton.focus();
+    expect(boton).toHaveFocus();
+    fireEvent.click(boton);   // el navegador convierte Intro en clic del botón
+    expect(await screen.findByRole("complementary", { name: "Detalle del pedido PR-ENTER" })).toBeInTheDocument();
+    expect(rows()[0].querySelector("svg")).not.toBeNull();
+  });
+
+  it("a 390 tarjetas con el nº de pieza de título (A46)", async () => {
+    simularPantalla(390);
+    listClipOrders.mockResolvedValue([order({ part_no: "PR-MOVIL" })]);
+    const { container } = render(<ClipOrdersPage />);
+    await waitFor(() => expect(container.querySelector("[data-vista='tarjetas'] .tt-tarjeta-titulo")).not.toBeNull());
+    expect(container.querySelector(".tt-tarjeta-titulo")).toHaveTextContent("PR-MOVIL");
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("641–1024: sin columna Taller y con el texto partido, sin anchos fijos (I3)", async () => {
+    simularPantalla(1024);
+    listClipOrders.mockResolvedValue([order({
+      part_no: "PR-TAB", patient: "Fernández de la Peña Iturralde, María Concepción",
+      reception: { jaw_within_tolerance: true, force_within_band: false }, status: "recibida", status_label: "Recibida",
+    })]);
+    render(<ClipOrdersPage />);
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(screen.queryByRole("columnheader", { name: "Taller" })).toBeNull();
+    const nombre = screen.getByText("Fernández de la Peña Iturralde, María Concepción");
+    expect(nombre.style.whiteSpace).toBe("");
+    expect(nombre.style.maxWidth).toBe("");
+    expect(nombre).toHaveStyle({ overflowWrap: "anywhere" });
+    // Las insignias largas también pueden partir.
+    expect(screen.getByText("fuera de especificación")).toHaveStyle({ whiteSpace: "normal" });
+  });
+
+  it("> 1024: con Taller y el nombre recortado con su title", async () => {
+    simularPantalla(1280);
+    listClipOrders.mockResolvedValue([order({ part_no: "PR-ANCHO" })]);
+    render(<ClipOrdersPage />);
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(screen.getByRole("columnheader", { name: "Taller" })).toBeInTheDocument();
+    expect(screen.getByText("Navarro, Ana")).toHaveStyle({ whiteSpace: "nowrap" });
+    expect(within(rows()[0]).getByText("Enviado al taller")).toHaveStyle({ whiteSpace: "nowrap" });
+  });
+
+  it("≤ 640: el nombre del paciente se lee entero en la tarjeta (M7)", async () => {
+    simularPantalla(390);
+    listClipOrders.mockResolvedValue([order({ part_no: "PR-M7", patient: "Fernández de la Peña Iturralde, María Concepción" })]);
+    render(<ClipOrdersPage />);
+    const nombre = await screen.findByText("Fernández de la Peña Iturralde, María Concepción");
+    expect(nombre.style.textOverflow).toBe("");
+    expect(nombre.style.whiteSpace).toBe("");
+    expect(nombre).toHaveStyle({ overflowWrap: "anywhere" });
+    // La tarjeta conserva el Taller como dato.
+    expect(screen.getByText("Taller").tagName).toBe("DT");
+  });
+
+  it("a 1707 la tabla oculta «Taller» mientras hay un pedido abierto al lado", async () => {
+    simularPantalla(1707);
+    listClipOrders.mockResolvedValue([order({ part_no: "PR-LAT" })]);
+    render(<ClipOrdersPage />);
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(screen.getByRole("columnheader", { name: "Taller" })).toBeInTheDocument();
+    fireEvent.click(within(rows()[0]).getByRole("button", { name: /PR-LAT/ }));
+    expect(await screen.findByRole("complementary", { name: "Detalle del pedido PR-LAT" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Taller" })).toBeNull();
+  });
+});
+
+describe("el detalle con el estilo D (A43, A44)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const abrir = async (over: Partial<ClipOrder> = {}) => {
+    listClipOrders.mockResolvedValue([order({
+      part_no: "P-1", surgeon: "Administrador", needed_by: "", intended_use: "implante", jaw_mm: 10,
+      files: { packet: "p.zip", dossier_internal: "d.pdf", stl: "s.stl" },
+      next_states: ["enviado"], ...over,
+    })]);
+    render(<ClipOrdersPage onOpenSession={vi.fn().mockResolvedValue(undefined)} />);
+    fireEvent.click(await screen.findByRole("button", { name: /P-1/ }));
+  };
+
+  it("textos en sans; mono solo en nº de pieza y medidas (A43, M1)", async () => {
+    await abrir();
+    expect(screen.getByText("Administrador")).not.toHaveStyle({ fontFamily: "var(--font-mono)" });
+    expect(screen.getByText("sin comprometer")).not.toHaveStyle({ fontFamily: "var(--font-mono)" });
+    // «Pieza»: el nombre de la lista («T1 recto») en sans y solo la cifra en mono.
+    const pieza = within(document.querySelector<HTMLElement>(".po-datos")!).getByText("Pieza").nextElementSibling as HTMLElement;
+    expect(pieza).toHaveTextContent("T1 recto · mordaza 10,0 mm");
+    expect(pieza).not.toHaveAttribute("data-mono");
+    expect(pieza).not.toHaveStyle({ fontFamily: "var(--font-mono)" });
+    expect([...pieza.querySelectorAll("[data-mono]")].map((e) => e.textContent)).toEqual(["10,0"]);
+  });
+
+  it("«Medido…» en sans con mono solo en las medidas (M1)", async () => {
+    await abrir({
+      status: "recibida", status_label: "Recibida", next_states: [],
+      reception: { measured_jaw_mm: 10, measured_force_g: 150.4, jaw_within_tolerance: true, force_within_band: true },
+    });
+    const medido = await screen.findByTestId("po-medido");
+    expect(medido).not.toHaveStyle({ fontFamily: "var(--font-mono)" });
+    expect([...medido.querySelectorAll("[data-mono]")].map((e) => e.textContent)).toEqual(["10,00", "150"]);
+  });
+
+  it("la fecha necesaria va en sans con cifras tabulares (M2)", async () => {
+    await abrir({ needed_by: "2026-11-20" });
+    const f = await screen.findByText("20/11/26");
+    expect(f).toHaveStyle({ fontFamily: "var(--font-sans)", fontVariantNumeric: "tabular-nums" });
+  });
+
+  it("lo tecleado en un pedido no pasa a otro (M10)", async () => {
+    const fuera = (part_no: string) => order({
+      part_no, status: "recibida", status_label: "Recibida", next_states: [],
+      reception: { measured_jaw_mm: 10, measured_force_g: 90, jaw_within_tolerance: true, force_within_band: false },
+    });
+    listClipOrders.mockResolvedValue([fuera("P-A"), fuera("P-B")]);
+    render(<ClipOrdersPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /P-A/ }));
+    const just = await screen.findByLabelText("Justificación para aceptar la desviación");
+    fireEvent.change(just, { target: { value: "Aceptada por el cirujano" } });
+    expect(just).toHaveValue("Aceptada por el cirujano");
+    fireEvent.click(screen.getByRole("button", { name: /P-B/ }));
+    expect(await screen.findByRole("complementary", { name: "Detalle del pedido P-B" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Justificación para aceptar la desviación")).toHaveValue("");
+  });
+
+  it("descargas con icono y «Marcar enviado» como principal junto a «Abrir el caso» (A44)", async () => {
+    await abrir();
+    const grupo = await screen.findByRole("group", { name: "Descargas" });
+    for (const n of ["Paquete del taller (ZIP)", "Copia interna (PDF)", "STL"]) {
+      const b = within(grupo).getByRole("button", { name: n });
+      expect(b).toHaveAttribute("data-variant", "outline");
+      expect(b.querySelector("svg")).not.toBeNull();
+    }
+    const acciones = screen.getByTestId("po-acciones");
+    expect(within(acciones).getByRole("button", { name: "Marcar enviado" })).toHaveAttribute("data-variant", "default");
+    expect(within(acciones).getByRole("button", { name: "Abrir el caso" })).toHaveAttribute("data-variant", "outline");
+  });
+
+  it("fecha necesaria en dd/mm/aa y fuerza sin decimales", async () => {
+    await abrir({
+      needed_by: "2026-11-20", status: "recibida", status_label: "Recibida", next_states: [],
+      reception: { measured_jaw_mm: 10, measured_force_g: 150.4, jaw_within_tolerance: true, force_within_band: true },
+    });
+    expect(await screen.findByText("20/11/26")).toBeInTheDocument();
+    expect(screen.getByTestId("po-medido")).toHaveTextContent(/fuerza 150 g/);
+  });
+
+  it("a 1280 el detalle es una hoja; a 1707 va al lado; el pedido sigue elegido al cambiar", async () => {
+    const ctl = simularPantalla(1707);
+    await abrir();
+    expect(await screen.findByRole("complementary", { name: "Detalle del pedido P-1" })).toBeInTheDocument();
+    act(() => ctl.cambiar({ ancho: 1280 }));
+    expect(await screen.findByRole("dialog", { name: "Pedido P-1" })).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: /Detalle del pedido/ })).toBeNull();
+    act(() => ctl.cambiar({ ancho: 1707 }));
+    expect(await screen.findByRole("complementary", { name: "Detalle del pedido P-1" })).toBeInTheDocument();
   });
 });

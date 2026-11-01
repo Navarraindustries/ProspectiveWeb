@@ -16,10 +16,12 @@ import { api } from "../api/client";
 import { isRecording, type CaptureOut } from "../api/types";
 import { Badge } from "./Badge";
 import { Button } from "./Button";
-import { Card, ErrorNote, SectionLabel } from "./PanelHead";
+import { Card, ErrorNote } from "./PanelHead";
+import { Input } from "./Input";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon } from "./Icon";
-import { desdeServidor, fechaHora, type OpcionesFecha } from "../lib/fecha";
+import { fechaHora, selloArchivo, type OpcionesFecha } from "../lib/fecha";
+import { STEPS } from "../pipeline/steps";
 import { cifra } from "../lib/numero";
 
 /** Nombre del fichero al descargar: legible y sin datos del paciente. */
@@ -27,17 +29,10 @@ export function downloadName(
   c: Pick<CaptureOut, "id" | "label" | "created_at" | "media_type">,
   o?: OpcionesFecha,
 ): string {
-  // `created_at` llega sin zona y es UTC (lib/fecha). Leído con `new Date` y
-  // los getters locales, el fichero de una captura de las 22:31 en Bogotá
-  // decía 03:31 del día siguiente, distinto de la hora que enseña la galería.
-  const fecha = desdeServidor(c.created_at);
-  const zona = o?.timeZone ? { timeZone: o.timeZone } : {};
-  const sello = Number.isNaN(fecha.getTime())
-    ? String(c.id)
-    // «sv-SE» da AAAA-MM-DD y HH:MM en 24 h; se quitan los separadores.
-    : fecha.toLocaleDateString("sv-SE", zona).replace(/-/g, "")
-      + "-" + fecha.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit", hour12: false, ...zona })
-        .replace(/:/g, "");
+  // `created_at` llega sin zona y es UTC: el sello lo lee `selloArchivo` en la
+  // zona de quien mira, la misma hora que enseña la galería.
+  const sello0 = selloArchivo(c.created_at, o);
+  const sello = sello0 === "sin-fecha" ? String(c.id) : sello0;
   const limpio = (c.label || "captura")
     .normalize("NFD").replace(/[̀-ͯ]/g, "")   // sin tildes: viaja mejor
     .replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase()
@@ -46,9 +41,14 @@ export function downloadName(
   return `prospective-${sello}-${limpio}.${ext}`;
 }
 
+/** El paso en castellano: «detect» → «Detección». Clave desconocida → tal cual. */
+export function etiquetaPaso(clave: string): string {
+  return STEPS.find((p) => p.key === clave)?.label ?? clave;
+}
+
 /** Duración de una grabación: «1:05». */
-export function formatDuration(s: number): string {
-  const t = Math.max(0, Math.round(s));
+export function formatDuration(seg: number): string {
+  const t = Math.max(0, Math.round(seg));
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
 }
 
@@ -176,16 +176,15 @@ export function CaptureGallery({
       >
         «{aBorrar?.label ?? ""}» desaparece de la galería del caso y no se puede recuperar.
       </ConfirmDialog>
-      <SectionLabel>Capturas ({total})</SectionLabel>
       <ErrorNote>{error}</ErrorNote>
       {rows === null ? (
-        <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Cargando…</div>
+        <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>Cargando…</div>
       ) : total === 0 ? (
-        <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+        <div style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
           {emptyHint ?? "Todavía no hay capturas. El botón «Captura» del visor guarda aquí la vista cuando la sesión tiene un estudio archivado; si no, la descarga."}
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(190px, 100%), 1fr))", gap: 10 }}>
           {rows.map((c) => (
             <Card key={c.id} style={{ padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
               {isRecording(c) ? (
@@ -199,8 +198,8 @@ export function CaptureGallery({
                             disabled={cargandoVideo === c.id}
                             title="Reproducir la grabación"
                             style={{ all: "unset", cursor: "pointer", width: "100%", height: "100%", display: "grid", placeItems: "center",
-                                     fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--data)" }}>
-                      {cargandoVideo === c.id ? "CARGANDO…" : `▶ ${formatDuration(c.duration_s ?? 0)}`}
+                                     fontSize: 13, fontFamily: "var(--font-mono)", color: "var(--data)" }}>
+                      {cargandoVideo === c.id ? "Cargando…" : `▶ ${formatDuration(c.duration_s ?? 0)}`}
                     </button>
                   )}
                 </div>
@@ -213,52 +212,52 @@ export function CaptureGallery({
                        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
                 ) : (
                   <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center",
-                                fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>
-                    CARGANDO…
+                                fontSize: 13, color: "var(--muted-foreground)" }}>
+                    Cargando…
                   </div>
                 )}
               </a>
               )}
 
               {editando === c.id ? (
-                <input
-                  autoFocus value={borrador}
+                <Input
+                  autoFocus value={borrador} aria-label="Nuevo nombre de la captura"
                   onChange={(e) => setBorrador(e.target.value)}
                   onBlur={() => void renombrar(c)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") void renombrar(c);
                     if (e.key === "Escape") setEditando(null);
                   }}
-                  style={{ fontSize: 12, width: "100%", padding: "2px 4px" }}
                 />
               ) : (
                 <button type="button"
                   onClick={() => { setEditando(c.id); setBorrador(c.label); }}
-                  title="Clic para renombrar"
-                  style={{ all: "unset", cursor: "text", fontSize: 12, fontWeight: 600, lineHeight: 1.3,
+                  title="Renombrar"
+                  style={{ all: "unset", cursor: "text", fontSize: 13, fontWeight: 600, lineHeight: 1.3,
                            color: "var(--foreground)", wordBreak: "break-word" }}>
                   {c.label}
                 </button>
               )}
 
-              <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)",
+              <div style={{ fontSize: 13, color: "var(--muted-foreground)",
                             display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                 {isRecording(c) && <Badge variant="outline">vídeo · {formatDuration(c.duration_s ?? 0)}</Badge>}
-                {c.step && <Badge variant="outline">{c.step}</Badge>}
+                {c.step && <Badge variant="outline">{etiquetaPaso(c.step)}</Badge>}
                 <span>{fechaHora(c.created_at)}</span>
-                {c.width > 0 && <span>{c.width}×{c.height}</span>}
-                {c.size_bytes > 0 && <span>{humanSize(c.size_bytes)}</span>}
+                {c.width > 0 && <span style={{ fontSize: 12, fontFamily: "var(--font-mono)" }}>{c.width}×{c.height}</span>}
+                {c.size_bytes > 0 && <span style={{ fontSize: 12, fontFamily: "var(--font-mono)" }}>{humanSize(c.size_bytes)}</span>}
               </div>
 
               <div style={{ display: "flex", gap: 6 }}>
                 <Button size="sm" variant="outline" style={{ flex: 1 }}
                   disabled={isRecording(c) ? cargandoVideo === c.id : !urls[c.id]} onClick={() => void descargar(c)}
-                  leadingIcon={<Icon name="STEP_EXPORT" size={12} />}>
+                  leadingIcon={<Icon name="EXPORT" size={14} />}>
                   Descargar
                 </Button>
-                <Button size="sm" variant="ghost" title="Borrar esta captura"
+                <Button size="icon" variant="destructive-ghost"
+                  aria-label={`Borrar la captura «${c.label}»`} title="Borrar la captura"
                   onClick={() => setABorrar(c)}>
-                  ✕
+                  <Icon name="DELETE" size={16} />
                 </Button>
               </div>
             </Card>

@@ -127,4 +127,9 @@ describe("Sheet", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(closed).toEqual(["arriba"]);
   });
+
+  it("el panel lleva data-hoja", () => {
+    render(<Sheet open onClose={() => {}} title="Ficha"><p>x</p></Sheet>);
+    expect(screen.getByRole("dialog")).toHaveAttribute("data-hoja");
+  });
 });

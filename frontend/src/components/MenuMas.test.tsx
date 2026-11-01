@@ -135,3 +135,23 @@ describe("MenuMas", () => {
     expect(screen.getByRole("button", { name: "Más acciones" })).not.toHaveFocus();
   });
 });
+
+describe("MenuMas: el title también se ve (P2)", () => {
+  it("la ayuda sale como línea de descripción visible, sin entrar en el nombre accesible", () => {
+    render(<MenuMas tactil items={[
+      { id: "e", label: "Eliminar", disabled: true, title: "No puedes eliminar tu propia cuenta" },
+      { id: "n", label: "Nueva sesión", title: "La sesión anterior se conserva" },
+      { id: "s", label: "Sin ayuda" },
+    ]} />);
+    abrir();
+    const eliminar = screen.getByRole("menuitem", { name: "Eliminar" });
+    expect(eliminar).toHaveAccessibleDescription("No puedes eliminar tu propia cuenta");
+    expect(eliminar).toHaveTextContent("No puedes eliminar tu propia cuenta");
+    expect(eliminar).toHaveAttribute("title", "No puedes eliminar tu propia cuenta");
+    const nueva = screen.getByRole("menuitem", { name: "Nueva sesión" });
+    expect(nueva.querySelector("[data-descripcion]")).toHaveTextContent("La sesión anterior se conserva");
+    const sin = screen.getByRole("menuitem", { name: "Sin ayuda" });
+    expect(sin.querySelector("[data-descripcion]")).toBeNull();
+    expect(sin).not.toHaveAttribute("aria-describedby");
+  });
+});

@@ -15,6 +15,12 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useAuth } from "../store/auth";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
+import { MenuMas } from "../components/MenuMas";
+import type { ItemMenu } from "../components/MenuMas";
+import { EstadoVacio } from "../components/EstadoVacio";
+import { useTableta } from "../hooks/useEstrecho";
+import { useEnCurso } from "../hooks/useEnCurso";
+import { fechaDia } from "../lib/fecha";
 import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
 
@@ -52,15 +58,27 @@ function Thumbnail({ study }: { study: StudyCard }) {
   const sobre = (
     <>
       {chipTexto && (
-        <span style={{
-          position: "absolute", top: 8, left: 8, fontSize: 11, padding: "2px 7px", borderRadius: 6,
-          background: "color-mix(in srgb, var(--viewer-bg) 60%, transparent)", color: "var(--data)", fontFamily: "var(--font-mono)",
-        }}>
+        <span
+          className="es-insignia"
+          data-insignia="modalidad"
+          style={{
+            position: "absolute", top: 8, left: 8, fontSize: 12, padding: "2px 8px", borderRadius: 6,
+            background: "var(--glass-solid)", color: "var(--foreground)", border: "1px solid var(--glass-border)",
+            fontFamily: "var(--font-mono)",
+          }}
+        >
           {chipTexto}
         </span>
       )}
       {study.rupture_risk_label && (
-        <span style={{ position: "absolute", top: 8, right: 8 }}>
+        <span
+          className="es-insignia"
+          data-insignia="riesgo"
+          style={{
+            position: "absolute", top: 8, right: 8, padding: 2, borderRadius: 8,
+            background: "var(--glass-solid)", border: "1px solid var(--glass-border)", color: "var(--foreground)",
+          }}
+        >
           <Badge variant={riskVariant(study.rupture_risk_label as never)}>{study.rupture_risk_label}</Badge>
         </span>
       )}
@@ -77,7 +95,7 @@ function Thumbnail({ study }: { study: StudyCard }) {
     );
   }
   return (
-    <div style={{ ...box, color: "var(--muted-foreground)", fontSize: 11, gap: 6, flexDirection: "column" }}>
+    <div style={{ ...box, color: "var(--muted-foreground)", fontSize: 13, gap: 6, flexDirection: "column" }}>
       <Icon name="FOLDER" size={22} />
       {failed ? "Sin vista previa" : study.has_thumbnail ? "Cargando…" : "Sin archivar"}
       {sobre}
@@ -91,7 +109,6 @@ export function StudyGallery({
   onOpen,
   onResume,
   onOpenPatient,
-  compact = false,
   emptyHint,
   onNew,
   onCount,
@@ -105,15 +122,24 @@ export function StudyGallery({
   /** Restrict to one clinical case — a case can hold several acquisitions. */
   caseId?: number;
   onOpen: (study: StudyCard) => void;
-  /** Restore the study's saved session instead of starting a new one. */
-  onResume?: (study: StudyCard) => void;
+  /** Restore the study's saved session instead of starting a new one. Si
+      devuelve una promesa, el botón enseña «Abriendo…» hasta que acabe. */
+  onResume?: (study: StudyCard) => unknown;
   /** Ir a la ficha del paciente de la tarjeta. Dentro de la propia ficha no se pasa. */
   onOpenPatient?: (patientId: number) => void;
-  compact?: boolean;
   /** Message shown when this scope has no imaging studies yet. */
   emptyHint?: string;
 }) {
   const [studies, setStudies] = useState<StudyCard[]>([]);
+  // Reanudar: «Abriendo…» en la tarjeta pulsada y ningún otro Reanudar
+  // mientras dura (como en Pacientes).
+  const [abriendo, lanzar] = useEnCurso();
+  const [abriendoId, setAbriendoId] = useState<number | null>(null);
+  const reanudar = (est: StudyCard) => {
+    if (abriendo) return;
+    setAbriendoId(est.id);
+    lanzar(() => onResume?.(est));
+  };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -122,11 +148,12 @@ export function StudyGallery({
   const [toDelete, setToDelete] = useState<StudyCard | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const tactil = useTableta();
 
   // El servidor es quien decide (solo el creador o un administrador); esto solo
   // evita ofrecer un botón que acabaría en 403.
-  const canDelete = (s: StudyCard) =>
-    !!user && (user.role === "admin" || (s.owner_id != null && s.owner_id === user.id));
+  const canDelete = (est: StudyCard) =>
+    !!user && (user.role === "admin" || (est.owner_id != null && est.owner_id === user.id));
 
   const confirmDelete = async () => {
     if (!toDelete) return;
@@ -154,7 +181,7 @@ export function StudyGallery({
       setLoading(true);
       setError(null);
       api.listStudies(q.trim(), patientId, caseId)
-        .then((s) => { if (alive) setStudies(s); })
+        .then((est) => { if (alive) setStudies(est); })
         // F1-75: el error salía encima del texto de vacío («Aún no hay estudios
         // archivados»), y el vacío ganaba; ahora el error ocupa su sitio.
         .catch((e) => { if (alive) setError(loadErrorText(e)); })
@@ -165,19 +192,31 @@ export function StudyGallery({
 
   const rows = studies;
 
+  const menuDe = (est: StudyCard, canResume: boolean): ItemMenu[] => [
+    ...(canResume ? [{
+      id: "nueva", label: "Nueva sesión", onSelect: () => onOpen(est),
+      title: "La sesión anterior se conserva en la ficha",
+    }] : []),
+    ...(onOpenPatient ? [{ id: "ficha", label: "Abrir ficha", icon: "OPEN" as const, onSelect: () => onOpenPatient(est.patient_id) }] : []),
+    ...(canDelete(est) ? [{
+      id: "borrar", label: "Borrar estudio", icon: "DELETE" as const, destructive: true, separadoAntes: true, abreDialogo: true,
+      onSelect: () => { setDeleteError(null); setToDelete(est); },
+    }] : []),
+  ];
+
   useEffect(() => { onCount?.(loading ? null : error ? "error" : studies.length); }, [onCount, loading, error, studies.length]);
 
   return (
     <div>
-      {!compact && (
-        <div style={{ maxWidth: 420, marginBottom: 18 }}>
-          <Input
-            placeholder="Buscar por paciente, HC o diagnóstico…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </div>
-      )}
+      <div style={{ maxWidth: 420, width: "100%", marginBottom: 18 }}>
+        <Input
+          icon={<Icon name="SEARCH" size={15} />}
+          aria-label="Buscar por paciente, HC o diagnóstico"
+          placeholder="Buscar por paciente, HC o diagnóstico…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+      </div>
 
       {deleteError && (
         <div role="alert" style={{ color: "var(--destructive)", fontSize: 13, marginBottom: 12 }}>
@@ -186,29 +225,29 @@ export function StudyGallery({
       )}
 
       {loading ? (
-        <div style={{ color: "var(--muted-foreground)", fontSize: 13 }}>Cargando estudios…</div>
+        <LoadState state="cargando" />
       ) : error ? (
         <LoadState state="error" mensaje={error} onRetry={() => setAttempt((n) => n + 1)} />
       ) : rows.length === 0 ? (
-        <div style={{ color: "var(--muted-foreground)", fontSize: compact ? 11 : 13, padding: compact ? "6px 0" : "24px 0", textAlign: compact ? "left" : "center" }}>
+        <EstadoVacio icono="STUDIES" titulo={q.trim() ? "Sin coincidencias" : "Aún no hay estudios"}>
           {q.trim()
             ? `Ningún estudio coincide con «${q.trim()}».`
             : (emptyHint ?? "Aún no hay estudios archivados. Abre un caso con «Planificar este caso», carga el DICOM y pulsa «Guardar estudio» en el Paso 1.")}
-        </div>
+        </EstadoVacio>
       ) : (
         <div style={{
           display: "grid",
-          gridTemplateColumns: `repeat(auto-fill, minmax(${compact ? 150 : 190}px, 1fr))`,
+          gridTemplateColumns: "repeat(auto-fill, minmax(min(220px, 100%), 1fr))",
           gap: 14,
         }}>
-          {rows.map((s) => {
-            const canResume = !!s.resumable_session_id && !!onResume;
+          {rows.map((est) => {
+            const canResume = !!est.resumable_session_id && !!onResume;
             return (
             <div
-              key={s.id}
+              key={est.id}
               className="tarjeta-estudio"
               data-glass
-              title={`${s.patient_name} · ${s.description}`}
+              title={`${est.patient_name} · ${est.description}`}
               style={{
                 display: "flex", flexDirection: "column", textAlign: "left", padding: 0,
                 borderRadius: "var(--radius-card-lg)", overflow: "hidden",
@@ -217,96 +256,63 @@ export function StudyGallery({
             >
               <button
                 type="button"
-                onClick={() => (canResume ? onResume?.(s) : onOpen(s))}
+                disabled={canResume && abriendo}
+                onClick={() => (canResume ? reanudar(est) : onOpen(est))}
                 style={{ display: "block", padding: 0, border: "none", background: "transparent", cursor: "pointer", width: "100%" }}
               >
-                <Thumbnail study={s} />
+                <Thumbnail study={est} />
               </button>
-              <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-                {/* Inside a case the patient is already known, so the card leads
-                    with what distinguishes one acquisition from another. */}
-                {compact ? (
-                  <>
-                    <div className="truncate" style={{ fontSize: 12, fontWeight: 700, color: "var(--foreground)" }}>
-                      {s.description}
-                    </div>
-                    {s.acquired_at && (
-                      <div className="truncate" style={{ fontSize: 10, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
-                        {s.acquired_at}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <div className="truncate" style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>
-                      {s.patient_name || "—"}
-                    </div>
-                    <div className="truncate" style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
-                      {s.hospital_id || "sin HC"}
-                    </div>
-                    <div className="truncate" style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
-                      {s.description}
-                    </div>
-                  </>
-                )}
-                <div style={{ fontSize: compact ? 10 : 12, color: "var(--muted-foreground)", marginTop: 2 }}>
-                  {s.last_step != null
-                    ? `Último paso: ${STEP_LABELS[s.last_step] ?? s.last_step}`
-                    : s.archived ? "Sin procesar" : "No archivado"}
+              <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 4, minWidth: 0, flex: 1 }}>
+                <div className="truncate" style={{ fontSize: 15, fontWeight: 600, color: "var(--foreground)" }}>
+                  {est.patient_name || "—"}
+                </div>
+                <div className="truncate" style={{ fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
+                  {est.hospital_id || "sin HC"}
+                </div>
+                <div className="truncate" style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
+                  {est.description}
+                </div>
+                <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 2 }}>
+                  {est.last_step != null
+                    ? `Último paso: ${STEP_LABELS[est.last_step] ?? est.last_step}`
+                    : est.archived ? "Sin procesar" : "No archivado"}
                 </div>
 
-                {/* The card advertises progress, so the primary action has to be
-                    the one that keeps it. «Nueva sesión» empieza desde el paso 1 y
-                    dice que la anterior no se pierde. */}
-                <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                  {canResume && (
-                    <Button
-                      size="sm"
-                      onClick={() => onResume?.(s)}
-                      title={s.last_step != null ? `Reanudar en «${STEP_LABELS[s.last_step] ?? s.last_step}»` : "Reanudar la sesión guardada"}
-                      style={{ flex: 1 }}
-                    >
-                      Reanudar
-                    </Button>
-                  )}
+                {/* La tarjeta anuncia progreso: la acción principal es la que lo
+                    conserva. «Nueva sesión» empieza desde el paso 1 y dice que la
+                    anterior no se pierde; lo demás vive en «⋯». */}
+                <div style={{ display: "flex", gap: 8, marginTop: "auto", paddingTop: 8, alignItems: "center" }}>
                   <Button
                     size="sm"
-                    variant={canResume ? "outline" : "default"}
-                    onClick={() => onOpen(s)}
-                    title={canResume ? "La sesión anterior se conserva en la ficha" : undefined}
-                    style={{ flex: canResume ? "0 0 auto" : 1 }}
+                    disabled={canResume && abriendo}
+                    onClick={() => (canResume ? reanudar(est) : onOpen(est))}
+                    title={canResume
+                      ? (est.last_step != null ? `Reanudar en «${STEP_LABELS[est.last_step] ?? est.last_step}»` : "Reanudar la sesión guardada")
+                      : undefined}
+                    style={{ flex: 1 }}
                   >
-                    {canResume ? "Nueva sesión" : "Abrir"}
+                    {canResume ? (abriendo && abriendoId === est.id ? "Abriendo…" : "Reanudar") : "Abrir"}
                   </Button>
+                  {menuDe(est, canResume).length > 0 && (
+                    <MenuMas
+                      label={`Más acciones del estudio de ${est.patient_name}`}
+                      tactil={tactil}
+                      items={menuDe(est, canResume)}
+                    />
+                  )}
                 </div>
-                {((onOpenPatient && !compact) || canDelete(s)) && (
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {onOpenPatient && !compact && (
-                      <Button size="sm" variant="ghost" leadingIcon={<Icon name="OPEN" size={12} />}
-                              onClick={() => onOpenPatient(s.patient_id)}>
-                        Abrir ficha
-                      </Button>
-                    )}
-                    {canDelete(s) && (
-                      <Button size="sm" variant="ghost" leadingIcon={<Icon name="DELETE" size={12} />}
-                              onClick={() => { setDeleteError(null); setToDelete(s); }}>
-                        Borrar estudio
-                      </Button>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
             );
           })}
           {/* Última casilla de la rejilla: invita a subir un estudio. */}
-          {onNew && !compact && (
+          {onNew && (
             <button
               type="button"
               className="tarjeta-nueva"
               onClick={onNew}
               style={{
-                minHeight: 300, display: "flex", flexDirection: "column", alignItems: "center",
+                alignSelf: "stretch", height: "100%", display: "flex", flexDirection: "column", alignItems: "center",
                 justifyContent: "center", gap: 8, cursor: "pointer",
                 color: "var(--data)", fontFamily: "var(--font-sans)", fontSize: 14,
               }}
@@ -333,7 +339,7 @@ export function StudyGallery({
           <>
             <b style={{ color: "var(--foreground)" }}>
               {[toDelete.patient_name, toDelete.description || toDelete.dx_principal || "sin descripción",
-                toDelete.acquired_at || "sin fecha", `${toDelete.n_files} archivos`].join(" · ")}
+                toDelete.acquired_at ? fechaDia(toDelete.acquired_at) : "sin fecha", `${toDelete.n_files} archivos`].join(" · ")}
             </b>
             <br />
             {"Se borra el DICOM archivado de este estudio. "}
@@ -352,7 +358,8 @@ export function Studies({
   onOpen, onResume, onOpenPatient, onNew,
 }: {
   onOpen: (study: StudyCard) => void;
-  onResume: (study: StudyCard) => void;
+  /** Devuelve la promesa de reanudar: la tarjeta enseña «Abriendo…» mientras dura. */
+  onResume: (study: StudyCard) => unknown;
   onOpenPatient: (patientId: number) => void;
   onNew: () => void;
 }) {
@@ -369,8 +376,11 @@ export function Studies({
     >
       <PageBody className="fade-rise">
           <StudyGallery
-            onOpen={(s) => conTransicion(() => onOpen(s))}
-            onResume={(s) => conTransicion(() => onResume(s))}
+            onOpen={(est) => conTransicion(() => onOpen(est))}
+            onResume={(est) => new Promise<unknown>((resolver, rechazar) => {
+              // La transición llama más tarde: la promesa sigue a la de reanudar.
+              conTransicion(() => { Promise.resolve(onResume(est)).then(resolver, rechazar); });
+            })}
             onOpenPatient={onOpenPatient}
             onNew={onNew}
             onCount={setCount}

@@ -4,6 +4,8 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { api } from "../../api/client";
 import type { PatientSummary } from "../../api/types";
+import { useEnCurso } from "../../hooks/useEnCurso";
+import { useTableta } from "../../hooks/useEstrecho";
 import { fechaHora } from "../../lib/fecha";
 import { accionPrincipal, pasoDeTarjeta, tiempoRelativo } from "../../lib/pacientes";
 import { STEPS, clampStep } from "../../pipeline/steps";
@@ -17,7 +19,8 @@ import "./patients.css";
 interface Props {
   patient: PatientSummary;
   onOpen: (p: PatientSummary) => void;
-  onResume: (sessionId: string, p: PatientSummary) => void;
+  /** Si devuelve una promesa, la tarjeta enseña «Abriendo…» hasta que acabe. */
+  onResume: (sessionId: string, p: PatientSummary) => void | Promise<unknown>;
   onPlan: (p: PatientSummary) => void;
 }
 
@@ -60,18 +63,29 @@ function useImagen(p: PatientSummary, activo: boolean): string | null {
   return fuente === "ninguna" || cargada?.clave !== clave ? null : cargada.url;
 }
 
+/** Iniciales de las dos primeras palabras del nombre, sin la coma («Segura, Prueba» → «SP»). */
+function iniciales(nombre: string): string {
+  const letras = nombre.replace(/,/g, " ").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+  return letras || "?";
+}
+
 export function PatientCard({ patient: p, onOpen, onResume, onPlan }: Props) {
   const raiz = useRef<HTMLElement>(null);
   const visible = useVisible(raiz);
   const imagen = useImagen(p, visible);
+  const [abriendo, lanzar] = useEnCurso();
+  const tableta = useTableta();
 
   const paso = pasoDeTarjeta(p.last_session_step);
   const accion = accionPrincipal(p);
   const edad = ageFromDob(p.dob);
   // El número del dueño ya trae su prefijo («HC234523»): se muestra tal cual.
   const hc = p.hospital_id || "—";
+  const meta = `${hc}${p.sex ? ` · ${p.sex}` : ""}${edad ? ` · ${edad} años` : ""}`;
   const fraccion = paso ? paso.n / STEPS.length : 0;
-  const icono = STEPS[clampStep(p.last_session_step ?? 0)].icon;
+  // STEP_PATIENT es un cuadrado vacío: en el paso 1 se usa el icono de persona.
+  const iconoPaso = STEPS[clampStep(p.last_session_step ?? 0)].icon;
+  const icono = iconoPaso === "STEP_PATIENT" ? "USER" : iconoPaso;
   const ultimo = paso?.n === STEPS.length;
 
   const pie = p.last_session_at
@@ -81,7 +95,7 @@ export function PatientCard({ patient: p, onOpen, onResume, onPlan }: Props) {
   // Intro/Espacio solo cuando el foco está en la tarjeta: sobre el botón la
   // tecla pertenece al botón y abrir la ficha además lo desharía.
   const alTeclear = (e: KeyboardEvent<HTMLElement>) => {
-    if (e.target !== e.currentTarget) return;
+    if (e.target !== e.currentTarget || abriendo) return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       onOpen(p);
@@ -90,11 +104,12 @@ export function PatientCard({ patient: p, onOpen, onResume, onPlan }: Props) {
 
   const alActuar = (e: MouseEvent) => {
     e.stopPropagation();
+    if (abriendo) return;
     if (accion === "planificar") onPlan(p);
-    else onResume(p.last_session_id as string, p);
+    else lanzar(() => onResume(p.last_session_id as string, p));
   };
 
-  const textoBoton = accion === "reanudar" ? "Reanudar" : accion === "abrir-informe" ? "Abrir informe" : "Planificar";
+  const textoBoton = accion === "reanudar" ? "Reanudar" : accion === "abrir-informe" ? "Informe" : "Planificar";
   const iconoBoton = accion === "reanudar" ? "RESUME" : accion === "abrir-informe" ? "OPEN" : "STEP_PLAN";
 
   return (
@@ -105,19 +120,26 @@ export function PatientCard({ patient: p, onOpen, onResume, onPlan }: Props) {
       aria-label={`${p.full_name}, ${hc}`}
       className="pt-card"
       data-glass
-      onClick={() => onOpen(p)}
+      aria-busy={abriendo || undefined}
+      data-abriendo={abriendo || undefined}
+      onClick={() => { if (!abriendo) onOpen(p); }}
       onKeyDown={alTeclear}
     >
       {/* Sin captura o sin sesión el bloque va atenuado (spec §4.2): el icono es un hueco, no un dato. */}
-      <div className={`pt-card-media${imagen && paso ? "" : " pt-card-media--tenue"}`}>
-        {imagen ? <img src={imagen} alt="" /> : <Icon name={icono} size={32} />}
+      <div className={`pt-card-media${imagen && paso ? "" : " pt-card-media--tenue"}${!imagen && !paso ? " pt-card-media--vacia" : ""}`}>
+        {imagen ? <img src={imagen} alt="" />
+          : paso ? <Icon name={icono} size={32} />
+          : <>
+              <span className="pt-card-iniciales" aria-hidden="true">{iniciales(p.full_name)}</span>
+              <span className="pt-card-sin">Sin estudios aún</span>
+            </>}
         <span className="pt-card-pill" data-glass>{paso ? `Paso ${paso.n} · ${paso.label}` : "Sin sesión"}</span>
       </div>
 
       <div className="pt-card-body">
         <h3 className="pt-card-name">{p.full_name}</h3>
-        <p className="pt-card-meta">
-          {hc}{p.sex ? ` · ${p.sex}` : ""}{edad ? ` · ${edad} años` : ""}
+        <p className="pt-card-meta" title={meta}>
+          {meta}
         </p>
 
         <div className="pt-card-badges">
@@ -140,8 +162,10 @@ export function PatientCard({ patient: p, onOpen, onResume, onPlan }: Props) {
 
       <div className="pt-card-foot">
         <span title={fechaHora(pie.fecha)}>{pie.texto}</span>
-        <Button size="sm" variant={accion === "planificar" ? "outline" : "default"} leadingIcon={<Icon name={iconoBoton} size={14} />} onClick={alActuar}>
-          {textoBoton}
+        <Button size={tableta ? "md" : "sm"} variant={accion === "planificar" ? "outline" : "default"}
+                disabled={abriendo} style={{ whiteSpace: "nowrap" }}
+                leadingIcon={<Icon name={abriendo ? "WAIT" : iconoBoton} size={14} />} onClick={alActuar}>
+          {abriendo ? "Abriendo…" : textoBoton}
         </Button>
       </div>
     </article>

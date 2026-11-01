@@ -118,7 +118,10 @@ describe("pestañas «Pendientes · Aprobadas · Rechazadas» (F2-51)", () => {
     render(<PendingRequests onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("tab", { name: "Rechazadas" }));
     expect(await screen.findByText("Rita Rechazada")).toBeTruthy();
-    expect(screen.getByText(new RegExp(`Rechazada: ${fechaHora("2026-10-03T15:30:00+00:00")}`))).toBeTruthy();
+    const rechazo = screen.getByText(fechaHora("2026-10-03T15:30:00+00:00"));
+    expect(rechazo.parentElement).toHaveTextContent(`Rechazada: ${fechaHora("2026-10-03T15:30:00+00:00")}`);
+    // La fecha, en sans con cifras tabulares (M2).
+    expect(rechazo).toHaveStyle({ fontVariantNumeric: "tabular-nums" });
   });
 
   it("«Aprobadas» deja fuera a los administradores y lleva su nota (A56)", async () => {

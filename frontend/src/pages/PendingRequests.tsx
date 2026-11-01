@@ -71,10 +71,10 @@ function History({ tab }: { tab: "Aprobadas" | "Rechazadas" }) {
       id: "fecha", titulo: "Fecha", sinPartir: true,
       celda: (u) => tab === "Rechazadas" && u.rejected_at ? (
         <>
-          <div>Rechazada: {fechaHora(u.rejected_at)}</div>
-          <div style={{ color: "var(--muted-foreground)" }}>Solicitada: {fechaHora(u.created_at)}</div>
+          <div>Rechazada: <span style={ESTILO_FECHA}>{fechaHora(u.rejected_at)}</span></div>
+          <div style={{ color: "var(--muted-foreground)" }}>Solicitada: <span style={ESTILO_FECHA}>{fechaHora(u.created_at)}</span></div>
         </>
-      ) : `${tab === "Aprobadas" ? "Alta" : "Solicitada"}: ${fechaHora(u.created_at)}`,
+      ) : <>{tab === "Aprobadas" ? "Alta" : "Solicitada"}: <span style={ESTILO_FECHA}>{fechaHora(u.created_at)}</span></>,
     },
   ];
   const vacio = loadError || loading ? (

@@ -25,7 +25,7 @@ import { LoadState, loadErrorText } from "../components/LoadState";
 import { EstadoVacio } from "../components/EstadoVacio";
 import { useAuth } from "../store/auth";
 import { AdminOnlyCard } from "../components/AdminOnly";
-import { fechaHora } from "../lib/fecha";
+import { ESTILO_FECHA, fechaHora } from "../lib/fecha";
 import { ROLE_LABEL, ROLE_OPTS, ROLE_PERMITE } from "../lib/roles";
 import "../styles/office.css";
 import { PageBody } from "../components/shell/PageBody";
@@ -470,7 +470,7 @@ function UsersAdminPage() {
     { id: "estado", titulo: "Estado", celda: (u) => <EstadoCuenta u={u} /> },
     {
       id: "creado", titulo: "Creado", sinPartir: true,
-      celda: (u) => <span style={{ color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>{fechaHora(u.created_at)}</span>,
+      celda: (u) => <span style={{ ...ESTILO_FECHA, color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>{fechaHora(u.created_at)}</span>,
     },
     { id: "acciones", titulo: "Acciones", alinear: "fin", ancho: "1%", sinPartir: true, enTarjeta: "pie", celda: acciones },
   ];

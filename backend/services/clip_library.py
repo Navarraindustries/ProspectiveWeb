@@ -46,6 +46,8 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from services.numero import cifra
+
 logger = logging.getLogger(__name__)
 
 # Private store: clip geometry is institutional property, not public static.
@@ -191,14 +193,14 @@ def suggest_shape(long_mm: float, mid_mm: float, short_mm: float) -> tuple[str, 
     if depth_ratio >= 0.45:
         return "ANGLED", (
             f"El envolvente es profundo respecto a su longitud "
-            f"(×{depth_ratio:.2f}), lo que sugiere una hoja acodada."
+            f"(×{cifra(depth_ratio, 2)}), lo que sugiere una hoja acodada."
         )
     if depth_ratio >= 0.22:
         return "CURVED", (
-            f"Profundidad intermedia (×{depth_ratio:.2f}): compatible con hoja "
+            f"Profundidad intermedia (×{cifra(depth_ratio, 2)}): compatible con hoja "
             f"curva o bayoneta."
         )
-    return "STRAIGHT", f"Envolvente plano (×{depth_ratio:.2f}): compatible con hoja recta."
+    return "STRAIGHT", f"Envolvente plano (×{cifra(depth_ratio, 2)}): compatible con hoja recta."
 
 
 # ── Import / delete ────────────────────────────────────────────────────────── #

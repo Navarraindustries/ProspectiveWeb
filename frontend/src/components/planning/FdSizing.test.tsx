@@ -17,14 +17,14 @@ const resultado: FdSizingResult = {
   target_diameter_mm: 4.5, required_length_mm: 16, multiple_devices: true,
   options: [
     { device_id: "pipeline", name: "Pipeline Flex", manufacturer: "Medtronic",
-      diameter_mm: 4.5, length_mm: 16, fits: true, reason: "Ø4.50 mm por el anclaje mayor",
-      neck_note: "nota cuello", narrow_end_note: "sobredimensionado 1.50 mm",
+      diameter_mm: 4.5, length_mm: 16, fits: true, reason: "Ø4,50 mm por el anclaje mayor",
+      neck_note: "nota cuello", narrow_end_note: "sobredimensionado 1,50 mm",
       deploy_arc_mm: [22.4, 38.4], elongated_length_mm: 21.2 },
     { device_id: "surpass", name: "Surpass Streamline", manufacturer: "Stryker",
       diameter_mm: 0, length_mm: 0, fits: false, reason: "Ninguna medida encaja",
       neck_note: "", narrow_end_note: "", deploy_arc_mm: [0, 0], elongated_length_mm: 0 },
   ],
-  warnings: ["El anclaje proximal y el distal difieren 1.50 mm; lo habitual es usar varios"],
+  warnings: ["El anclaje proximal y el distal difieren 1,50 mm; lo habitual es usar varios"],
   notes: ["La longitud es la etiquetada."], sources: ["fuente"],
 };
 
@@ -37,7 +37,7 @@ describe("dimensionado de flow-diverter", () => {
     expect(screen.getByText("3,00 mm")).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(/varios/);
     expect(screen.getByText("Ø4,50 × 16 mm")).toBeInTheDocument();
-    expect(screen.getByText(/sobredimensionado 1.50 mm/)).toBeInTheDocument();
+    expect(screen.getByText(/sobredimensionado 1,50 mm/)).toBeInTheDocument();
     expect(screen.getByText("Ninguna medida encaja")).toBeInTheDocument();
     // Solo la opción que encaja se puede llevar al despliegue.
     expect(screen.getAllByText("Usar en el despliegue")).toHaveLength(1);

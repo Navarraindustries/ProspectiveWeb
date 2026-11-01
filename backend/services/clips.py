@@ -26,6 +26,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Sequence
 
+from services.numero import cifra, cifra_corta
+
 
 # ── Shape enum ─────────────────────────────────────────────────────────────── #
 
@@ -282,14 +284,14 @@ def jaw_requirement(neck_mm: float, neck_perimeter_mm: float = 0.0) -> JawRequir
 
     if plano > 0.0:
         req = max(plano, suelo)
-        detalle = (f"Contorno del cuello medido: {neck_perimeter_mm:.1f} mm de "
-                   f"perímetro, que aplastado son {plano:.1f} mm de línea de cierre.")
+        detalle = (f"Contorno del cuello medido: {cifra(neck_perimeter_mm)} mm de "
+                   f"perímetro, que aplastado son {cifra(plano)} mm de línea de cierre.")
         return JawRequirement(round(req, 2), "floor" if suelo > plano else "perimeter", detalle)
 
     factor = neck_mm * NECK_DEFORMATION_FACTOR
     req = max(factor, suelo)
-    detalle = (f"Cuello de {neck_mm:.1f} mm × {NECK_DEFORMATION_FACTOR} = "
-               f"{factor:.1f} mm al quedar aplastado entre las hojas.")
+    detalle = (f"Cuello de {cifra(neck_mm)} mm × {cifra_corta(NECK_DEFORMATION_FACTOR)} = "
+               f"{cifra(factor)} mm al quedar aplastado entre las hojas.")
     return JawRequirement(round(req, 2), "floor" if suelo > factor else "factor", detalle)
 
 
@@ -410,17 +412,17 @@ def recommend_clips(
 
         reasons: list[str] = []
         if cov >= 1.2:
-            reasons.append(f"Cobertura adecuada (×{cov:.2f})")
+            reasons.append(f"Cobertura adecuada (×{cifra(cov, 2)})")
         else:
-            reasons.append(f"Cobertura justa (×{cov:.2f}) — verificar en IQ")
+            reasons.append(f"Cobertura justa (×{cifra(cov, 2)}) — verificar en IQ")
         if neck_mm >= WIDE_NECK_THRESHOLD_MM and clip.shape == ClipShape.FENESTRATED:
             reasons.append("Fenestrado indicado para cuello ancho")
         elif aspect_ratio >= DEEP_DOME_AR_THRESHOLD and clip.shape in (ClipShape.ANGLED, ClipShape.BAYONET):
             reasons.append("Angulado/Bayoneta indicado para domo profundo (AR alto)")
         if safety_mm < 1.5:
-            reasons.append(f"Margen de seguridad pequeño ({safety_mm:.1f} mm)")
+            reasons.append(f"Margen de seguridad pequeño ({cifra(safety_mm)} mm)")
         else:
-            reasons.append(f"Margen de seguridad: {safety_mm:.1f} mm")
+            reasons.append(f"Margen de seguridad: {cifra(safety_mm)} mm")
 
         recs.append(_Recommendation(
             clip=clip,

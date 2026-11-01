@@ -664,6 +664,15 @@
   font-size: 11px;
   color: var(--muted-foreground);
 }
+.landing-stitch .franja-casos__credito a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.landing-stitch .franja-casos__credito a:hover,
+.landing-stitch .franja-casos__credito a:focus-visible {
+  color: var(--foreground);
+}
 
 /* Contacto y pie */
 .landing-stitch .contacto {

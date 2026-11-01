@@ -42,6 +42,7 @@ from services.aneurysm_detector import AneurysmDetector, AneurysmCandidate as De
 from services.aneurysm_consensus import MAX_VERTS_GEOMETRIC
 from services.morphometrics import MorphometricAnalyzer
 from services.sac_isolation import isolate_closed_sac, isolate_sac_volumetric
+from services.numero import cifra
 from services.perforator_risk import neck_origin_from_morpho
 from services.segmentation import read_vtp, write_vtp
 from services import progress
@@ -1874,8 +1875,8 @@ def _run_morphometry_sync(
     # argue with, and it fires on results that otherwise carry a green badge.
     if mr.neck_diameter_mm > mr.max_diameter_mm * 1.02 > 0:
         note = (
-            f"El cuello medido ({mr.neck_diameter_mm:.1f} mm) es mayor que el Ø máximo "
-            f"del saco ({mr.max_diameter_mm:.1f} mm), lo cual es imposible: el plano no "
+            f"El cuello medido ({cifra(mr.neck_diameter_mm)} mm) es mayor que el Ø máximo "
+            f"del saco ({cifra(mr.max_diameter_mm)} mm), lo cual es imposible: el plano no "
             f"cortó por el cuello. Vuelve a marcar el borde en la unión del saco con el vaso."
         )
         warning = f"{warning} {note}" if warning else note
@@ -1911,7 +1912,7 @@ def _run_morphometry_sync(
             if body.inflated:
                 note = (
                     f"El saco aislado incluye partes finas (ramas o ruido) que inflan el "
-                    f"Ø máximo: {mr.max_diameter_mm:.1f} mm frente a {body.body_max_mm:.1f} mm "
+                    f"Ø máximo: {cifra(mr.max_diameter_mm)} mm frente a {cifra(body.body_max_mm)} mm "
                     f"del cuerpo del aneurisma. Revisa el borde marcado: cortando en la unión "
                     f"del saco con el vaso, esas partes quedan fuera."
                 )

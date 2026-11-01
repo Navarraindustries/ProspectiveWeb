@@ -46,7 +46,7 @@ const prefill = (over: Partial<ClipOrderPrefill> = {}): ClipOrderPrefill => ({
   advised_series: "T1",
   advised_angle_deg: 0,
   advised_jaw_mm: 10,
-  advised_label: "NAVARRO™ T1 Recto, mordaza 10.0 mm",
+  advised_label: "NAVARRO™ T1 Recto, mordaza 10,0 mm",
   advised_shape: "Recto",
   advised_navarro_shape: "straight",
   advised_window_mm: 0,
@@ -97,7 +97,7 @@ describe("what the form already knows", () => {
   it("arrives with the advised piece filled in, not blank", async () => {
     clipOrderPrefill.mockResolvedValue(prefill());
     draw();
-    expect(await screen.findByText(/NAVARRO™ T1 Recto, mordaza 10.0 mm/)).toBeTruthy();
+    expect(await screen.findByText(/NAVARRO™ T1 Recto, mordaza 10,0 mm/)).toBeTruthy();
     const jaw = screen.getByLabelText(/Mordaza/i) as HTMLInputElement;
     expect(jaw.value).toBe("10");
   });
@@ -298,7 +298,7 @@ describe("the heading never contradicts the controls", () => {
     // cabecera anunciando un T4 mientras los controles decían T2.
     clipOrderPrefill.mockResolvedValue(prefill({
       advised_navarro_shape: "fenestrated", advised_window_mm: 5,
-      advised_label: "NAVARRO™ T4 Fenestrado ventana 5 mm, mordaza 10.0 mm",
+      advised_label: "NAVARRO™ T4 Fenestrado ventana 5 mm, mordaza 10,0 mm",
     }));
     draw();
     await screen.findByLabelText("Serie");

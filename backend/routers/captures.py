@@ -34,6 +34,7 @@ from services.database import get_db
 from services.audit import (ACT_CAPTURE_DELETED, ACT_CAPTURE_SAVED, ACT_RECORDING_SAVED,
                             audit_append, audit_patient)
 from services.db_models import CaseCapture, ImagingStudy, Patient, User
+from services.numero import cifra
 from services.storage import capture_key, get_storage
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ def _decode_png(png_b64: str) -> bytes:
     if len(raw) > MAX_PNG_BYTES:
         raise HTTPException(
             status_code=413,
-            detail=f"La imagen pesa {len(raw) / 1e6:.1f} MB y el tope son {MAX_PNG_BYTES / 1e6:.0f} MB.",
+            detail=f"La imagen pesa {cifra(len(raw) / 1e6)} MB y el tope son {MAX_PNG_BYTES / 1e6:.0f} MB.",
         )
     if not raw.startswith(_PNG_MAGIC):
         raise HTTPException(status_code=422, detail="Los bytes no son un PNG.")

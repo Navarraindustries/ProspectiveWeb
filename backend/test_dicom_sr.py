@@ -171,6 +171,18 @@ class TestElTipoRealDelClip:
         assert "Pieza a medida" in textos
         assert "Catálogo" not in textos
 
+    def test_el_modelo_del_clip_va_con_punto_como_la_trayectoria(self):
+        # El rótulo de pantalla lleva coma («13,0 mm»); el SR es exportación.
+        from services.device_state import save_clips
+        sid = _session_with_morpho()
+        save_clips(sid, [{"index": 0, "clip_id": "navarro:t1:0:13.0",
+                          "name": "NAVARRO™ T1 Recto 13,0 mm", "position": [60.0, 64.0, 67.6],
+                          "orientation": [0.0, 0.0, 0.0], "is_custom": False}])
+        _sr(sid)
+        textos = _textos_sr(sid)
+        assert "NAVARRO™ T1 Recto 13.0 mm" in textos
+        assert "NAVARRO™ T1 Recto 13,0 mm" not in textos
+
 
 class TestLoQueElPdfDiceYElSrNoLlevaba:
     def test_recomendacion_anotaciones_elapss_y_uiats(self):

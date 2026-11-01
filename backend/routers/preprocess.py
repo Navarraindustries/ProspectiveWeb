@@ -14,13 +14,17 @@ import numpy as np
 from fastapi import APIRouter, HTTPException
 
 from models.preprocess import PreprocessRequest, PreprocessResult, PreprocessStatus
+from services.preprocess import ops_params, ops_text
 from services.sessions import read_state, session_exists, write_state
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["preprocess"])
 
 #: Set once the cached volume has been rewritten; cleared by the revert below.
+#: Texto de pantalla (coma decimal). Lo que se exporta sale de `_PARAMS_KEY`.
 _OPS_KEY = "preprocess.ops"
+#: Las mismas operaciones como datos (JSON con números crudos): máquina.
+_PARAMS_KEY = "preprocess.params"
 
 
 def _run(session_id: str, req: PreprocessRequest) -> PreprocessResult:
@@ -93,15 +97,12 @@ def _run(session_id: str, req: PreprocessRequest) -> PreprocessResult:
     new_meta["volume_id"] = new_volume_id()
     meta_path.write_text(json.dumps(new_meta))
 
-    ops = []
-    if clip_hu:
-        ops.append("recorte HU")
-    if req.resample_isotropic:
-        ops.append(f"remuestreo isotrópico {req.target_spacing_mm} mm")
-    if req.smooth:
-        ops.append(f"suavizado σ={req.smooth_sigma}")
-    write_state(session_id, _OPS_KEY, ", ".join(ops))
-    note = f"Aplicado: {', '.join(ops)}. Vuelve a segmentar para usar el volumen preprocesado."
+    params = ops_params(clip_hu, req.resample_isotropic, req.target_spacing_mm,
+                        req.smooth, req.smooth_sigma)
+    shown = ops_text(params, persona=True)
+    write_state(session_id, _OPS_KEY, shown)
+    write_state(session_id, _PARAMS_KEY, json.dumps(params))
+    note = f"Aplicado: {shown}. Vuelve a segmentar para usar el volumen preprocesado."
     if clip_skipped:
         note = (
             f"Recorte de HU omitido: un volumen {modality or 'no-TAC'} no está en "
@@ -193,6 +194,7 @@ def _revert(session_id: str) -> PreprocessResult:
     bak_npy.unlink(missing_ok=True)
     bak_meta.unlink(missing_ok=True)
     write_state(session_id, _OPS_KEY, "")
+    write_state(session_id, _PARAMS_KEY, "")
 
     return PreprocessResult(
         shape_before=[int(x) for x in before.get("shape", after["shape"])],

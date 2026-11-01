@@ -42,6 +42,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from services import index_thresholds as T
+from services.numero import cifra, cifra_corta
 from services.phases import phases_label
 
 logger = logging.getLogger(__name__)
@@ -142,8 +143,8 @@ _SOURCE: dict[str, str] = {
     ),
     "ar": (
         "Índice de riesgo de rotura: describe la vía endovascular, no vota. "
-        "Sin validación para elegir modalidad; un AR ≥ 1.6 se asocia a "
-        "RECANALIZACIÓN tras coiling (OR 4.15) y figura en el perfil endovascular."
+        "Sin validación para elegir modalidad; un AR ≥ 1,6 se asocia a "
+        "RECANALIZACIÓN tras coiling (OR 4,15) y figura en el perfil endovascular."
     ),
     "dnr": (
         "El DNR es la otra mitad de la definición de cuello ancho: se evalúa "
@@ -227,6 +228,13 @@ _LEGACY_SOURCE_TEXTS: dict[str, str] = {
         'Ya no vota: índice de RIESGO DE ROTURA, sin validación para elegir '
         'modalidad ni para el resultado del coiling.'
     ): _SOURCE['ui'],
+    # ar, el texto vigente hasta la coma decimal (las decisiones guardadas lo
+    # llevan con punto)
+    (
+        'Índice de riesgo de rotura: describe la vía endovascular, no vota. '
+        'Sin validación para elegir modalidad; un AR ≥ 1.6 se asocia a '
+        'RECANALIZACIÓN tras coiling (OR 4.15) y figura en el perfil endovascular.'
+    ): _SOURCE['ar'],
     # wfns
     (
         'Ya no puntúa aquí: se lo lleva el JSDB, que lo tiene ajustado en tres '
@@ -317,7 +325,7 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
     que está resuelta cuando las dos cifras no apuntan al mismo sitio.
     """
     notes = [
-        f"Aneurisma muy pequeño (Ø {diameter_mm:.1f} mm < 3 mm): el riesgo "
+        f"Aneurisma muy pequeño (Ø {cifra(diameter_mm)} mm < 3 mm): el riesgo "
         f"procedimental generalmente supera el riesgo de rotura."
     ]
     # Este camino no evalúa ningún factor, así que no hay cobertura que declarar:
@@ -457,9 +465,9 @@ def compute_decision(
     if neck_mm > 0 or dnr > 0:
         medidas = []
         if neck_mm > 0:
-            medidas.append(f"cuello {neck_mm:.1f} mm")
+            medidas.append(f"cuello {cifra(neck_mm)} mm")
         if dnr > 0:
-            medidas.append(f"DNR {dnr:.2f}")
+            medidas.append(f"DNR {cifra(dnr, 2)}")
         med = ", ".join(medidas)
 
         ancho_franco = (neck_mm > 5.0) or (0 < dnr < 1.5)
@@ -500,21 +508,21 @@ def compute_decision(
     if aspect_ratio > 0:
         if aspect_ratio >= T.AR_HIGH:
             _add(
-                f"Relación de aspecto (AR) alta (AR = {aspect_ratio:.2f} ≥ {T.AR_HIGH:g})",
-                f"AR ≥ {T.AR_HIGH:g}: domo profundo relativo al cuello — retiene bien los "
+                f"Relación de aspecto (AR) alta (AR = {cifra(aspect_ratio, 2)} ≥ {cifra_corta(T.AR_HIGH)})",
+                f"AR ≥ {cifra_corta(T.AR_HIGH)}: domo profundo relativo al cuello — retiene bien los "
                 f"coils, y se asocia a recanalización después.",
                 "endo", 20, "ar", votes=False,
             )
         elif aspect_ratio >= T.AR_MOD:
             _add(
-                f"Relación de aspecto (AR) moderada (AR = {aspect_ratio:.2f}, {T.AR_MOD:g}–{T.AR_HIGH:g})",
-                f"AR {T.AR_MOD:g}–{T.AR_HIGH:g}: geometría ligeramente favorable para coiling.",
+                f"Relación de aspecto (AR) moderada (AR = {cifra(aspect_ratio, 2)}, {cifra_corta(T.AR_MOD)}–{cifra_corta(T.AR_HIGH)})",
+                f"AR {cifra_corta(T.AR_MOD)}–{cifra_corta(T.AR_HIGH)}: geometría ligeramente favorable para coiling.",
                 "endo", 10, "ar", votes=False,
             )
         else:
             _add(
-                f"Relación de aspecto (AR) baja (AR = {aspect_ratio:.2f} < {T.AR_MOD:g})",
-                f"AR < {T.AR_MOD:g}: saco corto y ancho — acceso quirúrgico favorable.",
+                f"Relación de aspecto (AR) baja (AR = {cifra(aspect_ratio, 2)} < {cifra_corta(T.AR_MOD)})",
+                f"AR < {cifra_corta(T.AR_MOD)}: saco corto y ancho — acceso quirúrgico favorable.",
                 "clip", 10, "ar", votes=False,
             )
 
@@ -523,7 +531,7 @@ def compute_decision(
     # la misma disciplina que los índices de forma.
     if dnr > 0:
         _add(
-            f"Relación domo-cuello (DNR = {dnr:.2f})",
+            f"Relación domo-cuello (DNR = {cifra(dnr, 2)})",
             "Contabilizada dentro del criterio de cuello ancho, junto al "
             "diámetro del cuello. No vuelve a puntuar aquí.",
             "neutral", 0, "dnr", votes=False,
@@ -533,7 +541,7 @@ def compute_decision(
     if max_diameter_mm > 0:
         if max_diameter_mm > 25.0:
             _add(
-                f"Aneurisma gigante (Ø = {max_diameter_mm:.1f} mm > 25 mm)",
+                f"Aneurisma gigante (Ø = {cifra(max_diameter_mm)} mm > 25 mm)",
                 "Gigante (>25 mm): flow diverter (PED) es tratamiento de elección.",
                 "endo", 20, "size",
             )
@@ -543,13 +551,13 @@ def compute_decision(
             )
         elif max_diameter_mm >= 12.0:
             _add(
-                f"Aneurisma grande (Ø = {max_diameter_mm:.1f} mm, 12–25 mm)",
+                f"Aneurisma grande (Ø = {cifra(max_diameter_mm)} mm, 12–25 mm)",
                 "Grande (12–25 mm): ligera preferencia endovascular; valorar complejidad.",
                 "endo", 5, "size",
             )
         elif max_diameter_mm < 5.0:
             _add(
-                f"Aneurisma pequeño (Ø = {max_diameter_mm:.1f} mm < 5 mm)",
+                f"Aneurisma pequeño (Ø = {cifra(max_diameter_mm)} mm < 5 mm)",
                 "Pequeño (<5 mm): clipping más fiable para exclusión completa.",
                 "clip", 8, "size",
             )
@@ -564,15 +572,15 @@ def compute_decision(
         etiqueta = T.bf_label(bottleneck_factor)
         if bottleneck_factor > T.BF_WIDE:
             _add(
-                f"Bottleneck Factor: {etiqueta} (BF = {bottleneck_factor:.2f} > {T.BF_WIDE:g})",
-                f"BF > {T.BF_WIDE:g}: el domo es bastante más ancho que el cuello — "
+                f"Bottleneck Factor: {etiqueta} (BF = {cifra(bottleneck_factor, 2)} > {cifra_corta(T.BF_WIDE)})",
+                f"BF > {cifra_corta(T.BF_WIDE)}: el domo es bastante más ancho que el cuello — "
                 f"cuello relativamente estrecho, que retiene los coils.",
                 "endo", 6, "bf", votes=False,
             )
         else:
             _add(
-                f"Bottleneck Factor: {etiqueta} (BF = {bottleneck_factor:.2f} ≤ {T.BF_WIDE:g})",
-                f"BF ≤ {T.BF_WIDE:g}: el domo apenas es más ancho que el cuello — "
+                f"Bottleneck Factor: {etiqueta} (BF = {cifra(bottleneck_factor, 2)} ≤ {cifra_corta(T.BF_WIDE)})",
+                f"BF ≤ {cifra_corta(T.BF_WIDE)}: el domo apenas es más ancho que el cuello — "
                 f"cuello relativamente ancho; clipping favorable.",
                 "clip", 8, "bf", votes=False,
             )
@@ -590,22 +598,22 @@ def compute_decision(
         )
         if undulation_index >= T.UI_HIGH:
             _add(
-                f"Domo muy irregular (UI = {undulation_index:.3f} ≥ {T.UI_HIGH:.2f})",
-                f"UI ≥ {T.UI_HIGH:.2f}: morfología lobulada; riesgo de llenado incompleto "
+                f"Domo muy irregular (UI = {cifra(undulation_index, 3)} ≥ {cifra(T.UI_HIGH, 2)})",
+                f"UI ≥ {cifra(T.UI_HIGH, 2)}: morfología lobulada; riesgo de llenado incompleto "
                 f"con coils.{aviso_padre}",
                 "clip", 10, "ui", votes=False,
             )
         elif undulation_index >= T.UI_MOD:
             _add(
-                f"Domo moderadamente irregular (UI = {undulation_index:.3f}, "
-                f"{T.UI_MOD:.2f}–{T.UI_HIGH:.2f})",
-                f"UI {T.UI_MOD:.2f}–{T.UI_HIGH:.2f}: cierta irregularidad; leve preferencia "
+                f"Domo moderadamente irregular (UI = {cifra(undulation_index, 3)}, "
+                f"{cifra(T.UI_MOD, 2)}–{cifra(T.UI_HIGH, 2)})",
+                f"UI {cifra(T.UI_MOD, 2)}–{cifra(T.UI_HIGH, 2)}: cierta irregularidad; leve preferencia "
                 f"por clipping.{aviso_padre}",
                 "clip", 5, "ui", votes=False,
             )
         else:
             _add(
-                f"Domo regular (UI = {undulation_index:.3f} < {T.UI_MOD:.2f})",
+                f"Domo regular (UI = {cifra(undulation_index, 3)} < {cifra(T.UI_MOD, 2)})",
                 "Domo esférico regular — favorable para empaquetado con coils.",
                 "endo", 5, "ui", votes=False,
             )

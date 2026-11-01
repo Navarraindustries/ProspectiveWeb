@@ -19,6 +19,7 @@ import {
   channelLabel, channelTitle, isManual, rankLabel, rejectedSummary, thicknessLabel, vetoHint,
 } from "./detectCopy";
 import { canAdvanceFromDetect } from "./detectGate";
+import { cifraCorta } from "../../lib/numero";
 
 /** Número de la última detección pedida. De módulo y no del componente: si el
  *  panel se desmonta y se vuelve a montar con una detección en vuelo, la
@@ -42,7 +43,7 @@ function explainEmpty(d: DetectionDiagnostics): { reason: string; advice: string
   }
   const gates: [number, string, string][] = [
     [d.rejected_size,
-     `su tamaño quedó fuera del rango de ${d.min_radius_mm}–${d.max_radius_mm} mm`,
+     `su tamaño quedó fuera del rango de ${cifraCorta(d.min_radius_mm)}–${cifraCorta(d.max_radius_mm)} mm`,
      "En una malla completa los parches de curvatura se fusionan entre vasos y superan el radio máximo. Recorta la región de interés alrededor del aneurisma y vuelve a detectar."],
     [d.rejected_mean_curvature,
      "su curvatura media no llegó al mínimo",

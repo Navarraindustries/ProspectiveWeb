@@ -45,6 +45,8 @@ from typing import Literal
 import numpy as np
 import vtk
 
+from services.numero import cifra
+
 logger = logging.getLogger(__name__)
 
 #: Por debajo de esto el muñón es ruido de malla, no un resto.
@@ -232,7 +234,7 @@ def occlusion_after_clip(
         res.summary = (
             f"Queda un resto de cuello de {v_munon:.0f} mm³ "
             f"({res.remnant_fraction * 100:.0f} % del saco)"
-            + (f", de {ancho:.1f} mm de ancho en el plano del cuello." if ancho else ".")
+            + (f", de {cifra(ancho)} mm de ancho en el plano del cuello." if ancho else ".")
         )
     else:
         res.outcome = "residual"

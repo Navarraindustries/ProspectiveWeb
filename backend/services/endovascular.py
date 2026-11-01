@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from services import index_thresholds as T
+from services.numero import cifra
 
 # ── Umbrales publicados ────────────────────────────────────────────────────── #
 
@@ -57,12 +58,12 @@ DNR_ALWAYS_ADJUNCT: float = 1.2
 
 def _es(x: float) -> str:
     """1.6 → «1,6»: los textos salen tal cual en pantalla y en el informe."""
-    return f"{x:.1f}".replace(".", ",")
+    return cifra(x)
 
 
 #: AR desde el que se dispara la recanalización tras coiling.
 AR_RECANALIZATION: float = 1.6
-AR_RECANALIZATION_OR: str = "OR 4.15 (IC 95 % 1.57–11.00)"
+AR_RECANALIZATION_OR: str = "OR 4,15 (IC 95 % 1,57–11,00)"
 
 #: Desde donde la literatura de diversión de flujo habla de «grande».
 LARGE_MM: float = 12.0
@@ -126,21 +127,21 @@ def endovascular_profile(
     if not wide:
         technique, label = "simple", "Coiling simple"
         rationale = (
-            f"Cuello {neck_mm:.1f} mm, DNR {dnr:.2f}: fuera de la definición de "
+            f"Cuello {cifra(neck_mm)} mm, DNR {cifra(dnr, 2)}: fuera de la definición de "
             f"cuello ancho (≥ {WIDE_NECK_MM:.0f} mm o DNR < {WIDE_DNR:.0f}), "
             f"donde no suelen hacer falta adyuvantes."
         )
     elif 0 < dnr < DNR_ALWAYS_ADJUNCT:
         technique, label = "assisted", "Coiling asistido (balón o stent)"
         rationale = (
-            f"Relación domo-cuello {dnr:.2f}, por debajo de {_es(DNR_ALWAYS_ADJUNCT)}: "
+            f"Relación domo-cuello {cifra(dnr, 2)}, por debajo de {_es(DNR_ALWAYS_ADJUNCT)}: "
             f"en esa franja casi siempre hace falta balón o stent para retener "
             f"los coils. {gradiente}"
         )
     else:
         technique, label = "assisted", "Coiling asistido (balón o stent)"
-        motivo = (f"cuello de {neck_mm:.1f} mm" if neck_mm >= WIDE_NECK_MM
-                  else f"relación domo-cuello {dnr:.2f}")
+        motivo = (f"cuello de {cifra(neck_mm)} mm" if neck_mm >= WIDE_NECK_MM
+                  else f"relación domo-cuello {cifra(dnr, 2)}")
         rationale = (
             f"Cuello ancho por {motivo}: esa definición existe porque predice la "
             f"necesidad de adyuvante. {gradiente}"
@@ -150,7 +151,7 @@ def endovascular_profile(
     if max_diameter_mm >= GIANT_MM:
         technique, label = "diverter", "Valorar diversor de flujo"
         rationale = (
-            f"Gigante ({max_diameter_mm:.1f} mm). La diversión de flujo es lo "
+            f"Gigante ({cifra(max_diameter_mm)} mm). La diversión de flujo es lo "
             f"habitual a este tamaño, pero no automática: en gigantes de "
             f"carótida interna se describen complicaciones de hasta el 25 %."
         )
@@ -161,8 +162,8 @@ def endovascular_profile(
         sources.append(SRC_DIVERTER)
     elif max_diameter_mm >= LARGE_MM:
         cautions.append(
-            f"Grande ({max_diameter_mm:.1f} mm): entra en juego la diversión de "
-            f"flujo; combinada con coils ocluye mejor (OR 1.59)."
+            f"Grande ({cifra(max_diameter_mm)} mm): entra en juego la diversión de "
+            f"flujo; combinada con coils ocluye mejor (OR 1,59)."
         )
         sources.append(SRC_DIVERTER)
 
@@ -171,15 +172,15 @@ def endovascular_profile(
     if aspect_ratio > 0:
         if aspect_ratio >= AR_RECANALIZATION:
             durability = (
-                f"AR {aspect_ratio:.2f}, por encima de {AR_RECANALIZATION}: se "
+                f"AR {cifra(aspect_ratio, 2)}, por encima de {_es(AR_RECANALIZATION)}: se "
                 f"asocia a recanalización tras coiling ({AR_RECANALIZATION_OR}). "
                 f"No contraindica la vía; pide empaquetado alto y seguimiento."
             )
             sources.append(SRC_RECANALIZATION)
         else:
             durability = (
-                f"AR {aspect_ratio:.2f}, por debajo del umbral de "
-                f"{AR_RECANALIZATION} asociado a recanalización tras coiling."
+                f"AR {cifra(aspect_ratio, 2)}, por debajo del umbral de "
+                f"{_es(AR_RECANALIZATION)} asociado a recanalización tras coiling."
             )
             sources.append(SRC_RECANALIZATION)
 
@@ -188,7 +189,7 @@ def endovascular_profile(
     # Decisión (F1-163): aquí era 0,20 y allí 0,25.
     if undulation_index >= T.UI_HIGH:
         cautions.append(
-            f"Domo irregular (UI {undulation_index:.2f}): índice de riesgo de "
+            f"Domo irregular (UI {cifra(undulation_index, 2)}): índice de riesgo de "
             f"ROTURA, no de resultado. Que un saco lobulado se llene peor es "
             f"razonable y no se ha encontrado validación de ello."
         )
@@ -253,7 +254,7 @@ DEFAULT_NECK_MM: float = 4.0
 #: dirección: sobredimensionar ABRE los poros y BAJA la cobertura.
 SRC_OVERSIZING = (
     "Sci Rep 2024;14 (PMC11081945) — la tasa de cobertura metálica cae del "
-    "48 % con 0.5 mm de infradimensionado al 25.5 % con 1.0 mm de "
+    "48 % con 0,5 mm de infradimensionado al 25,5 % con 1,0 mm de "
     "sobredimensionado, y la diversión de flujo empeora con ella"
 )
 SRC_BRAID = (
@@ -288,30 +289,30 @@ def metal_coverage_note(device_mm: float, vessel_mm: float) -> tuple[str, str]:
     # Sin redondear: `{:.0f}` convertía el 25.5 publicado en «26», que ya es
     # otra cifra. Un anclaje medido se cita como se midió.
     def _pct(v: float) -> str:
-        return f"{v:.0f}" if float(v).is_integer() else f"{v:.1f}"
+        return f"{v:.0f}" if float(v).is_integer() else cifra(v)
 
     mcr_u, mcr_o = _pct(mcr_u_val), _pct(mcr_o_val)
 
     if abs(desajuste) <= SIZING_TOLERANCE_MM:
         return "nominal", (
-            f"Dispositivo Ø{device_mm:.2f} mm sobre una arteria de "
-            f"{vessel_mm:.2f} mm: prácticamente nominal ({desajuste:+.2f} mm). "
+            f"Dispositivo Ø{cifra(device_mm, 2)} mm sobre una arteria de "
+            f"{cifra(vessel_mm, 2)} mm: prácticamente nominal ({cifra(desajuste, 2, signo=True)} mm). "
             f"Es donde la cobertura metálica es más alta."
         )
 
     if desajuste < 0:
         return "undersized", (
-            f"Dispositivo Ø{device_mm:.2f} mm sobre una arteria de "
-            f"{vessel_mm:.2f} mm: infradimensionado {abs(desajuste):.2f} mm. "
+            f"Dispositivo Ø{cifra(device_mm, 2)} mm sobre una arteria de "
+            f"{cifra(vessel_mm, 2)} mm: infradimensionado {cifra(abs(desajuste), 2)} mm. "
             f"La trenza cierra y la cobertura metálica sube — con "
-            f"{abs(off_u):.1f} mm de infradimensionado se midió {mcr_u} %. "
+            f"{cifra(abs(off_u))} mm de infradimensionado se midió {mcr_u} %. "
             f"El riesgo aquí es otro: mala aposición a la pared."
         )
 
     return "oversized", (
-        f"Dispositivo Ø{device_mm:.2f} mm sobre una arteria de {vessel_mm:.2f} "
-        f"mm: sobredimensionado {desajuste:.2f} mm. La trenza se abre y la "
-        f"cobertura metálica BAJA — con {off_o:.1f} mm se midió {mcr_o} %, "
+        f"Dispositivo Ø{cifra(device_mm, 2)} mm sobre una arteria de {cifra(vessel_mm, 2)} "
+        f"mm: sobredimensionado {cifra(desajuste, 2)} mm. La trenza se abre y la "
+        f"cobertura metálica BAJA — con {cifra(off_o)} mm se midió {mcr_o} %, "
         f"frente al {mcr_u} % del caso infradimensionado, y la diversión de "
         f"flujo empeora con ella."
     )
@@ -364,8 +365,8 @@ def stent_bridging(
         diameter_ok = min_diameter_mm <= diameter_mm <= max_diameter_mm
         if not diameter_ok:
             warnings.append(
-                f"Diámetro {diameter_mm:.1f} mm fuera del rango del dispositivo "
-                f"({min_diameter_mm:.1f}–{max_diameter_mm:.1f} mm)."
+                f"Diámetro {cifra(diameter_mm)} mm fuera del rango del dispositivo "
+                f"({cifra(min_diameter_mm)}–{cifra(max_diameter_mm)} mm)."
             )
 
     span_fraction = min(1.0, length_mm / required) if required > 0 else 0.0
@@ -373,7 +374,7 @@ def stent_bridging(
     if medido and not length_ok:
         warnings.append(
             f"Longitud {length_mm:.0f} mm insuficiente para cruzar el cuello "
-            f"({neck:.1f} mm) más {LANDING_ZONE_MM:.0f} mm de anclaje a cada "
+            f"({cifra(neck)} mm) más {LANDING_ZONE_MM:.0f} mm de anclaje a cada "
             f"lado (necesita ≈ {required:.0f} mm)."
         )
 
@@ -388,7 +389,7 @@ def stent_bridging(
     notes.append(texto)
     if sizing == "oversized":
         warnings.append(
-            f"Sobredimensionado {diameter_mm - parent_artery_mm:.2f} mm "
+            f"Sobredimensionado {cifra(diameter_mm - parent_artery_mm, 2)} mm "
             f"respecto a la arteria portadora: baja la cobertura metálica."
         )
 

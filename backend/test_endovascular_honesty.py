@@ -427,7 +427,8 @@ class TestCoberturaMetalica:
         from services.endovascular import metal_coverage_note
         import re
         _, texto = metal_coverage_note(3.9, 3.4)     # +0.5 mm, entre los anclajes
-        pcts = {float(m) for m in re.findall(r"(\d+(?:\.\d+)?)\s*%", texto)}
+        pcts = {float(m.replace(",", "."))
+                for m in re.findall(r"(\d+(?:,\d+)?)\s*%", texto)}
         assert pcts <= {48.0, 25.5}
 
     def test_el_dimensionado_llega_al_ajuste(self):

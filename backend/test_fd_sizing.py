@@ -179,7 +179,7 @@ def test_avisa_si_la_arteria_madre_de_la_morfometria_no_casa():
     sid = TestEndpoint()._sesion()
     write_states(sid, {"morpho.parent_artery_mm": "1.67"})
     j = client.post(f"/api/centerline/{sid}/fd-sizing").json()
-    assert any("no coincide" in w and "1.67" in w for w in j["warnings"])
+    assert any("no coincide" in w and "1,67" in w for w in j["warnings"])
 
 
 def test_una_arteria_madre_de_la_version_anterior_pide_repetir_la_morfometria():

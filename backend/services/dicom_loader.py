@@ -12,6 +12,8 @@ from pathlib import Path
 
 import numpy as np
 
+from services.numero import cifra
+
 logger = logging.getLogger(__name__)
 
 # Modalities treated as projections (2D angiography)
@@ -266,7 +268,7 @@ def _image_to_result(
             )
         else:
             proj_warn = (
-                f"Espaciado Z ({sz:.2f} mm) >> espaciado en plano ({in_plane:.2f} mm). "
+                f"Espaciado Z ({cifra(sz, 2)} mm) >> espaciado en plano ({cifra(in_plane, 2)} mm). "
                 "Probable proyección 2D — la segmentación 3D dará resultados incorrectos."
             )
 

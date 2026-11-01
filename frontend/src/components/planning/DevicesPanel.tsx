@@ -49,7 +49,7 @@ import { TILT_MAX_DEG } from "../../vtk/clipPose";
 import { angleReferenceLabel } from "../../vtk/approachView";
 import { usePlanning, type PlacedClip } from "../../store/planning";
 import { neckPlacement, toPlacement, toStoredClip, poseKey, isStale, fieldColoursOnScreen } from "./placedClips";
-import { cifra } from "../../lib/numero";
+import { cifra, cifraCorta } from "../../lib/numero";
 
 // Se mudó a placedClips.ts; se reexporta para quien la importaba de aquí.
 export { neckPlacement };
@@ -1065,7 +1065,7 @@ function CoilsTab() {
               </div>
               {m && (
                 <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", marginTop: 4 }}>
-                  Ø{m.diameter_mm} mm × {m.length_cm} cm
+                  Ø{cifraCorta(m.diameter_mm)} mm × {cifraCorta(m.length_cm)} cm
                 </div>
               )}
               {f.rationale && f.coil_id === f.sugerido && (

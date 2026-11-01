@@ -113,7 +113,7 @@ class TestLoQueCambiaEnLaSeleccion:
         cand = evaluate_clip(_clip(7.0), _case(5.0))
         cov = next(c for c in cand.criteria if c.key == "coverage")
         assert cov.verdict == "fail"
-        assert "7.5 mm" in cov.detail and "aplastado" in cov.detail
+        assert "7,5 mm" in cov.detail and "aplastado" in cov.detail
         assert cand.score == 0.0
 
     def test_la_que_cierra_justo_es_correcta_y_no_un_aviso(self):

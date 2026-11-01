@@ -173,7 +173,7 @@ class TestStentReachesTheReport:
         tabla = section[1]._content[0]
         cells = [getattr(c, "text", str(c)) for row in tabla._cellvalues for c in row]
         assert any("Ø stent / Ø vaso" in c for c in cells)
-        assert any(c.startswith("1.01<br/>") for c in cells)   # ratio, not "101.0 %"
+        assert any(c.startswith("1,01<br/>") for c in cells)   # ratio, not "101.0 %"
         assert not any("Cobertura del cuello" in c for c in cells)
 
     def test_empty_session_has_no_stent(self):

@@ -37,6 +37,7 @@ import numpy as np
 
 from services.endovascular import (LANDING_ZONE_MM, MCR_OVERSIZED, SIZING_TOLERANCE_MM,
                                    SRC_BRAID, SRC_OVERSIZING, metal_coverage_note)
+from services.numero import cifra
 from services.parent_artery import _nearest_contour, _section_shape
 
 SRC_MISMATCH = (
@@ -258,8 +259,8 @@ def size_flow_diverter(
     multi = mismatch > MISMATCH_MULTI_MM
     if multi:
         warnings.append(
-            f"El anclaje proximal ({prox.diameter_mm:.2f} mm) y el distal "
-            f"({dist_z.diameter_mm:.2f} mm) difieren {mismatch:.2f} mm. Un solo "
+            f"El anclaje proximal ({cifra(prox.diameter_mm, 2)} mm) y el distal "
+            f"({cifra(dist_z.diameter_mm, 2)} mm) difieren {cifra(mismatch, 2)} mm. Un solo "
             f"dispositivo quedaría sobredimensionado en el extremo estrecho; lo "
             f"habitual es usar varios, cada uno con su medida.")
 
@@ -284,14 +285,14 @@ def size_flow_diverter(
         L = next((x for x in lengths if x >= required), 0.0)
         opt.diameter_mm, opt.length_mm = d, L
         if d <= 0:
-            opt.reason = (f"Ninguna medida del catálogo ({item['min_diameter_mm']:.2f}–"
-                          f"{item['max_diameter_mm']:.2f} mm) encaja con {target:.2f} mm.")
+            opt.reason = (f"Ninguna medida del catálogo ({cifra(item['min_diameter_mm'], 2)}–"
+                          f"{cifra(item['max_diameter_mm'], 2)} mm) encaja con {cifra(target, 2)} mm.")
         elif L <= 0:
             opt.reason = (f"Ninguna longitud del catálogo llega a {required:.0f} mm "
                           f"(cuello más anclajes): habría que solapar dos.")
         else:
             opt.fits = True
-            opt.reason = (f"Ø{d:.2f} mm por el anclaje mayor ({target:.2f} mm); "
+            opt.reason = (f"Ø{cifra(d, 2)} mm por el anclaje mayor ({cifra(target, 2)} mm); "
                           f"{L:.0f} mm etiquetados para {required:.0f} mm necesarios.")
             opt.neck_note = metal_coverage_note(d, neck_vessel)[1]
             if narrow > 0 and narrow < target:

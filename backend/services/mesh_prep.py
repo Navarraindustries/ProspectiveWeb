@@ -13,6 +13,8 @@ from pathlib import Path
 
 import vtk
 
+from services.numero import cifra
+
 logger = logging.getLogger(__name__)
 
 # Print-bed presets: name → (x_mm, y_mm, z_mm). A dimension of 0 = unlimited.
@@ -173,7 +175,7 @@ def prepare_mesh_for_print(
     sb = mesh.GetBounds()
     dims = (round(sb[1] - sb[0], 3), round(sb[3] - sb[2], 3), round(sb[5] - sb[4], 3))
     if max(dims) > 300.0:
-        warnings.append(f"Dimensión máxima {max(dims):.1f} mm supera 300 mm — verifica la escala.")
+        warnings.append(f"Dimensión máxima {cifra(max(dims))} mm supera 300 mm — verifica la escala.")
     if volume_cm3 < 0.001:
         warnings.append("Volumen calculado muy pequeño — verifica la malla.")
 

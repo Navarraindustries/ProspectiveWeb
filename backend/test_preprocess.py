@@ -86,6 +86,20 @@ class TestEndpoint:
         key = mprmod.ensure_volume_cached(sid)["cache_key"]
         assert re.fullmatch(r"[0-9a-f]{32}", key) and key != "a" * 32
 
+    def test_el_rotulo_lleva_coma_y_los_datos_numeros_crudos(self):
+        # Pantalla: coma decimal y «; » entre operaciones. Máquina: JSON.
+        from services.sessions import read_state
+        sid = _session_with_volume()
+        r = client.post(f"/api/preprocess/{sid}", json={
+            "clip_hu": True, "resample_isotropic": False, "smooth": True, "smooth_sigma": 1.5,
+        })
+        assert r.status_code == 200, r.text
+        assert read_state(sid, "preprocess.ops") == "recorte HU; suavizado σ=1,5"
+        assert "recorte HU; suavizado σ=1,5" in r.json()["note"]
+        assert json.loads(read_state(sid, "preprocess.params")) == {
+            "hu_clip": True, "target_spacing_mm": None, "smooth_sigma": 1.5}
+        assert client.get(f"/api/preprocess/{sid}").json()["ops"] == "recorte HU; suavizado σ=1,5"
+
     def test_noop_selection_422(self):
         sid = _session_with_volume()
         r = client.post(f"/api/preprocess/{sid}", json={"clip_hu": False, "resample_isotropic": False, "smooth": False})

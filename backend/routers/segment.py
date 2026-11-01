@@ -29,6 +29,7 @@ from services.db_models    import User
 from services.sessions     import read_state, session_exists, session_subdir, write_state, write_states, mesh_url
 from services.thresholds   import compute_auto_thresholds, strategy_hint
 from services.dicom_loader import DicomLoadResult, load_series
+from services.numero import cifra
 from services.segmentation import (
     SegmentationPipeline, SegmentationResult, write_vtp,
     voxel_fraction as seg_voxel_fraction,
@@ -211,9 +212,9 @@ def _tubular_guard(n_voxels: int, memory: bool = True) -> str:
     need = n_voxels * _TUBULAR_BYTES_PER_VOXEL
     budget = _memory_budget_bytes()
     if need > budget:
-        return (f"Volumen de {n_voxels / 1e6:.1f} millones de vóxeles: a resolución nativa "
-                f"necesitaría unos {need / 1024 ** 3:.1f} GB y el presupuesto de memoria "
-                f"del servidor es de {budget / 1024 ** 3:.1f} GB, así que se segmenta a "
+        return (f"Volumen de {cifra(n_voxels / 1e6)} millones de vóxeles: a resolución nativa "
+                f"necesitaría unos {cifra(need / 1024 ** 3)} GB y el presupuesto de memoria "
+                f"del servidor es de {cifra(budget / 1024 ** 3)} GB, así que se segmenta a "
                 f"media resolución.")
     return ""
 
@@ -471,7 +472,7 @@ def segment_tubular(
             mask_mm3 = rr.stats["mask_vox"] * float(np.prod(native_spacing))
             fallback_note = (fallback_note + " " if fallback_note else "") + (
                 f"El árbol localizado así se ha vuelto a segmentar a resolución nativa "
-                f"(vóxel de {max(native_spacing):.2f} mm) en una banda de {rr.stats['band_mm']:.0f} mm "
+                f"(vóxel de {cifra(max(native_spacing), 2)} mm) en una banda de {rr.stats['band_mm']:.0f} mm "
                 f"a su alrededor: la malla tiene el detalle del estudio donde hay vaso.")
         del rr
     mr.mask = None      # la máscara ya no hace falta; que no ocupe durante el guardado

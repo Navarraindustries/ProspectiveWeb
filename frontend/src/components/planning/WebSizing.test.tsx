@@ -14,7 +14,7 @@ const base: WebSizingResult = {
   neck_mm: 4.5, dnr: 1.33, volume_mm3: 113, within_indication: true, fill_ratio: 1,
   options: [
     { shape: "SL", width_mm: 7, height_mm: 5, added_mm: 1, target_height_mm: 5, dav: 1.7, label: "WEB SL 7×5", note: "" },
-    { shape: "SL", width_mm: 8, height_mm: 4, added_mm: 2, target_height_mm: 4, dav: 1.78, label: "WEB SL 8×4", note: "Solo 0.8 mm más ancho que el aneurisma: por debajo del +1 de la regla." },
+    { shape: "SL", width_mm: 8, height_mm: 4, added_mm: 2, target_height_mm: 4, dav: 1.78, label: "WEB SL 8×4", note: "Solo 0,8 mm más ancho que el aneurisma: por debajo del +1 de la regla." },
   ],
   warnings: [], notes: ["nota"], sources: ["fuente"],
 };

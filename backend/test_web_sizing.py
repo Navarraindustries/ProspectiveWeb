@@ -55,6 +55,18 @@ def test_saco_ovalado_da_la_anchura_media():
     assert d.width_mm == pytest.approx(7.0, abs=0.1)
 
 
+def test_la_designacion_del_fabricante_conserva_su_punto():
+    # «WEB SL 4.5×3» es el nombre del producto: se escribe como en el catálogo.
+    # La cifra del cuello, en la misma frase, es una medida y lleva coma.
+    dims = SacDims(3.5, 3.5, 3.5, 4.0, "sac")
+    r = size_web(dims, neck_mm=5.0, volume_mm3=40.0)
+    labels = {o.label for o in r.options}
+    assert "WEB SL 4.5×3" in labels, labels
+    assert not any("," in lab for lab in labels)
+    assert any(w.startswith("WEB SL 4.5×3: no es más ancho que el cuello (5,0 mm)")
+               for w in r.warnings), r.warnings
+
+
 def test_la_regla_mas_uno_menos_uno_con_el_catalogo():
     dims = SacDims(6.0, 6.0, 6.0, 6.0, "sac")
     r = size_web(dims, neck_mm=4.5, volume_mm3=113.0)

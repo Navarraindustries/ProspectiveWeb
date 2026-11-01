@@ -21,7 +21,7 @@ import { usePlanning } from "../../store/planning";
 import { useNav } from "../../store/nav";
 import { ClipOrderForm, ClipOrderList } from "./ClipOrderForm";
 import { forceWithBand } from "./clipForce";
-import { cifra } from "../../lib/numero";
+import { cifra, comaDecimal } from "../../lib/numero";
 
 
 /* La ficha ya llega con la pieza COLOCADA en Dispositivos encima: el backend
@@ -75,16 +75,20 @@ function ManufactureSheet({
     }
   }, [sessionId, caseId]);
 
+  /* El texto copiado lo lee una persona (el pedido al taller): todas las
+     cifras con coma. Las filas ya salen de `cifra`; la etiqueta, los motivos y
+     las notas son frases del backend, que hoy ya llegan con coma, y
+     `comaDecimal` cubre las que se calcularon antes con punto. */
   const copy = () => {
     const text = [
-      `Clip a medida — ${shown.label}`,
+      `Clip a medida — ${comaDecimal(shown.label)}`,
       ...rows.map(([k, v]) => `${k}: ${v}`),
       "",
       "Motivo:",
-      ...shown.reasons.map((r) => `- ${r}`),
+      ...shown.reasons.map((r) => `- ${comaDecimal(r)}`),
       "",
       "A confirmar antes de fabricar:",
-      ...shown.confidence_notes.map((n) => `- ${n}`),
+      ...shown.confidence_notes.map((n) => `- ${comaDecimal(n)}`),
     ].join("\n");
     void navigator.clipboard?.writeText(text);
   };

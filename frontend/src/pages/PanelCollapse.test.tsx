@@ -127,9 +127,11 @@ describe("nota de un marcador con el panel plegado", () => {
     const nota = await screen.findByLabelText("Nota de M9");
     expect((nota.closest("[data-panel-column]") as HTMLElement).style.display).not.toBe("none");
     await waitFor(() => expect(nota).toHaveFocus());
-    expect(planning?.noteFocusRequest).toBeNull();
+    // La petición se limpia en el mismo efecto que enfoca, pero el estado del
+    // proveedor puede llegar un tick después bajo carga: se espera, no se lee.
+    await waitFor(() => expect(planning?.noteFocusRequest).toBeNull());
     // Desplegado de verdad, no solo mientras la nota esperaba.
-    expect(screen.queryByRole("button", { name: /PANEL ▸/ })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("button", { name: /PANEL ▸/ })).toBeNull());
     expect(window.localStorage.getItem(PREF_PANEL_COLLAPSED)).toBe("0");
   });
 });

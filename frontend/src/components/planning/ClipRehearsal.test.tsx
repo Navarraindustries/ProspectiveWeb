@@ -36,7 +36,7 @@ const anim: ClipAnimationResult = {
   position: { x: 1, y: 2, z: 3 },
   normal: [0, 0, 1],
   rotation_deg: 0,
-  clip_name: "NAVARRO™ T1 Recto 10.0 mm",
+  clip_name: "NAVARRO™ T1 Recto 10,0 mm",
 };
 
 const morpho = {

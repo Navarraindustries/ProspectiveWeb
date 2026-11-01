@@ -104,7 +104,7 @@ def test_phases_reaches_the_pdf_with_its_breakdown():
     table = next(f for f in section if hasattr(f, "_cellvalues"))
     cells = [str(c) for row in table._cellvalues for c in row]
     assert any("Japón" in c for c in cells)          # input, not just points
-    assert any("8.7 mm" in c for c in cells)
+    assert any("8,7 mm" in c for c in cells)
     assert any("75 años" in c for c in cells)
 
     titles = [f.text for f in gen._build_story() if hasattr(f, "text")]

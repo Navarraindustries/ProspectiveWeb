@@ -18,6 +18,7 @@ from xml.sax.saxutils import escape as escape_xml
 
 from services import index_thresholds as IT
 from services.neck_provenance import neck_is_marked, neck_provenance_label
+from services.numero import cifra, cifra_corta, coordenadas
 from services.phases import phases_label
 
 logger = logging.getLogger(__name__)
@@ -70,6 +71,19 @@ def _minuscula(texto: str) -> str:
     return texto[:1].lower() + texto[1:] if texto else texto
 
 
+#: Caracteres sin glifo en las fuentes del PDF, y su equivalente que sí lo tiene.
+_PDF_GLIFOS = {"⌀": "Ø"}
+
+
+def texto_pdf(text):
+    """El texto tal como puede imprimirlo el PDF: «⌀» (U+2300) → «Ø»."""
+    if not isinstance(text, str):
+        return text
+    for raro, bueno in _PDF_GLIFOS.items():
+        text = text.replace(raro, bueno)
+    return text
+
+
 # ── reportlab imports ─────────────────────────────────────────────────────── #
 try:
     from reportlab.lib import colors
@@ -88,6 +102,16 @@ try:
         TableStyle,
     )
     _REPORTLAB_OK = True
+
+    _RLParagraph = Paragraph
+
+    class Paragraph(_RLParagraph):  # type: ignore[no-redef]
+        """El Paragraph de reportlab con el texto pasado por `texto_pdf`: las
+        frases del backend llevan «⌀», que no tiene glifo en Helvetica ni en
+        Symbol y salía como un cuadrado negro (ZapfDingbats)."""
+
+        def __init__(self, text, *args, **kwargs):
+            super().__init__(texto_pdf(text), *args, **kwargs)
 except ImportError:
     _REPORTLAB_OK = False
     logger.warning("reportlab not installed — PDF reports disabled. Run: pip install reportlab")
@@ -507,7 +531,7 @@ def build_report_data_from_session(
             r = o.reception or {}
             manufacture.append(OrderEntry(
                 part_no=o.part_no,
-                piece=f"{o.series} {_shape_label(o)}, mordaza {o.jaw_mm:.1f} mm",
+                piece=f"{o.series} {_shape_label(o)}, mordaza {cifra(o.jaw_mm)} mm",
                 status=STATUS_LABELS.get(o.status, o.status),
                 workshop=str(o.workshop.get("name", "")),
                 needed_by=o.needed_by,
@@ -1232,39 +1256,39 @@ class ReportGenerator:
              site if site and not site.startswith("Desconocida") else "Sin especificar",
              "Elegida en Morfometría"],
             ["Volumen",
-             f"{m.get('volume_mm3', 0):.2f} mm³", "—"],
+             f"{cifra(m.get('volume_mm3', 0), 2)} mm³", "—"],
             ["Área superficial",
-             f"{m.get('surface_area_mm2', 0):.2f} mm²", "—"],
+             f"{cifra(m.get('surface_area_mm2', 0), 2)} mm²", "—"],
             ["Diámetro máximo",
-             f"{m.get('max_diameter_mm', 0):.2f} mm",
+             f"{cifra(m.get('max_diameter_mm', 0), 2)} mm",
              "< 7 mm bajo riesgo"],
             # La procedencia con la misma frase que el pedido de clip (F1-215).
             ["Diámetro del cuello (marcado)" if m.get("neck_marked") else "Diámetro del cuello (estimado)",
-             f"{m.get('neck_diameter_mm', 0):.2f} mm",
+             f"{cifra(m.get('neck_diameter_mm', 0), 2)} mm",
              Paragraph(f"Cuello {neck_provenance_label(m.get('neck_source'))}; "
                        "guía de selección del clip", self._style_cell)],
             ["Altura del domo",
-             f"{m.get('dome_height_mm', 0):.2f} mm", "—"],
+             f"{cifra(m.get('dome_height_mm', 0), 2)} mm", "—"],
             # Los cortes de la etiqueta de riesgo y de la pantalla (F1-160/161):
             # aquí el AR decía 1,3 mientras la insignia cortaba en 1,2.
             # Rótulos en castellano y con BF y UI (F1-225): la pantalla de
             # Morfometría los enseña y el informe los omitía. Los cortes son los
             # de index_thresholds, los mismos que la insignia.
             ["Relación domo/cuello (DNR)",
-             f"{m.get('dome_to_neck_ratio', 0):.2f}",
-             f"Moderado ≥ {IT.DNR_MOD:g} · alto ≥ {IT.DNR_HIGH:.1f}"],
+             f"{cifra(m.get('dome_to_neck_ratio', 0), 2)}",
+             f"Moderado ≥ {cifra_corta(IT.DNR_MOD)} · alto ≥ {cifra(IT.DNR_HIGH)}"],
             ["Relación de aspecto (AR)",
-             f"{m.get('aspect_ratio', 0):.2f}",
-             f"Moderado ≥ {IT.AR_MOD:g} · alto ≥ {IT.AR_HIGH:g}"],
+             f"{cifra(m.get('aspect_ratio', 0), 2)}",
+             f"Moderado ≥ {cifra_corta(IT.AR_MOD)} · alto ≥ {cifra_corta(IT.AR_HIGH)}"],
             ["Factor de abultamiento (BF)",
-             f"{m.get('bottleneck_factor', 0):.2f}",
-             f"> {IT.BF_WIDE:g}: cuello estrecho respecto al domo"],
+             f"{cifra(m.get('bottleneck_factor', 0), 2)}",
+             f"> {cifra_corta(IT.BF_WIDE)}: cuello estrecho respecto al domo"],
             ["Índice de ondulación (UI)",
-             f"{m.get('undulation_index', 0):.3f}",
-             f"Moderado ≥ {IT.UI_MOD:g} · irregular ≥ {IT.UI_HIGH:g}"],
+             f"{cifra(m.get('undulation_index', 0), 3)}",
+             f"Moderado ≥ {cifra_corta(IT.UI_MOD)} · irregular ≥ {cifra_corta(IT.UI_HIGH)}"],
             ["Compacidad",
-             f"{m.get('compactness', 0):.3f}",
-             "1.0 = esfera perfecta"],
+             f"{cifra(m.get('compactness', 0), 3)}",
+             "1,0 = esfera perfecta"],
         ]
         col_w = [5.5*cm, 4.0*cm, 8.4*cm]
         tbl   = Table(rows, colWidths=col_w)
@@ -1596,7 +1620,7 @@ class ReportGenerator:
         rows  = [["#", "Nombre / Modelo", "Posición (mm)",
                   "Giro · acimut · elevación (°)", "Tipo"]]
         for c in clips:
-            pos = f"({c.position_mm[0]:.1f}, {c.position_mm[1]:.1f}, {c.position_mm[2]:.1f})"
+            pos = coordenadas(c.position_mm[:3])
             ang = c.clinical_angles_deg
             ori = f"{ang[0]:.0f} · {ang[1]:.0f} · {ang[2]:.0f}" if ang else "—"
             rows.append([
@@ -1670,7 +1694,7 @@ class ReportGenerator:
             elems.append(Paragraph(
                 f"Ninguna rama visible a menos de 8 mm del cuello. "
                 f"<b>Esto no afirma que no las haya:</b> por debajo de "
-                f"{floor:.1f} mm de diámetro esta imagen no resuelve un vaso, y "
+                f"{cifra(floor)} mm de diámetro esta imagen no resuelve un vaso, y "
                 f"una arteria perforante mide 0,1–0,5 mm.", self._style_body))
             return elems
 
@@ -1682,9 +1706,9 @@ class ReportGenerator:
             "hasta el origen visible de la rama.", self._style_small))
         rows = [["Distancia al cuello (mm)", "Calibre", "Nace de"]]
         for b in branches:
-            rows.append([f"{b['distance_mm']:.1f}",
-                         f"Ø {b['calibre_mm']:.1f} mm",
-                         f"Ø {b['parent_calibre_mm']:.1f} mm"])
+            rows.append([f"{cifra(b['distance_mm'])}",
+                         f"Ø {cifra(b['calibre_mm'])} mm",
+                         f"Ø {cifra(b['parent_calibre_mm'])} mm"])
         tbl = Table(rows, colWidths=[5.4 * cm, 4.0 * cm, 4.0 * cm])
         ts = TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), self._BLUE_DARK),
@@ -1705,7 +1729,7 @@ class ReportGenerator:
         elems.append(Paragraph(
             f"Orígenes de rama medidos sobre la malla, no arterias perforantes: "
             f"una perforante mide 0,1–0,5 mm y la angiografía no la resuelve. "
-            f"Este barrido no ve por debajo de {floor:.1f} mm de diámetro.",
+            f"Este barrido no ve por debajo de {cifra(floor)} mm de diámetro.",
             self._style_td_note))
         return elems
 
@@ -1802,7 +1826,7 @@ class ReportGenerator:
             bad = [n for n, ok in (("mordaza", o.jaw_within_tolerance),
                                    ("fuerza de cierre", o.force_within_band))
                    if ok is False]
-            measured = (f"Pieza recibida: mordaza {o.measured_jaw_mm:.2f} mm, "
+            measured = (f"Pieza recibida: mordaza {cifra(o.measured_jaw_mm, 2)} mm, "
                         f"fuerza {o.measured_force_g:.0f} g.")
             if bad:
                 out.append(Paragraph(
@@ -1838,7 +1862,7 @@ class ReportGenerator:
         heading = Paragraph(self._device_heading("coils", "Coils de embolización"), self._style_h2)
         rows  = [["#", "Nombre / Modelo", "Tipo", "Ø (mm)", "Long. (cm)", "Fabricante", "Posición (mm)"]]
         for c in coils:
-            pos = f"({c.position_mm[0]:.1f}, {c.position_mm[1]:.1f}, {c.position_mm[2]:.1f})"
+            pos = coordenadas(c.position_mm[:3])
             rows.append([
                 str(c.index), c.name,
                 _TIPO_COIL.get(c.coil_type, c.coil_type) if c.coil_type else ("A medida" if c.is_custom else "—"),
@@ -1887,13 +1911,13 @@ class ReportGenerator:
             title        = self._stent_heading("stent_cl", "Stent sobre la línea central")
             length_label = "Longitud desplegada"
             cov_label    = "Cobertura (Ø stent / Ø vaso)"
-            cov_value    = f"{st.coverage_pct / 100.0:.2f}"
-            cov_ref      = "0.90 – 1.15 = buen ajuste"
+            cov_value    = f"{cifra(st.coverage_pct / 100.0, 2)}"
+            cov_ref      = "0,90 – 1,15 = buen ajuste"
         else:
             title        = self._stent_heading("stent", "Stent / desviador de flujo")
             length_label = "Longitud nominal"
             cov_label    = "Cuello cruzado por el dispositivo"
-            cov_value    = f"{st.coverage_pct:.1f} %"
+            cov_value    = f"{cifra(st.coverage_pct)} %"
             cov_ref      = "100 % = cruza el cuello con anclaje a ambos lados"
 
         _SIZING_ES = {
@@ -1918,14 +1942,14 @@ class ReportGenerator:
         rows = [
             _fila("Modelo",           st.name),
             _fila("Fabricante",       st.manufacturer or "no consta"),
-            _fila("Diámetro nominal", f"{st.diameter_mm:.2f} mm"),
-            _fila(length_label,       f"{st.length_mm:.1f} mm"),
+            _fila("Diámetro nominal", f"{cifra(st.diameter_mm, 2)} mm"),
+            _fila(length_label,       f"{cifra(st.length_mm)} mm"),
             _fila(cov_label,          cov_value, cov_ref),
         ]
         # El dimensionado se juzga contra la arteria portadora, nunca contra el
         # cuello. Sobredimensionar baja la cobertura metálica (Sci Rep 2024).
         if st.parent_artery_mm > 0:
-            rows.append(_fila("Arteria portadora", f"{st.parent_artery_mm:.2f} mm",
+            rows.append(_fila("Arteria portadora", f"{cifra(st.parent_artery_mm, 2)} mm",
                               "referencia de dimensionado"))
             rows.append(_fila("Dimensionado", _SIZING_ES.get(st.sizing, st.sizing),
                               "sobredimensionar baja la cobertura metálica"))
@@ -1955,14 +1979,14 @@ class ReportGenerator:
         target = tr.get("target", [0, 0, 0])
         rows   = [
             ["Punto de entrada (mm)",
-             f"({entry[0]:.1f}, {entry[1]:.1f}, {entry[2]:.1f})"],
+             coordenadas(entry[:3])],
             ["Punto diana / aneurisma (mm)",
-             f"({target[0]:.1f}, {target[1]:.1f}, {target[2]:.1f})"],
+             coordenadas(target[:3])],
             # «Profundidad» se leía como la del campo quirúrgico; es la recta
             # entre los dos puntos marcados, como dice el panel (F1-186).
-            ["Distancia entrada–diana", f"{tr.get('depth_mm', 0):.1f} mm"],
+            ["Distancia entrada–diana", f"{cifra(tr.get('depth_mm', 0))} mm"],
             [_ANGLE_LABELS.get(tr.get("angle_ref", ""), _ANGLE_LABELS["vertical"]),
-             f"{tr.get('angle_deg', 0):.1f} °"],
+             f"{cifra(tr.get('angle_deg', 0))} °"],
         ]
         tbl = Table(rows, colWidths=[7*cm, 10.9*cm])
         tbl.setStyle(TableStyle([
@@ -2134,7 +2158,7 @@ class ReportGenerator:
              f"+{pts.get('hypertension', 0)}"],
             ["Edad (A)",           f"{inp.get('age_years', '—')} años",
              f"+{pts.get('age', 0)}"],
-            ["Tamaño (S)",         f"{float(inp.get('size_mm', 0.0)):.1f} mm",
+            ["Tamaño (S)",         f"{cifra(float(inp.get('size_mm', 0.0)))} mm",
              f"+{pts.get('size', 0)}"],
             ["HSA previa (E)",     "Sí" if inp.get("earlier_sah") else "No",
              f"+{pts.get('sah', 0)}"],
@@ -2186,8 +2210,8 @@ class ReportGenerator:
         elems = [Paragraph("ELAPSS — riesgo de crecimiento a 3 y 5 años", self._style_h2)]
         elems.append(Paragraph(
             f"ELAPSS {el.get('total_score', 0)} (banda {el.get('score_band', '—')}) — "
-            f"crecimiento {float(el.get('growth_3yr_pct', 0.0)):.1f} % a 3 años · "
-            f"{float(el.get('growth_5yr_pct', 0.0)):.1f} % a 5 años",
+            f"crecimiento {cifra(float(el.get('growth_3yr_pct', 0.0)))} % a 3 años · "
+            f"{cifra(float(el.get('growth_5yr_pct', 0.0)))} % a 5 años",
             self._style_body,
         ))
         elems.append(Spacer(1, 0.1*cm))
@@ -2197,7 +2221,7 @@ class ReportGenerator:
             ["Localización (L)", self._ELAPSS_LOC.get(str(inp.get("location", "")), "—"), f"+{pts.get('location', 0)}"],
             ["Edad (A)", f"{inp.get('age_years', '—')} años", f"+{pts.get('age', 0)}"],
             ["Población (P)", self._ELAPSS_POP.get(str(inp.get("population", "")), "—"), f"+{pts.get('population', 0)}"],
-            ["Tamaño (S)", f"{float(inp.get('size_mm', 0.0)):.1f} mm", f"+{pts.get('size', 0)}"],
+            ["Tamaño (S)", f"{cifra(float(inp.get('size_mm', 0.0)))} mm", f"+{pts.get('size', 0)}"],
             ["Forma (S)", "Irregular" if inp.get("irregular") else "Regular", f"+{pts.get('shape', 0)}"],
         ]
         tbl = Table(rows, colWidths=[5.5*cm, 8.4*cm, 4.0*cm])

@@ -22,6 +22,7 @@ from models.detection import Position3D
 from services.centerline import extract_centerline
 from services.cross_section import compute_cross_sections, grade_stenosis
 from services.stent_deployment import deploy_stent_on_centerline
+from services.numero import cifra
 from services.segmentation import read_vtp, write_vtp
 from services.sessions import mesh_url, session_exists, session_subdir
 
@@ -91,7 +92,7 @@ def _to_out(result, url: str) -> CenterlineResult:
     tort = result.tortuosity
     warning = None
     if tort >= 1.25:
-        warning = f"Tortuosidad alta ({tort:.2f}) — acceso endovascular potencialmente difícil."
+        warning = f"Tortuosidad alta ({cifra(tort, 2)}) — acceso endovascular potencialmente difícil."
 
     return CenterlineResult(
         centerline_mesh_url=url,
@@ -377,11 +378,11 @@ async def deploy_cl_stent(
     warning = None
     if cov < 0.9:
         warning = (
-            f"Infradimensionado (Ø stent / Ø vaso = {cov:.2f}). {texto}"
+            f"Infradimensionado (Ø stent / Ø vaso = {cifra(cov, 2)}). {texto}"
         )
     elif cov > 1.15:
         warning = (
-            f"Sobredimensionado (Ø stent / Ø vaso = {cov:.2f}). {texto}"
+            f"Sobredimensionado (Ø stent / Ø vaso = {cifra(cov, 2)}). {texto}"
         )
 
     url = f"{mesh_url(session_id, 'cl_stent.vtp')}?v={int(time.time() * 1000)}"
@@ -430,8 +431,8 @@ def _run_fd_sizing(session_id: str, vessel_path, points_path):
             from services.sessions import read_state
             vieja = read_state(session_id, "morpho.parent_artery_method", "") != "p25"
             r.warnings.append(
-                f"La arteria madre de la morfometría ({parent:.2f} mm) no coincide con "
-                f"el calibre medido aquí sobre la línea central ({aqui:.2f} mm). La "
+                f"La arteria madre de la morfometría ({cifra(parent, 2)} mm) no coincide con "
+                f"el calibre medido aquí sobre la línea central ({cifra(aqui, 2)} mm). La "
                 f"pestaña «Stent recto» dimensiona con la de la morfometría: "
                 + ("es de una versión anterior del cálculo; vuelve a ejecutar la morfometría."
                    if vieja else "compruébala."))

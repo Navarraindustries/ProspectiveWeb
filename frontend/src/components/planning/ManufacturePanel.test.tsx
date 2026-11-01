@@ -39,13 +39,13 @@ const spec: ManufactureSpecOut = {
   blade_length_mm: 27, blade_width_mm: 3.5, blade_height_mm: 3,
   spring_length_mm: 24, shape: "Angulado 90°", angle_deg: 90,
   closing_force_g: 155, fenestration_mm: 0, neck_mm: 20,
-  label: "Angulado 90° de 27.0 mm · 155 g",
+  label: "Angulado 90° de 27,0 mm · 155 g",
   reasons: ["Ninguna hoja del catálogo cubre este cuello con margen suficiente"],
   confidence_notes: ["La fuerza de cierre (155 g) es el centro de la ventana heurística"],
   stl_url: null,
   part_no: "PR-TEST-0001",
   source: "navarro",
-  piece_label: "NAVARRO™ T3 Angulado 90°, mordaza 27.0 mm",
+  piece_label: "NAVARRO™ T3 Angulado 90°, mordaza 27,0 mm",
   commercial_name: "",
   fallback_reason: "",
   dossier_internal_url: null,
@@ -59,7 +59,7 @@ const result = (over: Partial<ClipSelectionResult> = {}): ClipSelectionResult =>
   case: {
     neck_mm: 20,
     required_jaw_mm: 30, required_jaw_source: "factor",
-    required_jaw_detail: "Cuello de 20.0 mm × 1.5 = 30.0 mm al quedar aplastado entre las hojas.",
+    required_jaw_detail: "Cuello de 20,0 mm × 1,5 = 30,0 mm al quedar aplastado entre las hojas.",
     approach_angle_deg: null, approach_bend_deg: null,
     dome_height_mm: 12, max_diameter_mm: 22, ar: 1.5, dnr: 2.1,
     parent_artery_mm: 3.2, neck_source: "rim", neck_tilt_deg: 0,
@@ -94,6 +94,30 @@ describe("the step announces that it can be skipped", () => {
     clipSelection.mockResolvedValue(result({ manufacture: null }));
     draw();
     expect(await screen.findByText(/marca el cuello en Morfometría/i)).toBeInTheDocument();
+  });
+});
+
+describe("la especificación copiada al portapapeles", () => {
+  it("lleva todas las cifras con coma, también las de las frases del backend", async () => {
+    // El texto va al taller: lo lee una persona. Las filas salen de `cifra`;
+    // la etiqueta y las notas vienen hechas del backend y pueden ser de antes
+    // de la coma decimal.
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    const conPunto = { ...spec,
+      label: "Angulado 90° de 27.0 mm · 155 g",
+      reasons: ["Ninguna hoja cubre un cuello de 20.0 mm"],
+      confidence_notes: ["La mordaza de 27.5 mm no es una talla dibujada"] };
+    clipSelection.mockResolvedValue(result({ outcome: "manufacture", manufacture: conPunto }));
+    draw();
+    (await screen.findByRole("button", { name: "Copiar especificación" })).click();
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const texto = (writeText.mock.calls[0] as unknown[])[0] as string;
+    expect(texto).toContain("Clip a medida — Angulado 90° de 27,0 mm · 155 g");
+    expect(texto).toContain("Anchura de hoja: 3,50 mm");
+    expect(texto).toContain("- Ninguna hoja cubre un cuello de 20,0 mm");
+    expect(texto).toContain("- La mordaza de 27,5 mm no es una talla dibujada");
+    expect(texto).not.toMatch(/\d\.\d/);
   });
 });
 

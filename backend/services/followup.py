@@ -35,6 +35,8 @@ import numpy as np
 import vtk
 from vtkmodules.util.numpy_support import numpy_to_vtk, vtk_to_numpy
 
+from services.numero import cifra
+
 logger = logging.getLogger(__name__)
 
 #: Radio alrededor de la lesión donde se ajustan los vasos y se pinta el mapa.
@@ -249,8 +251,8 @@ def compare(
     noise = max(float(np.percentile(resid, 90)) if len(resid) else 0.0, voxel_mm)
     if resid_med > 1.0:
         warnings.append(
-            f"Los vasos de alrededor no encajan bien (residuo mediano {resid_med:.1f} mm): la "
-            f"superposición es aproximada y el mapa no distingue cambios menores de unos {noise:.1f} mm.")
+            f"Los vasos de alrededor no encajan bien (residuo mediano {cifra(resid_med)} mm): la "
+            f"superposición es aproximada y el mapa no distingue cambios menores de unos {cifra(noise)} mm.")
 
     # 3) El mapa: vasos actuales cerca de la lesión, distancia con signo al anterior.
     roi = _within(curr_vessel, curr_lesion, ROI_MM)

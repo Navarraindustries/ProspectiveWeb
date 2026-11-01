@@ -27,6 +27,38 @@ HU_MAX = 3000.0
 HU_MODALITIES = {"CT", "CTA", "CTPA"}
 
 
+def ops_params(clip_hu: bool, resample_isotropic: bool, target_spacing_mm: float,
+               smooth: bool, smooth_sigma: float) -> dict:
+    """Las operaciones aplicadas como datos (números crudos), para guardar y
+    exportar. El texto de pantalla y el de máquina salen de aquí."""
+    return {
+        "hu_clip": bool(clip_hu),
+        "target_spacing_mm": float(target_spacing_mm) if resample_isotropic else None,
+        "smooth_sigma": float(smooth_sigma) if smooth else None,
+    }
+
+
+def ops_text(params: dict, *, persona: bool) -> str:
+    """«recorte HU; remuestreo isotrópico 0,5 mm; suavizado σ=1,5».
+
+    `persona=True` escribe las cifras con coma (pantalla); `persona=False`, con
+    punto (la procedencia que se exporta con la verdad de terreno). Se separan
+    con «; » para que la coma decimal no se lea como separador."""
+    from services.numero import cifra_corta
+
+    def num(v: float) -> str:
+        return cifra_corta(v) if persona else cifra_corta(v).replace(",", ".")
+
+    ops = []
+    if params.get("hu_clip"):
+        ops.append("recorte HU")
+    if params.get("target_spacing_mm") is not None:
+        ops.append(f"remuestreo isotrópico {num(params['target_spacing_mm'])} mm")
+    if params.get("smooth_sigma") is not None:
+        ops.append(f"suavizado σ={num(params['smooth_sigma'])}")
+    return "; ".join(ops)
+
+
 def is_hounsfield(modality: str | None) -> bool:
     return (modality or "").strip().upper() in HU_MODALITIES
 

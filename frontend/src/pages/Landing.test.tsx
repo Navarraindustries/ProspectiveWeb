@@ -9,7 +9,7 @@
    Las dos son del mismo tipo: una afirmación escrita a mano al lado del dato que
    la desmiente. Estas pruebas la atan al dato. */
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import { Landing } from "./Landing";
@@ -225,7 +225,8 @@ describe("Landing D: secciones del tablero", () => {
     expect(container.querySelector('source[srcset="/media/landing/aneurismas-movil.webp"]'))
       .not.toBeNull();
     expect(casos.textContent).toContain("Cada pieza es un aneurisma real: el saco en rojo, el vaso que lo lleva en gris.");
-    expect(casos.textContent).toContain("Figura: [fuente de la figura]");
+    expect(casos.textContent).toContain("Figura: modelos del conjunto IntrA (Yang, Xia, Kin e Igarashi, CVPR 2020), recoloreados.");
+    expect(within(casos).getByRole("link", { name: "IntrA" })).toHaveAttribute("href", "https://github.com/intra3d2019/IntrA");
   });
 
   it("las anclas de la navegación existen", () => {

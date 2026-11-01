@@ -12,6 +12,7 @@ from starlette.formparsers import MultiPartException
 from models import SeriesInfo, SpacingXYZ, UploadResult
 from services.sessions     import create_session, session_exists, session_subdir, session_ttl_hours, write_state
 from services.dicom_loader import scan_series
+from services.numero import cifra
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +192,7 @@ def _build_series_list(session_id: str, raw_series: list[dict]) -> list[SeriesIn
             proj_warn = (
                 f"Serie 2D o cuasi-2D ({nsl} cortes)." if nsl < 10 else
                 f"Angiografía con solo {nsl} imágenes: capturas o cine, no un volumen 3D." if pocas_xa else
-                f"Espaciado Z ({sz:.2f} mm) >> en plano ({in_plane:.2f} mm) — probable proyección 2D."
+                f"Espaciado Z ({cifra(sz, 2)} mm) >> en plano ({cifra(in_plane, 2)} mm) — probable proyección 2D."
             )
 
         # Estimate volume RAM in MB (float32 = 4 bytes/voxel)
@@ -295,6 +296,7 @@ async def set_active_series(session_id: str, series_id: str) -> SeriesInfo:
     # El preprocesado era de la caché que se acaba de borrar: la nueva serie
     # entra sin preprocesar, y la segmentación no debe tratarla como tal.
     write_state(session_id, "preprocess.ops", "")
+    write_state(session_id, "preprocess.params", "")
 
     logger.info(
         "Active series switched — session=%s  series=%s (%s)  %d slices",

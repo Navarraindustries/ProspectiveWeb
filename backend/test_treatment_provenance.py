@@ -147,7 +147,17 @@ class TestEveryWeightCarriesItsProvenance:
         # y la evidencia más directa sobre el AR y el coiling es que un AR ≥ 1.6
         # multiplica por cuatro las probabilidades de recanalización.
         assert "RECANALIZACIÓN" in _SOURCE["ar"]
-        assert "4.15" in _SOURCE["ar"]
+        assert "4,15" in _SOURCE["ar"]
+
+    def test_el_texto_del_ar_guardado_con_punto_sale_con_coma(self):
+        # Las decisiones guardadas antes de la coma decimal llevan «1.6» y
+        # «4.15»; al leerlas se traducen al texto vigente.
+        from services.treatment import modern_factor_source
+        viejo = ("Índice de riesgo de rotura: describe la vía endovascular, no vota. "
+                 "Sin validación para elegir modalidad; un AR ≥ 1.6 se asocia a "
+                 "RECANALIZACIÓN tras coiling (OR 4.15) y figura en el perfil "
+                 "endovascular.")
+        assert modern_factor_source(viejo) == _SOURCE["ar"]
 
     def test_the_published_thresholds_are_credited(self):
         assert "Brinjikji" in _SOURCE["neck"]

@@ -41,10 +41,9 @@ def phases_label(score: object, risk_pct: object) -> str:
     con la fuente deja ver que es la misma cifra y de dónde viene. Coma decimal
     porque es como lo lee el clínico.
     """
-    try:
-        pct = f"{float(risk_pct):.1f}".replace(".", ",")
-    except (TypeError, ValueError):
-        pct = "—"
+    from services.numero import cifra
+
+    pct = cifra(risk_pct)  # type: ignore[arg-type]
     return f"PHASES {score} · {pct} % a 5 años (Greving 2014)"
 
 

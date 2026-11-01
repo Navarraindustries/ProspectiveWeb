@@ -34,6 +34,7 @@ from models.clips import (
 )
 from services.clips   import catalogue_to_api
 from services.clip_manufacture import resolve_perfect_clip
+from services.numero import cifra
 from services.clip_selection import (
     bend_for_approach,
     ClipCandidate,
@@ -475,8 +476,8 @@ async def plan_clips(
     if branches:
         closest = branches[0]
         warning = (f"{len(branches)} rama(s) visible(s) al alcance del clip; la más "
-                   f"próxima a {closest.distance_to_clip_mm:.1f} mm "
-                   f"(⌀ {closest.calibre_mm:.1f} mm). Comprobar en el ensayo.")
+                   f"próxima a {cifra(closest.distance_to_clip_mm)} mm "
+                   f"(⌀ {cifra(closest.calibre_mm)} mm). Comprobar en el ensayo.")
     if collision and neck_excluded:
         warning = (f"El clip toca el vaso fuera del cuello ({n_contacts} contactos) — "
                    f"probar otro giro o reposicionar.")
@@ -1072,7 +1073,7 @@ async def build_navarro_clip(
         resizable=src.can_resize,
         jaw_mm=float(jaw_mm),
         nearest_drawn_mm=float(src.jaw_mm),
-        label=f"NAVARRO™ {src.series} {src.shape_label}, mordaza {jaw_mm:.1f} mm",
+        label=f"NAVARRO™ {src.series} {src.shape_label}, mordaza {cifra(jaw_mm)} mm",
         reason=reason,
         mesh_url=f"{mesh_url(session_id, stem + '.vtp')}?v={stamp}",
         stl_url=f"{export_url(session_id, stem + '.stl')}?v={stamp}",

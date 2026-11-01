@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from services.endovascular import WIDE_DNR, WIDE_NECK_MM
+from services.numero import cifra
 
 
 # ── Enums ──────────────────────────────────────────────────────────────────── #
@@ -390,7 +391,7 @@ def suggest_construct(
             spec=framing, count=1, role="framing",
             rationale=(
                 f"Enmarcado Ø{framing.diameter_mm:.0f} mm para un domo de "
-                f"{dome_mm:.1f} mm: es el que se amolda a la pared y define la "
+                f"{cifra(dome_mm)} mm: es el que se amolda a la pared y define la "
                 f"jaula. Va uno."
             ),
         ))
@@ -430,7 +431,7 @@ def suggest_construct(
 
     if not steps:
         note = (
-            f"El catálogo no tiene modelos para un domo de {dome_mm:.1f} mm. "
+            f"El catálogo no tiene modelos para un domo de {cifra(dome_mm)} mm. "
             f"Revisa la medida o usa el catálogo completo."
         )
     elif packing < PACKING_MIN:
@@ -450,7 +451,7 @@ def suggest_construct(
     if wide:
         # Primero el cuello: es lo que decide si los coils se quedan dentro.
         note = (
-            f"Cuello {neck_mm:.1f} mm, domo/cuello {dnr:.2f}: {WIDE_NECK_NOTE} "
+            f"Cuello {cifra(neck_mm)} mm, domo/cuello {cifra(dnr, 2)}: {WIDE_NECK_NOTE} "
             f"(balón o stent). {note}"
         )
 

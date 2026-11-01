@@ -59,7 +59,7 @@ def test_los_cortes_acordados():
 class TestElRiesgoLeeLosMismosCortes:
     def test_ar_moderado_desde_1_2(self):
         etiqueta, motivos = _morfo(aspect_ratio=1.25).rupture_risk()
-        assert etiqueta == "Moderado" and motivos == ["AR 1.25 ≥ 1.2"]
+        assert etiqueta == "Moderado" and motivos == ["AR 1,25 ≥ 1,2"]
 
     def test_dnr_moderado_desde_1_6_no_1_5(self):
         assert _morfo(dome_to_neck_ratio=1.55).rupture_risk()[0] == "Bajo"
@@ -69,7 +69,7 @@ class TestElRiesgoLeeLosMismosCortes:
 class TestDecisionLeeLosMismosCortes:
     def test_bf_alto_es_cuello_estrecho_como_la_insignia(self):
         f = _factor("Bottleneck", bottleneck_factor=1.65)
-        assert "Cuello estrecho" in f["name"] and "1.65" in f["name"]
+        assert "Cuello estrecho" in f["name"] and "1,65" in f["name"]
         assert "ancho" not in f["name"].lower()
 
     def test_bf_bajo_es_cuello_ancho(self):
@@ -79,8 +79,8 @@ class TestDecisionLeeLosMismosCortes:
         # 0,22 era «muy irregular» en Decisión (> 0,20) y no «Alto» en el riesgo (≥ 0,25).
         f = _factor("Domo", undulation_index=0.22)
         assert "moderadamente" in f["name"]
-        assert "0.20" not in f["name"]
-        assert "0.25" in _factor("Domo", undulation_index=0.497)["name"]
+        assert "0,20" not in f["name"]
+        assert "0,25" in _factor("Domo", undulation_index=0.497)["name"]
 
     def test_ui_alto_con_vaso_padre_en_el_saco_lo_avisa(self):
         f = _factor("Domo", undulation_index=0.497, parent_in_sac=True)
@@ -88,8 +88,8 @@ class TestDecisionLeeLosMismosCortes:
         assert "vaso padre" not in _factor("Domo", undulation_index=0.497)["detail"]
 
     def test_ar_usa_los_cortes_de_morfometria(self):
-        assert "1.2" in _factor("Relación de aspecto", aspect_ratio=1.25)["name"]
-        assert "1.6" in _factor("Relación de aspecto", aspect_ratio=1.7)["name"]
+        assert "1,2" in _factor("Relación de aspecto", aspect_ratio=1.25)["name"]
+        assert "1,6" in _factor("Relación de aspecto", aspect_ratio=1.7)["name"]
 
     def test_el_perfil_endovascular_avisa_desde_el_mismo_corte_de_ui(self):
         assert endovascular_profile(neck_mm=3.0, dnr=2.5, undulation_index=0.22).cautions == []

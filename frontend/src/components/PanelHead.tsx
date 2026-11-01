@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { glass } from "../styles/glass";
 import { DUR, EASE, motion, useReducedMotion } from "../motion";
 import { Icon } from "./Icon";
+import { useTableta } from "../hooks/useEstrecho";
 
 export function PanelHead({ title, desc, right }: { title: string; desc?: string; right?: ReactNode }) {
   return (
@@ -66,6 +67,7 @@ export function Collapsible({
   children: ReactNode;
 }) {
   const reducido = useReducedMotion();
+  const tableta = useTableta();
   const [open, setOpen] = useState(() => {
     // sessionStorage puede lanzar (ventana privada, cookies bloqueadas); en ese
     // caso simplemente se usa el valor por defecto.
@@ -93,7 +95,7 @@ export function Collapsible({
         aria-expanded={open}
         style={{
           display: "flex", alignItems: "center", gap: 10, width: "100%",
-          padding: "11px 14px", border: "none", background: "transparent",
+          padding: "11px 14px", minHeight: tableta ? "var(--control-md)" : undefined, border: "none", background: "transparent",
           cursor: "pointer", textAlign: "left", fontFamily: "var(--font-sans)",
         }}
       >

@@ -161,12 +161,12 @@ function EditUserSheet({
             Cuenta <b style={{ color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>@{user.username}</b>
           </div>
           <Input label="Nombre completo" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Nombre y apellidos" />
-          <div className="hoja-dos-columnas">
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <Select label="Rol" options={ROLE_OPTS} value={role} onChange={(e) => setRole(e.target.value)} />
-            <Select label="Especialidad" options={opcionales(SPECIALTIES, user.specialty)} value={specialty} onChange={(e) => setSpecialty(e.target.value)} />
+            <RolePermite role={role} />
           </div>
-          <RolePermite role={role} />
-          <div className="hoja-dos-columnas" style={{ rowGap: 12 }}>
+          <div className="hoja-dos-columnas">
+            <Select label="Especialidad" options={opcionales(SPECIALTIES, user.specialty)} value={specialty} onChange={(e) => setSpecialty(e.target.value)} />
             <Select label="Cargo" options={opcionales(POSITIONS, user.position)} value={position} onChange={(e) => setPosition(e.target.value)} />
             <Input label="Universidad" value={university} onChange={(e) => setUniversity(e.target.value)} />
             <Input label="Hospital / Centro" value={hospital} onChange={(e) => setHospital(e.target.value)} />
@@ -255,7 +255,7 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
         La cuenta se crea <b style={{ color: "var(--foreground)" }}>activa</b> (sin aprobación) y podrá iniciar sesión de inmediato.
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <Input label="Nombre completo" obligatorio value={form.full_name} onChange={set("full_name")} placeholder="Dr. …" {...props("full_name")} />
         <div className="hoja-dos-columnas">
           <Input label="Usuario" obligatorio value={form.username} onChange={set("username")} autoComplete="off" {...props("username")} />
@@ -268,8 +268,8 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
         </div>
 
         <Collapsible title="Más datos (opcional)" storageKey="prospective.usuarios.alta.mas-datos">
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div className="hoja-dos-columnas" style={{ rowGap: 12 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div className="hoja-dos-columnas">
               <Select label="Especialidad" options={opcionales(SPECIALTIES, "")} value={form.specialty} onChange={set("specialty")} />
               <Select label="Cargo" options={opcionales(POSITIONS, "")} value={form.position} onChange={set("position")} />
               <Input label="Universidad" value={form.university} onChange={set("university")} />

@@ -14,6 +14,7 @@
   --space-2xl: 32px;   /* login card padding */
 
   --content-max:    1280px;
+  --content-max-grande: 1600px; /* a ≥ 1920 el contenido se ensancha (breakpoints.css) */
 
   /* ---- Radii ---- */
   --radius-sm:   8px;    /* insignias, items de menu, casillas */

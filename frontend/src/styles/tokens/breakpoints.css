@@ -7,3 +7,7 @@
   --bp-estrecho: 1280px;
   --bp-grande: 1920px;
 }
+/* Pantalla grande (R27): el contenido deja de quedarse en 1280 y usa el tope ancho. */
+@media (min-width: 1920px) {
+  :root { --content-max: var(--content-max-grande); }
+}

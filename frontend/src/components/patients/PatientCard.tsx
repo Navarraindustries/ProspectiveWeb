@@ -83,9 +83,7 @@ export function PatientCard({ patient: p, onOpen, onResume, onPlan }: Props) {
   const hc = p.hospital_id || "—";
   const meta = `${hc}${p.sex ? ` · ${p.sex}` : ""}${edad ? ` · ${edad} años` : ""}`;
   const fraccion = paso ? paso.n / STEPS.length : 0;
-  // STEP_PATIENT es un cuadrado vacío: en el paso 1 se usa el icono de persona.
-  const iconoPaso = STEPS[clampStep(p.last_session_step ?? 0)].icon;
-  const icono = iconoPaso === "STEP_PATIENT" ? "USER" : iconoPaso;
+  const icono = STEPS[clampStep(p.last_session_step ?? 0)].icon;
   const ultimo = paso?.n === STEPS.length;
 
   const pie = p.last_session_at

@@ -63,6 +63,13 @@ export function Input({ label, icon, hint, invalid, obligatorio, multiline, styl
         </div>
       )}
       <div
+        // Tocar cualquier punto del campo (borde, hueco del icono) enfoca el control: el input mide menos que el contorno (R22).
+        onMouseDown={(e) => {
+          const campo = e.currentTarget.querySelector<HTMLElement>("input, textarea");
+          if (!campo || e.target === campo || rest.disabled) return;
+          e.preventDefault();
+          campo.focus();
+        }}
         style={{
           display: "flex",
           gap: 8,

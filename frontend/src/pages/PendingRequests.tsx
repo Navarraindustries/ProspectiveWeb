@@ -203,10 +203,10 @@ function PendingRequestsPage() {
         rechaza y pasa a «Rechazadas»; no podrá entrar con esa cuenta.
       </ConfirmDialog>
       <PageBody className="fade-rise">
-          <div style={{ marginBottom: 18, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ marginBottom: 18, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             <Tabs tabs={TABS} value={tab} onChange={(t) => setTab(t as Pestana)} />
             {tab === "Pendientes" && (
-              <Button size="icon" variant="ghost" aria-label="Actualizar la lista" title="Actualizar la lista" onClick={load}>
+              <Button size="icon" variant="ghost" style={{ marginLeft: "auto" }} aria-label="Actualizar la lista" title="Actualizar la lista" onClick={load}>
                 <Icon name="REFRESH" size={16} />
               </Button>
             )}

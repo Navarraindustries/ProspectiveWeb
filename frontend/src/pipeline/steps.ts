@@ -19,7 +19,7 @@ export interface PipelineStep {
 }
 
 export const STEPS: PipelineStep[] = [
-  { key: "upload",      icon: "STEP_PATIENT", label: "Carga DICOM",   short: "Carga" },
+  { key: "upload",      icon: "UPLOAD",       label: "Carga DICOM",   short: "Carga" },
   { key: "segment",     icon: "STEP_SEGMENT", label: "Segmentación",  short: "Segm." },
   { key: "detect",      icon: "STEP_DETECT",  label: "Detección",     short: "Detec." },
   { key: "morpho",      icon: "STEP_MORPHO",  label: "Morfometría",   short: "Morfo." },

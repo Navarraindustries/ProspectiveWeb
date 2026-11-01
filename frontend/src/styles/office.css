@@ -46,7 +46,12 @@
    marca de seleccionada van en línea). */
 .tt-tarjetas { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .tt-tarjeta { padding: 14px 16px; border-radius: var(--radius-card-lg); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.tt-tarjeta[data-pulsable] { cursor: pointer; }
+.tt-tarjeta[data-pulsable] { cursor: pointer; position: relative; }
+/* Toda la tarjeta es el objetivo táctil (R10): el botón del título se estira sobre ella (stretched link). El detalle
+   desplegado y el pie quedan por encima, así que tocarlos no pliega la tarjeta ni roba sus controles. */
+.tt-tarjeta[data-pulsable] .tt-fila-boton::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius-card-lg); }
+.tt-tarjeta[data-pulsable]:has(.tt-fila-boton:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+.tt-tarjeta[data-pulsable] .tt-tarjeta-detalle, .tt-tarjeta[data-pulsable] .tt-tarjeta-pie { position: relative; z-index: 1; }
 /* Hover de ratón: el cristal y su borde van en línea, así que el realce es un
    contorno interior en el primario (sigue el radio de la tarjeta). */
 @media (hover: hover) {
@@ -74,7 +79,7 @@
   .tarjeta-estudio:hover, .tarjeta-estudio:hover img { transform: none; }
 }
 
-.hoja-dos-columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+.hoja-dos-columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
 @media (max-width: 640px) { .hoja-dos-columnas { grid-template-columns: 1fr; } }
 
 /* Hojas de caso y paciente: filas del selector, rótulos de sección y notas. */

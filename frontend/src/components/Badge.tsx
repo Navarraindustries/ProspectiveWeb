@@ -2,6 +2,7 @@
    destructive = high risk, warning = moderate, success = low/OK; data = ranking/measured values (--data). */
 
 import type { CSSProperties, ReactNode } from "react";
+import { useTableta } from "../hooks/useEstrecho";
 
 type Variant = "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive" | "muted" | "brand" | "data";
 
@@ -28,6 +29,8 @@ function variantStyle(v: Variant): CSSProperties {
 }
 
 export function Badge({ variant = "default", children, style, title }: { variant?: Variant; children: ReactNode; style?: CSSProperties; title?: string }) {
+  // 12 px en ancho, 13 px en táctil (≤ 1024): nunca 11 (R11).
+  const tableta = useTableta();
   return (
     <span
       title={title}
@@ -37,7 +40,7 @@ export function Badge({ variant = "default", children, style, title }: { variant
         gap: 4,
         padding: "3px 8px",
         borderRadius: "var(--radius-full)",
-        fontSize: 11,
+        fontSize: tableta ? 13 : 12,
         fontWeight: 500,
         whiteSpace: "nowrap",
         ...variantStyle(variant),

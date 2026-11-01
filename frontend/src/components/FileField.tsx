@@ -3,11 +3,13 @@
 
 import { useRef } from "react";
 import { Icon } from "./Icon";
+import { useTableta } from "../hooks/useEstrecho";
 
 export function FileField({
   label, accept, file, onPick,
 }: { label: string; accept: string; file: File | null; onPick: (f: File | null) => void }) {
   const ref = useRef<HTMLInputElement>(null);
+  const tableta = useTableta();
   return (
     <div>
       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 6 }}>{label}</div>
@@ -24,7 +26,7 @@ export function FileField({
         style={{
           width: "100%", textAlign: "left", cursor: "pointer",
           background: "var(--input, var(--card))", border: "1px solid var(--border)",
-          borderRadius: "var(--radius-md)", padding: "9px 12px", fontSize: 13,
+          borderRadius: "var(--radius-md)", padding: "9px 12px", fontSize: 13, minHeight: tableta ? "var(--control-md)" : undefined,
           color: file ? "var(--foreground)" : "var(--muted-foreground)",
           display: "flex", alignItems: "center", gap: 8,
         }}

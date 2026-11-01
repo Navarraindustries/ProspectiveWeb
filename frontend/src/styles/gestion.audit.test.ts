@@ -44,11 +44,27 @@ function envolvente(s: string, pos: number): string {
   return s.slice(ini, fin);
 }
 
+/** «pedido(s)», «paciente(es)». */
+const PLURAL_S = /[a-záéíóúñ]\((?:s|es)\)/i;
+
+/** Lo que puede acabar en pantalla: literales de texto ('…', "…", `…`) y texto
+ *  JSX (entre «>» o «}» y «<», o entre «>» y «{»; no tras «=>»). El código
+ *  (`f(s)`, `(s) => limpiar(s)`) queda fuera. */
+export function textosVisibles(s: string): string[] {
+  const literales = [...s.matchAll(/(["'`])((?:\\[\s\S]|(?!\1)[^\\])*)\1/g)].map((m) => m[2]);
+  const jsx = [
+    ...[...s.matchAll(/(?<![=>])>([^<>{}]*)(?=[<{])/g)].map((m) => m[1]),
+    ...[...s.matchAll(/}([^<>{}]*)(?=<)/g)].map((m) => m[1]),
+  ];
+  // Un trozo con «;», «=», «&&» o «||» es código entre comparaciones, no texto JSX.
+  return [...literales, ...jsx.filter((t) => !/;|=|&&|\|\|/.test(t))];
+}
+
 export function revisarTsx(fuente: string): string[] {
   const s = quitarComentarios(fuente);
   const r: string[] = [];
   if (/type=["']checkbox["']/.test(s)) r.push("checkbox nativo");
-  if (/[a-záéíóúñ]\((?:s|es)\)/i.test(s)) r.push("plural (s)");
+  if (textosVisibles(s).some((t) => PLURAL_S.test(t))) r.push("plural (s)");
   if (/overflowX\s*:/.test(s)) r.push("scroll horizontal");
   if (/className=["']table-scroll["']/.test(s)) r.push("table-scroll");
   if (/maxHeight\s*:\s*\d/.test(s)) r.push("maxHeight fijo");
@@ -77,7 +93,15 @@ export function revisarCss(fuente: string): string[] {
 describe("auditoría de las páginas de gestión", () => {
   it("el comprobador detecta cada regla", () => {
     expect(revisarTsx('<input type="checkbox" />')).toContain("checkbox nativo");
-    expect(revisarTsx("{n} pedido(s)")).toContain("plural (s)");
+    expect(revisarTsx("<p>{n} pedido(s)</p>")).toContain("plural (s)");
+    expect(revisarTsx("<p>pedido(s) abiertos</p>")).toContain("plural (s)");
+    expect(revisarTsx("const t = \"pedido(s)\";")).toContain("plural (s)");
+    expect(revisarTsx("const t = `${n} paciente(s)`;")).toContain("plural (s)");
+    // Código, no texto: parámetros y llamadas con «(s)» no cuentan.
+    expect(revisarTsx("const g = (s: string) => limpiar(s);")).toEqual([]);
+    expect(revisarTsx("onResume={(s) => resumeStudySession(s)}")).toEqual([]);
+    expect(revisarTsx("if (x > 0) f(s);")).toEqual([]);
+    expect(revisarTsx("if (x > 0) f(s);\nconst o = { a: 1 };")).toEqual([]);
     expect(revisarTsx("style={{ fontSize: 11 }}")).toContain("texto < 13 px");
     expect(revisarTsx('style={{ fontSize: 12, fontFamily: "var(--font-mono)" }}')).toEqual([]);
     expect(revisarTsx('style={{\n fontSize: 12,\n fontFamily: "var(--font-mono)",\n}}')).toEqual([]);

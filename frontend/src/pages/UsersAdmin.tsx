@@ -13,11 +13,16 @@ import { FileField } from "../components/FileField";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
+import { Switch } from "../components/Switch";
+import { MenuMas, type ItemMenu } from "../components/MenuMas";
+import { TablaTarjetas, type ColumnaTabla } from "../components/TablaTarjetas";
+import { useMovil, useTableta } from "../hooks/useEstrecho";
 import { Sheet } from "../components/Sheet";
 import { glass } from "../styles/glass";
 import { AppShell } from "../components/shell/AppShell";
 import { Collapsible, ErrorNote } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
+import { EstadoVacio } from "../components/EstadoVacio";
 import { useAuth } from "../store/auth";
 import { AdminOnlyCard } from "../components/AdminOnly";
 import { fechaHora } from "../lib/fecha";
@@ -27,7 +32,7 @@ import { PageBody } from "../components/shell/PageBody";
 
 /** Qué permite el rol elegido (F1-86): el nombre solo no dice si el Observador puede editar. */
 function RolePermite({ role }: { role: string }) {
-  return <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.4 }}>{ROLE_PERMITE[role] ?? ""}</div>;
+  return <div style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.4 }}>{ROLE_PERMITE[role] ?? ""}</div>;
 }
 
 const SPECIALTIES = [
@@ -156,17 +161,18 @@ function EditUserSheet({
             Cuenta <b style={{ color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>@{user.username}</b>
           </div>
           <Input label="Nombre completo" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Nombre y apellidos" />
-          <Select label="Rol" options={ROLE_OPTS} value={role} onChange={(e) => setRole(e.target.value)} />
+          <div className="hoja-dos-columnas">
+            <Select label="Rol" options={ROLE_OPTS} value={role} onChange={(e) => setRole(e.target.value)} />
+            <Select label="Especialidad" options={opcionales(SPECIALTIES, user.specialty)} value={specialty} onChange={(e) => setSpecialty(e.target.value)} />
+          </div>
           <RolePermite role={role} />
-          <Select label="Especialidad" options={opcionales(SPECIALTIES, user.specialty)} value={specialty} onChange={(e) => setSpecialty(e.target.value)} />
-          <Input label="Hospital / Centro" value={hospital} onChange={(e) => setHospital(e.target.value)} />
-          <Input label="Universidad" value={university} onChange={(e) => setUniversity(e.target.value)} />
-          <Select label="Cargo" options={opcionales(POSITIONS, user.position)} value={position} onChange={(e) => setPosition(e.target.value)} />
+          <div className="hoja-dos-columnas" style={{ rowGap: 12 }}>
+            <Select label="Cargo" options={opcionales(POSITIONS, user.position)} value={position} onChange={(e) => setPosition(e.target.value)} />
+            <Input label="Universidad" value={university} onChange={(e) => setUniversity(e.target.value)} />
+            <Input label="Hospital / Centro" value={hospital} onChange={(e) => setHospital(e.target.value)} />
+          </div>
           <FileField label="Foto de perfil" accept="image/*" file={photo} onPick={setPhoto} />
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--foreground)", cursor: "pointer" }}>
-            <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-            Cuenta activa (puede iniciar sesión)
-          </label>
+          <Switch label="Cuenta activa (puede iniciar sesión)" checked={active} onChange={setActive} />
         </div>
       )}
     </Sheet>
@@ -250,20 +256,20 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <Input label="Nombre completo *" value={form.full_name} onChange={set("full_name")} placeholder="Dr. …" {...props("full_name")} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Input label="Usuario *" value={form.username} onChange={set("username")} autoComplete="off" {...props("username")} />
+        <Input label="Nombre completo" obligatorio value={form.full_name} onChange={set("full_name")} placeholder="Dr. …" {...props("full_name")} />
+        <div className="hoja-dos-columnas">
+          <Input label="Usuario" obligatorio value={form.username} onChange={set("username")} autoComplete="off" {...props("username")} />
           <Select label="Rol" options={ROLE_OPTS} value={form.role} onChange={set("role")} />
         </div>
         <RolePermite role={form.role} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Input label="Contraseña * (mín. 8)" type="password" value={form.password} onChange={set("password")} autoComplete="new-password" {...props("password")} />
-          <Input label="Confirmar *" type="password" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" {...props("confirm")} />
+        <div className="hoja-dos-columnas">
+          <Input label="Contraseña (mín. 8)" obligatorio type="password" value={form.password} onChange={set("password")} autoComplete="new-password" {...props("password")} />
+          <Input label="Confirmar" obligatorio type="password" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" {...props("confirm")} />
         </div>
 
         <Collapsible title="Más datos (opcional)" storageKey="prospective.usuarios.alta.mas-datos">
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="hoja-dos-columnas" style={{ rowGap: 12 }}>
               <Select label="Especialidad" options={opcionales(SPECIALTIES, "")} value={form.specialty} onChange={set("specialty")} />
               <Select label="Cargo" options={opcionales(POSITIONS, "")} value={form.position} onChange={set("position")} />
               <Input label="Universidad" value={form.university} onChange={set("university")} />
@@ -395,6 +401,80 @@ function UsersAdminPage() {
     }
   };
 
+  const movil = useMovil();
+  const tableta = useTableta();
+  const abrirEditar = (u: UserAdminInfo) => { setEditUser(u); setEditOpen(true); };
+  const abrirRestablecer = (u: UserAdminInfo) => { setToReset(u); setResetPw(""); setResetErr(null); setResetTried(false); };
+
+  const acciones = (u: UserAdminInfo) => {
+    const nombre = u.full_name || u.username;
+    const esYo = me?.id === u.id;
+    if (movil || tableta) {
+      const items: ItemMenu[] = [
+        { id: "editar", label: "Editar", icon: "EDIT", abreDialogo: true, onSelect: () => abrirEditar(u) },
+        { id: "restablecer", label: "Restablecer contraseña", icon: "PASSWORD", abreDialogo: true, onSelect: () => abrirRestablecer(u) },
+        {
+          id: "eliminar", label: "Eliminar", icon: "DELETE", destructive: true, separadoAntes: true, abreDialogo: true,
+          disabled: esYo, title: esYo ? "No puedes eliminar tu propia cuenta" : undefined,
+          onSelect: () => setToDelete(u),
+        },
+      ];
+      return <MenuMas label={`Acciones de ${nombre}`} tactil items={items} />;
+    }
+    return (
+      <span className="fila-acciones" style={{ display: "inline-flex", gap: 4 }}>
+        <Button size="icon" variant="ghost" aria-label={`Editar a ${nombre}`} title="Editar" onClick={() => abrirEditar(u)}>
+          <Icon name="EDIT" size={16} />
+        </Button>
+        <Button size="icon" variant="ghost" aria-label={`Restablecer la contraseña de ${nombre}`} title="Restablecer contraseña" onClick={() => abrirRestablecer(u)}>
+          <Icon name="PASSWORD" size={16} />
+        </Button>
+        <Button
+          size="icon" variant="destructive-ghost" aria-label={`Eliminar a ${nombre}`}
+          title={esYo ? "No puedes eliminar tu propia cuenta" : "Eliminar"}
+          disabled={esYo}
+          onClick={() => !esYo && setToDelete(u)}
+        >
+          <Icon name="DELETE" size={16} />
+        </Button>
+      </span>
+    );
+  };
+
+  const columnas: ColumnaTabla<UserAdminInfo>[] = [
+    {
+      id: "usuario", titulo: "Usuario", enTarjeta: "titulo",
+      celda: (u) => (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <span aria-hidden style={{ width: 34, height: 34, borderRadius: "50%", flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)", fontSize: 13, fontWeight: 700 }}>
+            {iniciales(u)}
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>
+              {u.full_name || u.username}
+              {me?.id === u.id && <span style={{ marginLeft: 6, fontSize: 13, fontWeight: 400, color: "var(--muted-foreground)" }}>(tú)</span>}
+            </div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--muted-foreground)" }}>@{u.username}</div>
+          </div>
+        </div>
+      ),
+    },
+    { id: "rol", titulo: "Rol", celda: (u) => <Badge variant={roleVariant(u.role)}>{ROLE_LABEL[u.role] || u.role}</Badge> },
+    ...((tableta && !movil) ? [] : [{
+      id: "especialidad", titulo: "Especialidad / Hospital",
+      celda: (u: UserAdminInfo) => {
+        const t = [u.specialty, u.hospital].filter(Boolean).join(" · ") || "—";
+        return <span title={t} style={{ fontSize: 13, color: "var(--muted-foreground)" }}>{t}</span>;
+      },
+    }]),
+    { id: "estado", titulo: "Estado", celda: (u) => <EstadoCuenta u={u} /> },
+    {
+      id: "creado", titulo: "Creado", sinPartir: true,
+      celda: (u) => <span style={{ color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>{fechaHora(u.created_at)}</span>,
+    },
+    { id: "acciones", titulo: "Acciones", alinear: "fin", ancho: "1%", sinPartir: true, enTarjeta: "pie", celda: acciones },
+  ];
+
   const activos = rows.filter((u) => estadoCuenta(u) === "Activo").length;
   const subtitulo = loading && users.length === 0 ? "Cargando…" : loadError ? "No se pudo cargar la lista"
     : `${rows.length} usuario${rows.length === 1 ? "" : "s"} · ${activos} activo${activos === 1 ? "" : "s"}`;
@@ -410,82 +490,18 @@ function UsersAdminPage() {
       <PageBody className="fade-rise">
           <ErrorNote>{error}</ErrorNote>
 
-          <div data-glass style={{ ...glass("dense"), borderRadius: "var(--radius-card-lg)", overflow: "hidden" }}>
-            <div style={{ overflowX: "auto" }}>
-            <table className="tabla-oficina" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr>
-                  {["Usuario", "Rol", "Especialidad / Hospital", "Estado", "Creado", "Acciones"].map((h, i) => (
-                    <th
-                      key={i}
-                      style={{ textAlign: i === 5 ? "right" : "left", padding: "12px 16px" }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {(loadError || (loading && users.length === 0) || (!loading && rows.length === 0)) && (
-                  <tr>
-                    <td colSpan={6}>
-                      <LoadState
-                        state={loadError ? "error" : loading ? "cargando" : "vacio"}
-                        mensaje={loadError ?? "No hay usuarios que coincidan con la búsqueda."}
-                        onRetry={() => load()}
-                      />
-                    </td>
-                  </tr>
-                )}
-                {!loadError && rows.map((u) => {
-                  const isMe = me?.id === u.id;
-                  return (
-                    <tr key={u.id} className={u.id === nuevaId ? "fila-nueva" : undefined}>
-                      <td style={{ padding: "12px 16px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <span aria-hidden style={{ width: 34, height: 34, borderRadius: "50%", flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--brand-subtle)", color: "var(--brand-deep)", fontSize: 12, fontWeight: 700 }}>
-                            {iniciales(u)}
-                          </span>
-                          <div>
-                            <div style={{ fontWeight: 600, color: "var(--foreground)" }}>
-                              {u.full_name || u.username}
-                              {isMe && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 400, color: "var(--muted-foreground)" }}>(tú)</span>}
-                            </div>
-                            <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }}>@{u.username}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td style={{ padding: "12px 16px" }}>
-                        <Badge variant={roleVariant(u.role)}>{ROLE_LABEL[u.role] || u.role}</Badge>
-                      </td>
-                      <td style={{ padding: "12px 16px", color: "var(--muted-foreground)" }}>
-                        {[u.specialty, u.hospital].filter(Boolean).join(" · ") || "—"}
-                      </td>
-                      <td style={{ padding: "12px 16px" }}>
-                        <EstadoCuenta u={u} />
-                      </td>
-                      <td style={{ padding: "12px 16px", color: "var(--muted-foreground)" }}>
-                        {fechaHora(u.created_at)}
-                      </td>
-                      <td style={{ padding: "8px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
-                        <span className="fila-acciones" style={{ display: "inline-flex", gap: 6 }}>
-                          <Button size="sm" variant="outline" onClick={() => { setEditUser(u); setEditOpen(true); }}>Editar</Button>
-                          <Button size="sm" variant="outline" onClick={() => { setToReset(u); setResetPw(""); setResetErr(null); setResetTried(false); }}>Restablecer contraseña</Button>
-                          <Button
-                            size="sm" variant="destructive"
-                            title={isMe ? "No puedes eliminar tu propia cuenta" : undefined}
-                            disabled={isMe}
-                            onClick={() => !isMe && setToDelete(u)}
-                          >Eliminar</Button>
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            </div>
-          </div>
+          <TablaTarjetas<UserAdminInfo>
+            rotulo="Usuarios"
+            filas={loadError ? [] : rows}
+            columnas={columnas}
+            clave={(u) => u.id}
+            claseFila={(u) => (u.id === nuevaId ? "fila-nueva" : undefined)}
+            vacio={loadError || (loading && users.length === 0) ? (
+              <LoadState state={loadError ? "error" : "cargando"} mensaje={loadError ?? undefined} onRetry={() => load()} />
+            ) : (
+              <EstadoVacio icono="FILTER" titulo="No hay usuarios que coincidan con la búsqueda." />
+            )}
+          />
       </PageBody>
 
       <EditUserSheet open={editOpen} user={editUser} onClose={() => { setEditOpen(false); setEditUser(null); }} onSaved={() => load()} />
@@ -543,7 +559,10 @@ function UsersAdminPage() {
       </ConfirmDialog>
 
       {resetDone && (
-        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 330, background: "var(--foreground)", color: "var(--background)", padding: "10px 18px", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-lg)", fontSize: 13, fontWeight: 600 }}>
+        <div
+          role="status" data-glass
+          style={{ ...glass("dense"), position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 330, color: "var(--foreground)", padding: "10px 18px", borderRadius: "var(--radius-full)", fontSize: 13, fontWeight: 600 }}
+        >
           Contraseña de @{resetDone} restablecida
         </div>
       )}

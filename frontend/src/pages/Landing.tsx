@@ -15,46 +15,13 @@ import { ListaConReglas } from "../components/landing/ListaConReglas";
 import { NavPildora } from "../components/landing/NavPildora";
 import { Revelar, Seccion } from "../components/landing/Seccion";
 import { ComoFunciona } from "../components/landing/SeccionComoFunciona";
+import { Indices } from "../components/landing/SeccionIndices";
 import { Funcionalidades } from "../components/landing/SeccionFuncionalidades";
 import { QueEs } from "../components/landing/SeccionQueEs";
 import { Logo } from "../components/shell/Logo";
 import { useTramo } from "../hooks/useEstrecho";
 import { CONTACTO_ADMIN } from "../lib/contacto";
-import { cifra } from "../lib/numero";
-/* Los cortes de los índices se importan, no se copian: la portada no puede
-   volver a decir un umbral distinto del que aplica la aplicación. */
-import {
-  AR_HIGH, BF_WIDE, DNR_HIGH, EI_MOD, SR_HIGH, UI_HIGH,
-} from "../components/morphometry/thresholds";
 /* El lema único del producto vive en el titular de HeroCortes: una sola vez. */
-
-/* ── Índices morfométricos ──────────────────────────────────────────────── */
-// Cada corte con coma decimal y sus decimales (2,0 y no 2), vía lib/numero.
-function Indices() {
-  // El texto del BF estaba invertido (F1-162): un BF alto es un cuello
-  // relativamente estrecho, nunca lo contrario. El NSI no tiene corte.
-  const metricas: [string, string, string][] = [
-    ["DNR", "Relación domo-cuello (DNR)", `Ø máx / cuello · riesgo ↑ si ≥ ${cifra(DNR_HIGH, 1)}`],
-    ["AR", "Relación de aspecto (AR)", `altura de domo / cuello · riesgo ↑ si ≥ ${cifra(AR_HIGH, 1)}`],
-    ["BF", "Factor de cuello (BF)", `Ø domo / cuello · cuello estrecho si > ${cifra(BF_WIDE, 1)}`],
-    ["UI", "Índice de ondulación (UI)", `irregularidad del domo · alto si ≥ ${cifra(UI_HIGH, 2)}`],
-    ["EI", "Índice de elipticidad (EI)", `desviación elíptica · alto si ≥ ${cifra(EI_MOD, 2)}`],
-    ["NSI", "Índice de no esfericidad (NSI)", "1 − esfericidad de Wadell · sin corte"],
-    ["SR", "Relación de tamaño (SR)", `Ø máx / arteria madre · alto si ≥ ${cifra(SR_HIGH, 1)}`],
-    ["PHASES", "Riesgo en aneurismas no rotos", "escala de Greving et al., Lancet Neurology 2014"],
-  ];
-  return (
-    <Seccion id="indices" rotulo="Índices morfométricos" titulo="Ocho números que describen el saco">
-      <ListaConReglas
-        items={metricas.map(([abbr, titulo, detalle]) => ({ titulo, detalle, cifra: abbr }))}
-      />
-      <p className="sec__nota">
-        Cuello, altura máxima y forma del saco. El sistema traduce las siglas a un nivel de riesgo
-        (bajo · moderado · alto). Referencias: Greving 2014 · Dhar 2008 · Raghavan 2005 · Wadell.
-      </p>
-    </Seccion>
-  );
-}
 
 /* ── Dispositivos NAVARRO™ ──────────────────────────────────────────────── */
 const trazo = {

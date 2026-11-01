@@ -68,3 +68,12 @@ describe("landing.css, rejilla bento de «Funcionalidades»", () => {
     expect(tieneDeclaracion(css, '.landing-stitch[data-tramo="movil"] .bento', "grid-template-areas: none")).toBe(true);
   });
 });
+
+describe('landing.css, «Índices»', () => {
+  it('dos columnas 7fr/5fr, diagrama fijo y estático en móvil y tableta', () => {
+    expect(tieneDeclaracion(css, '.landing-stitch .indices', 'grid-template-columns: minmax(0, 7fr) minmax(0, 5fr)')).toBe(true);
+    expect(tieneDeclaracion(css, '.landing-stitch .indices__diagrama', 'position: sticky')).toBe(true);
+    expect(tieneDeclaracion(css, '.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .indices__diagrama', 'position: static')).toBe(true);
+    expect(tieneDeclaracion(css, '.landing-stitch .indices__fila', 'min-height: 44px')).toBe(true);
+  });
+});

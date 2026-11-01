@@ -1022,3 +1022,118 @@
 .landing-stitch[data-tramo="movil"] .bento__tarjeta {
   grid-area: auto;
 }
+
+/* ── Índices: lista + diagrama del saco que enciende la cota de cada índice ── */
+.landing-stitch .indices {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 48px;
+}
+.landing-stitch .indices__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.landing-stitch .indices__item {
+  border-top: 1px solid var(--border);
+}
+.landing-stitch .indices__item:last-child {
+  border-bottom: 1px solid var(--border);
+}
+.landing-stitch .indices__fila {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+  min-height: 44px;
+  padding: 16px 12px;
+  border: 0;
+  border-left: 3px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.landing-stitch .indices__fila[aria-pressed="true"] {
+  border-left-color: var(--data);
+  background: color-mix(in srgb, var(--data) 8%, transparent);
+}
+.landing-stitch .indices__fila:focus-visible {
+  outline: 2px solid var(--data);
+  outline-offset: -2px;
+}
+.landing-stitch .indices__texto {
+  display: grid;
+  gap: 4px;
+}
+.landing-stitch .indices__titulo {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.landing-stitch .indices__detalle {
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+.landing-stitch .indices__sigla {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.landing-stitch .indices__diagrama {
+  position: sticky;
+  top: 120px;
+  align-self: start;
+}
+.landing-stitch .diagrama-saco {
+  display: block;
+  width: 100%;
+  min-width: 300px;
+  height: auto;
+  color: var(--foreground);
+}
+.landing-stitch .diagrama-saco__madre {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 2;
+}
+.landing-stitch .diagrama-saco__saco {
+  fill: color-mix(in srgb, var(--destructive) 18%, transparent);
+  stroke: var(--destructive);
+  stroke-width: 2;
+}
+.landing-stitch .diagrama-saco [data-cota] {
+  fill: none;
+  stroke: var(--muted-foreground);
+  stroke-width: 1.5;
+}
+.landing-stitch .diagrama-saco [data-cota] text {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 400;
+  fill: var(--muted-foreground);
+  stroke: none;
+}
+.landing-stitch .diagrama-saco [data-activa="true"] {
+  stroke: var(--data);
+  stroke-width: 2;
+}
+.landing-stitch .diagrama-saco [data-activa="true"] text {
+  font-weight: 700;
+  fill: var(--foreground);
+}
+.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .indices {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+}
+.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .indices__diagrama {
+  order: -1;
+  position: static;
+  width: 100%;
+  max-width: 420px;
+  margin-inline: auto;
+}

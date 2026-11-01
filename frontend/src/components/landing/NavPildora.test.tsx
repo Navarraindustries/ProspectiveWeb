@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import { NavPildora } from "./NavPildora";
+import { NAV_PLEGADA, NavPildora } from "./NavPildora";
 
 const ENLACES = ["Qué es", "Cómo funciona", "Índices", "Dispositivos"];
 
 function conAnchoEstrecho(estrecho: boolean) {
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: estrecho && query === "(max-width: 760px)",
+    matches: estrecho && query === NAV_PLEGADA,
     media: query,
     onchange: null,
     addEventListener: () => {},
@@ -49,7 +49,7 @@ describe("NavPildora", () => {
     expect(onCrearCuenta).toHaveBeenCalledTimes(1);
   });
 
-  it("a 760 px o menos los enlaces se pliegan tras un botón «Menú»", () => {
+  it("a 900 px o menos los enlaces se pliegan tras un botón «Menú»", () => {
     conAnchoEstrecho(true);
     montar();
     const menu = screen.getByRole("button", { name: "Menú" });
@@ -98,5 +98,24 @@ describe("NavPildora", () => {
       expect(enlace).toHaveClass("landing-nav__enlace");
       expect(enlace.style.color).toBe("");
     }
+  });
+
+  it("el punto de plegado es 900 px", () => {
+    expect(NAV_PLEGADA).toBe("(max-width: 900px)");
+  });
+
+  it("el menú abierto se cierra al tocar fuera, no al tocar dentro, y al hacer scroll", () => {
+    conAnchoEstrecho(true);
+    montar();
+    const menu = screen.getByRole("button", { name: "Menú" });
+    fireEvent.click(menu);
+    fireEvent.pointerDown(menu);
+    expect(menu).toHaveAttribute("aria-expanded", "true");
+    fireEvent.pointerDown(document.body);
+    expect(menu).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(menu);
+    expect(menu).toHaveAttribute("aria-expanded", "true");
+    fireEvent.scroll(window);
+    expect(menu).toHaveAttribute("aria-expanded", "false");
   });
 });

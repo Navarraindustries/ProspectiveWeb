@@ -58,7 +58,7 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
     <div data-testid="shortcuts-backdrop" onClick={onClose}
          style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div ref={cardRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Atajos" onClick={(e) => e.stopPropagation()}
-           style={{ background: "#000", border: "1px solid var(--hud-text-dim)", color: "var(--hud-text)", fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: ".04em", padding: "14px 18px 16px", maxWidth: 920, width: "100%", maxHeight: "100%", overflow: "auto", outline: "none" }}>
+           style={{ background: "var(--viewer-bg)", border: "1px solid var(--hud-text-dim)", color: "var(--hud-text)", fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: ".04em", padding: "14px 18px 16px", maxWidth: 920, width: "100%", maxHeight: "100%", overflow: "auto", outline: "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
           <span style={{ letterSpacing: ".08em" }}>ATAJOS</span>
           <span style={{ color: "var(--hud-text-dim)" }}>ESC · ? · CLIC FUERA PARA CERRAR</span>

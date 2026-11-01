@@ -45,7 +45,7 @@ export function HudLadder({ count, index, onIndexChange }: { count: number; inde
           {t.major && <span style={{ position: "absolute", right: 16, top: -6, fontSize: 9, color: "var(--hud-text-dim)" }}>{t.index + 1}</span>}
         </span>
       ))}
-      <span style={{ position: "absolute", right: 4, top: h / 2 - 8, padding: "1px 4px", fontSize: 10, color: "var(--hud-text)", border: "var(--hud-line) solid var(--hud-text)", background: "#000" }}>
+      <span style={{ position: "absolute", right: 4, top: h / 2 - 8, padding: "1px 4px", fontSize: 10, color: "var(--hud-text)", border: "var(--hud-line) solid var(--hud-text)", background: "var(--viewer-bg)" }}>
         {index + 1}
       </span>
     </div>

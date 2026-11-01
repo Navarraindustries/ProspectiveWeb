@@ -117,9 +117,9 @@ export function CapturePicker({
               </span>
               {urls[c.id] ? (
                 <img src={urls[c.id]} alt=""
-                  style={{ width: 64, height: 40, objectFit: "cover", background: "#000", borderRadius: 3, flexShrink: 0 }} />
+                  style={{ width: 64, height: 40, objectFit: "cover", background: "var(--viewer-bg)", borderRadius: 3, flexShrink: 0 }} />
               ) : (
-                <span style={{ width: 64, height: 40, background: "#000", borderRadius: 3, flexShrink: 0 }} />
+                <span style={{ width: 64, height: 40, background: "var(--viewer-bg)", borderRadius: 3, flexShrink: 0 }} />
               )}
               <span style={{ minWidth: 0, flex: 1 }}>
                 <span style={{ display: "block", fontSize: 12, color: "var(--foreground)", lineHeight: 1.3, wordBreak: "break-word" }}>

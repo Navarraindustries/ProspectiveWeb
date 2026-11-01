@@ -176,7 +176,7 @@ export function ViewerGrid({ layout, onLayoutChange, renderPane, registerCell, m
           // ella y la haría la celda enfocada sin que se vea.
           <div key={id} ref={cellRef(id)} data-pane={id} data-slot={slot} data-dock-corner={!hidden && slot === dockSlot ? "" : undefined} inert={hidden}
                className={`viewer-cell${hidden ? " viewer-cell--hidden" : ""}${drag?.over === id ? " viewer-cell--over" : ""}`}
-               style={{ gridArea: hidden ? undefined : slot, position: hidden ? "absolute" : "relative", minWidth: 0, minHeight: 0, overflow: "hidden", background: "#000" }}
+               style={{ gridArea: hidden ? undefined : slot, position: hidden ? "absolute" : "relative", minWidth: 0, minHeight: 0, overflow: "hidden", background: "var(--viewer-bg)" }}
                // En captura: los lienzos de vtk.js y la barra del cine cortan la
                // propagación del puntero, y la celda tiene que enterarse igual.
                onPointerDownCapture={() => onPaneFocus?.(id)} onFocusCapture={() => onPaneFocus?.(id)}

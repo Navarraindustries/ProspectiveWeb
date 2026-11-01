@@ -608,7 +608,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   });
 
   return (
-    <div tabIndex={0} onKeyDown={onKey} style={{ position: "relative", width: "100%", height: "100%", background: "#000", outline: "none" }}>
+    <div tabIndex={0} onKeyDown={onKey} style={{ position: "relative", width: "100%", height: "100%", background: "var(--viewer-bg)", outline: "none" }}>
       <div ref={ref} style={{ position: "absolute", inset: 0 }} onContextMenu={(e) => e.preventDefault()}
         title={`Arrastrar: rotar · Shift o botón central: desplazar · Rueda: corte · Ctrl+rueda: zoom · Botón derecho: nivel y ventana`} />
       <HudFrame label="VOLUMEN" active={!compact}>

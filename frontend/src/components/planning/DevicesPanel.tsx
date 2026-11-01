@@ -1069,7 +1069,7 @@ function CoilsTab() {
                 </div>
               )}
               {f.rationale && f.coil_id === f.sugerido && (
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{f.rationale}</div>
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>{f.rationale}</div>
               )}
             </div>
           );
@@ -1102,7 +1102,7 @@ function CoilsTab() {
           {busy ? "Colocando…" : "Colocar el montaje"}
         </Button>
         {construct?.note && (
-          <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-muted)" }}>{construct.note}</div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted-foreground)" }}>{construct.note}</div>
         )}
       </Card>
 
@@ -1115,7 +1115,7 @@ function CoilsTab() {
             badge={plan.meets_minimum ? ["Sobre el mínimo", "success"] : ["Insuficiente", "warning"]}
           />
           {plan.durability && (
-            <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>{plan.durability}</div>
+            <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)" }}>{plan.durability}</div>
           )}
           {plan.warning && (
             <div style={{ marginTop: 8, fontSize: 12, color: "var(--warning)" }}>{plan.warning}</div>
@@ -1293,7 +1293,7 @@ function StentsTab() {
             <div style={{ marginTop: 8, fontSize: 12, color: "var(--warning)" }}>{plan.warning}</div>
           )}
           {plan.notes.map((n, i) => (
-            <div key={i} style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>{n}</div>
+            <div key={i} style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)" }}>{n}</div>
           ))}
         </Card>
       )}

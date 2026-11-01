@@ -1,6 +1,6 @@
 /* Dirección D (cristal): el oscuro vive en :root y el claro bajo [data-theme="light"].
    Un token que exista solo en un tema deja una superficie transparente en el otro. */
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ratio } from "./contraste";
@@ -228,5 +228,26 @@ describe("tokens de la dirección D", () => {
     expect(m).not.toBeNull();
     expect(m![1]).toMatch(/--glass-blur-viewer:\s*0px/);
     expect(m![1]).toMatch(/--glass-blur:\s*12px/);
+  });
+
+  it("todo var(--x) que usa el código está definido en una hoja, en un style en línea o en la lista de las fijadas en ejecución", () => {
+    // Variables que el código fija al montar sin que el escaneo las vea (cada una con su motivo).
+    const EN_EJECUCION: Record<string, string> = {};
+    const raiz = join(__dirname, "..");
+    const ficheros: string[] = [];
+    const recorre = (d: string) => {
+      for (const f of readdirSync(d)) {
+        const p = join(d, f);
+        if (statSync(p).isDirectory()) recorre(p);
+        else if (/\.(tsx?|css)$/.test(f) && !/\.test\.tsx?$/.test(f)) ficheros.push(p);
+      }
+    };
+    recorre(raiz);
+    const texto = ficheros.map((f) => readFileSync(f, "utf8")).join("\n");
+    const definidas = new Set<string>(Object.keys(EN_EJECUCION));
+    for (const m of texto.matchAll(/(?:^|[\s;{"'`])(--[a-z0-9-]+)\s*(?::|["'`]\s*:)/gi)) definidas.add(m[1]);
+    for (const m of texto.matchAll(/setProperty\(\s*["'`](--[a-z0-9-]+)/g)) definidas.add(m[1]);
+    const usadas = new Set([...texto.matchAll(/var\(\s*(--[a-z0-9-]+)/gi)].map((m) => m[1]));
+    expect([...usadas].filter((n) => !definidas.has(n)).sort()).toEqual([]);
   });
 });

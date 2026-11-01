@@ -122,7 +122,7 @@ export function DiameterChart({ arc, diameters, meanDiameter, onPick, cursorArcM
 
       {/* El punto compartido sobre el vaso. */}
       {cursorArcMm !== null && (
-        <line data-t="cursor" x1={sx(cursorArcMm)} y1={P.t} x2={sx(cursorArcMm)} y2={P.t + ih} stroke="var(--brand)" strokeWidth={1.5} strokeDasharray="2 2" />
+        <line data-t="cursor" x1={sx(cursorArcMm)} y1={P.t} x2={sx(cursorArcMm)} y2={P.t + ih} stroke="var(--primary)" strokeWidth={1.5} strokeDasharray="2 2" />
       )}
     </svg>
   );

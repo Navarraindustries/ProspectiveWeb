@@ -77,7 +77,7 @@
   color: var(--foreground);
   background: var(--glass-hover);
 }
-/* Panel plegado (≤ 760 px): blancos de 44 px de alto. */
+/* Panel plegado (≤ 900 px): blancos de 44 px de alto. */
 .landing-stitch .landing-nav__panel .landing-nav__enlace {
   padding: 12px;
 }

@@ -189,7 +189,7 @@ export function CaptureGallery({
           {rows.map((c) => (
             <Card key={c.id} style={{ padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
               {isRecording(c) ? (
-                <div style={{ background: "#000", borderRadius: "var(--radius-md)", overflow: "hidden", aspectRatio: "16 / 10" }}>
+                <div style={{ background: "var(--viewer-bg)", borderRadius: "var(--radius-md)", overflow: "hidden", aspectRatio: "16 / 10" }}>
                   {urls[c.id] ? (
                     <video src={urls[c.id]} controls autoPlay playsInline
                            aria-label={c.label}
@@ -207,7 +207,7 @@ export function CaptureGallery({
               ) : (
               <a href={urls[c.id]} target="_blank" rel="noreferrer"
                  title="Abrir a tamaño completo"
-                 style={{ display: "block", background: "#000", borderRadius: "var(--radius-md)", overflow: "hidden", aspectRatio: "16 / 10" }}>
+                 style={{ display: "block", background: "var(--viewer-bg)", borderRadius: "var(--radius-md)", overflow: "hidden", aspectRatio: "16 / 10" }}>
                 {urls[c.id] ? (
                   <img src={urls[c.id]} alt={c.label}
                        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />

@@ -26,6 +26,12 @@ describe("QuirofanoBar", () => {
     rerender(<QuirofanoBar crumbs={[]} onBack={vi.fn()} riskLabel={null} />);
     expect(screen.queryByText("Alto")).toBeNull();
   });
+  it("la HC del paciente se enseña junto a su nombre si la miga la trae", () => {
+    const { rerender } = render(<QuirofanoBar crumbs={[{ label: "Ana Pérez", detail: "HC-42" }]} onBack={vi.fn()} />);
+    expect(screen.getByText("HC-42")).toBeTruthy();
+    rerender(<QuirofanoBar crumbs={[{ label: "Ana Pérez" }]} onBack={vi.fn()} />);
+    expect(screen.queryByText("HC-42")).toBeNull();
+  });
   it("las dos pastillas son de cristal", () => {
     const { container } = render(<QuirofanoBar crumbs={[]} onBack={vi.fn()} />);
     expect(container.querySelectorAll("[data-glass]").length).toBe(2);

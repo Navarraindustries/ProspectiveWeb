@@ -14,6 +14,7 @@ import { stepAviso, stepDone, stepMissing } from "../pipeline/stepGate";
 import { CONSULTA_SOLO_ICONO, QuirofanoBar, rotuloAccion } from "../components/stepper/QuirofanoBar";
 import { SaveStatus } from "../components/stepper/SaveStatus";
 import { BANDA_SUPERIOR, HOJA_ASOMAR, zonaLibre } from "../pipeline/zonaLibre";
+import { MQ_MOVIL, MQ_TACTIL } from "../pipeline/puntosCorte";
 import { StepDock } from "../components/stepper/StepDock";
 import { Z_SOBRE_HOJA, type AlturaHoja } from "../components/BottomSheet";
 import { useEstrecho, useMediaQuery } from "../hooks/useEstrecho";
@@ -94,6 +95,9 @@ export function Workspace({
   const estrecho = useEstrecho();
   // Hasta 1366 px los botones de acción de la píldora derecha son solo icono.
   const soloIcono = useMediaQuery(CONSULTA_SOLO_ICONO);
+  const movil = useMediaQuery(MQ_MOVIL);
+  const tactil = useMediaQuery(MQ_TACTIL);
+  const modoDock = movil ? "mini" : tactil ? "tactil" : estrecho ? "compacto" : "completo";
   const [alturaHoja, setAlturaHoja] = useState<AlturaHoja>("media");
   const [estrechoVisto, setEstrechoVisto] = useState(estrecho);
   if (estrecho !== estrechoVisto) {
@@ -472,7 +476,7 @@ export function Workspace({
         doneFor={(i) => stepDone(i, planning)}
         avisoFor={(i) => stepAviso(i, planning)}
         onGo={go}
-        compacto={estrecho}
+        modo={modoDock}
         abajo={estrecho ? (alturaHoja === "asomar" ? HOJA_ASOMAR + 12 : "calc(50% + 12px)") : 20}
         zIndex={estrecho ? Z_SOBRE_HOJA : 3}
       />}

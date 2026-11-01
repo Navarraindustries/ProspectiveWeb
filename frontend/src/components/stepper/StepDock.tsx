@@ -9,6 +9,8 @@ import { openCommandPalette } from "../../lib/commands";
 import { glass } from "../../styles/glass";
 import type { PipelineStep } from "../../pipeline/steps";
 
+export type ModoDock = "completo" | "compacto" | "tactil" | "mini";
+
 interface Props {
   steps: PipelineStep[];
   activeIndex: number;
@@ -19,8 +21,9 @@ interface Props {
   /** Aviso de lo que hará abrir el paso (tooltip y nombre accesible). */
   avisoFor?: (i: number) => string | null;
   onGo: (i: number) => void;
-  /** Modo estrecho: botones de 36 px solo con número y sin ampliación. */
-  compacto?: boolean;
+  /** Disposición por pantalla: completo (44 px con ampliación), compacto (36 px, L5),
+      tactil (44 px sin ampliación) o mini (anterior · píldora · siguiente, móvil). */
+  modo?: ModoDock;
   /** Distancia al borde inferior (por defecto 20); en modo estrecho va sobre la hoja. */
   abajo?: number | string;
   /** Capa del dock; en modo estrecho va sobre la hoja inferior. */
@@ -30,9 +33,10 @@ interface Props {
 const ALCANCE = 120; // px de distancia horizontal a partir de la cual no hay ampliación
 const AMPLIACION_MAX = 0.25;
 
-export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, onGo, compacto = false, abajo = 20, zIndex = 3 }: Props) {
+export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, onGo, modo = "completo", abajo = 20, zIndex = 3 }: Props) {
   const reducido = useReducedMotion();
-  const ampliar = !reducido && !compacto;
+  const compacto = modo === "compacto";
+  const ampliar = !reducido && modo === "completo";
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const [escalas, setEscalas] = useState<number[]>([]);
 
@@ -53,17 +57,86 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
   };
 
   const base = compacto ? 36 : 44;
+  const left = modo === "mini" ? 12 : 24;
+  const posicion = { position: "absolute", left, bottom: abajo, zIndex } as const;
+
+  if (modo === "mini") {
+    const act = steps[activeIndex];
+    const sig = activeIndex + 1 < steps.length ? activeIndex + 1 : null;
+    const ant = activeIndex > 0 ? activeIndex - 1 : null;
+    const rotulo = (i: number) => `${steps[i].label}${steps[i].optional ? " (opcional)" : ""}`;
+    const motivoSig = sig === null ? null : missingFor(sig);
+    const avisoSig = sig === null || motivoSig ? null : (avisoFor?.(sig) ?? null);
+    const nombreSig = sig === null
+      ? "Último paso"
+      : motivoSig ? `Paso siguiente: ${rotulo(sig)} — ${motivoSig}`
+      : `Paso siguiente: ${rotulo(sig)}${avisoSig ? `. ${avisoSig}` : ""}`;
+    const sigBloqueado = sig === null || !!motivoSig;
+    const botonLado = {
+      width: 44, height: 44, borderRadius: "50%", flexShrink: 0, padding: 0,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      border: "1px solid var(--glass-border)", background: "var(--glass-hover)", color: "var(--foreground)",
+    } as const;
+    return (
+      <nav
+        aria-label="Flujo de planificación"
+        data-glass
+        data-modo="mini"
+        style={{
+          ...glass("viewer"), ...posicion,
+          display: "flex", alignItems: "center", gap: 8,
+          padding: 8, borderRadius: "var(--radius-xl)",
+        }}
+      >
+        <button
+          type="button"
+          disabled={ant === null}
+          aria-label={ant === null ? "Primer paso" : `Paso anterior: ${rotulo(ant)}`}
+          title={ant === null ? "Primer paso" : `Paso anterior: ${rotulo(ant)}`}
+          onClick={() => ant !== null && onGo(ant)}
+          style={{ ...botonLado, cursor: ant === null ? "not-allowed" : "pointer", opacity: ant === null ? 0.4 : 1 }}
+        >
+          <Icon name="BACK" size={18} />
+        </button>
+        <button
+          type="button"
+          aria-label={`Paso ${activeIndex + 1} de ${steps.length}, ${rotulo(activeIndex)}. Ver todos los pasos`}
+          onClick={() => openCommandPalette()}
+          style={{
+            height: 44, padding: "0 14px", borderRadius: "var(--radius-full)", border: "1px solid transparent",
+            background: "var(--primary)", color: "var(--primary-foreground)", cursor: "pointer",
+            fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center",
+          }}
+        >
+          <span style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {activeIndex + 1}/{steps.length} · {act.label}
+          </span>
+        </button>
+        <button
+          type="button"
+          aria-disabled={sigBloqueado ? "true" : undefined}
+          aria-label={nombreSig}
+          title={sig === null ? "Último paso" : (motivoSig ?? (avisoSig ? `${rotulo(sig)} — ${avisoSig}` : rotulo(sig)))}
+          onClick={() => !sigBloqueado && onGo(sig)}
+          style={{ ...botonLado, cursor: sigBloqueado ? "not-allowed" : "pointer", opacity: sigBloqueado ? 0.4 : 1 }}
+        >
+          <Icon name="ARROW_RIGHT" size={18} />
+        </button>
+      </nav>
+    );
+  }
 
   return (
     <nav
       aria-label="Flujo de planificación"
       data-glass
+      data-modo={modo}
       onPointerMove={onMove}
       onPointerLeave={() => setEscalas([])}
       title={`Atajos: 1–${steps.length} para cambiar de paso · Esc cancela el marcado`}
       style={{
         ...glass("viewer"),
-        position: "absolute", left: 24, bottom: abajo, zIndex,
+        ...posicion,
         display: "flex", alignItems: "center", gap: 8,
         padding: 8, borderRadius: "var(--radius-xl)",
       }}
@@ -79,10 +152,10 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
         const nombre = `${s.label}${s.optional ? " (opcional)" : ""}`;
         const estado = active ? "activo" : locked ? "bloqueado" : done ? "hecho" : "pendiente";
         const escala = ampliar ? Math.round((escalas[i] ?? 1) * 1000) / 1000 : 1;
-        const lado = active && !compacto ? 60 : base;
+        const lado = active && modo === "completo" ? 60 : base;
         return (
           <div key={s.key} style={{ position: "relative", display: "flex" }}>
-            {active && !compacto && (
+            {active && modo === "completo" && (
               <span
                 aria-hidden
                 data-glass

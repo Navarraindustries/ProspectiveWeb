@@ -50,6 +50,7 @@ vi.mock("../components/AttachCaseSheet", () => ({ AttachCaseSheet: Nada }));
 vi.mock("../components/RecordButton", () => ({ RecordButton: Nada }));
 
 import { Workspace } from "./Workspace";
+import { MATRIZ_ALTOS, MATRIZ_ANCHOS, simularPantalla } from "../test/pantalla";
 import { getCommands } from "../lib/commands";
 import type { PatientSummary } from "../api/types";
 
@@ -292,6 +293,24 @@ describe("Registro de la sesión", () => {
   });
 });
 
+describe("dock por tamaño de pantalla", () => {
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin almacenamiento */ }
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+  const MODO: Record<number, string> = { 360: "mini", 390: "mini", 768: "tactil", 1024: "tactil", 1280: "compacto",
+    1366: "completo", 1440: "completo", 1707: "completo", 1920: "completo", 2560: "completo" };
+  it.each(MATRIZ_ANCHOS)("a %i px el dock va en su modo, a cualquier alto", (w) => {
+    for (const h of MATRIZ_ALTOS) {
+      simularPantalla(w, h);
+      const { unmount } = montar();
+      expect(screen.getByRole("navigation", { name: "Flujo de planificación" })).toHaveAttribute("data-modo", MODO[w]);
+      unmount();
+    }
+  });
+});
+
 describe("dock: hechos por resultado y aviso del paso 4", () => {
   beforeEach(() => {
     for (const k of Object.keys(estado)) delete estado[k];
@@ -393,16 +412,12 @@ describe("acciones de la píldora derecha a ≤ 1366 px", () => {
 });
 
 describe("hoja inferior a ≤ 1280 px", () => {
-  const original = window.matchMedia;
   beforeEach(() => {
     for (const k of Object.keys(estado)) delete estado[k];
     try { localStorage.clear(); } catch { /* sin almacenamiento */ }
-    window.matchMedia = ((q: string) => ({
-      matches: true, media: q, onchange: null, addEventListener: () => {}, removeEventListener: () => {},
-      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
-    })) as unknown as typeof window.matchMedia;
+    simularPantalla(1100); // L5: estrecho, sin táctil
   });
-  afterEach(() => { window.matchMedia = original; });
+  afterEach(() => { vi.unstubAllGlobals(); });
 
   const montar_ = () => render(
     <Workspace patient={null} initialStep={2} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,

@@ -6,6 +6,9 @@
    volvía a mostrar: aquella solo enseñaba los gestos de la celda principal. */
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { Icon } from "../../components/Icon";
+import { useMediaQuery } from "../../hooks/useEstrecho";
+import { MQ_MOVIL, MQ_TACTIL } from "../../pipeline/puntosCorte";
 import { shortcutsByScope, type Shortcut, type ShortcutScope } from "../shortcuts";
 
 const HEADINGS: [ShortcutScope, string][] = [["visor", "Visor"], ["celda", "Celda"], ["flujo", "Flujo"], ["raton", "Ratón"]];
@@ -49,6 +52,8 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
     cardRef.current?.focus({ preventScroll: true });
     return () => { if (prev?.isConnected) prev.focus({ preventScroll: true }); };
   }, [open]);
+  const movil = useMediaQuery(MQ_MOVIL);
+  const tactil = useMediaQuery(MQ_TACTIL);
   if (!open) return null;
   const groups = shortcutsByScope();
   // En un portal a <body>: el visor vive en la zona libre del quirófano, que
@@ -56,21 +61,25 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
   // la zona y la hoja quedaría bajo las pastillas, el dock y el inspector.
   return createPortal(
     <div data-testid="shortcuts-backdrop" onClick={onClose}
-         style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div ref={cardRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Atajos" onClick={(e) => e.stopPropagation()}
-           style={{ background: "var(--viewer-bg)", border: "1px solid var(--hud-text-dim)", color: "var(--hud-text)", fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: ".04em", padding: "14px 18px 16px", maxWidth: 920, width: "100%", maxHeight: "100%", overflow: "auto", outline: "none" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+         style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: movil ? 0 : 16 }}>
+      <div ref={cardRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Atajos" data-movil={movil ? "true" : undefined} onClick={(e) => e.stopPropagation()}
+           style={{ background: "var(--viewer-bg)", border: movil ? "none" : "1px solid var(--hud-text-dim)", color: "var(--hud-text)", fontFamily: "var(--font-mono)", fontSize: tactil ? 13 : 11, letterSpacing: ".04em", padding: "14px 18px 16px", boxSizing: "border-box", width: "100%", ...(movil ? { height: "100%" } : { maxWidth: 920 }), maxHeight: "100%", overflow: "auto", outline: "none" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}>
           <span style={{ letterSpacing: ".08em" }}>ATAJOS</span>
-          <span style={{ color: "var(--hud-text-dim)" }}>ESC · ? · CLIC FUERA PARA CERRAR</span>
+          <span style={{ color: "var(--hud-text-dim)", flex: 1, textAlign: "right" }}>{tactil ? "" : "ESC · ? · CLIC FUERA PARA CERRAR"}</span>
+          <button type="button" aria-label="Cerrar" onClick={onClose}
+                  style={{ width: tactil ? 44 : 24, height: tactil ? 44 : 24, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, background: "transparent", border: "1px solid var(--hud-text-dim)", color: "var(--hud-text)", cursor: "pointer", flexShrink: 0 }}>
+            <Icon name="CLOSE" size={tactil ? 18 : 12} />
+          </button>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px 24px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))", gap: "12px 24px" }}>
           {HEADINGS.map(([scope, title]) => (
             <section key={scope}>
               <h3 style={{ margin: "0 0 6px", fontSize: 10, fontWeight: 400, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--hud-text-dim)", borderBottom: "1px solid var(--hud-text-dim)", paddingBottom: 3 }}>{title}</h3>
-              <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px" }}>
+              <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "minmax(0, 22ch) minmax(0, 1fr)", gap: "4px 12px" }}>
                 {rows(groups[scope]).map((r) => (
                   <div key={r.keys} style={{ display: "contents" }}>
-                    <dt style={{ color: "var(--hud-text)", whiteSpace: "nowrap" }}>{r.keys}</dt>
+                    <dt style={{ color: "var(--hud-text)" }}>{r.keys}</dt>
                     <dd style={{ margin: 0, color: "var(--hud-text-dim)" }}>{r.action}</dd>
                   </div>
                 ))}

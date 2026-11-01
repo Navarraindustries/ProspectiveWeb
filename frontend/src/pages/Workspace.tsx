@@ -9,7 +9,8 @@ import type { PatientSummary } from "../api/types";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
-import { NEEDS_MORPHOMETRY, STEPS } from "../pipeline/steps";
+import { STEPS } from "../pipeline/steps";
+import { stepAviso, stepDone, stepMissing } from "../pipeline/stepGate";
 import { CONSULTA_SOLO_ICONO, QuirofanoBar, rotuloAccion } from "../components/stepper/QuirofanoBar";
 import { SaveStatus } from "../components/stepper/SaveStatus";
 import { BANDA_SUPERIOR, HOJA_ASOMAR, zonaLibre } from "../pipeline/zonaLibre";
@@ -40,7 +41,6 @@ import { useRegisterCommands } from "../lib/commands";
 import { usePlanning } from "../store/planning";
 import { useSessionLog } from "../pipeline/sessionLog";
 import { SessionLog } from "../components/planning/SessionLog";
-import { canAdvanceFromDetect } from "../components/planning/detectGate";
 
 
 /** No hace nada: en modo estrecho, el plegado del inspector no escribe la preferencia. */
@@ -48,26 +48,6 @@ const ignorar = () => {};
 /** Atajos que se ejecutan en el visor (ViewerWorkspace escucha `viewer:shortcut`). */
 const VIEWER_SHORTCUTS = new Set(["sync", "center-lesion", "hud-cycle", "center", "cine-toggle", "cine-faster", "cine-slower", "help",
   "anot-regla", "anot-angulo", "anot-region", "anot-marcador", "anot-borrar", "anot-deshacer-punto"]);
-
-/** What each step needs before it can say anything true, or null when it's ready.
- *
- *  The rail used to unlock a step just because it had been visited, so a resumed
- *  session whose detection replay failed landed on «Informe» fully unlocked and
- *  produced a PDF with no measurements in it. Gating on the actual results also
- *  turns the disabled state into an instruction instead of a dead end. */
-function missingFor(
-  i: number,
-  p: Pick<ReturnType<typeof usePlanning>, "series" | "segmentation" | "candidates" | "rejectedCandidates" | "morphometry">,
-): string | null {
-  switch (i) {
-    case 0: return null;
-    case 1: return p.series ? null : "Carga una serie DICOM primero";
-    case 2: return p.segmentation ? null : "Segmenta el vaso primero";
-    // Un descartado también se mide: con todo vetado el paso sigue abierto.
-    case 3: return canAdvanceFromDetect(p.candidates, p.rejectedCandidates) ? null : "Detecta un candidato primero";
-    default: return p.morphometry ? null : NEEDS_MORPHOMETRY;
-  }
-}
 
 export function Workspace({
   patient,
@@ -265,7 +245,8 @@ export function Workspace({
       id: `paso-${i}`,
       group: "pasos" as const,
       label: `${i + 1} · ${s.label}`,
-      disabled: i !== stepIdx && missingFor(i, planning) !== null,
+      disabled: i !== stepIdx && stepMissing(i, planning) !== null,
+      hint: stepAviso(i, planning) ?? undefined,
       run: () => go(i),
     })),
     { id: "guardar", group: "acciones" as const, label: "Guardar progreso",
@@ -322,7 +303,7 @@ export function Workspace({
       }
       if (id.startsWith("step-")) {
         const i = Number(id.slice(5)) - 1;
-        if (i < STEPS.length && (i === stepIdx || !missingFor(i, planning))) { e.preventDefault(); go(i); }
+        if (i < STEPS.length && (i === stepIdx || !stepMissing(i, planning))) { e.preventDefault(); go(i); }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -487,7 +468,9 @@ export function Workspace({
       {!(estrecho && alturaHoja === "completa") && <StepDock
         steps={STEPS}
         activeIndex={stepIdx}
-        missingFor={(i) => missingFor(i, planning)}
+        missingFor={(i) => stepMissing(i, planning)}
+        doneFor={(i) => stepDone(i, planning)}
+        avisoFor={(i) => stepAviso(i, planning)}
         onGo={go}
         compacto={estrecho}
         abajo={estrecho ? (alturaHoja === "asomar" ? HOJA_ASOMAR + 12 : "calc(50% + 12px)") : 20}

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { STEPS } from "../../pipeline/steps";
+import { MORPHO_AUTO_HINT, STEPS } from "../../pipeline/steps";
 import { StepDock } from "./StepDock";
 
 const reducida = vi.hoisted(() => ({ valor: false }));
@@ -28,6 +28,20 @@ describe("StepDock", () => {
     const b = screen.getByRole("button", { name: "Paso 7, Fabricación (opcional)" });
     expect(b).toHaveAttribute("title", "Fabricación (opcional)");
     expect(screen.getByRole("button", { name: `Paso 1, ${steps[0].label}` })).toHaveAttribute("title", steps[0].label);
+  });
+  it("un paso completado después del actual lleva la marca de hecho", () => {
+    render(<StepDock steps={steps} activeIndex={0} missingFor={() => null} doneFor={(i) => i <= 2} onGo={() => {}} />);
+    expect(screen.getByRole("button", { name: /Paso 2,/ })).toHaveAttribute("data-estado", "hecho");
+    expect(screen.getByRole("button", { name: /Paso 3,/ })).toHaveAttribute("data-estado", "hecho");
+    expect(screen.getByRole("button", { name: /Paso 4,/ })).toHaveAttribute("data-estado", "pendiente");
+  });
+  it("el aviso va en el tooltip y en el nombre accesible, y pulsar sigue navegando", () => {
+    const onGo = vi.fn();
+    render(<StepDock steps={steps} activeIndex={2} missingFor={() => null} avisoFor={(i) => (i === 3 ? MORPHO_AUTO_HINT : null)} onGo={onGo} />);
+    const b = screen.getByRole("button", { name: `Paso 4, Morfometría. ${MORPHO_AUTO_HINT}` });
+    expect(b).toHaveAttribute("title", `Morfometría — ${MORPHO_AUTO_HINT}`);
+    fireEvent.click(b);
+    expect(onGo).toHaveBeenCalledWith(3);
   });
   it("el activo lleva aria-current=step", () => {
     render(<StepDock steps={steps} activeIndex={2} missingFor={() => null} onGo={() => {}} />);

@@ -292,6 +292,22 @@ describe("Registro de la sesión", () => {
   });
 });
 
+describe("dock: hechos por resultado y aviso del paso 4", () => {
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin persistencia */ }
+  });
+  it("con serie, segmentación y un candidato, el dock marca hechos 2 y 3 desde el paso 1 y el 4 avisa", () => {
+    estado.series = {};
+    estado.segmentation = {};
+    estado.candidates = [{ id: "cand-001", rank: 1 }];
+    montar();
+    expect(screen.getByRole("button", { name: /^Paso 2,/ })).toHaveAttribute("data-estado", "hecho");
+    expect(screen.getByRole("button", { name: /^Paso 3,/ })).toHaveAttribute("data-estado", "hecho");
+    expect(screen.getByRole("button", { name: /^Paso 4, Morfometría. Al abrirlo calcula/ })).toBeInTheDocument();
+  });
+});
+
 describe("Mandos del pipeline en la paleta", () => {
   beforeEach(() => {
     for (const k of Object.keys(estado)) delete estado[k];

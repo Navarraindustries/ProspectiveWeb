@@ -14,6 +14,10 @@ interface Props {
   activeIndex: number;
   /** Motivo por el que un paso está bloqueado, o null si se puede abrir. */
   missingFor: (i: number) => string | null;
+  /** Si el paso tiene resultado (aunque vaya después del actual). */
+  doneFor?: (i: number) => boolean;
+  /** Aviso de lo que hará abrir el paso (tooltip y nombre accesible). */
+  avisoFor?: (i: number) => string | null;
   onGo: (i: number) => void;
   /** Modo estrecho: botones de 36 px solo con número y sin ampliación. */
   compacto?: boolean;
@@ -26,7 +30,7 @@ interface Props {
 const ALCANCE = 120; // px de distancia horizontal a partir de la cual no hay ampliación
 const AMPLIACION_MAX = 0.25;
 
-export function StepDock({ steps, activeIndex, missingFor, onGo, compacto = false, abajo = 20, zIndex = 3 }: Props) {
+export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, onGo, compacto = false, abajo = 20, zIndex = 3 }: Props) {
   const reducido = useReducedMotion();
   const ampliar = !reducido && !compacto;
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -70,7 +74,9 @@ export function StepDock({ steps, activeIndex, missingFor, onGo, compacto = fals
         // Nunca se bloquea el paso donde está el usuario: una sesión reanudada
         // con la reproducción vacía quedaría atrapada.
         const locked = !active && !!missing;
-        const done = !missing && i < consecutivos;
+        const done = !active && !locked && (doneFor?.(i) === true || i < consecutivos);
+        const aviso = locked ? null : (avisoFor?.(i) ?? null);
+        const nombre = `${s.label}${s.optional ? " (opcional)" : ""}`;
         const estado = active ? "activo" : locked ? "bloqueado" : done ? "hecho" : "pendiente";
         const escala = ampliar ? Math.round((escalas[i] ?? 1) * 1000) / 1000 : 1;
         const lado = active && !compacto ? 60 : base;
@@ -96,8 +102,8 @@ export function StepDock({ steps, activeIndex, missingFor, onGo, compacto = fals
               data-escala={escala}
               aria-current={active ? "step" : undefined}
               aria-disabled={locked ? "true" : undefined}
-              aria-label={locked ? `Paso ${i + 1}, ${s.label}${s.optional ? " (opcional)" : ""} — ${missing}` : `Paso ${i + 1}, ${s.label}${s.optional ? " (opcional)" : ""}`}
-              title={locked ? (missing ?? s.label) : `${s.label}${s.optional ? " (opcional)" : ""}`}
+              aria-label={locked ? `Paso ${i + 1}, ${nombre} — ${missing}` : `Paso ${i + 1}, ${nombre}${aviso ? `. ${aviso}` : ""}`}
+              title={locked ? (missing ?? s.label) : aviso ? `${nombre} — ${aviso}` : nombre}
               onClick={() => !locked && onGo(i)}
               animate={{ scale: escala }}
               transition={{ duration: 0.12, ease: "easeOut" }}

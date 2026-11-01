@@ -11,83 +11,18 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "../components/Button";
 import { FranjaCasos } from "../components/landing/FranjaCasos";
 import { HeroCortes } from "../components/landing/HeroCortes";
-import { ListaConReglas } from "../components/landing/ListaConReglas";
 import { NavPildora } from "../components/landing/NavPildora";
-import { Revelar, Seccion } from "../components/landing/Seccion";
+import { Revelar } from "../components/landing/Seccion";
 import { ComoFunciona } from "../components/landing/SeccionComoFunciona";
+import { Dispositivos } from "../components/landing/SeccionDispositivos";
 import { Indices } from "../components/landing/SeccionIndices";
 import { Funcionalidades } from "../components/landing/SeccionFuncionalidades";
+import { Proximamente } from "../components/landing/SeccionProximamente";
 import { QueEs } from "../components/landing/SeccionQueEs";
 import { Logo } from "../components/shell/Logo";
 import { useTramo } from "../hooks/useEstrecho";
 import { CONTACTO_ADMIN } from "../lib/contacto";
 /* El lema único del producto vive en el titular de HeroCortes: una sola vez. */
-
-/* ── Dispositivos NAVARRO™ ──────────────────────────────────────────────── */
-const trazo = {
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2.5,
-  strokeLinecap: "round",
-} as const;
-
-const SERIES: { nombre: string; detalle?: string; dibujo: React.ReactNode }[] = [
-  { nombre: "T1 recta", dibujo: <path d="M12 58L58 12M18 64L64 18" /> },
-  { nombre: "T2 curva", dibujo: <path d="M10 60C14 30 40 14 62 14M18 64C22 38 44 24 64 22" /> },
-  { nombre: "T3 angulada", detalle: "15–90°", dibujo: <path d="M10 62L36 34L62 34M18 66L40 44L64 44" /> },
-  {
-    nombre: "T4 fenestrada",
-    detalle: "3 · 5 · 7 mm",
-    dibujo: (
-      <>
-        <path d="M12 58L58 12M18 64L64 18" />
-        <circle cx="38" cy="38" r="6" />
-      </>
-    ),
-  },
-];
-
-function Dispositivos() {
-  return (
-    <Seccion id="dispositivos" rotulo="Dispositivos NAVARRO™" titulo="Cuatro series, fabricadas bajo pedido">
-      <p className="sec__texto sec__texto--ancho">
-        Se fabrican en taller a partir del pedido. Prospective elige la serie y ajusta la mordaza al
-        cuello medido.
-      </p>
-      <div className="series">
-        {SERIES.map((s) => (
-          <div key={s.nombre} className="series__ficha" data-glass>
-            <svg width="70" height="70" viewBox="0 0 70 70" aria-hidden="true" {...trazo}>
-              {s.dibujo}
-            </svg>
-            <div className="series__nombre">{s.nombre}</div>
-            {s.detalle && <div className="series__detalle">{s.detalle}</div>}
-          </div>
-        ))}
-      </div>
-    </Seccion>
-  );
-}
-
-/* ── Próximamente ───────────────────────────────────────────────────────── */
-function Proximamente() {
-  const items = [
-    ["SkullCloud", "Almacenamiento y colaboración de casos en la nube entre centros."],
-    ["AR / VR", "Exploración inmersiva de la anatomía vascular y el plan quirúrgico."],
-    ["Analítica", "Estadísticas agregadas de casos, dispositivos y resultados."],
-  ];
-  return (
-    <Seccion id="proximamente" rotulo="Próximamente" titulo="Lo que viene">
-      <ListaConReglas
-        items={items.map(([titulo, detalle]) => ({
-          titulo,
-          detalle,
-          cifra: <span className="stitch-label">Próximamente</span>,
-        }))}
-      />
-    </Seccion>
-  );
-}
 
 /* ── Contacto y pie ─────────────────────────────────────────────────────── */
 function Contacto({ onEntrar, onCrearCuenta }: { onEntrar: () => void; onCrearCuenta: () => void }) {

@@ -508,49 +508,6 @@
   color: var(--muted-foreground);
 }
 
-/* Lista con reglas */
-.landing-stitch .lista-reglas {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.landing-stitch .lista-reglas--dos {
-  columns: 2;
-  column-gap: 48px;
-}
-.landing-stitch .lista-reglas__fila {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 16px 0;
-  border-top: 1px solid var(--border);
-  break-inside: avoid;
-}
-.landing-stitch .lista-reglas__fila:last-child {
-  border-bottom: 1px solid var(--border);
-}
-.landing-stitch .lista-reglas--dos .lista-reglas__fila:nth-last-child(2) {
-  border-bottom: 1px solid var(--border);
-}
-.landing-stitch .lista-reglas__titulo {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--foreground);
-}
-.landing-stitch .lista-reglas__detalle {
-  margin-top: 4px;
-  font-size: 14px;
-  color: var(--muted-foreground);
-}
-.landing-stitch .lista-reglas__cifra {
-  flex-shrink: 0;
-  font-family: var(--font-mono);
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--foreground);
-}
-
 /* «Cómo funciona»: riel de pasos con la línea que se enciende al avanzar */
 .landing-stitch .riel {
   list-style: none;
@@ -663,23 +620,32 @@
   font-size: 14px;
 }
 
-/* Las cuatro series NAVARRO */
+/* Las cuatro series NAVARRO: ficha de cristal con el render del clip */
 .landing-stitch .series {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.landing-stitch .series__item {
+  display: flex;
 }
 .landing-stitch .series__ficha {
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
   padding: 22px 18px;
-  border-radius: var(--radius-card-lg);
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-highlight);
   color: var(--foreground);
+}
+.landing-stitch .series__ficha img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 220px;
 }
 .landing-stitch .series__nombre {
   margin-top: 6px;
@@ -689,6 +655,58 @@
 .landing-stitch .series__detalle {
   font-family: var(--font-mono);
   font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+/* Próximamente: tarjetas de cristal con insignia */
+.landing-stitch .proximo {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.landing-stitch .proximo__tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 22px 20px;
+  color: var(--foreground);
+}
+.landing-stitch .proximo__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.landing-stitch .proximo__icono {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  color: var(--primary);
+}
+.landing-stitch .proximo__insignia {
+  padding: 4px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  color: var(--muted-foreground);
+}
+.landing-stitch .proximo__titulo {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.landing-stitch .proximo__texto {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
   color: var(--muted-foreground);
 }
 
@@ -814,22 +832,15 @@
 .landing-stitch[data-tramo="movil"] .sec__titulo {
   font-size: 30px;
 }
-.landing-stitch[data-tramo="movil"] .sec__dos,
-.landing-stitch[data-tramo="movil"] .series {
+.landing-stitch[data-tramo="movil"] .sec__dos {
   grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
-.landing-stitch[data-tramo="movil"] .series {
+.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .series {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.landing-stitch[data-tramo="movil"] .lista-reglas--dos {
-  columns: 1;
-}
-.landing-stitch[data-tramo="movil"] .lista-reglas--dos .lista-reglas__fila:nth-last-child(2) {
-  border-bottom: 0;
-}
-.landing-stitch[data-tramo="movil"] .lista-reglas__fila {
-  flex-wrap: wrap;
+.landing-stitch[data-tramo="movil"] .proximo {
+  grid-template-columns: minmax(0, 1fr);
 }
 .landing-stitch[data-tramo="movil"] .franja-casos {
   height: 520px;

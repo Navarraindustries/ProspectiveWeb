@@ -45,9 +45,10 @@ describe("lo que la portada promete", () => {
   it("nombra la familia que sí se ofrece, y sus cuatro series", () => {
     show();
     expect(screen.getByText(/NAVARRO/)).toBeInTheDocument();
-    for (const serie of [/T1 recta/, /T2 curva/, /T3 angulada/, /T4 fenestrada/]) {
+    for (const serie of [/T1 recto/, /T2 curvo/, /T3 angulado/, /T4 fenestrado/]) {
       expect(screen.getByText(serie)).toBeInTheDocument();
     }
+    expect(text()).not.toMatch(/T1 recta|T2 curva|T3 angulada|T4 fenestrada/);
   });
 
   it("no se calla el paso de fabricación entre lo que ofrece", () => {

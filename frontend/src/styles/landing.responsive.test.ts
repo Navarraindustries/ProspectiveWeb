@@ -77,3 +77,14 @@ describe('landing.css, «Índices»', () => {
     expect(tieneDeclaracion(css, '.landing-stitch .indices__fila', 'min-height: 44px')).toBe(true);
   });
 });
+
+describe("landing.css, series y «Próximamente»", () => {
+  it("series: 4 columnas, 2 hasta 1024", () => {
+    expect(tieneDeclaracion(css, ".landing-stitch .series", "grid-template-columns: repeat(4, minmax(0, 1fr))")).toBe(true);
+    expect(tieneDeclaracion(css, '.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .series', "grid-template-columns: repeat(2, minmax(0, 1fr))")).toBe(true);
+  });
+  it("próximamente: 3 columnas, 1 en móvil", () => {
+    expect(tieneDeclaracion(css, ".landing-stitch .proximo", "grid-template-columns: repeat(3, minmax(0, 1fr))")).toBe(true);
+    expect(tieneDeclaracion(css, '.landing-stitch[data-tramo="movil"] .proximo', "grid-template-columns: minmax(0, 1fr)")).toBe(true);
+  });
+});

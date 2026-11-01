@@ -10,8 +10,9 @@
    confundía con la medida automática que acababa de fallar. Puro, sin vtk,
    para probarlo. */
 import type { AneurysmCandidate, MorphometryResult } from "../api/types";
+import { cifra } from "../lib/numero";
 
-const es1 = (x: number) => x.toFixed(1).replace(".", ",");
+const es1 = (x: number) => cifra(x, 1);
 
 type Cand = Pick<AneurysmCandidate, "id" | "max_diameter_mm" | "patch_kind">;
 type Morph = Pick<MorphometryResult, "max_diameter_mm" | "neck_source" | "candidate_id">;

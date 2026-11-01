@@ -16,6 +16,7 @@ import { DiameterSource } from "./DiameterSource";
 import { ELAPSS_CUTS } from "./diameterCut";
 import { InheritedSite } from "./InheritedSite";
 import { isSiteKnown, siteFor, UI_HIGH } from "./thresholds";
+import { cifra } from "../../lib/numero";
 
 const POPULATIONS: { value: ElapssPopulation; label: string }[] = [
   { value: "other", label: "Norteamérica, China o Europa (salvo Finlandia)" },
@@ -115,8 +116,7 @@ export function ElapssCalculator({
             (UI_HIGH); la casilla no se marca sola, la forma la decide quien mira. */}
         {measuredUi != null && measuredUi >= UI_HIGH && !irregular && (
           <div role="alert" style={{ fontSize: 11, color: "var(--warning)", lineHeight: 1.5, marginTop: -6 }}>
-            La forma elegida (regular) contradice el UI medido ({measuredUi.toLocaleString("es-ES", {
-              minimumFractionDigits: 2, maximumFractionDigits: 2 })}): revisa el contorno en el visor
+            La forma elegida (regular) contradice el UI medido ({cifra(measuredUi, 2)}): revisa el contorno en el visor
           </div>
         )}
       </div>
@@ -140,8 +140,8 @@ export function ElapssCalculator({
               <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>ELAPSS · {result.score_band}</div>
             </div>
             <div style={{ flex: 1, fontSize: 13, lineHeight: 1.6 }}>
-              <div><b>{result.growth_3yr_pct.toFixed(1)} %</b> de crecimiento a 3 años</div>
-              <div><b>{result.growth_5yr_pct.toFixed(1)} %</b> a 5 años</div>
+              <div><b>{cifra(result.growth_3yr_pct, 1)} %</b> de crecimiento a 3 años</div>
+              <div><b>{cifra(result.growth_5yr_pct, 1)} %</b> a 5 años</div>
             </div>
           </div>
 

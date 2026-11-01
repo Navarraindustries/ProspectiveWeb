@@ -24,7 +24,7 @@ describe("ClipFieldCard", () => {
     expect(screen.getByText("Cuello cubierto")).toBeInTheDocument();
     expect(screen.getByText("Cuello residual")).toBeInTheDocument();
     expect(screen.getByText("Cuello no alcanzado")).toBeInTheDocument();
-    expect(screen.getByText(/92\.0 %/)).toBeInTheDocument();
+    expect(screen.getByText(/92,0 %/)).toBeInTheDocument();
     expect(screen.getByText("Fuerza de cierre")).toBeInTheDocument();
     expect(screen.getByText(MISMA_FUERZA)).toBeInTheDocument();
     // Sin caracterizar, un veredicto favorable dice «Provisional», como el «!»
@@ -33,7 +33,7 @@ describe("ClipFieldCard", () => {
     expect(screen.queryByText("Óptima")).toBeNull();
     expect(screen.getByText(/óptima 80–120 g · aceptable 70–150 g/)).toBeInTheDocument();
     expect(screen.getByText("Área pinzada estimada")).toBeInTheDocument();
-    expect(screen.getByText("8.4 mm²")).toBeInTheDocument();
+    expect(screen.getByText("8,4 mm²")).toBeInTheDocument();
     expect(screen.queryByText(/g\/mm²/)).toBeNull();
     expect(screen.getByText("Longitud de hoja")).toBeInTheDocument();
     expect(screen.getByText(/banda provisional/)).toBeInTheDocument();
@@ -64,7 +64,7 @@ describe("ClipFieldCard", () => {
       pressure_g_mm2: 0, window_g_mm2: [0, 0, 0, 0], neck_evaluated: false };
     render(<ClipFieldCard summary={z} show onToggle={vi.fn()} />);
     expect(screen.getByText("Sin contacto")).toBeInTheDocument();
-    expect(screen.queryByText(/0\.0 %/)).toBeNull();
+    expect(screen.queryByText(/0,0 %/)).toBeNull();
     expect(screen.getAllByText("—").length).toBe(4);
     expect(screen.queryByText(/g\/mm²/)).toBeNull();
   });

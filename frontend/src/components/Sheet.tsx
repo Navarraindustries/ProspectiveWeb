@@ -12,7 +12,7 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
-import { AnimatePresence, motion, scrimFade, sheetSlide, sheetTransition, useReducedMotion } from "../motion";
+import { AnimatePresence, motion, fundido, fundidoTransition, scrimFade, sheetSlide, sheetTransition, useReducedMotion } from "../motion";
 import { glass } from "../styles/glass";
 import { Icon } from "./Icon";
 
@@ -49,7 +49,7 @@ export function Sheet({
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
-  const transition = reduced ? { duration: 0 } : sheetTransition;
+  const transition = reduced ? fundidoTransition : sheetTransition;
 
   // Escape closed the user menu but not this, so the only ways out were the ✕
   // and the scrim — and keyboard focus stayed behind on the page underneath.
@@ -96,7 +96,7 @@ export function Sheet({
           />
           <motion.div
             ref={panelRef}
-            variants={sheetSlide}
+            variants={reduced ? fundido : sheetSlide}
             initial="initial"
             animate="animate"
             exit="exit"

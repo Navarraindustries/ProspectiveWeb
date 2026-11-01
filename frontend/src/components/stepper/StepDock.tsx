@@ -79,6 +79,7 @@ export function StepDock({ steps, activeIndex, missingFor, onGo, compacto = fals
             {active && !compacto && (
               <span
                 aria-hidden
+                data-glass
                 style={{
                   position: "absolute", bottom: "calc(100% + 14px)", left: "50%", transform: "translateX(-50%)",
                   whiteSpace: "nowrap", padding: "4px 10px", borderRadius: "var(--radius-full)",

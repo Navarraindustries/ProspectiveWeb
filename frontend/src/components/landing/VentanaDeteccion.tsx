@@ -10,11 +10,12 @@
 import { glass } from "../../styles/glass";
 import { DETECCION_036 } from "./heroFrames";
 import type { CanalDeteccion } from "./heroFrames";
+import { cifra } from "../../lib/numero";
 
 /* Centro del saco rojo en el render, en % de su anchura y altura. */
 const LESION_EN_RENDER = { x: 50, y: 50 };
 
-const mm = (n: number): string => `≈${n.toFixed(1).replace(".", ",")} mm`;
+const mm = (n: number): string => `≈${cifra(n, 1)} mm`;
 
 /** Baliza de la lesión sobre el render: el padre debe tener la proporción del render. */
 export function BalizasDeteccion() {

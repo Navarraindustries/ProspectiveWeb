@@ -18,15 +18,16 @@ import { useVolumeMeta } from "../../vtk/useVolumeMeta";
 import { indexAtArc, nearestIndex, tangentAt } from "../../vtk/centerlineWalk";
 import { useCenterlineTrack } from "../../vtk/useCenterlineTrack";
 import { planeFromNormal } from "../../vtk/freePlane";
+import { cifra, coordenadas } from "../../lib/numero";
 
 const RESOLUTIONS = [
-  { value: "1.0", label: "1.0 mm · rápida" },
-  { value: "0.8", label: "0.8 mm · recomendada" },
-  { value: "0.6", label: "0.6 mm · fina (lenta)" },
+  { value: "1.0", label: "1,0 mm · rápida" },
+  { value: "0.8", label: "0,8 mm · recomendada" },
+  { value: "0.6", label: "0,6 mm · fina (lenta)" },
 ];
 
 function fmt(p: [number, number, number] | null): string {
-  return p ? `(${p[0].toFixed(1)}, ${p[1].toFixed(1)}, ${p[2].toFixed(1)})` : "—";
+  return coordenadas(p);
 }
 
 function tortuosityBadge(t: number): [string, "success" | "warning" | "destructive"] {
@@ -260,20 +261,20 @@ export function CenterlinePanel() {
       {result && (
         <div style={{ marginTop: 16 }}>
           <SectionLabel>Resultados</SectionLabel>
-          <Metric label="Longitud de arco" value={result.arc_length_mm.toFixed(1)} unit=" mm" />
-          <Metric label="Longitud recta" value={result.chord_length_mm.toFixed(1)} unit=" mm" />
+          <Metric label="Longitud de arco" value={cifra(result.arc_length_mm, 1)} unit=" mm" />
+          <Metric label="Longitud recta" value={cifra(result.chord_length_mm, 1)} unit=" mm" />
           {/* Fusión nº 22: «Índice de tortuosidad» era la misma cifra que
               «Tortuosidad» escrita como porcentaje (1,018 y 1,8 %). Queda una
               fila, y el porcentaje en su tooltip. */}
-          <div title={`Longitud de arco ÷ longitud recta (1 = vaso recto): el eje es un ${result.tortuosity_index_pct.toFixed(1).replace(".", ",")} % más largo que la recta.`}>
-            <Metric label="Tortuosidad" value={result.tortuosity.toFixed(3)} badge={tortuosityBadge(result.tortuosity)} />
+          <div title={`Longitud de arco ÷ longitud recta (1 = vaso recto): el eje es un ${cifra(result.tortuosity_index_pct, 1)} % más largo que la recta.`}>
+            <Metric label="Tortuosidad" value={cifra(result.tortuosity, 3)} badge={tortuosityBadge(result.tortuosity)} />
           </div>
           {/* F1-168: esta tabla y la de secciones decían las dos «Ø medio /
               mínimo / máximo» con cifras distintas. Aquí es el Ø de la esfera
               inscrita a lo largo del eje; abajo, el del círculo de igual área. */}
-          <Metric label="Ø inscrito medio" value={result.mean_diameter_mm.toFixed(2)} unit=" mm" />
-          <Metric label="Ø inscrito mínimo" value={result.min_diameter_mm.toFixed(2)} unit=" mm" />
-          <Metric label="Ø inscrito máximo" value={result.max_diameter_mm.toFixed(2)} unit=" mm" />
+          <Metric label="Ø inscrito medio" value={cifra(result.mean_diameter_mm, 2)} unit=" mm" />
+          <Metric label="Ø inscrito mínimo" value={cifra(result.min_diameter_mm, 2)} unit=" mm" />
+          <Metric label="Ø inscrito máximo" value={cifra(result.max_diameter_mm, 2)} unit=" mm" />
           {result.warning && (
             <div style={{ marginTop: 10, fontSize: 12, color: "var(--warning)", display: "flex", gap: 8 }}>
               <Icon name="STATUS_WARN" color="var(--warning)" size={16} />
@@ -304,10 +305,10 @@ export function CenterlinePanel() {
 
             {xs && (
               <div style={{ marginTop: 12 }}>
-                <Metric label="Ø por área de sección medio" value={xs.mean_diameter_mm.toFixed(2)} unit=" mm" />
-                <Metric label="Ø por área de sección mediana" value={xs.median_diameter_mm.toFixed(2)} unit=" mm" />
-                <Metric label="Ø por área de sección mínimo" value={xs.min_diameter_mm.toFixed(2)} unit=" mm" />
-                <Metric label="Ø por área de sección máximo" value={xs.max_diameter_mm.toFixed(2)} unit=" mm" />
+                <Metric label="Ø por área de sección medio" value={cifra(xs.mean_diameter_mm, 2)} unit=" mm" />
+                <Metric label="Ø por área de sección mediana" value={cifra(xs.median_diameter_mm, 2)} unit=" mm" />
+                <Metric label="Ø por área de sección mínimo" value={cifra(xs.min_diameter_mm, 2)} unit=" mm" />
+                <Metric label="Ø por área de sección máximo" value={cifra(xs.max_diameter_mm, 2)} unit=" mm" />
                 <div style={{ display: "flex", alignItems: "center", padding: "9px 0" }}>
                   <span style={{ fontSize: 13, color: "var(--muted-foreground)", flex: 1 }}>Estenosis</span>
                   {/* F1-169: con un perfil de saltos de rama el porcentaje no es

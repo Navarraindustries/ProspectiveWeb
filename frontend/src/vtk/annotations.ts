@@ -3,6 +3,7 @@
    backend/services/annotations.py: el servidor las recalcula para el informe y
    no puede depender de lo que diga el cliente. */
 import type { AnnotationKind, AnnotationPlane, VolumeMeta } from "../api/types";
+import { cifra } from "../lib/numero";
 import type { Plane, Vec3 } from "./geometry";
 import { PLANE_AXIS } from "./sliceCoords";
 
@@ -70,14 +71,12 @@ export function measure(a: Pick<Annotation, "kind" | "points">): Measure {
   return null;
 }
 
-// Coma decimal a mano: no depende de los datos de idioma del motor (Node sin ICU completo).
-const es = (x: number, digits: number) => x.toFixed(digits).replace(".", ",");
-
+// Coma decimal con lib/numero (toFixed, no Intl: no depende de los datos de idioma del motor).
 export function formatMeasure(m: Measure): string {
   if (!m) return "";
-  if (m.kind === "distancia") return `${es(m.mm, 1)} mm`;
-  if (m.kind === "angulo") return `${es(m.deg, 0)}°`;
-  return `${es(m.mm2, 0)} mm²`;
+  if (m.kind === "distancia") return `${cifra(m.mm, 1)} mm`;
+  if (m.kind === "angulo") return `${cifra(m.deg, 0)}°`;
+  return `${cifra(m.mm2, 0)} mm²`;
 }
 
 /** Máximo + 1 y no el primer hueco: borrar R2 no debe hacer que la próxima regla
@@ -126,9 +125,9 @@ export function toCsv(list: Annotation[]): string {
   const rows = list.map((a) => {
     const m = measure(a);
     let valor = "", unidad = "";
-    if (m?.kind === "distancia") { valor = es(m.mm, 1); unidad = "mm"; }
-    else if (m?.kind === "angulo") { valor = es(m.deg, 0); unidad = "°"; }
-    else if (m?.kind === "area") { valor = es(m.mm2, 0); unidad = "mm²"; }
+    if (m?.kind === "distancia") { valor = cifra(m.mm, 1); unidad = "mm"; }
+    else if (m?.kind === "angulo") { valor = cifra(m.deg, 0); unidad = "°"; }
+    else if (m?.kind === "area") { valor = cifra(m.mm2, 0); unidad = "mm²"; }
     // El índice interno cuenta desde 0, pero lo que la gente ve (HUD, panel) cuenta
     // desde 1: el CSV y el informe numeran igual que la pantalla.
     const corte = a.plane ? `${SLICE_TAG[a.plane.plane]} ${a.plane.index + 1}` : "3D";

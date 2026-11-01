@@ -18,6 +18,7 @@ import { STEPS } from "../../pipeline/steps";
 import { approachSummary } from "./approachSummary";
 import { captureFramed } from "../../vtk/captureRenderWindow";
 import { surgeonPrefill } from "../../lib/cirujano";
+import { cifra } from "../../lib/numero";
 
 /** F1-220: las palabras del informe para la decisión del equipo y la estrategia. */
 const TEAM_LABEL: Record<string, string> = {
@@ -264,7 +265,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
         <Metric label="Paciente" value={patient?.full_name ?? "—"} />
         {morphometry && (
           <>
-            <Metric label="Ø máximo" value={morphometry.max_diameter_mm.toFixed(1)} unit=" mm" />
+            <Metric label="Ø máximo" value={cifra(morphometry.max_diameter_mm, 1)} unit=" mm" />
             <Metric
               label="Riesgo (morfometría)"
               value=""

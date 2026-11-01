@@ -1,6 +1,7 @@
 /* Qué Ø toma la escala, dicho bajo «Tamaño (mm)» (F1-14, F1-15, F1-157). */
 
-import { crossedCut, mm } from "./diameterCut";
+import { crossedCut } from "./diameterCut";
+import { cifra } from "../../lib/numero";
 
 const NOTE = { fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: -4 } as const;
 export const CUT_WARN = {
@@ -28,14 +29,14 @@ export function DiameterSource({
   return (
     <>
       <div style={NOTE}>
-        {aMano ? `Tamaño escrito a mano (${sizeMm! > 0 ? `${mm(sizeMm!)} mm` : "vacío"}); el Ø máximo medido es ${mm(maxMm)} mm`
-               : `Se toma el Ø máximo medido ${mm(maxMm)} mm`}
-        {body != null && ` · Ø del cuerpo ${mm(body)} mm`}
+        {aMano ? `Tamaño escrito a mano (${sizeMm! > 0 ? `${cifra(sizeMm!)} mm` : "vacío"}); el Ø máximo medido es ${cifra(maxMm)} mm`
+               : `Se toma el Ø máximo medido ${cifra(maxMm)} mm`}
+        {body != null && ` · Ø del cuerpo ${cifra(body)} mm`}
         {provisional && " · provisional: el saco aislado incluye vaso padre"}
       </div>
       {tramo != null && body != null && (
         <div style={CUT_WARN}>
-          Con el Ø del cuerpo ({mm(body)} mm) en vez del máximo ({mm(maxMm)} mm) {score} cambia de
+          Con el Ø del cuerpo ({cifra(body)} mm) en vez del máximo ({cifra(maxMm)} mm) {score} cambia de
           tramo: cruza el corte de {tramo} mm.
         </div>
       )}

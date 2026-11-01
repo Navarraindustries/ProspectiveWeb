@@ -10,7 +10,8 @@ import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { MorphoRiskBadge } from "../morphometry/MorphoRiskBadge";
 import { MiniaturaEstudio } from "./ColumnaEstudios";
-import { etiquetaGuardada, milimetros } from "./ColumnaSesiones";
+import { etiquetaGuardada } from "./ColumnaSesiones";
+import { mm } from "../../lib/numero";
 import "./ficha.css";
 
 /** F1-69: qué hace «Reanudar» y que no es instantáneo (copia cientos de MB). */
@@ -39,7 +40,7 @@ export function VistaPrevia({
       <div className="fc-vista-datos">
         <span>{`Paso ${step + 1} · ${paso}`}</span>
         {sesion.max_diameter_mm != null && (
-          <span>{`Ø máximo ${milimetros(sesion.max_diameter_mm)}`}</span>
+          <span>{`Ø máximo ${mm(sesion.max_diameter_mm)}`}</span>
         )}
         <span className="fc-fila-meta fc-fila-mono">{`Guardada ${fechaHora(sesion.updated_at)}`}</span>
       </div>

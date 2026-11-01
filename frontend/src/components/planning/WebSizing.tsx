@@ -8,8 +8,7 @@ import { api } from "../../api/client";
 import type { WebSizingResult } from "../../api/types";
 import { Button } from "../Button";
 import { Card, ErrorNote, SectionLabel } from "../PanelHead";
-
-const mm = (v: number) => `${v.toFixed(1)} mm`;
+import { cifra, mm } from "../../lib/numero";
 
 /** F1-209: el rango aprobado con el que se decide la línea de indicación. Es
  *  el de backend/services/web_sizing.py (DOME_RANGE_MM, la regla de cuello
@@ -57,7 +56,7 @@ export function WebSizing({ sessionId }: { sessionId: string }) {
               <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>ANCHURA MEDIA</div>
               <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 700 }}>{mm(r.dims.width_mm)}</div>
               <div style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>
-                {r.dims.width_min_mm.toFixed(1)}–{r.dims.width_max_mm.toFixed(1)}
+                {cifra(r.dims.width_min_mm, 1)}–{cifra(r.dims.width_max_mm, 1)}
               </div>
               {/* El «Domo de 11.7 mm» de los avisos es esta anchura máxima, y
                   no coincide con el Ø máximo de Morfometría: se dice aquí. */}
@@ -72,7 +71,7 @@ export function WebSizing({ sessionId }: { sessionId: string }) {
             <div>
               <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>CUELLO</div>
               <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 700 }}>{mm(r.neck_mm)}</div>
-              <div style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>domo/cuello {r.dnr.toFixed(2)}</div>
+              <div style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>domo/cuello {cifra(r.dnr, 2)}</div>
             </div>
           </div>
           <div title={INDICACION_WEB} style={{ fontSize: 12, fontWeight: 600, color: r.within_indication ? "var(--success)" : "var(--warning)" }}>
@@ -91,11 +90,11 @@ export function WebSizing({ sessionId }: { sessionId: string }) {
               }}>
                 <b style={{ fontFamily: "var(--font-mono)", fontSize: 13 }}>{o.label}</b>
                 <span style={{ fontSize: 11.5, color: "var(--muted-foreground)", flex: 1 }}>
-                  {o.width_mm.toFixed(1)} × {o.height_mm.toFixed(1)} mm · +{o.added_mm.toFixed(1)} de anchura,
-                  altura buscada {o.target_height_mm.toFixed(1)}
+                  {cifra(o.width_mm, 1)} × {cifra(o.height_mm, 1)} mm · +{cifra(o.added_mm, 1)} de anchura,
+                  altura buscada {cifra(o.target_height_mm, 1)}
                 </span>
                 {o.dav != null && (
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5 }}>DAV {o.dav.toFixed(2)}</span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5 }}>DAV {cifra(o.dav, 2)}</span>
                 )}
                 {o.note && (
                   <div style={{ width: "100%", fontSize: 11, color: "var(--warning)" }}>{o.note}</div>

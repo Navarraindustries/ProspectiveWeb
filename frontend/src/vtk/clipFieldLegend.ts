@@ -1,5 +1,6 @@
 /* Leyenda del mapa de calor del clip: los mismos colores que pinta el servidor
    (services/clip_field.py), para que la barra diga lo que la malla enseña. */
+import { cifra } from "../lib/numero";
 import type { ClipFieldSummary, ClipForceVerdict } from "../api/types";
 import type { HudTextLine } from "./hud/HudReadout";
 import { forceWithBand } from "../components/planning/clipForce";
@@ -20,7 +21,7 @@ const VERDICT_LABEL: Record<ClipForceVerdict, string> = {
 /** Un porcentaje del cuello, o «—» si no hay cuello evaluado: 0/0/0 se leería
  *  como «nada cubierto», y lo que pasa es que el clip no está a su altura. */
 export function neckPct(s: ClipFieldSummary, v: number, digits = 0): string {
-  return s.neck_evaluated ? `${v.toFixed(digits)} %` : "—";
+  return s.neck_evaluated ? `${cifra(v, digits)} %` : "—";
 }
 
 /** La fuerza de cada clip en gramos («120 g + 120 g»); «—» si un clip no tiene ficha. */

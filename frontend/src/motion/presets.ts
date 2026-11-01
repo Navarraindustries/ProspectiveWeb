@@ -40,6 +40,15 @@ export const glide: Variants = {
 };
 export const glideTransition = { duration: DUR.panel, ease: EASE };
 
+// Con movimiento reducido solo queda la opacidad: se funde en lugar de saltar
+// (una duración 0 es un salto, no una versión sin movimiento).
+export const fundido: Variants = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+};
+export const fundidoTransition = { duration: DUR.estado, ease: EASE };
+
 // Lente: el elemento crece al pasar el cursor.
 export const lens = {
   whileHover: { scale: 1.06 },

@@ -1,3 +1,4 @@
+import { cifra } from "../lib/numero";
 import type { VolumeWindow } from "./volumePresets";
 
 /** Lectura de esquina del MIP. En la celda de la franja va en una sola
@@ -52,6 +53,7 @@ function cutLine(o: { mode: "acumulado" | "lamina"; reverse: boolean; index: num
 /** Una décima con coma y signo explícito; el signo se decide sobre el valor
  *  redondeado para no leer «−0,0». */
 function signedMm(v: number): string {
+  if (!Number.isFinite(v)) return "—";
   const r = Math.round(v * 10) / 10;
-  return `${r < 0 ? "−" : "+"}${Math.abs(r).toFixed(1).replace(".", ",")}`;
+  return `${r < 0 ? "−" : "+"}${cifra(Math.abs(r), 1)}`;
 }

@@ -20,6 +20,8 @@ import { openCommandPalette } from "../../lib/commands";
 export interface Crumb {
   label: string;
   onClick?: () => void;
+  /** Dato atenuado junto al rótulo (p. ej. la HC del paciente); solo lo pinta el quirófano. */
+  detail?: string;
 }
 
 export function TopBar({ brand = false, crumbs, subtitle, status, actions }: {

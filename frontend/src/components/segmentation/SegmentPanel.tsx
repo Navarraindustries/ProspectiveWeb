@@ -26,6 +26,7 @@ import { CONNECTION_LOST, useProgress } from "../../api/progress";
 import { usePlanning } from "../../store/planning";
 import { isHuModality } from "../../vtk/modality";
 import type { CeilingCompareResult } from "../../api/types";
+import { cifra } from "../../lib/numero";
 
 /* Fallback si aún no hay volumen para calcular la banda adaptativa. */
 export const SEG_LOWER_DEFAULT = 150;
@@ -432,7 +433,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             {comparacion.candidates.map((c, i) => (
               <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 11, padding: "3px 0" }}>
                 <span style={{ fontFamily: "var(--font-mono)", color: "var(--foreground)", minWidth: 52 }}>
-                  Ø {c.diameter_mm.toFixed(1)}
+                  Ø {cifra(c.diameter_mm, 1)}
                 </span>
                 <span style={{ color: c.rank_con_techo ? "var(--foreground)" : "var(--muted-foreground)" }}>
                   con techo {c.rank_con_techo ? `#${c.rank_con_techo}` : "—"}
@@ -596,7 +597,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           {segmentation.voxel_fraction !== null && (
             <Metric
               label="Fracción de vóxeles"
-              value={(segmentation.voxel_fraction * 100).toFixed(1)}
+              value={cifra(segmentation.voxel_fraction * 100, 1)}
               unit=" %"
               badge={segmentation.voxel_fraction > 0.15 ? ["Permisivo", "warning"] : ["OK", "success"]}
             />
@@ -627,7 +628,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           {(!tubular || hasQuality) && (
           <Metric
             label="Volumen conservado"
-            value={(segmentation.kept_fraction * 100).toFixed(1)}
+            value={cifra(segmentation.kept_fraction * 100, 1)}
             unit=" %"
             badge={
               tubular
@@ -662,7 +663,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           {segmentation.fragments_removed > 0 && (
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
               Se descartaron {segmentation.fragments_removed.toLocaleString("es")} fragmentos
-              sueltos; el mayor medía {segmentation.largest_removed_mm3.toFixed(1)} mm³.
+              sueltos; el mayor medía {cifra(segmentation.largest_removed_mm3, 1)} mm³.
               {segmentation.largest_removed_mm3 >= 20 && (
                 <> Un fragmento de ese tamaño puede ser un segmento de vaso desconectado:
                 baja la limpieza si echas en falta alguna rama.</>

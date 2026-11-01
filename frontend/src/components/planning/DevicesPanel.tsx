@@ -49,6 +49,7 @@ import { TILT_MAX_DEG } from "../../vtk/clipPose";
 import { angleReferenceLabel } from "../../vtk/approachView";
 import { usePlanning, type PlacedClip } from "../../store/planning";
 import { neckPlacement, toPlacement, toStoredClip, poseKey, isStale, fieldColoursOnScreen } from "./placedClips";
+import { cifra } from "../../lib/numero";
 
 // Se mudó a placedClips.ts; se reexporta para quien la importaba de aquí.
 export { neckPlacement };
@@ -739,7 +740,7 @@ function ClipsTab() {
                   mapa de calor («Cuello cubierto»). Con el mismo nombre se leían
                   como la misma cifra y se contradecían. */}
               <div title="Anchura de las hojas en el plano del cuello frente al diámetro del cuello. No mide qué parte del cuello queda cerrada.">
-                <Metric wrapLabel label="Extensión de las hojas sobre el cuello" value={plan.neck_coverage_pct.toFixed(1)} unit=" %" badge={plan.neck_coverage_pct >= 95 ? ["Alcanza", "success"] : ["No alcanza", "warning"]} />
+                <Metric wrapLabel label="Extensión de las hojas sobre el cuello" value={cifra(plan.neck_coverage_pct, 1)} unit=" %" badge={plan.neck_coverage_pct >= 95 ? ["Alcanza", "success"] : ["No alcanza", "warning"]} />
               </div>
               {/* «Colisión clip–vaso» a secas se leía como un veredicto sobre la
                   colocación, y era un artefacto: se comprobaba contra la malla
@@ -770,10 +771,10 @@ function ClipsTab() {
                   {plan.branches_under_clip.map((b) => (
                     <div key={b.index} style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: 10, alignItems: "baseline", marginTop: 4 }}>
                       <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--warning)", textAlign: "center" }}>
-                        {b.distance_to_clip_mm.toFixed(1)} mm
+                        {cifra(b.distance_to_clip_mm, 1)} mm
                       </span>
                       <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-                        rama de Ø {b.calibre_mm.toFixed(1)} mm
+                        rama de Ø {cifra(b.calibre_mm, 1)} mm
                       </span>
                     </div>
                   ))}
@@ -1016,11 +1017,11 @@ function CoilsTab() {
           <div style={{ marginTop: 8 }}>
             <Metric
               label="Cuello"
-              value={cuello > 0 ? cuello.toFixed(1) : "sin medir"}
+              value={cuello > 0 ? cifra(cuello, 1) : "sin medir"}
               unit={cuello > 0 ? " mm" : ""}
               badge={construct.wide_neck ? ["cuello ancho: probable adyuvante", "warning"] : undefined}
             />
-            {construct.dome_mm > 0 && <Metric label="Domo" value={construct.dome_mm.toFixed(1)} unit=" mm" />}
+            {construct.dome_mm > 0 && <Metric label="Domo" value={cifra(construct.dome_mm, 1)} unit=" mm" />}
             {construct.volume_mm3 > 0 && <Metric label="Volumen del saco" value={construct.volume_mm3.toFixed(0)} unit=" mm³" />}
           </div>
         )}
@@ -1068,7 +1069,7 @@ function CoilsTab() {
                 </div>
               )}
               {f.rationale && f.coil_id === f.sugerido && (
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{f.rationale}</div>
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>{f.rationale}</div>
               )}
             </div>
           );
@@ -1101,7 +1102,7 @@ function CoilsTab() {
           {busy ? "Colocando…" : "Colocar el montaje"}
         </Button>
         {construct?.note && (
-          <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-muted)" }}>{construct.note}</div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted-foreground)" }}>{construct.note}</div>
         )}
       </Card>
 
@@ -1109,12 +1110,12 @@ function CoilsTab() {
         <Card style={{ marginTop: 14 }}>
           <Metric
             label="Densidad de empaque"
-            value={(plan.total_packing_density * 100).toFixed(1)}
+            value={cifra(plan.total_packing_density * 100, 1)}
             unit=" %"
             badge={plan.meets_minimum ? ["Sobre el mínimo", "success"] : ["Insuficiente", "warning"]}
           />
           {plan.durability && (
-            <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>{plan.durability}</div>
+            <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)" }}>{plan.durability}</div>
           )}
           {plan.warning && (
             <div style={{ marginTop: 8, fontSize: 12, color: "var(--warning)" }}>{plan.warning}</div>
@@ -1234,7 +1235,7 @@ function StentsTab() {
           />
           {vaso > 0 && !tocado.current && (
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
-              Parte de la arteria portadora medida en el cuello ({vaso.toFixed(2)} mm).
+              Parte de la arteria portadora medida en el cuello ({cifra(vaso, 2)} mm).
             </div>
           )}
           <div style={{ height: 14 }} />
@@ -1251,11 +1252,11 @@ function StentsTab() {
         <Card style={{ marginTop: 14 }}>
           <Metric
             label="Cuello cruzado"
-            value={plan.coverage_pct.toFixed(1)}
+            value={cifra(plan.coverage_pct, 1)}
             unit=" %"
             badge={plan.coverage_pct >= 99.9 ? ["Lo cruza", "success"] : ["No lo cruza", "warning"]}
           />
-          <Metric label="Del cuello medido" value={plan.neck_diameter_covered_mm.toFixed(1)} unit=" mm" />
+          <Metric label="Del cuello medido" value={cifra(plan.neck_diameter_covered_mm, 1)} unit=" mm" />
           <Metric label="Longitud necesaria" value={plan.required_length_mm.toFixed(0)} unit=" mm" />
           {plan.parent_artery_mm > 0 && (
             // F1-208: tres calibres en el paso y ninguno decía dónde se medía.
@@ -1263,7 +1264,7 @@ function StentsTab() {
             <Metric
               label="Arteria portadora (en el cuello)"
               wrapLabel
-              value={plan.parent_artery_mm.toFixed(2)}
+              value={cifra(plan.parent_artery_mm, 2)}
               unit=" mm"
               badge={
                 plan.sizing === "oversized" ? ["Sobredimensionado", "warning"]
@@ -1292,7 +1293,7 @@ function StentsTab() {
             <div style={{ marginTop: 8, fontSize: 12, color: "var(--warning)" }}>{plan.warning}</div>
           )}
           {plan.notes.map((n, i) => (
-            <div key={i} style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>{n}</div>
+            <div key={i} style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)" }}>{n}</div>
           ))}
         </Card>
       )}
@@ -1383,7 +1384,7 @@ function ClStentTab() {
       )}
       <SectionLabel>Segmento de la línea central</SectionLabel>
       <div style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "6px 0 12px" }}>
-        Arco total: <b style={{ color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{total.toFixed(1)} mm</b>.
+        Arco total: <b style={{ color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{cifra(total, 1)} mm</b>.
         Ajusta el tramo a cubrir.
       </div>
       <Slider label="Inicio del tramo" min={0} max={Math.round(total)} value={startArc} onChange={(v) => setStartArc(Math.min(v, endArc - 1))} unit=" mm" />
@@ -1399,14 +1400,14 @@ function ClStentTab() {
 
       {plan && (
         <Card style={{ marginTop: 14 }}>
-          <Metric label="Longitud desplegada" value={plan.length_mm.toFixed(1)} unit=" mm" />
-          <Metric label="Ø stent" value={plan.nominal_diameter_mm.toFixed(2)} unit=" mm" />
+          <Metric label="Longitud desplegada" value={cifra(plan.length_mm, 1)} unit=" mm" />
+          <Metric label="Ø stent" value={cifra(plan.nominal_diameter_mm, 2)} unit=" mm" />
           {/* F1-208: la media a lo largo del tramo cubierto, no la arteria en
               el cuello de la otra pestaña: por eso las dos cifras no casan. */}
-          <Metric label="Ø medio del tramo cubierto" wrapLabel value={plan.mean_vessel_diameter_mm.toFixed(2)} unit=" mm" />
+          <Metric label="Ø medio del tramo cubierto" wrapLabel value={cifra(plan.mean_vessel_diameter_mm, 2)} unit=" mm" />
           <Metric
             label="Cobertura (stent/vaso)"
-            value={plan.coverage_ratio.toFixed(2)}
+            value={cifra(plan.coverage_ratio, 2)}
             badge={plan.coverage_ratio >= 0.9 && plan.coverage_ratio <= 1.15 ? ["Buen ajuste", "success"] : ["Revisar", "warning"]}
           />
           {plan.warning && <div style={{ marginTop: 8, fontSize: 12, color: "var(--warning)" }}>{plan.warning}</div>}
@@ -1452,15 +1453,15 @@ export function AppositionSummary({ a }: { a: ClStentApposition }) {
       <div aria-hidden style={{ height: 8, borderRadius: 4, margin: "8px 0 2px",
                                 background: "linear-gradient(90deg, #2659d9, #c7ccd1 35%, #c7ccd1 65%, #e0331f)" }} />
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--muted-foreground)" }}>
-        <span>comprimido</span><span>± {a.noise_mm.toFixed(2)} mm = contacto</span><span>separado</span>
+        <span>comprimido</span><span>± {cifra(a.noise_mm, 2)} mm = contacto</span><span>separado</span>
       </div>
       <Metric label="Separado de la pared" value={a.gap_area_pct.toFixed(0)} unit=" %"
               badge={separado ? ["Revisar", "warning"] : ["Bien", "success"]} />
       <Metric label="Comprimido" value={a.compressed_area_pct.toFixed(0)} unit=" %" />
-      <Metric label="Separación máxima" value={a.max_gap_mm.toFixed(2)} unit=" mm" />
-      <Metric label="Extremo proximal" value={a.proximal_gap_mm.toFixed(2)} unit=" mm"
+      <Metric label="Separación máxima" value={cifra(a.max_gap_mm, 2)} unit=" mm" />
+      <Metric label="Extremo proximal" value={cifra(a.proximal_gap_mm, 2)} unit=" mm"
               badge={a.proximal_gap_mm > a.noise_mm ? ["Separado", "warning"] : undefined} />
-      <Metric label="Extremo distal" value={a.distal_gap_mm.toFixed(2)} unit=" mm"
+      <Metric label="Extremo distal" value={cifra(a.distal_gap_mm, 2)} unit=" mm"
               badge={a.distal_gap_mm > a.noise_mm ? ["Separado", "warning"] : undefined} />
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 6 }}>
         Geometría del tubo nominal contra la malla, no una simulación de la trenza.
@@ -1590,7 +1591,7 @@ function OcclusionReport() {
             <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", marginTop: 6 }}>
               saco {data.sac_volume_mm3.toFixed(0)} mm³ · fuera{" "}
               {data.excluded_mm3.toFixed(0)} mm³ · muñón {data.remnant_mm3.toFixed(0)} mm³
-              {data.remnant_width_mm > 0 && ` · ancho ${data.remnant_width_mm.toFixed(1)} mm`}
+              {data.remnant_width_mm > 0 && ` · ancho ${cifra(data.remnant_width_mm, 1)} mm`}
             </div>
           )}
           {/* Lo que esta medida NO es. Sin esto, «oclusión completa» se lee
@@ -1635,7 +1636,7 @@ function CorridorReport({ c }: { c: CorridorAssessmentOut }) {
         <div style={{ marginTop: 8 }}>
           {c.vessels_crossed.map((x, i) => (
             <div key={i} style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>
-              ⌀ {x.calibre_mm.toFixed(1)} mm a {x.distance_from_entry_mm.toFixed(0)} mm de la entrada
+              ⌀ {cifra(x.calibre_mm, 1)} mm a {x.distance_from_entry_mm.toFixed(0)} mm de la entrada
               <span style={{ fontFamily: "var(--font-sans)", color: "var(--muted-foreground)" }}>
                 {x.calibre_source === "barrido" ? " · calibre medido" : " · calibre estimado"}
               </span>
@@ -1646,8 +1647,8 @@ function CorridorReport({ c }: { c: CorridorAssessmentOut }) {
 
       {c.nearest_branch_mm !== null && c.vessels_crossed.length === 0 && (
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>
-          Rama más próxima a {c.nearest_branch_mm.toFixed(1)} mm
-          {c.nearest_branch_calibre_mm > 0 && ` (⌀ ${c.nearest_branch_calibre_mm.toFixed(1)} mm)`}.
+          Rama más próxima a {cifra(c.nearest_branch_mm, 1)} mm
+          {c.nearest_branch_calibre_mm > 0 && ` (⌀ ${cifra(c.nearest_branch_calibre_mm, 1)} mm)`}.
         </div>
       )}
 
@@ -1898,9 +1899,9 @@ export function TrajectoryTool() {
         <div style={{ fontSize: 12, color: "var(--foreground)", marginBottom: 10 }}>
           {/* «Profundidad» se leía como la del campo quirúrgico; es la recta
               entre los dos puntos marcados (F1-186). Coma decimal, como el PDF. */}
-          Distancia entrada–diana: <b style={{ fontFamily: "var(--font-mono)" }}>{depth.toFixed(1).replace(".", ",")} mm</b>
+          Distancia entrada–diana: <b style={{ fontFamily: "var(--font-mono)" }}>{cifra(depth, 1)} mm</b>
           {saved && (() => { const ref = angleReferenceLabel(morphometry?.principal_axis); return (
-            <> · <span title={ref.title}>{ref.text}</span>: <b style={{ fontFamily: "var(--font-mono)" }}>{saved.angle_deg.toFixed(1).replace(".", ",")}°</b></>
+            <> · <span title={ref.title}>{ref.text}</span>: <b style={{ fontFamily: "var(--font-mono)" }}>{cifra(saved.angle_deg, 1)}°</b></>
           ); })()}
         </div>
       )}

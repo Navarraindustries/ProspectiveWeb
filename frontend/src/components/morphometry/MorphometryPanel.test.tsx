@@ -59,24 +59,24 @@ function withMorphometry(m: MorphometryResult) {
 describe("an open sac mesh with a valid neck", () => {
   it("still shows the neck it measured", async () => {
     withMorphometry(openCap);
-    expect(await screen.findByText("7.0")).toBeInTheDocument();
+    expect(await screen.findByText("7,0")).toBeInTheDocument();
   });
 
   it("still shows the dome height and the neck-derived ratios", async () => {
     withMorphometry(openCap);
-    expect(await screen.findByText("7.9")).toBeInTheDocument();
+    expect(await screen.findByText("7,9")).toBeInTheDocument();
     // DNR and BF share a definition (Ø máx / cuello), so 1.58 appears twice.
-    expect(screen.getAllByText("1.58").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("1.13")).toBeInTheDocument();   // AR
+    expect(screen.getAllByText("1,58").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("1,13")).toBeInTheDocument();   // AR
   });
 
   it("hides the volume it could not measure", async () => {
     withMorphometry(openCap);
-    await screen.findByText("7.0");
+    await screen.findByText("7,0");
     // F1-159: el área de una malla abierta tampoco es la del saco: «—» como
     // el resto del grupo (antes salía 225.3 como si fuera una medida).
-    expect(screen.queryByText("225.3")).not.toBeInTheDocument();
-    expect(screen.queryByText("0.0")).not.toBeInTheDocument();
+    expect(screen.queryByText("225,3")).not.toBeInTheDocument();
+    expect(screen.queryByText("0,0")).not.toBeInTheDocument();
   });
 });
 
@@ -89,9 +89,26 @@ describe("a degenerate neck on a closed sac", () => {
 
   it("shows the volume and hides only the neck group", async () => {
     withMorphometry(badNeck);
-    expect(await screen.findByText("310.2")).toBeInTheDocument();
+    expect(await screen.findByText("310,2")).toBeInTheDocument();
     // The neck-derived rows must not report the zeros they were nulled to.
     expect(screen.getAllByText("sin medir").length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("una cifra que no es un número", () => {
+  const roto = {
+    ...openCap, volume_valid: true, neck_valid: true,
+    volume_mm3: -0, surface_area_mm2: -0.01, eq_sphere_diam_mm: NaN,
+    neck_mm: NaN, dome_height_mm: NaN, dnr: NaN, ar: NaN, bf: NaN,
+    compactness: NaN, ui: NaN, ei: NaN, nsi: NaN, sr: NaN, max_diameter_mm: 11.0,
+  } as unknown as MorphometryResult;
+
+  it("se pinta como «—» o «0,0», nunca como «NaN» ni «-0,0»", async () => {
+    const { container } = withMorphometry(roto);
+    expect(await screen.findByText("11,0")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/NaN|-0,0/);
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(3);
+    expect(screen.getAllByText("0,0").length).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -103,8 +120,8 @@ describe("a fully valid measurement", () => {
 
   it("reports both groups with no «sin medir» badges", async () => {
     withMorphometry(good);
-    expect(await screen.findByText("7.0")).toBeInTheDocument();
-    expect(screen.getByText("310.2")).toBeInTheDocument();
+    expect(await screen.findByText("7,0")).toBeInTheDocument();
+    expect(screen.getByText("310,2")).toBeInTheDocument();
     expect(screen.queryByText("sin medir")).not.toBeInTheDocument();
   });
 });
@@ -131,7 +148,7 @@ describe("SR con el cuello estimado", () => {
   it("con el borde marcado a mano vuelve a valorarlo", async () => {
     withMorphometry(conSr("manual", 3.6));
     await indices();
-    expect(await screen.findByText("3.60")).toBeInTheDocument();
+    expect(await screen.findByText("3,60")).toBeInTheDocument();
     expect(screen.queryByText("orientativo")).not.toBeInTheDocument();
     expect(screen.queryByText(/SR orientativo/)).not.toBeInTheDocument();
   });
@@ -160,7 +177,7 @@ describe("partes finas que inflan el Ø máximo", () => {
     withMorphometry(inflado);
     expect(await screen.findByText(/inflan el Ø máximo/)).toBeInTheDocument();
     expect(screen.getByText("Ø máximo del cuerpo (sin ramas finas)")).toBeInTheDocument();
-    expect(screen.getByText("5.0")).toBeInTheDocument();
+    expect(screen.getByText("5,0")).toBeInTheDocument();
   });
 });
 
@@ -176,7 +193,7 @@ describe("el Ø máximo junto a un corte", () => {
 
   it("11,0 mm no avisa", async () => {
     withMorphometry(openCap);
-    await screen.findByText("7.0");
+    await screen.findByText("7,0");
     expect(screen.queryByText(/junto al corte/)).not.toBeInTheDocument();
   });
 
@@ -190,7 +207,7 @@ describe("el Ø máximo junto a un corte", () => {
       ...openCap,
       warning: "El saco aislado llega hasta el límite del recorte: el plano de cuello dejó entrar vaso padre, así que Ø máximo, volumen y los índices describen arteria además de aneurisma.",
     } as unknown as MorphometryResult);
-    await screen.findByText("7.0");
+    await screen.findByText("7,0");
     expect(screen.getAllByText("provisional").length).toBeGreaterThanOrEqual(1);
   });
 });
@@ -231,7 +248,7 @@ describe("el sentido del BF", () => {
 
   it("BF 5 no dice «Cuello ancho»", async () => {
     withMorphometry({ ...openCap, bf: 5 } as unknown as MorphometryResult);
-    await screen.findByText("7.0");
+    await screen.findByText("7,0");
     expect(screen.queryByText("Cuello ancho")).not.toBeInTheDocument();
   });
 });
@@ -265,7 +282,7 @@ describe("un umbral por índice, a la vista", () => {
 describe("la localización, una sola vez", () => {
   it("hay un único «Localización» y PHASES no tiene selector propio", async () => {
     withMorphometry(openCap);
-    await screen.findByText("7.0");
+    await screen.findByText("7,0");
     expect(screen.getAllByLabelText("Localización")).toHaveLength(1);
     fireEvent.click(screen.getByText("PHASES"));
     await screen.findByText(/referencia poblacional/);
@@ -275,7 +292,7 @@ describe("la localización, una sola vez", () => {
 
   it("elegirla la guarda con la sesión y PHASES la hereda", async () => {
     withMorphometry(openCap);
-    await screen.findByText("7.0");
+    await screen.findByText("7,0");
     fireEvent.change(screen.getByLabelText("Localización"),
       { target: { value: "Tronco basilar" } });
     expect(setClinicalSite).toHaveBeenCalledWith("s1", "Tronco basilar");
@@ -295,14 +312,14 @@ describe("punta, tronco y AICA por separado", () => {
 
   it("el menú ofrece las tres y no la entrada que las juntaba", async () => {
     withMorphometry(openCap);
-    await screen.findByText("7.0");
+    await screen.findByText("7,0");
     expect(opciones()).toEqual(expect.arrayContaining(["Punta basilar", "Tronco basilar", "AICA"]));
     expect(opciones().some((t) => t.startsWith("Basilar"))).toBe(false);
   });
 
   it("una sesión con el valor antiguo lo enseña sin precisar y ofrece las tres", async () => {
     withMorphometry({ ...openCap, site: "Basilar (punta, tronco o AICA)" } as MorphometryResult);
-    await screen.findByText("7.0");
+    await screen.findByText("7,0");
     const sel = screen.getByLabelText("Localización") as HTMLSelectElement;
     expect(sel.value).toBe("Basilar (punta, tronco o AICA)");
     expect(sel.options[sel.selectedIndex]!.text)
@@ -329,7 +346,7 @@ describe("cambiar la localización lo dice", () => {
     setClinicalSite.mockResolvedValueOnce(
       { site: "Tronco basilar", cleared: ["Decisión"], recalculated: ["PHASES"], pending: [] });
     withMorphometry(openCap);
-    await screen.findByText("7.0");
+    await screen.findByText("7,0");
     fireEvent.change(screen.getByLabelText("Localización"),
       { target: { value: "Tronco basilar" } });
     expect(await screen.findByRole("status")).toHaveTextContent(

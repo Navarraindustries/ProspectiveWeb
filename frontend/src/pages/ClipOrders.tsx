@@ -30,6 +30,7 @@ import { daysSince, isStale } from "../lib/pedidosParados";
 import { shapeLabel } from "../components/planning/clipShape";
 import { useAuth } from "../store/auth";
 import "../styles/office.css";
+import { cifra } from "../lib/numero";
 
 type Variant = "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive";
 
@@ -110,7 +111,7 @@ function Row({ order, onOpen, selected }: {
       <td style={{ ...cell, fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>
         {order.series} {shapeLabel(order.shape, order.angle_deg, order.window_mm)}
         <div style={{ color: "var(--muted-foreground)" }}>
-          {order.jaw_mm.toFixed(1)} mm · {order.total_pieces} pza
+          {cifra(order.jaw_mm, 1)} mm · {order.total_pieces} pza
         </div>
       </td>
       <td style={cell}>
@@ -175,7 +176,7 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
         {([
           ["Paciente", order.patient || "—"],
           ["Caso", order.case_label || "—"],
-          ["Pieza", `${order.series} ${shapeLabel(order.shape, order.angle_deg, order.window_mm)} · mordaza ${order.jaw_mm.toFixed(1)} mm`],
+          ["Pieza", `${order.series} ${shapeLabel(order.shape, order.angle_deg, order.window_mm)} · mordaza ${cifra(order.jaw_mm, 1)} mm`],
           ["Piezas", String(order.total_pieces)],
           ["Cirujano", order.surgeon || "sin firmar"],
           ["Taller", order.workshop_name || "por asignar"],
@@ -200,7 +201,7 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
           fontSize: 11, marginTop: 10, fontFamily: "var(--font-mono)", lineHeight: 1.5,
           color: outOfSpec ? "var(--destructive)" : "var(--success)",
         }}>
-          Medido: mordaza {r.measured_jaw_mm?.toFixed(2)} mm · fuerza {r.measured_force_g?.toFixed(0)} g
+          Medido: mordaza {cifra(r.measured_jaw_mm, 2)} mm · fuerza {r.measured_force_g?.toFixed(0)} g
           {outOfSpec ? " — fuera de especificación" : " — dentro de especificación"}
         </div>
       )}

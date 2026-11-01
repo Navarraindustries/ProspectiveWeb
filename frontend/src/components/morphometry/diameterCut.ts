@@ -5,6 +5,8 @@
    que a menos de 1 mm de un corte un error de medida cambia el tramo (F1-13,
    F1-14, F1-15). */
 
+import { cifra } from "../../lib/numero";
+
 /* Todas las tablas de puntos y cortes viven aquí y solo aquí: el aviso de corte
    se da ANTES de «Calcular», así que si estas cifras se separan de las del
    backend la pantalla diría «baja de 10 a 7 puntos» y el cálculo otra cosa.
@@ -27,9 +29,6 @@ export const UIATS_CUTS = [...new Set([...UIATS_DIAMETER_CUTS, ...UIATS_SIZE_RIS
 
 /** Distancia a un corte por debajo de la cual se avisa: el orden del error de medida. */
 export const CUT_MARGIN_MM = 1;
-
-/** «10,9»: coma decimal, como lee la cifra el clínico. */
-export const mm = (x: number) => x.toFixed(1).replace(".", ",");
 
 /** El corte más cercano a menos de 1 mm, o null. */
 export function nearCut(x: number, cuts: readonly number[]): number | null {
@@ -67,5 +66,5 @@ export const PHASES_SITE_PTS = { ica: 0, mca: 2, aca_pcom_posterior: 4 } as cons
 
 /** «PHASES n · x,x % a 5 años (Greving 2014)», el rótulo de Decisión y del PDF. */
 export function phasesLabel(score: number, riskPct: number): string {
-  return `PHASES ${score} · ${mm(riskPct)} % a 5 años (Greving 2014)`;
+  return `PHASES ${score} · ${cifra(riskPct, 1)} % a 5 años (Greving 2014)`;
 }

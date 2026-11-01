@@ -8,6 +8,7 @@
    Todo lo que necesita del gesto se congela al empezar (DragStart): si la
    normal o el eje se recalcularan a mitad del arrastre, el punto de agarre se
    iría moviendo bajo el ratón. */
+import { cifra } from "../lib/numero";
 import type { PlacedClip } from "../store/planning";
 import type { Handle } from "./MeshView";
 import type { Vec3 } from "./geometry";
@@ -145,9 +146,8 @@ export function dragPose(
   return null;
 }
 
-const mm = (v: number) => v.toFixed(1).replace(".", ",");
 const deg = (v: number) => `${Math.round(v) || 0}°`;   // «|| 0»: sin «-0°»
 
 export function gizmoReadout(clip: PlacedClip): string {
-  return `CLIP ${clip.name} · ${clip.position.map(mm).join(" ")} mm · ROT ${deg(clip.rotation_deg)} · AZ ${deg(clip.azimuthDeg)} · EL ${deg(clip.elevationDeg)}`;
+  return `CLIP ${clip.name} · ${clip.position.map((v) => cifra(v, 1)).join(" ")} mm · ROT ${deg(clip.rotation_deg)} · AZ ${deg(clip.azimuthDeg)} · EL ${deg(clip.elevationDeg)}`;
 }

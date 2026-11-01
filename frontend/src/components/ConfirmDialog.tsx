@@ -7,7 +7,7 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
-import { glide, glideTransition, motion, useReducedMotion } from "../motion";
+import { fundido, fundidoTransition, glide, glideTransition, motion, useReducedMotion } from "../motion";
 import { glass } from "../styles/glass";
 import { Button } from "./Button";
 
@@ -108,16 +108,20 @@ export function ConfirmDialog({
   if (!open) return null;
 
   return createPortal(
-    <div
+    <motion.div
+      variants={fundido}
+      initial={reduced ? "initial" : false}
+      animate="animate"
+      transition={fundidoTransition}
       onClick={onCancel}
       style={{ position: "fixed", inset: 0, zIndex: 400, background: "var(--scrim-dense)", display: "flex", alignItems: "center", justifyContent: "center" }}
     >
       <motion.div
         ref={panelRef}
-        variants={glide}
+        variants={reduced ? fundido : glide}
         initial="initial"
         animate="animate"
-        transition={reduced ? { duration: 0 } : glideTransition}
+        transition={reduced ? fundidoTransition : glideTransition}
         data-glass
         role="alertdialog"
         aria-modal="true"
@@ -140,7 +144,7 @@ export function ConfirmDialog({
           </Button>
         </div>
       </motion.div>
-    </div>,
+    </motion.div>,
     document.body,
   );
 }

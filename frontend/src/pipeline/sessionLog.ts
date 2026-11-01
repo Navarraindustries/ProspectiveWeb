@@ -4,6 +4,7 @@
    cuando exista y hoy no se inventa. */
 
 import { useEffect, useRef, useState } from "react";
+import { cifra } from "../lib/numero";
 import { usePlanning } from "../store/planning";
 
 export interface LogEntry {
@@ -14,8 +15,6 @@ export interface LogEntry {
 }
 
 export type CampoLog = "serie" | "segmentacion" | "candidatos" | "candidato" | "morfometria" | "guardado";
-
-const coma = (n: number, dec = 1) => n.toFixed(dec).replace(".", ",");
 
 const vacio = (v: unknown) => v == null || (Array.isArray(v) && v.length === 0);
 
@@ -52,7 +51,7 @@ export function entradaPara(
     case "morfometria": {
       const d = num(actual, "max_diameter_mm");
       if (d === null) return null;
-      texto = `Medida · Ø máx. ${coma(d)} mm`; break;
+      texto = `Medida · Ø máx. ${cifra(d)} mm`; break;
     }
     case "guardado": texto = "Progreso guardado"; break;
   }

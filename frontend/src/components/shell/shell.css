@@ -298,6 +298,13 @@
   font-size: 15px;
   font-weight: 600;
 }
+.shell-crumb-detail {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
 .shell-subtitle {
   color: var(--muted-foreground);
   font-size: 13px;

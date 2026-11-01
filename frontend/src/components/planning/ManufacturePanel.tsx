@@ -21,6 +21,7 @@ import { usePlanning } from "../../store/planning";
 import { useNav } from "../../store/nav";
 import { ClipOrderForm, ClipOrderList } from "./ClipOrderForm";
 import { forceWithBand } from "./clipForce";
+import { cifra } from "../../lib/numero";
 
 
 /* La ficha ya llega con la pieza COLOCADA en Dispositivos encima: el backend
@@ -49,17 +50,17 @@ function ManufactureSheet({
 
   const rows: [string, string][] = [
     ["Forma", `${shown.shape}${shown.angle_deg ? ` · ${shown.angle_deg.toFixed(0)}°` : ""}`],
-    ["Longitud de hoja", `${shown.blade_length_mm.toFixed(1)} mm`],
-    ["Anchura de hoja", `${shown.blade_width_mm.toFixed(2)} mm`],
-    ["Altura de hoja", `${shown.blade_height_mm.toFixed(2)} mm`],
-    ["Longitud de muelle", `${shown.spring_length_mm.toFixed(1)} mm`],
+    ["Longitud de hoja", `${cifra(shown.blade_length_mm, 1)} mm`],
+    ["Anchura de hoja", `${cifra(shown.blade_width_mm, 2)} mm`],
+    ["Altura de hoja", `${cifra(shown.blade_height_mm, 2)} mm`],
+    ["Longitud de muelle", `${cifra(shown.spring_length_mm, 1)} mm`],
     // La misma cadena que la tarjeta del mapa de calor y el pedido: el objetivo
     // y su banda. «125 g» aquí y «120 g Óptima» allí eran la misma pieza (F1-213).
     ["Fuerza de cierre", forceWithBand(shown.closing_force_g, shown.force_band_g)],
     ...(shown.fenestration_mm > 0
-      ? ([["Ventana (interior)", `${shown.fenestration_mm.toFixed(1)} mm`]] as [string, string][])
+      ? ([["Ventana (interior)", `${cifra(shown.fenestration_mm, 1)} mm`]] as [string, string][])
       : []),
-    ["Cuello medido", `${shown.neck_mm.toFixed(2)} mm`],
+    ["Cuello medido", `${cifra(shown.neck_mm, 2)} mm`],
   ];
 
   const generate = useCallback(async () => {

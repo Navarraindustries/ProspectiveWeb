@@ -161,7 +161,7 @@ describe("what the cleanup discarded", () => {
     const { container } = withResult(base);
 
     expect(await screen.findByText("Volumen conservado")).toBeInTheDocument();
-    expect(screen.getByText("59.7")).toBeInTheDocument();
+    expect(screen.getByText("59,7")).toBeInTheDocument();
     // The count and its unit sit in separate text nodes, so read the block.
     const text = container.textContent ?? "";
     expect(text).toMatch(/1[.,]?319\s*fragmentos/);

@@ -231,7 +231,7 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, onWindowLevelR
   };
   const unit = unitFor(meta.modality);
   return (
-    <div tabIndex={0} onKeyDown={onKey} style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: "#000", outline: "none" }}>
+    <div tabIndex={0} onKeyDown={onKey} style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: "var(--viewer-bg)", outline: "none" }}>
       <div ref={ref} style={{ flex: 1, position: "relative", minHeight: 0, cursor: "crosshair", touchAction: "none" }}
         title="Arrastrar: ventana/nivel · Botón derecho: orientar el plano · Rueda: desplazarlo · Ctrl+rueda: zoom"
         onContextMenu={(e) => e.preventDefault()}

@@ -11,6 +11,7 @@ import { useRef, useState } from "react";
 import { api } from "../../api/client";
 import type { PatientSessionInfo } from "../../api/types";
 import { fecha, fechaHora } from "../../lib/fecha";
+import { mm } from "../../lib/numero";
 import { formatBytes } from "../../lib/tamano";
 import { STEP_LABELS, clampStep } from "../../pipeline/steps";
 import { Button } from "../Button";
@@ -30,9 +31,6 @@ export function etiquetaGuardada(s: PatientSessionInfo, paciente: string): strin
   if (prefijo && label.startsWith(prefijo)) label = label.slice(prefijo.length).trim();
   return label || `Sesión del ${fecha(s.updated_at)}`;
 }
-
-/** «7,4 mm», con coma decimal. */
-export const milimetros = (mm: number) => `${mm.toFixed(1).replace(".", ",")} mm`;
 
 export function ColumnaSesiones({
   sesiones,
@@ -118,7 +116,7 @@ export function ColumnaSesiones({
             const paso = STEP_LABELS[step];
             const label = etiquetaGuardada(s, nombrePaciente);
             const elegida = seleccionada === s.session_id;
-            const diametro = s.max_diameter_mm != null ? ` · Ø ${milimetros(s.max_diameter_mm)}` : "";
+            const diametro = s.max_diameter_mm != null ? ` · Ø ${mm(s.max_diameter_mm)}` : "";
             return (
               <div key={s.session_id} className="fc-fila" data-guardada data-elegida={elegida}>
                 <div className="fc-fila-cabeza">

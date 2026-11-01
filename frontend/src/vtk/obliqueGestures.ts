@@ -1,6 +1,7 @@
 /* Gestos de la vista Oblicuo sobre el plano libre compartido. Puros: el
    componente solo traduce eventos a estas funciones, así que la regla de cada
    gesto se prueba sin WebGL. */
+import { cifra, mm } from "../lib/numero";
 import { clampPlane, type FreePlane } from "./freePlane";
 
 /** Medio grado por píxel: cruzar un panel típico (~360 px) da media vuelta de
@@ -25,11 +26,11 @@ export function wheelOffset(p: FreePlane, deltaY: number, stepMm: number): FreeP
  *  «−0,0 mm» con un arrastre de medio grado o una décima de milímetro. */
 export function obliqueReadout(p: FreePlane): string {
   const deg = (d: number) => { const r = Math.round(d); return `${r < 0 ? "−" : ""}${Math.abs(r)}°`; };
-  const mm = Math.round(p.offsetMm * 10) / 10;
-  return `AZ ${deg(p.azimuthDeg)} · EL ${deg(p.elevationDeg)} · ${mm < 0 ? "−" : "+"}${Math.abs(mm).toFixed(1).replace(".", ",")} mm`;
+  const desp = Math.round(p.offsetMm * 10) / 10;
+  return `AZ ${deg(p.azimuthDeg)} · EL ${deg(p.elevationDeg)} · ${desp < 0 ? "−" : "+"}${cifra(Math.abs(desp), 1)} mm`;
 }
 
 /** Lectura del Oblicuo recorriendo el vaso: sección 1-based y calibre local. */
 export function vesselReadout(index: number, count: number, diameterMm: number): string {
-  return `VASO ${index + 1}/${count} · Ø ${diameterMm.toFixed(1).replace(".", ",")} mm`;
+  return `VASO ${index + 1}/${count} · Ø ${mm(diameterMm)}`;
 }

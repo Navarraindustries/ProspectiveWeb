@@ -80,6 +80,7 @@ import { manualFromMeta, shouldSeed } from "./orientationSeed";
 import { windowPresets } from "./windowPresets";
 import { unitFor } from "./modality";
 import type { Vector3 } from "@kitware/vtk.js/types";
+import { cifra } from "../lib/numero";
 
 // vtk.js (~1 MB) is only needed once a 3D mesh is shown, so load MeshView — and
 // with it the whole vtk.js runtime — lazily. The landing/login/MPR-only views
@@ -1928,12 +1929,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
       // 0.0 mm» sobre la escena ni un cuello que la tabla da por no medido.
       if (morphometry.neck_valid !== false) {
         bl.push(
-          { text: `Ø CUELLO ${morphometry.neck_mm.toFixed(1)} mm`, color: "rgb(51,191,255)" },
-          { text: `H DOMO ${morphometry.dome_height_mm.toFixed(1)} mm`, color: "rgb(255,140,26)" },
+          { text: `Ø CUELLO ${cifra(morphometry.neck_mm, 1)} mm`, color: "rgb(51,191,255)" },
+          { text: `H DOMO ${cifra(morphometry.dome_height_mm, 1)} mm`, color: "rgb(255,140,26)" },
         );
       }
-      bl.push({ text: `Ø MÁX ${morphometry.max_diameter_mm.toFixed(1)} mm`, color: "rgb(217,51,51)" });
-      if (morphometry.neck_valid !== false) bl.push(`AR ${morphometry.ar.toFixed(2)} · DNR ${morphometry.dnr.toFixed(2)}`);
+      bl.push({ text: `Ø MÁX ${cifra(morphometry.max_diameter_mm, 1)} mm`, color: "rgb(217,51,51)" });
+      if (morphometry.neck_valid !== false) bl.push(`AR ${cifra(morphometry.ar, 2)} · DNR ${cifra(morphometry.dnr, 2)}`);
     }
     // Los conmutadores van bajo la lectura de la izquierda: la derecha es de
     // la escalera de cortes y las lecturas de nivel. SINCRO y los demás

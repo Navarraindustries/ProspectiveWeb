@@ -13,6 +13,7 @@ import { SectionLabel, ErrorNote, Card } from "../PanelHead";
 import { Select } from "../Select";
 import { Slider } from "../Slider";
 import { usePlanning } from "../../store/planning";
+import { cifra } from "../../lib/numero";
 
 export function PrintPrepPanel() {
   const { sessionId, segmentation } = usePlanning();
@@ -112,10 +113,10 @@ export function PrintPrepPanel() {
 
       {result && (
         <Card style={{ marginTop: 14 }}>
-          {dims && <Metric label="Dimensiones" value={`${dims[0].toFixed(1)} × ${dims[1].toFixed(1)} × ${dims[2].toFixed(1)}`} unit=" mm" />}
-          <Metric label="Escala aplicada" value={`×${result.scale_factor.toFixed(3)}`} />
-          <Metric label="Volumen sólido" value={result.volume_cm3.toFixed(2)} unit=" cm³" />
-          <Metric label="Superficie" value={result.surface_area_cm2.toFixed(1)} unit=" cm²" />
+          {dims && <Metric label="Dimensiones" value={`${cifra(dims[0], 1)} × ${cifra(dims[1], 1)} × ${cifra(dims[2], 1)}`} unit=" mm" />}
+          <Metric label="Escala aplicada" value={`×${cifra(result.scale_factor, 3)}`} />
+          <Metric label="Volumen sólido" value={cifra(result.volume_cm3, 2)} unit=" cm³" />
+          <Metric label="Superficie" value={cifra(result.surface_area_cm2, 1)} unit=" cm²" />
           <Metric
             label="Estanqueidad"
             value={result.is_watertight ? "Hermético" : `${result.open_edge_count} bordes abiertos`}

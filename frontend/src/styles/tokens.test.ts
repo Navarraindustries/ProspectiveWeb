@@ -1,8 +1,9 @@
 /* Dirección D (cristal): el oscuro vive en :root y el claro bajo [data-theme="light"].
    Un token que exista solo en un tema deja una superficie transparente en el otro. */
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { ratio } from "./contraste";
 
 // El selector oscuro se declara una sola vez junto a :root (ver colors.css).
 const css = readFileSync(join(__dirname, "tokens/colors.css"), "utf8").replace(/\r\n/g, "\n");
@@ -12,9 +13,62 @@ const block = (sel: string) => {
   return css.slice(i, css.indexOf("}", i));
 };
 const names = (b: string) => new Set([...b.matchAll(/--([a-z0-9-]+)\s*:/g)].map((m) => m[1]));
-// contraste WCAG calculado sobre hex #RRGGBB
-const l = (hex: string) => { const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
-const ratio = (a: string, b: string) => { const [x, y] = [l(a), l(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+
+/** Quita los comentarios `/* … *\/` y `// …` que no empiezan dentro de una cadena
+ *  (`accept="image/*"` no abre un comentario). Las comillas simples y dobles se
+ *  cierran como mucho al final de la línea, así que una comilla suelta en un texto
+ *  JSX solo afecta a su línea; las invertidas pueden abarcar varias. Un `//` detrás
+ *  de «:» no es comentario (las URL de un texto JSX o de un url() de CSS). */
+function sinComentarios(src: string): string {
+  let out = "";
+  let quote = "";
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (quote) {
+      out += c;
+      if (c === "\\" && i + 1 < src.length) { out += src[++i]; continue; }
+      if (c === quote || (c === "\n" && quote !== "`")) quote = "";
+      continue;
+    }
+    if (c === "/" && src[i + 1] === "*") {
+      const fin = src.indexOf("*/", i + 2);
+      i = fin < 0 ? src.length : fin + 1;
+      out += " ";
+      continue;
+    }
+    if (c === "/" && src[i + 1] === "/" && src[i - 1] !== ":") {
+      const fin = src.indexOf("\n", i);
+      i = (fin < 0 ? src.length : fin) - 1;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") quote = c;
+    out += c;
+  }
+  return out;
+}
+
+describe("quitacomentarios de la prueba de variables", () => {
+  it("un /* dentro de una cadena no se come el código que sigue", () => {
+    const src = [
+      '<input type="file" accept="image/*" style={{ color: "var(--uno)" }} />',
+      "const b = 'a/*b'; // var(--comentada)",
+      "/* var(--en-bloque) */ const c = `x // y`; --dos: 1;",
+    ].join("\n");
+    const t = sinComentarios(src);
+    expect(t).toContain('accept="image/*"');
+    expect(t).toContain("var(--uno)");
+    expect(t).toContain("'a/*b'");
+    expect(t).toContain("`x // y`");
+    expect(t).toContain("--dos: 1;");
+    expect(t).not.toContain("--comentada");
+    expect(t).not.toContain("--en-bloque");
+  });
+  it("una comilla suelta en un texto JSX no protege más allá de su línea", () => {
+    const t = sinComentarios("<p>l'arteria</p>\n{/* var(--fuera) */}\n<a>https://x.org</a>");
+    expect(t).not.toContain("--fuera");
+    expect(t).toContain("https://x.org");
+  });
+});
 
 describe("tokens de la dirección D", () => {
   it("el claro define exactamente los mismos nombres que el oscuro", () => {
@@ -72,7 +126,7 @@ describe("tokens de la dirección D", () => {
     const dark = block(DARK), light = block('[data-theme="light"]');
     expect(dark).toMatch(/--surface-2:\s*#0A0B0E/i);
     expect(light).toMatch(/--surface-2:\s*#FFFFFF/i);
-    expect(dark).toMatch(/--data:\s*#5AA9FF/i);
+    expect(dark).toMatch(/--data:\s*#60ADFF/i);
     expect(light).toMatch(/--data:\s*#1F5FC0/i);
     expect(light).toMatch(/--canvas:\s*#F3F5F8/i);
     expect(light).toMatch(/--primary:\s*#0A66FF/i);
@@ -86,9 +140,12 @@ describe("tokens de la dirección D", () => {
     expect(light).toMatch(/--veil:\s*rgba\(243, ?245, ?248, ?0\)/);
     expect(light).toMatch(/--veil-dense:\s*rgba\(243, ?245, ?248, ?0\)/);
     expect(dark).toMatch(/--glass:\s*linear-gradient\(rgba\(5, ?6, ?8, ?0?\.55\), rgba\(5, ?6, ?8, ?0?\.55\)\), rgba\(255, ?255, ?255, ?0?\.08\)/);
-    expect(light).toMatch(/--glass:\s*rgba\(255, ?255, ?255, ?0?\.72\)/);
+    // Claro a 0,92: su peor fondo es el negro del quirófano (ver cristal.audit.test.ts).
+    expect(light).toMatch(/--glass:\s*rgba\(255, ?255, ?255, ?0?\.92\)/);
     expect(dark).toMatch(/--glass-dense:\s*linear-gradient\(rgba\(8, ?9, ?12, ?0?\.72\)/);
-    expect(light).toMatch(/--glass-dense:\s*rgba\(255, ?255, ?255, ?0?\.86\)/);
+    expect(light).toMatch(/--glass-dense:\s*rgba\(255, ?255, ?255, ?0?\.92\)/);
+    expect(dark).toMatch(/--glass-viewer:\s*linear-gradient\(rgba\(8, ?9, ?12, ?0?\.80?\), rgba\(8, ?9, ?12, ?0?\.80?\)\), rgba\(255, ?255, ?255, ?0?\.08\)/);
+    expect(light).toMatch(/--glass-viewer:\s*rgba\(255, ?255, ?255, ?0?\.92\)/);
     expect(dark).toMatch(/--glass-border:\s*rgba\(255, ?255, ?255, ?0?\.2\)/);
     expect(light).toMatch(/--glass-highlight:\s*inset 0 1px 0 rgba\(255, ?255, ?255, ?0?\.9\)/);
     expect(dark).toMatch(/--glass-hover:\s*rgba\(255, ?255, ?255, ?0?\.14\)/);
@@ -217,5 +274,88 @@ describe("tokens de la dirección D", () => {
     expect(base).toContain("@media (prefers-reduced-transparency: reduce)");
     expect(base).toContain("@supports not ((backdrop-filter: blur(1px))");
     expect(base).toMatch(/\[data-glass\]\s*\{[^}]*background:\s*var\(--glass-solid\) !important/);
+  });
+  /* La regla de tokens dentro de @media (prefers-reduced-transparency): selector y cuerpo. */
+  const tokensSinTransparencia = () => {
+    const base = readFileSync(join(__dirname, "base.css"), "utf8").replace(/\r\n/g, "\n");
+    const i = base.indexOf("@media (prefers-reduced-transparency: reduce)");
+    expect(i).toBeGreaterThan(-1);
+    const media = base.slice(i, base.indexOf("\n}\n", i));
+    const m = [...media.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .find((r) => /--glass-blur:/.test(r[2]));
+    expect(m, "la @media no redefine los tokens del cristal").toBeTruthy();
+    return { base, media: i, selectores: m![1].split(",").map((s) => s.trim()), cuerpo: m![2] };
+  };
+  it("la transparencia reducida también apaga el desenfoque de los tokens", () => {
+    const { cuerpo } = tokensSinTransparencia();
+    expect(cuerpo).toMatch(/--glass-blur:\s*0px;/);
+    expect(cuerpo).toMatch(/--glass-blur-viewer:\s*0px;/);
+  });
+  it("con transparencia reducida, el cristal sin data-glass (tarjetas planas, CSS con var(--glass)) también es opaco", () => {
+    const { selectores, cuerpo } = tokensSinTransparencia();
+    for (const t of ["--glass", "--glass-dense", "--glass-viewer"]) {
+      expect(cuerpo, t).toMatch(new RegExp(`${t}:\\s*var\\(--glass-solid\\);`));
+    }
+    // :root: <html> sin data-theme; [data-theme]: también los contenedores con tema propio
+    // (landing, carga), que redeclaran los tokens de colors.css.
+    expect(selectores).toEqual(expect.arrayContaining([":root", "[data-theme]"]));
+  });
+  it("con transparencia reducida Y data-blur=\"bajo\" el desenfoque es 0: manda la transparencia reducida", () => {
+    const { base, media, selectores } = tokensSinTransparencia();
+    const blur = base.search(/html\[data-blur="bajo"\]\s*\{/);
+    expect(blur).toBeGreaterThan(-1);
+    // Misma especificidad (0,1,1) que html[data-blur="bajo"], y después en el fichero: gana.
+    expect(selectores).toContain("html[data-blur]");
+    expect(blur).toBeLessThan(media);
+  });
+  it("html[data-blur=\"bajo\"] quita el desenfoque del visor y baja el resto a 12px", () => {
+    const base = readFileSync(join(__dirname, "base.css"), "utf8");
+    const m = base.match(/html\[data-blur="bajo"\]\s*\{([^}]*)\}/);
+    expect(m).not.toBeNull();
+    expect(m![1]).toMatch(/--glass-blur-viewer:\s*0px/);
+    expect(m![1]).toMatch(/--glass-blur:\s*12px/);
+    // Solo el desenfoque: no vuelve opaco el cristal.
+    expect(m![1]).not.toMatch(/--glass(-dense|-viewer)?:/);
+  });
+
+  it("todo var(--x) que usa el código está definido en una hoja, en un style en línea o en la lista de las fijadas en ejecución", () => {
+    // Variables que el código fija al montar sin que el escaneo las vea (cada una con su motivo).
+    const EN_EJECUCION: Record<string, string> = {};
+    const raiz = join(__dirname, "..");
+    const ficheros: string[] = [];
+    const recorre = (d: string) => {
+      for (const f of readdirSync(d)) {
+        const p = join(d, f);
+        if (statSync(p).isDirectory()) recorre(p);
+        else if (/\.(tsx?|css)$/.test(f) && !/\.test\.tsx?$/.test(f)) ficheros.push(p);
+      }
+    };
+    recorre(raiz);
+    // Sin comentarios: una variable nombrada solo en un comentario no está definida.
+    const texto = ficheros.map((f) => sinComentarios(readFileSync(f, "utf8"))).join("\n");
+    const definidas = new Set<string>(Object.keys(EN_EJECUCION));
+    for (const m of texto.matchAll(/(?:^|[\s;{"'`])(--[a-z0-9-]+)\s*(?::|["'`]\s*:)/gi)) definidas.add(m[1]);
+    for (const m of texto.matchAll(/setProperty\(\s*["'`](--[a-z0-9-]+)/g)) definidas.add(m[1]);
+    // `var(--x, respaldo)` con respaldo no falla aunque --x no exista.
+    const usadas = new Set([...texto.matchAll(/var\(\s*(--[a-z0-9-]+)\s*([,)])/gi)].filter((m) => m[2] === ")").map((m) => m[1]));
+    // Suelo de cordura: si el escaneo dejara de ver el código, la prueba pasaría vacía.
+    expect(usadas.size).toBeGreaterThan(100);
+    expect(definidas.has("--primary") && definidas.has("--glass")).toBe(true);
+    expect([...usadas].filter((n) => !definidas.has(n)).sort()).toEqual([]);
+
+    // Nombres dinámicos var(--${x}): no se pueden escanear, así que cada uno se declara aquí
+    // con los valores que puede tomar (leídos de su tipo en el código) y cada valor debe existir.
+    const DINAMICAS: Record<string, string[]> = {
+      // Patients.tsx: var(--${av.tono}); tono es "warning" | "destructive" | "success" (lib/avisosOficina.ts).
+      "pages/Patients.tsx": ["warning", "destructive", "success"],
+    };
+    const tonos = readFileSync(join(raiz, "lib/avisosOficina.ts"), "utf8").match(/tono:\s*([^;]+);/)![1];
+    expect([...tonos.matchAll(/"([a-z-]+)"/g)].map((m) => m[1]).sort()).toEqual([...DINAMICAS["pages/Patients.tsx"]].sort());
+    const conDinamicas = ficheros.filter((f) => /var\(--\$\{/.test(readFileSync(f, "utf8")))
+      .map((f) => f.slice(raiz.length + 1).replace(/\\/g, "/")).sort();
+    expect(conDinamicas).toEqual(Object.keys(DINAMICAS).sort());
+    for (const valores of Object.values(DINAMICAS)) {
+      for (const v of valores) expect(definidas.has("--" + v), `--${v}`).toBe(true);
+    }
   });
 });

@@ -12,7 +12,8 @@ describe("helper de cristal", () => {
   });
   it("denso y visor", () => {
     expect(glass("dense").background).toBe("var(--glass-dense)");
-    expect(glass("viewer").background).toBe("var(--glass-dense)");
+    // El visor tiene su propio token: flota sobre la imagen sin --veil y pide más opacidad.
+    expect(glass("viewer").background).toBe("var(--glass-viewer)");
     expect(glass("viewer").backdropFilter).toBe("blur(var(--glass-blur-viewer)) saturate(130%)");
   });
   it("plano: mismo fondo y borde que el normal, sin desenfoque propio", () => {

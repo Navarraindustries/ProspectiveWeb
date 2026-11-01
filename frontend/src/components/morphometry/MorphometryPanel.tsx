@@ -6,7 +6,7 @@ import { ANEURYSM_LOCATIONS, LEGACY_BASILAR, LEGACY_BASILAR_LABEL } from "../../
 import type { AneurysmLocation, ClinicalSiteResult, LongitudinalResult } from "../../api/types";
 import { Badge, riskVariant } from "../Badge";
 import { MorphoRiskBadge, MORPHO_RISK_CRITERIA } from "./MorphoRiskBadge";
-import { PHASES_CUTS, crossedCut, isProvisional, mm, nearCut } from "./diameterCut";
+import { PHASES_CUTS, crossedCut, isProvisional, nearCut } from "./diameterCut";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
@@ -26,6 +26,7 @@ import { LongitudinalChart } from "./LongitudinalChart";
 import { usePlanning } from "../../store/planning";
 import type { MorphometryResult } from "../../api/types";
 import { MANUAL_NO_SAC, isManual } from "../planning/detectCopy";
+import { cifra, coordenadas } from "../../lib/numero";
 
 const TABS = ["Métricas", "Índices", "PHASES", "ELAPSS", "UIATS", "Seguimiento"] as const;
 
@@ -60,8 +61,7 @@ function siteOptions(current: string | null | undefined) {
 /** «(1,2; 4,6; −7,9) mm»: coma decimal y punto y coma entre ejes, para que
  *  la coma de los decimales no se confunda con la que separa x, y, z. */
 export function coordMm(p: readonly [number, number, number]): string {
-  const f = (v: number) => (Math.abs(v) < 0.05 ? 0 : v).toFixed(1).replace(".", ",").replace("-", "−");
-  return `(${p.map(f).join("; ")}) mm`;
+  return `${coordenadas(p)} mm`;
 }
 
 /* F1-153: tras «Marcar cuello» el botón decía «Cuello ✓» y nada más; en el 3D
@@ -87,7 +87,7 @@ const CURRENT_LABELS = new Set(["Estudio actual", "Sesion actual", "Sesión actu
    thresholds.ts; el NSI y la compacidad no tienen ninguno en la aplicación, y
    así se dice en vez de inventarlo. */
 const MORE_TIP = {
-  ei: `Elipticidad: alargamiento del saco frente a una esfera (Raghavan 2005). Alto desde ${EI_MOD.toFixed(2).replace(".", ",")}, el mismo corte que la etiqueta de riesgo.`,
+  ei: `Elipticidad: alargamiento del saco frente a una esfera (Raghavan 2005). Alto desde ${cifra(EI_MOD, 2)}, el mismo corte que la etiqueta de riesgo.`,
   nsi: "No-esfericidad: desviación global de la esfera (1 − compacidad; Raghavan 2005). La aplicación no le pone corte ni lo usa en la etiqueta de riesgo.",
   compactness: "Wadell: 1 es una esfera; valores bajos indican lobulación",
   eq: "Diámetro de la esfera con el mismo volumen",
@@ -244,7 +244,7 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
   const avisoCorte = m && corte != null
     ? `Ø máximo junto al corte de ${corte} mm de PHASES: un error de medida de menos de 1 mm cambia de tramo` +
       (bodyMm != null && crossedCut(m.max_diameter_mm, bodyMm, [corte]) != null
-        ? `, y con el Ø del cuerpo (${mm(bodyMm)} mm) ya cae al otro lado.`
+        ? `, y con el Ø del cuerpo (${cifra(bodyMm, 1)} mm) ya cae al otro lado.`
         : ".")
     : null;
 
@@ -442,7 +442,7 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                     mismo: con una sola bandera combinada, un cuello perfectamente
                     medido se ocultaba en cuanto fallaba el volumen — mientras el
                     visor, que no consulta la bandera, seguía anotándolo en 3D. */}
-                <Metric label="Ø máximo" value={(m.reliable ? <Odometro value={m.max_diameter_mm} decimals={1} sep="." /> : m.max_diameter_mm.toFixed(1))} unit=" mm"
+                <Metric label="Ø máximo" value={(m.reliable ? <Odometro value={m.max_diameter_mm} decimals={1} /> : cifra(m.max_diameter_mm, 1))} unit=" mm"
                         badge={provisional ? ["provisional", "warning"] : undefined} />
                 {avisoCorte && (
                   <div style={{ fontSize: 11, lineHeight: 1.5, color: "var(--warning)", margin: "4px 0 6px" }}>
@@ -452,36 +452,36 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                 {/* El mismo Ø sin ramas finas pegadas al saco: si se separa del de
                     arriba, el aviso explica por qué (services/sac_body.py). */}
                 {m.body_max_diameter_mm != null && (
-                  <Metric label="Ø máximo del cuerpo (sin ramas finas)" value={(m.reliable ? <Odometro value={m.body_max_diameter_mm} decimals={1} sep="." /> : m.body_max_diameter_mm.toFixed(1))} unit=" mm" />
+                  <Metric label="Ø máximo del cuerpo (sin ramas finas)" value={(m.reliable ? <Odometro value={m.body_max_diameter_mm} decimals={1} /> : cifra(m.body_max_diameter_mm, 1))} unit=" mm" />
                 )}
-                <Metric label="Cuello" value={neckOk ? (m.reliable ? <Odometro value={m.neck_mm} decimals={1} sep="." /> : m.neck_mm.toFixed(1)) : "—"} unit={neckOk ? " mm" : ""} />
-                <Metric label="Altura de domo" value={neckOk ? (m.reliable ? <Odometro value={m.dome_height_mm} decimals={1} sep="." /> : m.dome_height_mm.toFixed(1)) : "—"} unit={neckOk ? " mm" : ""} />
-                <Metric label="Volumen" value={volOk ? (m.reliable ? <Odometro value={m.volume_mm3} decimals={1} sep="." /> : m.volume_mm3.toFixed(1)) : "—"} unit={volOk ? " mm³" : ""}
+                <Metric label="Cuello" value={neckOk ? (m.reliable ? <Odometro value={m.neck_mm} decimals={1} /> : cifra(m.neck_mm, 1)) : "—"} unit={neckOk ? " mm" : ""} />
+                <Metric label="Altura de domo" value={neckOk ? (m.reliable ? <Odometro value={m.dome_height_mm} decimals={1} /> : cifra(m.dome_height_mm, 1)) : "—"} unit={neckOk ? " mm" : ""} />
+                <Metric label="Volumen" value={volOk ? (m.reliable ? <Odometro value={m.volume_mm3} decimals={1} /> : cifra(m.volume_mm3, 1)) : "—"} unit={volOk ? " mm³" : ""}
                         badge={provisional && volOk ? ["provisional", "warning"] : undefined} />
                 {/* F1-159: con la malla abierta el área es la del parche, no la del
                     saco, igual que el volumen: «—» como el resto del grupo. */}
-                <Metric label="Área superficie" value={volOk ? (m.reliable ? <Odometro value={m.surface_area_mm2} decimals={1} sep="." /> : m.surface_area_mm2.toFixed(1)) : "—"} unit={volOk ? " mm²" : ""} />
+                <Metric label="Área superficie" value={volOk ? (m.reliable ? <Odometro value={m.surface_area_mm2} decimals={1} /> : cifra(m.surface_area_mm2, 1)) : "—"} unit={volOk ? " mm²" : ""} />
                 {/* F1-160/161/162: un corte por índice, el mismo que la etiqueta de
                     riesgo y Decisión (thresholds.ts), con su fuente en el tooltip.
                     El BF decía «Cuello ancho» justo con el cuello estrecho. */}
                 <div title={THRESHOLD_TIP.dnr}>
                   <Metric
                     label="DNR"
-                    value={neckOk ? m.dnr.toFixed(2) : "—"}
+                    value={neckOk ? cifra(m.dnr, 2) : "—"}
                     badge={!neckOk ? ["sin medir", "outline"] : badgeFor("dnr", m.dnr)}
                   />
                 </div>
                 <div title={THRESHOLD_TIP.ar}>
                   <Metric
                     label="AR"
-                    value={neckOk ? m.ar.toFixed(2) : "—"}
+                    value={neckOk ? cifra(m.ar, 2) : "—"}
                     badge={!neckOk ? ["sin medir", "outline"] : badgeFor("ar", m.ar)}
                   />
                 </div>
                 <div title={THRESHOLD_TIP.bf}>
                   <Metric
                     label="BF"
-                    value={neckOk ? m.bf.toFixed(2) : "—"}
+                    value={neckOk ? cifra(m.bf, 2) : "—"}
                     badge={!neckOk ? ["sin medir", "outline"] : badgeFor("bf", m.bf)}
                   />
                 </div>
@@ -508,7 +508,7 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                 {/* F1-163: «Ondulación», y el corte de la etiqueta de riesgo y de
                     Decisión (aquí era 0,15; allí 0,10/0,25 y 0,20). */}
                 <div title={THRESHOLD_TIP.ui}>
-                  <Metric label="UI · Ondulación" value={volOk ? m.ui.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : badgeFor("ui", m.ui)} />
+                  <Metric label="UI · Ondulación" value={volOk ? cifra(m.ui, 2) : "—"} badge={!volOk ? ["sin medir", "outline"] : badgeFor("ui", m.ui)} />
                 </div>
                 {/* El SR depende de la arteria madre, que se mide justo por debajo
                     del cuello: con un cuello estimado automáticamente esa referencia
@@ -516,7 +516,7 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                 <div title={THRESHOLD_TIP.sr}>
                   <Metric
                     label="SR · Size Ratio"
-                    value={m.sr > 0 ? m.sr.toFixed(2) : "—"}
+                    value={m.sr > 0 ? cifra(m.sr, 2) : "—"}
                     badge={m.sr <= 0 ? ["sin medir", "outline"]
                       : m.neck_source === "auto" ? ["orientativo", "outline"]
                       : badgeFor("sr", m.sr)}
@@ -534,16 +534,16 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                 <div style={{ marginTop: 12 }}>
                   <Collapsible title="Más índices" subtitle="Elipticidad, no-esfericidad, compacidad, Ø esfera equivalente" storageKey="morfo.mas-indices">
                     <div title={MORE_TIP.ei}>
-                      <Metric label="EI · Elipticidad" value={volOk ? m.ei.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : badgeFor("ei", m.ei)} />
+                      <Metric label="EI · Elipticidad" value={volOk ? cifra(m.ei, 2) : "—"} badge={!volOk ? ["sin medir", "outline"] : badgeFor("ei", m.ei)} />
                     </div>
                     <div title={MORE_TIP.nsi}>
-                      <Metric label="NSI · No-esfericidad" value={volOk ? m.nsi.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : undefined} />
+                      <Metric label="NSI · No-esfericidad" value={volOk ? cifra(m.nsi, 2) : "—"} badge={!volOk ? ["sin medir", "outline"] : undefined} />
                     </div>
                     <div title={MORE_TIP.compactness}>
-                      <Metric label="Compacidad (Wadell)" value={volOk ? m.compactness.toFixed(2) : "—"} badge={!volOk ? ["sin medir", "outline"] : undefined} />
+                      <Metric label="Compacidad (Wadell)" value={volOk ? cifra(m.compactness, 2) : "—"} badge={!volOk ? ["sin medir", "outline"] : undefined} />
                     </div>
                     <div title={MORE_TIP.eq}>
-                      <Metric label="Ø esfera equivalente" value={volOk ? m.eq_sphere_diam_mm.toFixed(1) : "—"} unit={volOk ? " mm" : ""} />
+                      <Metric label="Ø esfera equivalente" value={volOk ? cifra(m.eq_sphere_diam_mm, 1) : "—"} unit={volOk ? " mm" : ""} />
                     </div>
                   </Collapsible>
                 </div>
@@ -582,7 +582,7 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                     <Metric
                       key={e.session_date + e.session_label}
                       label={CURRENT_LABELS.has(e.session_label) ? `esta sesión · ${e.session_date}` : e.session_date}
-                      value={`${e.max_diameter_mm.toFixed(1)} mm · AR ${e.ar.toFixed(2)}`}
+                      value={`${cifra(e.max_diameter_mm, 1)} mm · AR ${cifra(e.ar, 2)}`}
                       badge={[e.rupture_risk_label, riskVariant(e.rupture_risk_label)]}
                     />
                   ))

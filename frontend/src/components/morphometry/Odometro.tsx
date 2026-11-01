@@ -6,13 +6,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { EASE, animate, useReducedMotion } from "../../motion";
+import { cifra } from "../../lib/numero";
 
-export function Odometro({ value, decimals, duracionMs = 600, sep = "," }: {
+export function Odometro({ value, decimals, duracionMs = 600 }: {
   value: number | null;
   decimals: number;
   duracionMs?: number;
-  /** Separador decimal: la coma de siempre; el panel conserva el punto de su tabla. */
-  sep?: "," | ".";
 }) {
   const reducido = useReducedMotion();
   const [shown, setShown] = useState<number | null>(value);
@@ -34,6 +33,5 @@ export function Odometro({ value, decimals, duracionMs = 600, sep = "," }: {
   }, [value, reducido, duracionMs]);
 
   if (shown === null) return <span data-odometro>—</span>;
-  const txt = shown.toLocaleString("es-ES", { minimumFractionDigits: decimals, maximumFractionDigits: decimals, useGrouping: false });
-  return <span data-odometro>{sep === "." ? txt.replace(",", ".") : txt}</span>;
+  return <span data-odometro>{cifra(shown, decimals)}</span>;
 }

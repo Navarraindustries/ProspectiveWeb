@@ -18,6 +18,8 @@ import { DUR, EASE, fundido, fundidoTransition, motion, useReducedMotion } from 
 import { useAuth } from "../../store/auth";
 import { SCREEN_PATH, useNav } from "../../store/nav";
 import type { Screen } from "../../store/nav";
+import { isConfirmDialogOpen } from "../ConfirmDialog";
+import { isSheetOpen } from "../Sheet";
 import { Logo } from "./Logo";
 import { PENDING_CHANGED_EVENT } from "./pendingEvents";
 import { LogoutButton } from "./LogoutButton";
@@ -99,19 +101,34 @@ function SectionLink({ section, active, expanded, badge, onGo }: {
   );
 }
 
+/** Hay otra capa encima del cajón (paleta, hoja, confirmación) que atiende sus
+    propias teclas: el foco está en otro diálogo modal, o hay una hoja o una
+    confirmación abiertas. */
+function otraCapaEncima(cajon: HTMLElement | null): boolean {
+  if (isSheetOpen() || isConfirmDialogOpen()) return true;
+  const activo = document.activeElement;
+  const modal = activo instanceof HTMLElement ? activo.closest('[aria-modal="true"]') : null;
+  return modal !== null && !(cajon && modal.contains(cajon));
+}
+
 /** Foco atrapado, Escape y vuelta del foco al botón mientras el cajón está abierto. */
 function useCajon(abierto: boolean, ref: RefObject<HTMLElement | null>, onCerrar?: () => void) {
   const cerrar = useRef(onCerrar);
   cerrar.current = onCerrar;
   useEffect(() => {
     if (!abierto) return;
+    // El botón que lo abrió: al cerrar vuelve a él solo si sigue en la página
+    // (al pasar de 640 con el cajón abierto, la barra ya no lo pinta).
+    const disparador = document.querySelector<HTMLElement>("[data-abrir-secciones]");
     const enfocables = () => Array.from(
       ref.current?.querySelectorAll<HTMLElement>("a[href], button:not([disabled])") ?? [],
     );
     enfocables()[0]?.focus();
     const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" && e.key !== "Tab") return;
+      // La tecla ya la atendió otra capa (la paleta cancela su Tab) o hay una encima.
+      if (e.defaultPrevented || otraCapaEncima(ref.current)) return;
       if (e.key === "Escape") { e.preventDefault(); cerrar.current?.(); return; }
-      if (e.key !== "Tab") return;
       const lista = enfocables();
       if (lista.length === 0) return;
       const primero = lista[0], ultimo = lista[lista.length - 1];
@@ -123,7 +140,7 @@ function useCajon(abierto: boolean, ref: RefObject<HTMLElement | null>, onCerrar
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.querySelector<HTMLElement>("[data-abrir-secciones]")?.focus();
+      if (disparador?.isConnected) disparador.focus();
     };
   }, [abierto, ref]);
 }
@@ -170,7 +187,8 @@ export function SideNav({ state, modo = "carril", abierto = false, onCerrar }: {
       data-modo={cajon ? "cajon" : "carril"}
       data-glass
       style={{ ...glass("normal"), border: "none", borderRight: "1px solid var(--glass-border)", borderRadius: 0 }}
-      aria-label="Secciones"
+      // En el cajón el nombre lo lleva el diálogo que lo envuelve.
+      aria-label={cajon ? undefined : "Secciones"}
       data-expanded={expanded ? "true" : "false"}
       onMouseEnter={hoverIn}
       onMouseLeave={hoverOut}

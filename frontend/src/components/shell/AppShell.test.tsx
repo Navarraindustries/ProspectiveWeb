@@ -12,10 +12,15 @@ const nav = { screen: "patients", go: vi.fn() };
 vi.mock("../../store/auth", () => ({ useAuth: () => ({ user: auth.user, logout: vi.fn() }) }));
 vi.mock("../../store/nav", async (orig) => ({ ...(await orig<object>()), useNav: () => nav }));
 vi.mock("../../store/theme", () => ({ useThemeContext: () => ({ theme: "dark", toggle: vi.fn() }) }));
-vi.mock("../../api/client", () => ({ api: { listPending: vi.fn().mockResolvedValue([{ id: 9 }, { id: 10 }]) } }));
+vi.mock("../../api/client", () => ({ api: { listPending: vi.fn().mockResolvedValue([{ id: 9 }, { id: 10 }]), listPatients: vi.fn().mockResolvedValue([]) } }));
 
+import { CommandPalette } from "../CommandPalette";
+import { openCommandPalette } from "../../lib/commands";
 import { AppShell } from "./AppShell";
 import { resetSessionPinned } from "./useShellState";
+
+/** La navegación del cajón: sin nombre propio, dentro del diálogo «Secciones». */
+const navCajon = () => within(screen.getByRole("dialog", { name: "Secciones" })).getByRole("navigation");
 
 /** Pinta el shell con un hijo mínimo; las props son las del propio AppShell. */
 function renderShell(props: Omit<ComponentProps<typeof AppShell>, "children">) {
@@ -130,16 +135,16 @@ describe("AppShell", () => {
     const s = simularPantalla({ ancho: 390 });
     const { container } = renderShell({ crumbs: [{ label: "Pacientes" }] });
     expect(container.querySelector(".shell")).toHaveAttribute("data-movil", "true");
-    expect(screen.queryByRole("navigation", { name: "Secciones" })).toBeNull();
+    expect(container.querySelector(".shell-nav")).toBeNull();
     const boton = screen.getByRole("button", { name: "Abrir las secciones" });
     fireEvent.click(boton);
-    const cajon = screen.getByRole("navigation", { name: "Secciones" });
+    const cajon = navCajon();
     expect(cajon).toHaveAttribute("data-modo", "cajon");
     expect(cajon).toHaveAttribute("data-expanded", "true");
     expect(boton).toHaveAttribute("aria-expanded", "true");
     expect(document.activeElement).toBe(within(cajon).getAllByRole("link")[0]);
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("navigation", { name: "Secciones" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Secciones" })).toBeNull();
     expect(document.activeElement).toBe(boton);
     s.restaurar();
   });
@@ -147,7 +152,7 @@ describe("AppShell", () => {
     const s = simularPantalla({ ancho: 390 });
     renderShell({});
     fireEvent.click(screen.getByRole("button", { name: "Abrir las secciones" }));
-    const cajon = screen.getByRole("navigation", { name: "Secciones" });
+    const cajon = navCajon();
     const foco = Array.from(cajon.querySelectorAll<HTMLElement>("a[href], button:not([disabled])"));
     foco[foco.length - 1].focus();
     fireEvent.keyDown(document, { key: "Tab" });
@@ -161,12 +166,12 @@ describe("AppShell", () => {
     const { container } = renderShell({});
     nav.go.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "Abrir las secciones" }));
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Secciones" })).getByRole("link", { name: "Estudios" }));
+    fireEvent.click(within(navCajon()).getByRole("link", { name: "Estudios" }));
     expect(nav.go).toHaveBeenCalledWith("studies");
-    expect(screen.queryByRole("navigation", { name: "Secciones" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Secciones" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Abrir las secciones" }));
     fireEvent.click(container.querySelector(".shell-nav-velo")!);
-    expect(screen.queryByRole("navigation", { name: "Secciones" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Secciones" })).toBeNull();
     s.restaurar();
   });
   it("a 390: con el cajón abierto el fondo es inert y el cajón es un diálogo modal", () => {
@@ -178,10 +183,30 @@ describe("AppShell", () => {
     expect(fondo).toHaveAttribute("inert");
     const dialogo = screen.getByRole("dialog", { name: "Secciones" });
     expect(dialogo).toHaveAttribute("aria-modal", "true");
-    expect(dialogo.contains(screen.getByRole("navigation", { name: "Secciones" }))).toBe(true);
+    expect(dialogo.contains(navCajon())).toBe(true);
+    // El nombre lo lleva el diálogo; la navegación de dentro no lo repite.
+    expect(navCajon()).not.toHaveAttribute("aria-label");
     fireEvent.keyDown(document, { key: "Escape" });
     expect(fondo).not.toHaveAttribute("inert");
     expect(screen.queryByRole("dialog")).toBeNull();
+    s.restaurar();
+  });
+  it("a 390: con la paleta abierta sobre el cajón, Tab y Escape son de la paleta", async () => {
+    const s = simularPantalla({ ancho: 390 });
+    render(<><AppShell><p>x</p></AppShell><CommandPalette onOpenPatient={() => {}} onResume={() => {}} /></>);
+    fireEvent.click(screen.getByRole("button", { name: "Abrir las secciones" }));
+    const primero = within(navCajon()).getAllByRole("link")[0];
+    expect(document.activeElement).toBe(primero);
+    act(() => openCommandPalette());
+    const buscar = screen.getByRole("combobox", { name: "Buscar en la paleta" });
+    expect(document.activeElement).toBe(buscar);
+    fireEvent.keyDown(buscar, { key: "Tab" });
+    expect(document.activeElement).toBe(buscar);
+    fireEvent.keyDown(buscar, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Paleta de mandos" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Secciones" })).toBeInTheDocument();
+    expect(document.activeElement).toBe(primero);
+    await act(async () => {});
     s.restaurar();
   });
   it("si la ventana pasa de 640 con el cajón abierto, vuelve el carril", () => {

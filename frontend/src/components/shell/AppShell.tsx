@@ -6,7 +6,7 @@
    acción viva junto al estado que la habilita. El espacio de trabajo no la usa
    en F2: conserva su barra superior y su carril. */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import { Ambiente } from "../Ambiente";
 import { SideNav } from "./SideNav";
@@ -30,8 +30,11 @@ export function AppShell({ crumbs, subtitle, status, acciones, extra, children }
   const state = useShellState();
   const movil = useMovil();
   const [cajonAbierto, setCajonAbierto] = useState(false);
-  // Si la ventana crece por encima de 640 con el cajón abierto, vuelve el carril.
-  useEffect(() => { if (!movil) setCajonAbierto(false); }, [movil]);
+  // El cajón solo existe en móvil: por encima de 640 vuelve el carril en el mismo
+  // render. El estado se suelta también (durante el render, sin efecto) para que
+  // volver a estrechar la ventana no lo reabra.
+  if (!movil && cajonAbierto) setCajonAbierto(false);
+  const abierto = movil && cajonAbierto;
   // Fija, la barra ocupa su columna (240 px) y el contenido se reparte el
   // resto; expandida solo por el ratón o Alt+B se superpone al contenido, para
   // que cruzarla no mueva la tabla que hay debajo. Por eso la rejilla mira
@@ -41,9 +44,9 @@ export function AppShell({ crumbs, subtitle, status, acciones, extra, children }
       <div className="shell" data-pinned={state.pinned ? "true" : "false"} data-movil={movil ? "true" : undefined}>
         {!movil && <SideNav state={state} />}
         {movil && (
-          <SideNav state={state} modo="cajon" abierto={cajonAbierto} onCerrar={() => setCajonAbierto(false)} />
+          <SideNav state={state} modo="cajon" abierto={abierto} onCerrar={() => setCajonAbierto(false)} />
         )}
-        <div className="shell-body" inert={cajonAbierto || undefined}>
+        <div className="shell-body" inert={abierto || undefined}>
           <TopBar
             crumbs={crumbs}
             subtitle={subtitle}
@@ -51,7 +54,7 @@ export function AppShell({ crumbs, subtitle, status, acciones, extra, children }
             acciones={acciones}
             extra={extra}
             onAbrirSecciones={movil ? () => setCajonAbierto(true) : undefined}
-            seccionesAbiertas={cajonAbierto}
+            seccionesAbiertas={abierto}
           />
           <main className="shell-main">{children}</main>
         </div>

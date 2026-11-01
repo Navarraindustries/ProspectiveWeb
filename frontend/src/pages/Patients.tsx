@@ -1,24 +1,24 @@
 /* Pacientes — avisos clínicos y panel de tarjetas por última actividad (GET
    /api/patients) con panel lateral; crear, abrir la ficha y reanudar la última
-   sesión. Borrar un paciente está al pie de su ficha (PatientSheet.tsx). */
+   sesión. Borrar un paciente está al pie de su ficha (ColumnaDatos.tsx). */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { ClipOrder, PatientSummary, StudyCard, StudySummary } from "../api/types";
+import type { ClipOrder, PatientSummary, StudySummary } from "../api/types";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
+import { PatientFormSheet } from "../components/PatientFormSheet";
 import { PatientCard } from "../components/patients/PatientCard";
 import { PatientsSidePanel } from "../components/patients/PatientsSidePanel";
 import "../components/patients/patients.css";
 import { useAuth } from "../store/auth";
 import { glass } from "../styles/glass";
-import { useNav } from "../store/nav";
+import { patientPath, useNav } from "../store/nav";
 import { CasePatientPicker, NuevoEstudioSheet } from "./NuevoCaso";
-import { PatientSheet } from "./PatientSheet";
 
 import { avisosOficina } from "../lib/avisosOficina";
 import { filtraPestana, hayCompartidos, recuentoPacientes, ultimaActividad, type PestanaPacientes } from "../lib/pacientes";
@@ -39,17 +39,11 @@ const ESQUELETOS = 6;
 export function Patients({
   onResume,
   onPlanCase,
-  onOpenStudy,
-  onOpenOrders,
   onStartWithoutPatient,
 }: {
   onResume: (sessionId: string, patient: PatientSummary) => void;
   /** Enter the pipeline for a clinical case (patient + case known upfront). */
   onPlanCase: (study: StudySummary, patient: PatientSummary) => void;
-  /** Open an archived imaging study straight from the patient sheet. */
-  onOpenStudy: (img: StudyCard) => void;
-  /** Abre el registro de pedidos filtrado por un paciente. */
-  onOpenOrders?: (p: PatientSummary) => void;
   /** Al pipeline sin paciente ni caso; se adjuntan después. */
   onStartWithoutPatient?: () => void;
 }) {
@@ -63,7 +57,7 @@ export function Patients({
   // El fallo de la carga sustituye a la lista: con él no hay contadores ni
   // «Ningún paciente».
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [sheetPatientId, setSheetPatientId] = useState<number | null>(null);
+  // La hoja de «Nuevo paciente»; la ficha de uno existente es su propia pantalla.
   const [sheetOpen, setSheetOpen] = useState(false);
   const [caseSheet, setCaseSheet] = useState(false);
   const [casePatient, setCasePatient] = useState<PatientSummary | null>(null);
@@ -94,32 +88,34 @@ export function Patients({
   };
   useEffect(load, []);
 
-  // ?paciente=<id> opens that patient's sheet on arrival, so the breadcrumb in
-  // the workspace can lead back to the case instead of just the list.
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  // ?paciente=<id> es el enlace antiguo a la ficha (marcadores, enlaces
+  // enviados): ahora la ficha tiene URL propia y se redirige a ella con
+  // `replace`, para que el enlace viejo no sea un destino de Atrás.
   // ?nuevo=paciente / ?nuevo=caso vienen de la paleta ⌘K. Cada parámetro se
   // consume una vez y se borra: recargar la página no vuelve a abrir la hoja.
   useEffect(() => {
     const id = Number(params.get("paciente"));
     const nuevo = params.get("nuevo");
-    const abreFicha = Number.isFinite(id) && id > 0;
+    const abreFicha = Number.isInteger(id) && id > 0;
     if (!abreFicha && nuevo !== "paciente" && nuevo !== "caso") return;
     if (abreFicha) {
-      setSheetPatientId(id);
-      setSheetOpen(true);
-    } else if (nuevo === "paciente") {
-      setSheetPatientId(null);
+      navigate(patientPath(id), { replace: true });
+      return;
+    }
+    if (nuevo === "paciente") {
       setSheetOpen(true);
     } else {
       setCaseSheet(true);
     }
     setParams({}, { replace: true });
-  }, [params, setParams]);
+  }, [params, setParams, navigate]);
 
-  const openCreate = () => { setSheetPatientId(null); setSheetOpen(true); };
+  const openCreate = () => setSheetOpen(true);
   // Fusión nº 8: «Editar» era la única puerta a la ficha y se anunciaba como
   // una edición; ahora la abren el clic en la tarjeta y su Intro.
-  const openSheet = (id: number) => { setSheetPatientId(id); setSheetOpen(true); };
+  const openSheet = (id: number) => navigate(patientPath(id));
 
   const [pestana, setPestana] = useState<PestanaPacientes>("todos");
 
@@ -287,32 +283,15 @@ export function Patients({
         </div>
       </div>
 
-      <PatientSheet
+      <PatientFormSheet
         open={sheetOpen}
-        patientId={sheetPatientId}
-        // El resumen trae quién lo creó: decide «Compartir con…» y «Eliminar paciente».
-        summary={sheetPatientId === null ? null : patients.find((x) => x.id === sheetPatientId) ?? null}
+        patient={null}
         onClose={() => setSheetOpen(false)}
         onSaved={(creado) => {
           load();
           // Spec §5: «Nuevo paciente» termina ofreciendo el caso de ese paciente.
           if (creado) setAviso({ tipo: "paciente", paciente: creado });
         }}
-        onResume={(sid) => {
-          const p = patients.find((x) => x.id === sheetPatientId);
-          if (p) { setSheetOpen(false); onResume(sid, p); }
-        }}
-        onPlanCase={(st) => {
-          const p = patients.find((x) => x.id === sheetPatientId);
-          if (p) onPlanCase(st, p);
-        }}
-        onOpenOrders={onOpenOrders && (() => {
-          const p = patients.find((x) => x.id === sheetPatientId);
-          if (p) { setSheetOpen(false); onOpenOrders(p); }
-        })}
-        onOpenStudy={onOpenStudy}
-        onDeleted={() => { setSheetOpen(false); load(); }}
-        onChanged={load}
       />
       {/* Nuevo caso = elegir paciente existente → formulario del caso para ese paciente. */}
       <CasePatientPicker

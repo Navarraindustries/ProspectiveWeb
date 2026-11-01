@@ -181,6 +181,8 @@ class PatientSessionInfo(BaseModel):
     created_at: datetime
     updated_at: datetime
     size_bytes: int = 0
+    case_id: int | None = None
+    imaging_study_id: int | None = None
 
 
 class PlanningSessionSummary(BaseModel):

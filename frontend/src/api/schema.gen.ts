@@ -7431,6 +7431,8 @@ export interface components {
          * @description One past planning session done on a patient, for the patient detail view.
          */
         PatientSessionInfo: {
+            /** Case Id */
+            case_id?: number | null;
             /**
              * Created At
              * Format: date-time
@@ -7441,6 +7443,8 @@ export interface components {
              * @default 0
              */
             current_step: number;
+            /** Imaging Study Id */
+            imaging_study_id?: number | null;
             /**
              * Label
              * @default

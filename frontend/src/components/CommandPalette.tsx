@@ -35,8 +35,9 @@ const GROUPS = ["Ir a", "Pasos", "Acciones", "Pacientes", "Recientes"] as const;
 const MAX_PATIENTS = 8;
 const MAX_RECENT = 5;
 
-// Diacríticos combinantes (U+0300–U+036F), escritos con escapes para que se vean.
-const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+// Quita los diacríticos combinantes (U+0300–U+036F) tras normalizar a NFD:
+// «Zenodo, Caso» y «zenodó» se comparan sin acentos ni mayúsculas.
+const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 function matches(query: string, ...parts: (string | undefined)[]): boolean {
   const hay = fold(parts.filter(Boolean).join(" "));

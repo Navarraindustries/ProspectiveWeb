@@ -1,8 +1,6 @@
-/* La ficha de un paciente ajeno (F1-33, F1-34, F1-257, F1-258).
-
-   Un Médico que abría `?paciente=<id de otro>` recibía el 403 del servidor,
-   pero la ficha seguía dibujando el formulario vacío con «Guardar cambios»,
-   «Nuevo caso», «Pedidos» y «Reanudar en …». Ahora solo queda el aviso. */
+/* La lista de pacientes. La ficha tiene URL propia (/app/pacientes/:id): aquí
+   solo se prueba que la tarjeta y el enlace antiguo ?paciente= llevan a ella;
+   la ficha en sí se prueba en PatientPage.test.tsx. */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -63,23 +61,27 @@ vi.mock("./NuevoCaso", () => ({
 }));
 vi.mock("./Studies", () => ({ StudyGallery: () => null }));
 const go = vi.fn();
-vi.mock("../store/nav", () => ({ useNav: () => ({ go }) }));
+vi.mock("../store/nav", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../store/nav")>()),
+  useNav: () => ({ go }),
+}));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user }) }));
 
 import { ApiError } from "../api/client";
 import { Patients } from "./Patients";
-import { fechaHora } from "../lib/fecha";
 import type { PatientSummary } from "../api/types";
 
 const noop = () => {};
 const onResume = vi.fn();
 const onPlanCase = vi.fn();
+const RutaActual = () => <output data-testid="ruta">{useLocation().pathname}</output>;
 const renderAt = (url: string) =>
   render(
     <MemoryRouter initialEntries={[url]}>
-      <Patients onResume={onResume} onPlanCase={onPlanCase} onOpenStudy={noop} onOpenOrders={noop}
+      <Patients onResume={onResume} onPlanCase={onPlanCase}
                 onStartWithoutPatient={noop} />
+      <RutaActual />
     </MemoryRouter>,
   );
 
@@ -104,34 +106,6 @@ beforeEach(() => {
   onPlanCase.mockReset();
   user.id = 1;
   user.role = "medico";
-});
-
-describe("la ficha de un paciente ajeno", () => {
-  it("muestra el motivo del servidor y no dibuja el formulario", async () => {
-    const no = () => Promise.reject(new ApiError(403, "No autorizado sobre este paciente."));
-    getPatient.mockImplementation(no);
-    patientSessions.mockImplementation(no);
-    patientStudies.mockImplementation(no);
-    renderAt("/app/pacientes?paciente=1");
-
-    expect(await screen.findByText("No autorizado sobre este paciente.")).toBeTruthy();
-    expect(screen.queryByText("Guardar cambios")).toBeNull();
-    expect(screen.queryByText(/Casos \(/)).toBeNull();
-    // «Pedidos de clips» sigue siendo un acceso del panel lateral: se mira solo la ficha.
-    expect(within(screen.getByRole("dialog")).queryByText(/Pedidos/)).toBeNull();
-    expect(screen.queryByText(/Reanudar en/)).toBeNull();
-    expect(screen.queryByLabelText("Apellidos")).toBeNull();
-  });
-
-  it("un paciente propio sigue abriendo su ficha", async () => {
-    getPatient.mockResolvedValue({ id: 2, surname: "Propio", given_name: "", hospital_id: "HC-2", sex: "F" });
-    patientSessions.mockResolvedValue([]);
-    patientStudies.mockResolvedValue([]);
-    renderAt("/app/pacientes?paciente=2");
-
-    expect(await screen.findByText("Guardar cambios")).toBeTruthy();
-    expect(screen.queryByText("No autorizado sobre este paciente.")).toBeNull();
-  });
 });
 
 /* F1-252, F1-253: un Médico veía «Pacientes registrados · en la base de
@@ -187,132 +161,6 @@ describe("con el API fallando (F1-2, F1-29)", () => {
     expect(listPatients).toHaveBeenCalledTimes(2);
     expect(screen.queryByText("Sin conexión con el servidor")).toBeNull();
   });
-
-  it("la ficha que no carga no dibuja el formulario en blanco; «Reintentar» vuelve a pedirla", async () => {
-    getPatient.mockRejectedValueOnce(new ApiError(500, "La base de datos está bloqueada"));
-    patientSessions.mockResolvedValue([]);
-    patientStudies.mockResolvedValue([]);
-    renderAt("/app/pacientes?paciente=2");
-
-    expect(await screen.findByText("La base de datos está bloqueada")).toBeTruthy();
-    expect(screen.queryByText("Guardar cambios")).toBeNull();
-    expect(screen.queryByLabelText("Apellidos")).toBeNull();
-
-    getPatient.mockResolvedValueOnce({ id: 2, surname: "Propio", given_name: "", hospital_id: "HC-2", sex: "F" });
-    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
-    expect(await screen.findByText("Guardar cambios")).toBeTruthy();
-    expect(getPatient).toHaveBeenCalledTimes(2);
-  });
-});
-
-/* F1-58: el diálogo de borrar un paciente no decía cuánto se llevaba, e Intro
-   lo confirmaba. Desde F2 (Tarea 11) se elimina desde el pie de la ficha: la
-   fila se queda con «Reanudar» y «Abrir ficha». */
-describe("borrar un paciente", () => {
-  const maria = fila({ id: 7, full_name: "Restrepo, María", study_count: 2 });
-
-  it("la tarjeta ya no tiene ✕; el pie de la ficha dice cuántos casos y sesiones se borran, e Intro no borra", async () => {
-    listPatients.mockResolvedValue([maria]);
-    getPatient.mockResolvedValue({ id: 7, surname: "Restrepo", given_name: "María", hospital_id: "HC-7", sex: "F" });
-    patientStudies.mockResolvedValue([]);
-    patientSessions.mockResolvedValue(Array.from({ length: 6 }, (_, i) => ({ session_id: `s${i}`, label: "", current_step: 0, updated_at: "2026-10-01T00:00:00", size_bytes: 0 })));
-    renderAt("/app/pacientes");
-    await screen.findByText("Restrepo, María");
-    expect(screen.queryByTitle("Eliminar")).toBeNull();
-    expect(screen.queryByRole("button", { name: /Eliminar a/ })).toBeNull();
-
-    fireEvent.click(screen.getByRole("article", { name: /Restrepo, María/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Eliminar paciente" }));
-    const dialogo = screen.getByRole("alertdialog", { name: "Eliminar paciente" });
-    await waitFor(() => expect(dialogo.textContent).toContain("6 sesiones"));
-    expect(dialogo.textContent).toContain("2 casos");
-    expect(patientSessions).toHaveBeenCalledWith(7);
-
-    fireEvent.keyDown(document, { key: "Enter" });
-    expect(deletePatient).not.toHaveBeenCalled();
-
-    listPatients.mockResolvedValue([]);
-    fireEvent.click(within(dialogo).getByRole("button", { name: "Eliminar" }));
-    await waitFor(() => expect(deletePatient).toHaveBeenCalledWith(7));
-    await waitFor(() => expect(screen.queryByText("Restrepo, María")).toBeNull());
-  });
-});
-
-/* F1-60, F1-71: «Cancelar», el ✕, Escape y el clic fuera cerraban la ficha y
-   tiraban lo escrito sin preguntar. */
-describe("descartar los cambios de la ficha", () => {
-  const abrir = async () => {
-    getPatient.mockResolvedValue({ id: 2, surname: "Propio", given_name: "", hospital_id: "HC-2", sex: "F", notes: "" });
-    patientSessions.mockResolvedValue([]);
-    patientStudies.mockResolvedValue([]);
-    renderAt("/app/pacientes?paciente=2");
-    await screen.findByText("Guardar cambios");
-  };
-
-  it("«Cancelar» con «Notas» editado pregunta y no cierra hasta confirmar", async () => {
-    await abrir();
-    fireEvent.change(screen.getByLabelText("Notas"), { target: { value: "Cefalea en trueno" } });
-    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-    expect(screen.getByRole("alertdialog", { name: "¿Descartar los cambios?" })).toBeTruthy();
-    expect(screen.getByLabelText("Notas")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "Seguir editando" }));
-    expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect((screen.getByLabelText("Notas") as HTMLInputElement).value).toBe("Cefalea en trueno");
-
-    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-    fireEvent.click(screen.getByRole("button", { name: "Descartar cambios" }));
-    await waitFor(() => expect(screen.queryByLabelText("Notas")).toBeNull());
-  });
-
-  it("Escape con cambios también pregunta, y Escape otra vez cierra solo la pregunta", async () => {
-    await abrir();
-    fireEvent.change(screen.getByLabelText("Notas"), { target: { value: "x" } });
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.getByRole("alertdialog", { name: "¿Descartar los cambios?" })).toBeTruthy();
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(screen.getByLabelText("Notas")).toBeTruthy();
-  });
-
-  it("«Cancelar» sin cambios cierra sin preguntar", async () => {
-    await abrir();
-    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-    expect(screen.queryByRole("alertdialog")).toBeNull();
-    await waitFor(() => expect(screen.queryByLabelText("Notas")).toBeNull());
-  });
-});
-
-describe("las sesiones guardadas (F1-243)", () => {
-  it("la hora de la sesión sale en hora local, no la del servidor sin convertir", async () => {
-    getPatient.mockResolvedValue({ id: 2, surname: "Propio", given_name: "", hospital_id: "HC-2", sex: "F" });
-    patientStudies.mockResolvedValue([]);
-    patientSessions.mockResolvedValue([{
-      session_id: "s1", label: "", updated_at: "2026-10-11T05:05:09", current_step: "dicom",
-      rupture_risk_label: null, max_diameter_mm: null,
-    }]);
-    renderAt("/app/pacientes?paciente=2");
-    // 05:05 UTC son las 00:05 en UTC−5; la expectativa con zona fija está en fecha.test.ts.
-    expect(await screen.findByText((t) => t.includes(fechaHora("2026-10-11T05:05:09")))).toBeTruthy();
-  });
-});
-
-/* F1-53, F1-54, F1-55, F1-242, F1-64, F1-65, F1-66, F1-67, F1-89: la pantalla
-   contaba «estudios» donde el glosario dice «caso», y llamaba «Solicitudes» a
-   lo que son cuentas pendientes de aprobar. */
-describe("el glosario en «Pacientes» (familia V, W, X)", () => {
-  it("la ficha dice «Casos (0)», «Nuevo caso», el vacío nuevo y «Sesiones guardadas (n)»", async () => {
-    getPatient.mockResolvedValue({ id: 2, surname: "Propio", given_name: "", hospital_id: "HC-2", sex: "F" });
-    patientSessions.mockResolvedValue([{ session_id: "a" }, { session_id: "b" }]);
-    patientStudies.mockResolvedValue([]);
-    renderAt("/app/pacientes?paciente=2");
-    expect(await screen.findByText("Casos (0)")).toBeTruthy();
-    // Uno es el botón de la cabecera y otro el de la ficha.
-    expect(screen.getAllByRole("button", { name: /Nuevo caso/ })).toHaveLength(2);
-    expect(screen.getByText("Sin casos. Crea uno con «Nuevo caso» para archivar el DICOM y las capturas de este paciente.")).toBeTruthy();
-    expect(await screen.findByText("Sesiones guardadas (2)")).toBeTruthy();
-    expect(screen.queryByText(/Casos \/ estudios|Nuevo estudio|Sesiones de estudio/)).toBeNull();
-  });
 });
 
 /* F2-18, F2-19, F2-20, F2-21, F2-22, F2-23, F2-24, F1-52, F1-56, F1-57 y la
@@ -367,16 +215,28 @@ describe("la lista de pacientes (F2)", () => {
     expect(onResume).toHaveBeenCalledWith("s1", conSesion);
     expect(getPatient).not.toHaveBeenCalled();
 
+    // La ficha tiene URL propia: la tarjeta navega a ella, no abre una hoja.
     const tarjeta = screen.getByRole("article", { name: /Propio/ });
     fireEvent.click(tarjeta);
-    expect(await screen.findByText("Guardar cambios")).toBeTruthy();
-    expect(getPatient).toHaveBeenCalledWith(2);
-    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-    await waitFor(() => expect(screen.queryByText("Guardar cambios")).toBeNull());
+    expect(screen.getByTestId("ruta").textContent).toBe("/app/pacientes/2");
+    expect(screen.queryByText("Guardar cambios")).toBeNull();
+  });
 
-    fireEvent.keyDown(tarjeta, { key: "Enter" });
-    expect(await screen.findByText("Guardar cambios")).toBeTruthy();
-    expect(getPatient).toHaveBeenCalledTimes(2);
+  // F1-58: borrar un paciente se hace al pie de su ficha (columna Datos), no desde la tarjeta.
+  it("la tarjeta no tiene ✕ ni «Eliminar»", async () => {
+    listPatients.mockResolvedValue([fila({ id: 7, full_name: "Restrepo, María", study_count: 2 })]);
+    renderAt("/app/pacientes");
+    await screen.findByText("Restrepo, María");
+    expect(screen.queryByTitle("Eliminar")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Eliminar/ })).toBeNull();
+  });
+
+  it("Intro en la tarjeta también navega a la ficha /app/pacientes/<id>", async () => {
+    listPatients.mockResolvedValue([fila({ id: 2, full_name: "Propio" })]);
+    renderAt("/app/pacientes");
+    await screen.findByText("Propio");
+    fireEvent.keyDown(screen.getByRole("article", { name: /Propio/ }), { key: "Enter" });
+    expect(screen.getByTestId("ruta").textContent).toBe("/app/pacientes/2");
   });
 
   it("las pestañas solo aparecen con algún compartido; «Míos» y «Compartidos conmigo» filtran", async () => {
@@ -539,11 +399,14 @@ describe("avisos clínicos sobre el panel de tarjetas", () => {
 
 /* Oficina L1: los avisos son una franja de chips y la paleta ⌘K llega por la URL. */
 describe("avisos en franja y parámetros de URL", () => {
-  const Sonda = () => <output data-testid="busqueda">{useLocation().search}</output>;
+  const Sonda = () => {
+    const l = useLocation();
+    return <><output data-testid="busqueda">{l.search}</output><output data-testid="ruta">{l.pathname}</output></>;
+  };
   const renderConSonda = (url: string) =>
     render(
       <MemoryRouter initialEntries={[url]}>
-        <Patients onResume={onResume} onPlanCase={onPlanCase} onOpenStudy={noop} onOpenOrders={noop}
+        <Patients onResume={onResume} onPlanCase={onPlanCase}
                   onStartWithoutPatient={noop} />
         <Sonda />
       </MemoryRouter>,
@@ -572,13 +435,10 @@ describe("avisos en franja y parámetros de URL", () => {
     await waitFor(() => expect(screen.getByTestId("busqueda").textContent).toBe(""));
   });
 
-  it("?paciente=7 abre la ficha de ese paciente y borra el parámetro", async () => {
-    getPatient.mockResolvedValue({ id: 7, surname: "Siete", given_name: "", hospital_id: "HC-7", sex: "F" });
-    patientSessions.mockResolvedValue([]);
-    patientStudies.mockResolvedValue([]);
+  it("?paciente=7 redirige (replace) a la ficha con URL propia /app/pacientes/7", async () => {
     renderConSonda("/app/pacientes?paciente=7");
-    expect(await screen.findByText("Guardar cambios")).toBeTruthy();
-    expect(getPatient).toHaveBeenCalledWith(7);
-    await waitFor(() => expect(screen.getByTestId("busqueda").textContent).toBe(""));
+    await waitFor(() => expect(screen.getByTestId("ruta").textContent).toBe("/app/pacientes/7"));
+    expect(screen.getByTestId("busqueda").textContent).toBe("");
+    expect(screen.queryByText("Guardar cambios")).toBeNull();
   });
 });

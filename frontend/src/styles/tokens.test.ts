@@ -193,7 +193,7 @@ describe("tokens de la dirección D", () => {
        y conserva sus colores por ahora. */
     const EXCLUIDOS = ["Workspace.tsx"];
     const literal = /#[0-9a-f]{3,8}\b|rgba?\(/i;
-    const dirs = [join(__dirname, "../pages"), join(__dirname, "../components/shell"), join(__dirname, "../components/patients")];
+    const dirs = [join(__dirname, "../pages"), join(__dirname, "../components/shell"), join(__dirname, "../components/patients"), join(__dirname, "../components/ficha")];
     const archivos = dirs.flatMap((d) =>
       readdirSync(d).filter((f) => f.endsWith(".tsx") && !f.includes(".test.") && !EXCLUIDOS.includes(f)).map((f) => join(d, f)));
     expect(archivos.length).toBeGreaterThan(15);

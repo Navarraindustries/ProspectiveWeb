@@ -11,6 +11,7 @@ import { Icon } from "../components/Icon";
 import { NEEDS_MORPHOMETRY, STEPS } from "../pipeline/steps";
 import { TopBar } from "../components/shell/TopBar";
 import { SaveStatus } from "../components/stepper/SaveStatus";
+import { BANDA_SUPERIOR, zonaLibre } from "../pipeline/zonaLibre";
 import { StepRail } from "../components/stepper/StepRail";
 import { Collapsible } from "../components/PanelHead";
 import { UploadPanel } from "../components/upload/UploadPanel";
@@ -296,11 +297,17 @@ export function Workspace({
     report: <ReportPanel onFinish={onFinish} />,
   }[step];
 
+  const libre = zonaLibre({
+    estrecho: false, plegado: columnCollapsed, ancho: step === "treatment" || step === "report",
+  });
+
   return (
     // `data-panel-collapsed`: el visor lo lee para su `estadoVisor` sin que
     // el estado del panel tenga que pasar por el store.
     <div data-panel-collapsed={columnCollapsed ? "true" : "false"}
-         style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
+         style={{ position: "relative", height: "100%", background: "var(--viewer-bg)", overflow: "hidden" }}>
+      {/* Pastillas y avisos flotan sobre el lienzo; el visor deja libre su banda. */}
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 3 }}>
       <TopBar
         brand
         crumbs={[
@@ -480,9 +487,11 @@ export function Workspace({
         })}
       </div>
 
-      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-        {/* Rail de flujo — ancho fluido; en pantallas estrechas colapsa a iconos
-            y bajo 820px se oculta (ver styles/responsive.css). */}
+      </div>
+
+      {/* Rail de flujo — ancho fluido; en pantallas estrechas colapsa a iconos
+          y bajo 820px se oculta (ver styles/responsive.css). */}
+      <div style={{ position: "absolute", top: BANDA_SUPERIOR, bottom: 0, left: 0, zIndex: 2, display: "flex" }}>
         <StepRail
           steps={STEPS}
           activeIndex={stepIdx}
@@ -492,12 +501,20 @@ export function Workspace({
           riskLabel={morphometry?.rupture_risk_label ?? null}
         />
 
-        {/* Visor central */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <ViewerWorkspace step={step} />
-        </div>
+      </div>
 
-        {/* Panel del paso — 380 px; 520 en Decisión e Informe; plegable con P. */}
+      {/* Visor: ocupa la zona libre (ni bajo el inspector ni bajo las pastillas). */}
+      <div data-zona-libre
+           style={{
+             position: "absolute", display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0,
+             top: libre.top, right: libre.right, bottom: libre.bottom, left: libre.left,
+             transition: "right var(--dur-2) var(--ease-out), bottom var(--dur-2) var(--ease-out)",
+           }}>
+        <ViewerWorkspace step={step} />
+      </div>
+
+      {/* Panel del paso — 380 px; 520 en Decisión e Informe; plegable con P. */}
+      <div style={{ position: "absolute", top: BANDA_SUPERIOR, right: 0, bottom: 0, zIndex: 2, display: "flex" }}>
         <RightPanelColumn
           collapsed={columnCollapsed}
           onToggle={() => setPanelCollapsed(!columnCollapsed)}

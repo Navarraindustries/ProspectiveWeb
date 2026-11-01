@@ -201,3 +201,29 @@ describe("pestaña de plegado del panel", () => {
     expect((document.querySelector("[data-panel-column]") as HTMLElement).style.display).toBe("none");
   });
 });
+
+describe("zona libre del visor", () => {
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin almacenamiento */ }
+  });
+  const render_ = (paso: number) => render(
+    <Workspace patient={null} initialStep={paso} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,
+  );
+
+  it("en Detección deja 428 px a la derecha; en Decisión, 568", () => {
+    const { unmount } = render_(2);
+    expect((document.querySelector("[data-zona-libre]") as HTMLElement).style.right).toBe("428px");
+    unmount();
+    render_(4);
+    expect((document.querySelector("[data-zona-libre]") as HTMLElement).style.right).toBe("568px");
+  });
+
+  it("plegado el panel, el visor llega al borde", () => {
+    localStorage.setItem("ws.panelCollapsed", "1");
+    render_(2);
+    const z = document.querySelector("[data-zona-libre]") as HTMLElement;
+    expect(z.style.right).toBe("0px");
+    expect(z.style.top).toBe("72px");
+  });
+});

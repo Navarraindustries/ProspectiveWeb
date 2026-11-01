@@ -210,6 +210,7 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
           <ColumnaDatos
             patient={patient}
             summary={summary}
+            casosCargados={casos?.length}
             puedeEditar={puedeEditar}
             seccion={seccion}
             onSeccion={elegirSeccion}

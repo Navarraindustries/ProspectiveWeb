@@ -46,12 +46,13 @@ const onEditar = vi.fn();
 const onNuevoCaso = vi.fn();
 const onEliminado = vi.fn();
 const onOpenOrders = vi.fn();
-const abrir = ({ summary = resumen(), puedeEditar = true, seccion = "casos" as SeccionFicha, patient = detalle() } = {}) =>
-  render(
-    <ColumnaDatos patient={patient} summary={summary} puedeEditar={puedeEditar} seccion={seccion}
+const columna = ({ summary = resumen() as PatientSummary | null, puedeEditar = true, seccion = "casos" as SeccionFicha, patient = detalle(), casosCargados } =
+  {} as { summary?: PatientSummary | null; puedeEditar?: boolean; seccion?: SeccionFicha; patient?: PatientDetail; casosCargados?: number | null }) => (
+    <ColumnaDatos patient={patient} summary={summary} puedeEditar={puedeEditar} seccion={seccion} casosCargados={casosCargados}
                   onSeccion={onSeccion} onEditar={onEditar} onNuevoCaso={onNuevoCaso} onEliminado={onEliminado}
-                  onOpenOrders={onOpenOrders} />,
-  );
+                  onOpenOrders={onOpenOrders} />
+);
+const abrir = (o: Parameters<typeof columna>[0] = {}) => render(columna(o));
 
 beforeEach(() => {
   for (const f of [patientShares, usersBrief, patientSessions, deletePatient, listCaptures,
@@ -96,6 +97,25 @@ describe("entradas de la columna", () => {
     expect(onSeccion).toHaveBeenLastCalledWith("capturas");
     fireEvent.click(casos);
     expect(onSeccion).toHaveBeenLastCalledWith("casos");
+  });
+
+  it("sin la fila de la lista, «Casos · n» sale con los casos ya cargados", async () => {
+    abrir({ summary: null, casosCargados: 3 });
+    expect(screen.getByRole("button", { name: "Casos · 3" })).toBeTruthy();
+    await screen.findByText("Capturas · 5");
+  });
+
+  it("al abrir Capturas y al volver, vuelve a contarlas (un borrado en la galería se refleja)", async () => {
+    listCaptures.mockReset()
+      .mockResolvedValueOnce(Array.from({ length: 5 }, (_, i) => ({ id: i + 1 })))
+      .mockResolvedValue(Array.from({ length: 4 }, (_, i) => ({ id: i + 1 })));
+    const { rerender } = abrir();
+    await screen.findByRole("button", { name: "Capturas · 5" });
+    rerender(columna({ seccion: "capturas" }));
+    await screen.findByRole("button", { name: "Capturas · 4" });
+    rerender(columna({ seccion: "casos" }));
+    await waitFor(() => expect(listCaptures).toHaveBeenCalledTimes(3));
+    expect(screen.getByRole("button", { name: "Capturas · 4" })).toBeTruthy();
   });
 
   it("con Capturas abierta, es Capturas la marcada", async () => {

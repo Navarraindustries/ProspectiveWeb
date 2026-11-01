@@ -61,6 +61,7 @@ function antecedentesResumidos(p: PatientDetail): string {
 export function ColumnaDatos({
   patient,
   summary,
+  casosCargados,
   puedeEditar,
   seccion,
   onSeccion,
@@ -74,6 +75,8 @@ export function ColumnaDatos({
   /** La fila de la lista: trae quién lo creó y cuántos casos tiene. null = no
    *  se pudo comprobar (la lista falló o no lo trae): solo lectura con aviso. */
   summary: PatientSummary | null;
+  /** Los casos ya cargados de la ficha: respaldo del contador cuando no hay fila de la lista. */
+  casosCargados?: number | null;
   /** Si la cuenta cambia los datos del paciente («Editar datos») o solo los consulta («Ver datos»). */
   puedeEditar: boolean;
   /** La sección abierta a la derecha; null = ninguna (las migas la cerraron). */
@@ -112,20 +115,22 @@ export function ColumnaDatos({
   }, [patient.id]);
   useEffect(loadShares, [loadShares]);
 
+  useEffect(() => { setNCapturas(null); }, [patient.id]);
+  // Se cuentan al abrir la ficha y cada vez que se abre o se cierra Capturas:
+  // un borrado dentro de la galería se refleja al volver.
   useEffect(() => {
     let vigente = true;
-    setNCapturas(null);
     Promise.resolve()
       .then(() => api.listCaptures({ patientId: patient.id }))
       .then((rows) => { if (vigente) setNCapturas(rows.length); })
       .catch(() => { /* sin cifra: la entrada sigue abriendo la galería */ });
     return () => { vigente = false; };
-  }, [patient.id]);
+  }, [patient.id, seccion]);
 
   const nombre = nombrePaciente(patient) || summary?.full_name || "Paciente sin nombre";
   const sexoEdad = lineaSexoEdad(patient);
   const antecedentes = antecedentesResumidos(patient);
-  const nCasos = summary?.study_count;
+  const nCasos = summary?.study_count ?? casosCargados;
 
   return (
     <div className="fc-datos">

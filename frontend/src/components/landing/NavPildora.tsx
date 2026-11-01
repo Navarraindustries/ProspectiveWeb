@@ -1,9 +1,12 @@
 /* NavPildora — la navegación de la landing: una pastilla de cristal fija arriba,
    al centro. Marca, cuatro anclas a las secciones y los dos accesos. Al bajar
    más de 40 px se encoge al 90 %; en estrecho (≤ 760 px) las anclas se pliegan
-   tras un botón «Menú». */
+   tras un botón «Menú» y la marca queda en su versión compacta, para que la
+   pastilla quepa en una fila a 390 px. El panel plegado se cierra con Escape y
+   devuelve el foco al botón. Los enlaces llevan su color en una clase
+   (`.landing-nav__enlace`), así que reaccionan al pasar el ratón y al foco. */
 
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useMediaQuery } from "../../hooks/useEstrecho";
 import { DUR, EASE, motion, useMotionValueEvent, useReducedMotion, useScroll } from "../../motion";
 import { glass } from "../../styles/glass";
@@ -17,14 +20,6 @@ const ENLACES = [
   ["Dispositivos", "dispositivos"],
 ] as const;
 
-const enlaceStyle = {
-  padding: "8px 12px",
-  borderRadius: "var(--radius-full)",
-  fontSize: 14,
-  color: "var(--muted-foreground)",
-  textDecoration: "none",
-} as const;
-
 export function NavPildora({ onEntrar, onCrearCuenta }: { onEntrar: () => void; onCrearCuenta: () => void }) {
   const estrecho = useMediaQuery("(max-width: 760px)");
   const reducido = useReducedMotion();
@@ -33,8 +28,24 @@ export function NavPildora({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
   const { scrollY } = useScroll();
   useMotionValueEvent(scrollY, "change", (y) => setEncogida(y > 40));
 
+  const idPanel = useId();
+  const idMenu = useId();
+  const panelAbierto = estrecho && abierto;
+
+  // Escape cierra el panel y devuelve el foco al botón «Menú».
+  useEffect(() => {
+    if (!panelAbierto) return;
+    const alPulsar = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setAbierto(false);
+      document.getElementById(idMenu)?.focus();
+    };
+    document.addEventListener("keydown", alPulsar);
+    return () => document.removeEventListener("keydown", alPulsar);
+  }, [panelAbierto, idMenu]);
+
   const enlaces = ENLACES.map(([texto, id]) => (
-    <a key={id} href={`#${id}`} style={enlaceStyle} onClick={() => setAbierto(false)}>
+    <a key={id} href={`#${id}`} className="landing-nav__enlace" onClick={() => setAbierto(false)}>
       {texto}
     </a>
   ));
@@ -49,8 +60,8 @@ export function NavPildora({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
         style={{
           ...glass("normal"),
           pointerEvents: "auto",
-          borderRadius: "var(--radius-full)",
-          padding: "6px 8px 6px 18px",
+          borderRadius: panelAbierto ? "var(--radius-xl)" : "var(--radius-full)",
+          padding: estrecho ? "6px 8px 6px 12px" : "6px 8px 6px 18px",
           display: "flex",
           flexWrap: "wrap",
           alignItems: "center",
@@ -60,17 +71,39 @@ export function NavPildora({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
           transformOrigin: "top center",
         }}
       >
-        <Logo size={26} />
+        {estrecho ? (
+          <span style={{ display: "inline-flex" }}>
+            <Logo size={26} compact />
+            <span className="landing-sr">PROSPECTIVE</span>
+          </span>
+        ) : (
+          <Logo size={26} />
+        )}
         {!estrecho && <div style={{ display: "flex", gap: 2, margin: "0 8px" }}>{enlaces}</div>}
         <Button variant="secondary" size="sm" onClick={onEntrar}>Entrar</Button>
         <Button size="sm" onClick={onCrearCuenta}>Crear cuenta</Button>
         {estrecho && (
-          <Button variant="ghost" size="sm" aria-expanded={abierto} onClick={() => setAbierto((v) => !v)}>
+          <Button
+            id={idMenu}
+            variant="ghost"
+            size="sm"
+            aria-expanded={abierto}
+            aria-controls={idPanel}
+            onClick={() => setAbierto((v) => !v)}
+          >
             Menú
           </Button>
         )}
-        {estrecho && abierto && (
-          <div style={{ flexBasis: "100%", display: "flex", flexDirection: "column", padding: "4px 0 8px" }}>{enlaces}</div>
+        {/* Siempre montado en estrecho, para que `aria-controls` apunte a algo; `hidden` lo pliega. */}
+        {estrecho && (
+          <div
+            id={idPanel}
+            className="landing-nav__panel"
+            hidden={!abierto}
+            style={{ flexBasis: "100%", display: abierto ? "flex" : "none", flexDirection: "column", padding: "4px 0 8px" }}
+          >
+            {enlaces}
+          </div>
         )}
       </motion.nav>
     </div>

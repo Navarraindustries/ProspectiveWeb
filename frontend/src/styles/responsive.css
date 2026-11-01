@@ -20,11 +20,6 @@ html, body, #root {
 /* Cualquier bloque marcado no puede forzar scroll horizontal */
 .no-overflow { min-width: 0; }
 
-/* ── Landing: los enlaces del navbar se ocultan en pantallas estrechas ──── */
-@media (max-width: 860px) {
-  .landing-nav-links { display: none !important; }
-}
-
 /* ── Login: el panel de vídeo cede y desaparece en pantallas estrechas ──── */
 @media (max-width: 1100px) {
   .login-media { flex: 1 1 45% !important; }

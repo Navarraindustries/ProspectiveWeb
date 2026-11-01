@@ -47,14 +47,19 @@ export function VentanaDeteccion() {
               <span className={c.lesion ? "hero-ventana__num hero-ventana__num--lesion" : "hero-ventana__num"}>{c.puesto}</span>
               <span className="hero-ventana__canal">{canalesTexto(c.canales)}</span>
               {c.canales.includes("saco") && <span className="hero-ventana__insignia">saco pequeño</span>}
+              {/* La cifra es el diámetro que mide el detector para el candidato, no el de la lesión
+                  anotada (Ø 13,3 mm): el candidato 1 coincide con ella. */}
               <span className={c.lesion ? "hero-ventana__nota hero-ventana__nota--lesion" : "hero-ventana__nota"}>
-                {c.lesion ? `lesión · ${mm(c.diametroMm)}` : mm(c.diametroMm)}
+                {c.lesion
+                  ? `candidato ${c.puesto} · ${mm(c.diametroMm)} · coincide con la lesión anotada`
+                  : mm(c.diametroMm)}
               </span>
             </li>
           ))}
         </ol>
       </div>
       <div className="hero-ventana__credito">Caso Zenodo 036 · detector de Prospective</div>
+      <p className="hero-ventana__matiz">Un caso real; el puesto de la lesión varía de un caso a otro.</p>
     </>
   );
 }

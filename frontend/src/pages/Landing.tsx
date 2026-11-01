@@ -199,7 +199,7 @@ const SERIES: { nombre: string; detalle?: string; dibujo: React.ReactNode }[] = 
 
 function Dispositivos() {
   return (
-    <Seccion id="dispositivos" rotulo="Dispositivos NAVARRO™" titulo="Cuatro clips, fabricados bajo pedido">
+    <Seccion id="dispositivos" rotulo="Dispositivos NAVARRO™" titulo="Cuatro series, fabricadas bajo pedido">
       <p className="sec__texto sec__texto--ancho">
         Se fabrican en taller a partir del pedido. Prospective elige la serie y ajusta la mordaza al
         cuello medido.

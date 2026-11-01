@@ -9,21 +9,42 @@
    solo se pinta uno ya descargado: mientras llega el siguiente se queda el que
    había. Sin bucles propios: `useScroll` de motion da el progreso.
 
-   Con movimiento reducido no hay cortes ni scroll extra: 100 vh con el
-   fotograma final (render 3D, balizas y ventana) desde el principio. */
+   Disposición quieta: 100 vh como mínimo, sin cortes ni scroll extra, con el
+   fotograma final (render 3D, balizas y ventana) desde el principio y en flujo
+   normal, así que nada se recorta. La toma con movimiento reducido, en
+   pantallas estrechas o bajas (`CONSULTA_HERO_QUIETO`: un iPhone con las barras
+   visibles no da los ~800 px que piden texto y ventana juntos) y con ahorro de
+   datos (no se descargan los 60 cortes).
+
+   La ventana de detección está siempre en el árbol de accesibilidad: con
+   movimiento solo se apaga a la vista hasta el 85 %, y un lector de pantalla
+   que no recorre el scroll la oye igual. */
 
 import { useEffect, useRef, useState } from "react";
+import { useMediaQuery } from "../../hooks/useEstrecho";
 import { useMotionValueEvent, useReducedMotion, useScroll } from "../../motion";
 import { Button } from "../Button";
-import { MANIFIESTO, fotogramaPara, rutaFotograma, ultimoCargado } from "./heroFrames";
+import {
+  CONSULTA_HERO_QUIETO, MANIFIESTO, fotogramaPara, precargarEnOrden, rutaFotograma, ultimoCargado,
+} from "./heroFrames";
 import { BalizasDeteccion, VentanaDeteccion } from "./VentanaDeteccion";
 
 const LEMA = "Planificación neurovascular con datos";
 /* Progreso a partir del cual se ve el render 3D en vez de los cortes. */
 const UMBRAL_3D = 0.85;
 
+/* ¿El navegador pide ahorrar datos? (`navigator.connection` no es estándar). */
+const pideAhorroDatos = (): boolean =>
+  typeof navigator !== "undefined" &&
+  (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
+
 export function HeroCortes({ onEntrar, onCrearCuenta }: { onEntrar: () => void; onCrearCuenta: () => void }) {
   const reducido = useReducedMotion() ?? false;
+  const pequena = useMediaQuery(CONSULTA_HERO_QUIETO);
+  const datosReducidos = useMediaQuery("(prefers-reduced-data: reduce)");
+  const [ahorro] = useState(pideAhorroDatos);
+  const quieto = reducido || pequena || datosReducidos || ahorro;
+
   const seccion = useRef<HTMLElement>(null);
   const [objetivo, setObjetivo] = useState(0);
   const [final, setFinal] = useState(false);
@@ -35,45 +56,31 @@ export function HeroCortes({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
     setFinal(p > UMBRAL_3D);
   });
 
-  // Precarga de los 60 cortes al montar; cada uno cuenta cuando ya se puede pintar.
+  // Precarga en orden (el 0 primero) solo con el hero animado.
   useEffect(() => {
-    if (reducido) return;
-    let vivo = true;
-    const imagenes = Array.from({ length: MANIFIESTO.count }, (_, i) => {
-      const img = new Image();
-      const listo = () => {
-        if (vivo) setCargados((prev) => new Set(prev).add(i));
-      };
-      img.onload = () => {
-        if (typeof img.decode === "function") img.decode().then(listo, listo);
-        else listo();
-      };
-      img.src = rutaFotograma(i);
-      return img;
+    if (quieto) return;
+    return precargarEnOrden(MANIFIESTO.count, rutaFotograma, (i) => {
+      setCargados((prev) => new Set(prev).add(i));
     });
-    return () => {
-      vivo = false;
-      for (const img of imagenes) img.onload = null;
-    };
-  }, [reducido]);
+  }, [quieto]);
 
-  const verFinal = reducido || final;
+  const verFinal = quieto || final;
   const mostrado = ultimoCargado(objetivo, cargados) ?? objetivo;
 
   return (
     <section
       ref={seccion}
       aria-label="Portada"
-      className={reducido ? "hero-cortes hero-cortes--quieto" : "hero-cortes"}
+      className={quieto ? "hero-cortes hero-cortes--quieto" : "hero-cortes"}
       /* Quieto: 100 vh como mínimo (`.hero-cortes--quieto`), sin altura de scroll extra. */
-      style={reducido ? undefined : { height: "300vh" }}
+      style={quieto ? undefined : { height: "300vh" }}
     >
       <div className="hero-cortes__escenario">
-        {!reducido && (
+        {!quieto && (
           <img className="hero-cortes__corte" src={rutaFotograma(mostrado)} alt="" style={{ opacity: verFinal ? 0 : 1 }} />
         )}
 
-        <div className="hero-cortes__render" style={{ opacity: verFinal ? 1 : 0 }} aria-hidden={!verFinal}>
+        <div className="hero-cortes__render" style={{ opacity: verFinal ? 1 : 0 }}>
           <div className="hero-cortes__lienzo">
             <img src="/media/landing/hero-3d.webp" alt="Malla 3D del árbol vascular con la lesión marcada en rojo" />
           </div>
@@ -110,12 +117,12 @@ export function HeroCortes({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
             </div>
           </div>
 
-          <div className="hero-cortes__ventana" style={{ opacity: verFinal ? 1 : 0 }} aria-hidden={!verFinal}>
+          <div className="hero-cortes__ventana" style={{ opacity: verFinal ? 1 : 0 }}>
             <VentanaDeteccion />
           </div>
         </div>
 
-        {!reducido && (
+        {!quieto && (
           <div className="hero-cortes__rotulo" style={{ opacity: verFinal ? 0 : 1 }}>
             W {MANIFIESTO.window.w} · L {MANIFIESTO.window.l} · corte {MANIFIESTO.sliceOf[mostrado] ?? mostrado + 1}/{MANIFIESTO.total}
           </div>

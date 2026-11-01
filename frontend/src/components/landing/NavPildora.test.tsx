@@ -61,4 +61,42 @@ describe("NavPildora", () => {
       expect(screen.getByRole("link", { name: texto })).toBeInTheDocument();
     }
   });
+
+  it("en estrecho la marca es compacta, para que la pastilla quepa en una fila", () => {
+    conAnchoEstrecho(true);
+    montar();
+    expect(screen.queryByText("por SkullApp")).toBeNull();
+    // El nombre sigue ahí para los lectores de pantalla.
+    expect(screen.getByText("PROSPECTIVE")).toHaveClass("landing-sr");
+  });
+
+  it("el botón «Menú» controla el panel, y Escape lo cierra devolviendo el foco al botón", () => {
+    conAnchoEstrecho(true);
+    montar();
+    const menu = screen.getByRole("button", { name: "Menú" });
+    const idPanel = menu.getAttribute("aria-controls");
+    expect(idPanel).toBeTruthy();
+    const panel = document.getElementById(idPanel!);
+    expect(panel).not.toBeNull();
+    expect(panel).not.toBeVisible();
+
+    fireEvent.click(menu);
+    expect(panel).toBeVisible();
+    screen.getByRole("link", { name: "Qué es" }).focus();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(menu).toHaveAttribute("aria-expanded", "false");
+    expect(panel).not.toBeVisible();
+    expect(menu).toHaveFocus();
+  });
+
+  it("los enlaces llevan su color en una clase (sin color en línea que anule el hover)", () => {
+    conAnchoEstrecho(false);
+    montar();
+    for (const texto of ENLACES) {
+      const enlace = screen.getByRole("link", { name: texto });
+      expect(enlace).toHaveClass("landing-nav__enlace");
+      expect(enlace.style.color).toBe("");
+    }
+  });
 });

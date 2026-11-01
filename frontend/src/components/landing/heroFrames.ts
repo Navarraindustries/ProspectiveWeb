@@ -46,6 +46,64 @@ export const DETECCION_036: readonly CandidatoDetectado[] = [
 export const rutaFotograma =(i: number): string =>
   `/media/landing/hero/${String(i).padStart(3, "0")}.webp`;
 
+/* Pantallas donde el escenario fijado de 100 vh no cabe (un iPhone con las
+   barras visibles, un móvil apaisado, un portátil bajo): el hero pasa a la
+   disposición quieta, la misma que con movimiento reducido. Debe coincidir con
+   el @media de `.hero-cortes` en landing.css. */
+export const CONSULTA_HERO_QUIETO = "(max-width: 760px), (max-height: 700px)";
+
+/* Peticiones simultáneas tras el fotograma 0. */
+const EN_PARALELO = 4;
+
+/** Precarga los fotogramas en orden: primero el 0, solo; después el resto por
+    índice, con `enParalelo` peticiones abiertas a la vez. `alListo(i)` avisa
+    cuando el fotograma ya se puede pintar (descargado y decodificado). No se
+    guarda ninguna `Image` al terminar: el fichero queda en la caché HTTP y el
+    `<img>` del hero lo vuelve a pedir de ahí, así que no se retienen los 60
+    mapas de bits decodificados (1024 × 1024 cada uno). Devuelve la función que
+    cancela lo pendiente. */
+export function precargarEnOrden(
+  count: number,
+  ruta: (i: number) => string,
+  alListo: (i: number) => void,
+  { enParalelo = EN_PARALELO, crear = () => new Image() }: { enParalelo?: number; crear?: () => HTMLImageElement } = {},
+): () => void {
+  let vivo = true;
+  let siguiente = 1;
+  const enCurso = new Set<HTMLImageElement>();
+
+  const pedir = (i: number) => {
+    const img = crear();
+    enCurso.add(img);
+    const fin = (ok: boolean) => {
+      img.onload = null;
+      img.onerror = null;
+      enCurso.delete(img);
+      if (!vivo) return;
+      if (ok) alListo(i);
+      // Al acabar el 0 se abren `enParalelo` peticiones; luego, una por cada una que acaba.
+      const huecos = i === 0 ? enParalelo : 1;
+      for (let k = 0; k < huecos && siguiente < count; k++) pedir(siguiente++);
+    };
+    img.onload = () => {
+      if (typeof img.decode === "function") img.decode().then(() => fin(true), () => fin(true));
+      else fin(true);
+    };
+    img.onerror = () => fin(false);
+    img.src = ruta(i);
+  };
+
+  if (count > 0) pedir(0);
+  return () => {
+    vivo = false;
+    for (const img of enCurso) {
+      img.onload = null;
+      img.onerror = null;
+    }
+    enCurso.clear();
+  };
+}
+
 /** Fotograma para un progreso 0–1. Se deriva del progreso absoluto, no de
     deltas: un salto con la barra cae en el fotograma correcto. */
 export function fotogramaPara(progreso: number, count: number): number {

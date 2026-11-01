@@ -154,7 +154,6 @@ def render3d(name, wide, q):
     print("  saved", name)
 
 render3d("hero-3d.webp", False, 82)
-render3d("hero-3d-wide.webp", True, 82)
 
 print("[5] json")
 meta = {"count": 60, "total": n, "lesionFrame": k, "lesionSlice": les,
@@ -167,5 +166,5 @@ mb = folder_mb(); print("total MB %.2f" % mb)
 if mb > 6:
     print("over 6 MB, re-saving at q70")
     write_all(70)
-    render3d("hero-3d.webp", False, 70); render3d("hero-3d-wide.webp", True, 70)
+    render3d("hero-3d.webp", False, 70)
     print("total MB %.2f" % folder_mb())

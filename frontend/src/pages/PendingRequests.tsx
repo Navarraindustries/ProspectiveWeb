@@ -20,7 +20,7 @@ import { useAuth } from "../store/auth";
 import { PENDING_CHANGED_EVENT } from "../components/shell/pendingEvents";
 import { ErrorNote, Card } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
-import { fechaHora } from "../lib/fecha";
+import { ESTILO_FECHA, fechaHora } from "../lib/fecha";
 import { ROLE_LABEL } from "../lib/roles";
 import { PageBody } from "../components/shell/PageBody";
 
@@ -85,11 +85,16 @@ function History({ tab }: { tab: "Aprobadas" | "Rechazadas" }) {
       titulo={tab === "Aprobadas" ? "Ninguna cuenta aprobada todavía." : "Ninguna cuenta rechazada."}
     />
   );
+  // Solo se dice «acceso médico» si es verdad para todas: un rol cambiado en
+  // Usuarios (residente, observador) también sale aquí, con su rol en la fila.
+  const todasMedico = rows.length > 0 && rows.every((u) => u.role === ROL_AL_APROBAR);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {tab === "Rechazadas" && !loadError && !loading && <RechazadasNota />}
       {tab === "Aprobadas" && rows.length > 0 && (
-        <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>Cuentas activas con acceso médico.</div>
+        <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
+          {todasMedico ? "Cuentas activas con acceso médico." : "Cuentas activas; el rol de cada una va en su fila."}
+        </div>
       )}
       <TablaTarjetas<UserAdminInfo>
         rotulo={tab === "Aprobadas" ? "Cuentas aprobadas" : "Cuentas rechazadas"}
@@ -263,8 +268,8 @@ function PendingRequestsPage() {
                           Descargar CV
                         </Button>
                       )}
-                      <span style={{ fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
-                        Solicitado: {fechaHora(u.created_at)}
+                      <span style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
+                        Solicitado: <span style={ESTILO_FECHA}>{fechaHora(u.created_at)}</span>
                       </span>
                     </div>
                     {/* F1-90: quien aprueba no ve con qué rol entra la cuenta. */}

@@ -135,6 +135,31 @@ describe("pestañas «Pendientes · Aprobadas · Rechazadas» (F2-51)", () => {
     expect(screen.queryByText(/El servidor no distingue/)).toBeNull();
   });
 
+  it("«Aprobadas» con varios roles no afirma «acceso médico» y enseña el rol de cada fila (M8)", async () => {
+    listPending.mockResolvedValue([]);
+    listUsers.mockResolvedValue([
+      { id: 8, username: "apro", full_name: "Aitor Aprobado", role: "medico", status: "active", is_active: true, specialty: "", hospital: "", created_at: "2026-10-02T09:00:00+00:00", rejected_at: null },
+      { id: 9, username: "obs", full_name: "Olga Observadora", role: "observador", status: "active", is_active: true, specialty: "", hospital: "", created_at: "2026-10-03T09:00:00+00:00", rejected_at: null },
+    ]);
+    render(<PendingRequests onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Aprobadas" }));
+    expect(await screen.findByText("Olga Observadora")).toBeTruthy();
+    expect(screen.queryByText(/acceso médico/)).toBeNull();
+    expect(screen.getByText("Cuentas activas; el rol de cada una va en su fila.")).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Rol" })).toBeTruthy();
+  });
+
+  it("la fecha de la tarjeta de pendientes va en sans 13 px con cifras tabulares (M2)", async () => {
+    listPending.mockResolvedValue([solicitud]);
+    render(<PendingRequests onBack={() => {}} />);
+    const fecha = await screen.findByText(fechaHora(solicitud.created_at));
+    expect(fecha).toHaveStyle({ fontFamily: "var(--font-sans)", fontVariantNumeric: "tabular-nums" });
+    const linea = fecha.parentElement!;
+    expect(linea).toHaveTextContent(/^Solicitado:/);
+    expect(linea).toHaveStyle({ fontSize: "13px" });
+    expect(linea.getAttribute("style") ?? "").not.toContain("--font-mono");
+  });
+
   it("falla la carga de una pestaña: error y «Reintentar», sin el vacío", async () => {
     listPending.mockResolvedValue([]);
     listUsers.mockRejectedValueOnce(Object.assign(new Error("El servidor no responde"), { status: 0, fromServer: false }));

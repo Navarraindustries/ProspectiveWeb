@@ -590,9 +590,9 @@
   gap: 8px;
   height: var(--control-sm);
   padding: 0 12px;
-  border: 1px solid color-mix(in srgb, var(--foreground) 30%, transparent);
+  border: 1px solid var(--btn-outline-border);
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  background: var(--btn-outline-bg);
   color: var(--foreground);
   font-family: var(--font-sans);
   font-size: 13px;

@@ -64,6 +64,8 @@
   --border:             rgba(255, 255, 255, 0.14);
   --input:              rgba(255, 255, 255, 0.24);
   --field-bg:           rgba(5, 6, 8, 0.5);
+  --btn-outline-bg:     rgba(255, 255, 255, 0.08);
+  --btn-outline-border: rgba(255, 255, 255, 0.3);
   --ring:               var(--primary);
 
   /* ---- Cristal: hojas, menús y barra superior ---- */
@@ -174,6 +176,8 @@
   --border:             rgba(0, 0, 0, 0.08);
   --input:              rgba(0, 0, 0, 0.14);
   --field-bg:           #FFFFFF;
+  --btn-outline-bg:     transparent;
+  --btn-outline-border: rgba(0, 0, 0, 0.14);
   --ring:               var(--primary);
 
   /* En el claro el peor fondo del cristal es el negro del quirófano (--viewer-bg):

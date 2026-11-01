@@ -393,3 +393,13 @@ describe("Sora autoalojada para la marca", () => {
     expect(block('[data-theme="light"]')).toContain("--logo-dot:           #FFFFFF");
   });
 });
+
+describe("botón de contorno (A21)", () => {
+  it("el botón de contorno es transparente en claro y conserva el cristal en oscuro (A21)", () => {
+    const dark = block(DARK), light = block('[data-theme="light"]');
+    expect(dark).toMatch(/--btn-outline-bg:\s*rgba\(255, ?255, ?255, ?0?\.08\)/);
+    expect(dark).toMatch(/--btn-outline-border:\s*rgba\(255, ?255, ?255, ?0?\.3\)/);
+    expect(light).toMatch(/--btn-outline-bg:\s*transparent/);
+    expect(light).toMatch(/--btn-outline-border:\s*rgba\(0, ?0, ?0, ?0?\.14\)/);
+  });
+});

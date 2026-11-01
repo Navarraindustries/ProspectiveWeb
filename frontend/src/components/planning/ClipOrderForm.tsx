@@ -86,10 +86,10 @@ function problemsFrom(err: unknown): string[] {
     - **T4 fenestrada**: mordaza libre, y además una ventana que solo existe en
       3, 5 y 7 mm — es el vaso que el clip tiene que respetar. */
 const SERIES = [
-  { value: "straight" as const,    label: "T1 · Recta" },
-  { value: "curved" as const,      label: "T2 · Curva" },
-  { value: "angled" as const,      label: "T3 · Angulada" },
-  { value: "fenestrated" as const, label: "T4 · Fenestrada" },
+  { value: "straight" as const,    label: "T1 · Recto" },
+  { value: "curved" as const,      label: "T2 · Curvo" },
+  { value: "angled" as const,      label: "T3 · Angulado" },
+  { value: "fenestrated" as const, label: "T4 · Fenestrado" },
 ];
 
 const row: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };

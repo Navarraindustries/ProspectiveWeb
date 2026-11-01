@@ -237,7 +237,7 @@ describe("what each series lets you change", () => {
     withShape({});
     draw();
     await screen.findByLabelText("Serie");
-    for (const s of ["T1 · Recta", "T2 · Curva", "T3 · Angulada", "T4 · Fenestrada"]) {
+    for (const s of ["T1 · Recto", "T2 · Curvo", "T3 · Angulado", "T4 · Fenestrado"]) {
       expect(screen.getByRole("option", { name: s })).toBeTruthy();
     }
   });

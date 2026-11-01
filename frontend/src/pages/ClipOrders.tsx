@@ -21,8 +21,12 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icon";
+import { EstadoVacio } from "../components/EstadoVacio";
 import { Input } from "../components/Input";
-import { Card, ErrorNote, SectionLabel } from "../components/PanelHead";
+import { Pastillas } from "../components/Pastillas";
+import { Switch } from "../components/Switch";
+import { TablaTarjetas, type ColumnaTabla } from "../components/TablaTarjetas";
+import { Card, ErrorNote } from "../components/PanelHead";
 import { glass } from "../styles/glass";
 import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
@@ -31,6 +35,8 @@ import { shapeLabel } from "../components/planning/clipShape";
 import { useAuth } from "../store/auth";
 import "../styles/office.css";
 import { cifra } from "../lib/numero";
+import { fechaDia } from "../lib/fecha";
+import { useEstrecho } from "../hooks/useEstrecho";
 import { PageBody } from "../components/shell/PageBody";
 
 type Variant = "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive";
@@ -75,56 +81,78 @@ function attention(o: ClipOrder): { label: string; variant: Variant } | null {
   return null;
 }
 
-/* Ritmo de la tabla de la oficina: la cabecera (rótulo mono) la da office.css;
-   aquí solo el relleno. Filas de 13 px × 14 px. */
-const cellHead: React.CSSProperties = { padding: "10px 14px" };
+/** «T1 recto», «T3 angulado 60°», «T4 fenestrado ventana 5 mm»: la serie y la
+    forma en minúscula. `shapeLabel` queda como está porque lo usa el quirófano. */
+export function nombrePieza(o: Pick<ClipOrder, "series" | "shape" | "angle_deg" | "window_mm">): string {
+  const forma = shapeLabel(o.shape, o.angle_deg, o.window_mm);
+  return `${o.series} ${forma.charAt(0).toLowerCase()}${forma.slice(1)}`;
+}
 
-const cell: React.CSSProperties = {
-  fontSize: 12, padding: "13px 14px", verticalAlign: "top",
-};
+/** Más de 1280 px: el detalle del pedido va al lado de la lista; en menos, debajo (tarea 12: hoja). */
+export function useDetalleLateral(): boolean {
+  return !useEstrecho();
+}
 
-function Row({ order, onOpen, selected }: {
-  order: ClipOrder; onOpen: () => void; selected: boolean;
-}) {
-  const flag = attention(order);
-  return (
-    <tr
-      onClick={onOpen}
-      style={{ cursor: "pointer", background: selected ? "var(--brand-subtle)" : "transparent" }}
-    >
-      <td style={{ ...cell, fontFamily: "var(--font-mono)", fontWeight: 700 }}>
-        {order.part_no}
-      </td>
-      <td style={cell}>
-        <Badge variant={STATUS_VARIANT[order.status]}>{order.status_label}</Badge>
-        {flag && (
-          <div style={{ marginTop: 4 }}>
-            <Badge variant={flag.variant}>{flag.label}</Badge>
+const MONO: React.CSSProperties = { fontFamily: "var(--font-mono)", fontSize: 13 };
+const ATENUADO: React.CSSProperties = { fontSize: 13, color: "var(--muted-foreground)" };
+const ELIPSIS: React.CSSProperties = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 };
+
+function columnasPedido(conTaller: boolean): ColumnaTabla<ClipOrder>[] {
+  const cols: ColumnaTabla<ClipOrder>[] = [
+    {
+      id: "pieza_no", titulo: "Nº de pieza", enTarjeta: "titulo", sinPartir: true,
+      celda: (o) => <span style={{ ...MONO, fontWeight: 600 }}>{o.part_no}</span>,
+    },
+    {
+      id: "estado", titulo: "Estado",
+      celda: (o) => {
+        const flag = attention(o);
+        return (
+          <>
+            <Badge variant={STATUS_VARIANT[o.status]}>{o.status_label}</Badge>
+            {flag && (
+              <div style={{ marginTop: 4 }}>
+                <Badge variant={flag.variant}>{flag.label}</Badge>
+              </div>
+            )}
+          </>
+        );
+      },
+    },
+    {
+      id: "paciente", titulo: "Paciente y caso",
+      celda: (o) => (
+        <>
+          <div title={o.patient || undefined} style={{ ...ELIPSIS, fontSize: 13 }}>{o.patient || "—"}</div>
+          <div title={o.case_label || undefined} style={{ ...ELIPSIS, ...ATENUADO }}>{o.case_label}</div>
+        </>
+      ),
+    },
+    {
+      id: "pieza", titulo: "Pieza",
+      celda: (o) => (
+        <>
+          <div style={{ fontSize: 13 }}>{nombrePieza(o)}</div>
+          <div style={ATENUADO}>
+            mordaza <span style={MONO}>{cifra(o.jaw_mm, 1)}</span> mm · <span style={MONO}>{o.total_pieces}</span>{" "}
+            {o.total_pieces === 1 ? "pieza" : "piezas"}
           </div>
-        )}
-      </td>
-      <td style={cell}>
-        <div className="truncate" style={{ maxWidth: 190 }}>{order.patient || "—"}</div>
-        <div className="truncate" style={{ maxWidth: 190, fontSize: 11, color: "var(--muted-foreground)" }}>
-          {order.case_label}
-        </div>
-      </td>
-      <td style={{ ...cell, fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>
-        {order.series} {shapeLabel(order.shape, order.angle_deg, order.window_mm)}
-        <div style={{ color: "var(--muted-foreground)" }}>
-          {cifra(order.jaw_mm, 1)} mm · {order.total_pieces} pza
-        </div>
-      </td>
-      <td style={cell}>
-        <div className="truncate" style={{ maxWidth: 150 }}>{order.workshop_name || "—"}</div>
-        {order.needed_by && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
-            para {order.needed_by}
-          </div>
-        )}
-      </td>
-    </tr>
-  );
+        </>
+      ),
+    },
+  ];
+  if (conTaller) {
+    cols.push({
+      id: "taller", titulo: "Taller",
+      celda: (o) => (
+        <>
+          <div title={o.workshop_name || undefined} style={{ ...ELIPSIS, fontSize: 13 }}>{o.workshop_name || "—"}</div>
+          {o.needed_by && <div style={ATENUADO}>para <span style={MONO}>{fechaDia(o.needed_by)}</span></div>}
+        </>
+      ),
+    });
+  }
+  return cols;
 }
 
 /* ── Detalle ─────────────────────────────────────────────────────────────── */
@@ -160,7 +188,7 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
   };
 
   return (
-    <Card style={{ position: "sticky", top: 16 }}>
+    <Card>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
         <b style={{ fontFamily: "var(--font-mono)", fontSize: 13, flex: 1 }}>{order.part_no}</b>
         <Badge variant={STATUS_VARIANT[order.status]}>{order.status_label}</Badge>
@@ -173,7 +201,7 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
         </button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px", fontSize: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px", fontSize: 13 }}>
         {([
           ["Paciente", order.patient || "—"],
           ["Caso", order.case_label || "—"],
@@ -192,14 +220,14 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
       </div>
 
       {order.override_reason && (
-        <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 10, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 13, color: "var(--warning)", marginTop: 10, lineHeight: 1.5 }}>
           Se aparta de lo recomendado ({order.advised_label}): {order.override_reason}
         </div>
       )}
 
       {order.status === "recibida" && (
         <div style={{
-          fontSize: 11, marginTop: 10, fontFamily: "var(--font-mono)", lineHeight: 1.5,
+          fontSize: 13, marginTop: 10, fontFamily: "var(--font-mono)", lineHeight: 1.5,
           color: outOfSpec ? "var(--destructive)" : "var(--success)",
         }}>
           Medido: mordaza {cifra(r.measured_jaw_mm, 2)} mm · fuerza {r.measured_force_g?.toFixed(0)} g
@@ -232,7 +260,7 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
 
       {receiving && (
         <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8, lineHeight: 1.45 }}>
+          <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginBottom: 8, lineHeight: 1.45 }}>
             Aquí la fuerza deja de ser un objetivo: hay que medirla en la pieza que llegó.
           </div>
           <div style={{ display: "flex", gap: 10 }}>
@@ -309,7 +337,7 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
         )}
       </div>
       {cannotSign && order.next_states.includes("firmado") && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>
+        <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>
           {SIGN_DENIED}
         </div>
       )}
@@ -423,6 +451,7 @@ export function ClipOrdersPage({
   const counts: Record<string, number> = {};
   for (const o of base) counts[o.status] = (counts[o.status] ?? 0) + 1;
   const todosCount = openOnly ? base.filter((o) => !CLOSED.includes(o.status)).length : base.length;
+  const lateral = useDetalleLateral();
   const needAttention = sorted.filter((o) => attention(o) !== null).length;
 
   return (
@@ -439,15 +468,21 @@ export function ClipOrdersPage({
             vuelta al paciente; solo «Ver todos», que tampoco lleva a él. */}
         {onBackToPatient && (
           <div style={{ marginBottom: 8 }}>
-            <Button size="sm" variant="ghost" onClick={onBackToPatient}>← Volver a la ficha</Button>
+            <Button size="sm" variant="ghost" leadingIcon={<Icon name="BACK" size={14} />} onClick={onBackToPatient}>
+              Volver a la ficha
+            </Button>
           </div>
         )}
         {patientFilter && (
-          <div style={{
-            display: "flex", alignItems: "center", gap: 8, marginBottom: 12,
-            fontSize: 12, padding: "8px 10px", borderRadius: "var(--radius-md)",
-            background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)",
-          }}>
+          <div
+            data-glass
+            style={{
+              ...glass("normal"),
+              display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 12,
+              fontSize: 13, padding: "6px 8px 6px 14px", borderRadius: "var(--radius-full)",
+              color: "var(--foreground)",
+            }}
+          >
             <span>Filtrado por <b>{patientFilter.full_name}</b></span>
             {onClearPatient && (
               <Button size="sm" variant="ghost" onClick={onClearPatient}>Ver todos</Button>
@@ -456,114 +491,80 @@ export function ClipOrdersPage({
         )}
 
         {/* Los contadores no son decoración: dicen dónde está parado el trabajo. */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-          <button
-            onClick={() => setStatus(ALL)}
-            style={chip(status === ALL)}
-          >
-            Todos <span style={{ fontFamily: "var(--font-mono)", opacity: .7 }}>{todosCount}</span>
-          </button>
-          {Object.entries(labels).map(([key, label]) => (
-            <button key={key} style={chip(status === key)}
-                    onClick={() => {
-                      setStatus(key);
-                      // F1-96: con «solo los abiertos» puesto, estas dos darían siempre vacío.
-                      if (CLOSED.includes(key)) setOpenOnly(false);
-                    }}>
-              {label} <span style={{ fontFamily: "var(--font-mono)", opacity: .7 }}>{counts[key] ?? 0}</span>
-            </button>
-          ))}
+        <div style={{ marginBottom: 12 }}>
+          <Pastillas
+            rotulo="Filtrar por estado"
+            valor={status}
+            opciones={[
+              { id: ALL, label: "Todos", cuenta: todosCount },
+              ...Object.entries(labels).map(([key, label]) => ({ id: key, label, cuenta: counts[key] ?? 0 })),
+            ]}
+            onCambiar={(id) => {
+              setStatus(id);
+              // F1-96: con «solo los abiertos» puesto, estas dos darían siempre vacío.
+              if (CLOSED.includes(id)) setOpenOnly(false);
+            }}
+          />
         </div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "flex-end", marginBottom: 14, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 260px", minWidth: 0 }}>
             <Input
-              label="Buscar"
+              aria-label="Buscar pedidos"
               placeholder="Nº de pieza, paciente, caso, cirujano o taller"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              icon={<Icon name="SEARCH" size={13} />}
+              icon={<Icon name="SEARCH" size={14} />}
             />
           </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--foreground)", cursor: "pointer", paddingBottom: 10 }}>
-            <input type="checkbox" checked={openOnly} onChange={(e) => setOpenOnly(e.target.checked)} />
-            Solo los abiertos
-          </label>
+          <Switch label="Solo los abiertos" checked={openOnly} onChange={setOpenOnly} />
         </div>
 
         {needAttention > 0 && (
-          <div style={{ fontSize: 12, color: "var(--warning)", marginBottom: 10 }}>
-            {needAttention} pedido(s) piden atención: arriba del todo.
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--warning)", marginBottom: 10 }}>
+            <Icon name="STATUS_WARN" size={14} />
+            {needAttention === 1
+              ? "1 pedido pide atención: está arriba del todo"
+              : `${needAttention} pedidos piden atención: están arriba del todo`}
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-          <div style={{ flex: 1, minWidth: 0, overflowX: "auto" }}>
-            {error && (
-              <Card>
-                <LoadState state="error" mensaje={error} onRetry={load} />
-              </Card>
-            )}
-            {!error && loading && orders.length === 0 && (
-              <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Leyendo el registro…</div>
-            )}
-            {!error && !loading && sorted.length === 0 && (
-              <Card>
-                <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-                  {/* F2-53: «este filtro» se decía aunque no hubiese ningún pedido. */}
-                  {noOrdersAtAll
-                    ? <>{patientFilter ? "Este paciente aún no tiene pedidos." : "No hay pedidos todavía."} Los pedidos se crean en el paso <b>Fabricación</b> de un caso.</>
-                    : "Ningún pedido encaja con este filtro."}
-                </div>
-              </Card>
-            )}
-            {!error && sorted.length > 0 && (
-              <div data-glass style={{ ...glass("dense"), borderRadius: "var(--radius-card-lg)", padding: "4px 2px 0", overflowX: "auto" }}>
-                <table className="tabla-oficina" style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr>
-                      <th style={cellHead}>Nº de pieza</th>
-                      <th style={cellHead}>Estado</th>
-                      <th style={cellHead}>Paciente y caso</th>
-                      <th style={cellHead}>Pieza</th>
-                      <th style={cellHead}>Taller</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sorted.map((o) => (
-                      <Row
-                        key={o.part_no}
-                        order={o}
-                        selected={o.part_no === sel}
-                        onOpen={() => setSel(o.part_no === sel ? null : o.part_no)}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+        <div style={lateral
+          ? { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 360px", gap: 16, alignItems: "start" }
+          : { display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ minWidth: 0 }}>
+            <TablaTarjetas
+              rotulo="Pedidos de clips"
+              filas={error ? [] : sorted}
+              columnas={columnasPedido(!(lateral && selected))}
+              clave={(o) => o.part_no}
+              onFila={(o) => setSel(o.part_no === sel ? null : o.part_no)}
+              seleccionada={(o) => o.part_no === sel}
+              vacio={error ? (
+                <Card><LoadState state="error" mensaje={error} onRetry={load} /></Card>
+              ) : loading ? (
+                <div style={{ ...ATENUADO, padding: 16 }}>Leyendo el registro…</div>
+              ) : noOrdersAtAll ? (
+                <EstadoVacio icono="ORDER" titulo={patientFilter ? "Este paciente aún no tiene pedidos" : "No hay pedidos todavía"}>
+                  Los pedidos se crean en el paso <b>Fabricación</b> de un caso.
+                </EstadoVacio>
+              ) : (
+                <EstadoVacio icono="FILTER" titulo="Ningún pedido encaja con este filtro." />
+              )}
+            />
           </div>
 
           {selected && (
-            <div style={{ width: 340, flexShrink: 0 }}>
-              <SectionLabel>Detalle</SectionLabel>
+            <aside
+              aria-label={`Detalle del pedido ${selected.part_no}`}
+              style={lateral ? { position: "sticky", top: 16, minWidth: 0 } : { minWidth: 0 }}
+            >
               <Detail order={selected} onChanged={load} onClose={() => setSel(null)}
                       onOpenSession={onOpenSession} />
-            </div>
+            </aside>
           )}
         </div>
       </PageBody>
     </AppShell>
   );
-}
-
-function chip(active: boolean): React.CSSProperties {
-  return {
-    padding: "5px 11px", borderRadius: "var(--radius-full)", cursor: "pointer",
-    border: "1px solid " + (active ? "transparent" : "var(--border)"),
-    background: active ? "var(--brand-deep)" : "var(--card)",
-    color: active ? "var(--primary-foreground)" : "var(--foreground)",
-    fontFamily: "var(--font-sans)", fontSize: 12, fontWeight: active ? 700 : 500,
-    whiteSpace: "nowrap",
-  };
 }

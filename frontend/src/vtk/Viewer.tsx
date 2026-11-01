@@ -415,10 +415,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
     cameraFeed.current.last = cam;
     cameraFeed.current.listener?.(cam);
   }, []);
+  // El aviso va una sola vez, en la banda: entero si cabe, si no un ⚠ que
+  // lo despliega (ViewerHeader). Ya no hay forma corta en la banda.
   const levelNote = levelNoteFor(clientVol.level, clientVol.stride, clientVol.error);
-  // En una celda compacta (estrecha) la nota larga se monta sobre el
-  // rótulo del plano; allí basta con la forma corta.
-  const levelNoteShort = levelNoteFor(clientVol.level, clientVol.stride, clientVol.error, true);
   const [nz, ny, nx] = meta?.shape ?? [1, 1, 1];
   // Al llegar un volumen nuevo: crosshair al centro y la ventana del estudio
   // (lo que hacía MprStrip, que ya no existe). Si la sesión se acaba de
@@ -2054,9 +2053,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
           y derecha, pero en un portátil de 1280 con DERECHA esa celda mide
           ~530 px y los dos grupos se pisaban entre sí y tapaban el rótulo de
           la vista (AXIAL, VOLUMEN…). Fuera de la celda no tapan nada y la
-          rejilla toma el resto del alto. En 1280 la banda mide ~740 px: con
-          CALOR encendido los grupos solo caben con los presets abreviados y
-          «PRINCIPAL» reducido a «▸» (headerLabels). Mismas teclas Alt+1/2/3/4
+          rejilla toma el resto del alto. La banda elige su nivel por lo que
+          mide (bandTier en mainOptions: ancho ≥ 1400, medio ≥ 1100, estrecho
+          ≥ 800, iconos por debajo o en táctil); a 1366 con el inspector mide
+          ~940 y va en estrecho («▸», DER ABA 4 SOLA, C E L, aviso ⚠). Y no se
+          pisa aunque una cifra falle: envuelve a otra línea. Mismas teclas Alt+1/2/3/4
           que la rejilla, para que el foco en un conmutador no las pierda.
           La banda vive en ViewerHeader, con su prueba. */}
       <ViewerHeader
@@ -2066,7 +2067,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         syncViews={syncViews} onSyncViewsChange={setSyncViews}
         hasClipField={!!clipField} showClipField={showClipField} clipRehearsal={!!clipRehearsal}
         onShowClipFieldChange={setShowClipField} onHelp={openSheet}
-        levelNote={levelNote} levelNoteShort={levelNoteShort} />
+        levelNote={levelNote} />
       <ShortcutsSheet open={sheetOpen} onClose={closeSheet} />
       {annotationDeleteDialog}
       {/* Alt+1/2/3 cambian la distribución mientras el foco está en el visor;

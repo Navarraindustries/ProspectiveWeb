@@ -149,7 +149,7 @@ En `ViewerHeader.test.tsx`: reescribir los tests «estrecha (< 800 px)» con 900
 
 ```ts
 const NIVEL: Record<number, BandTier> = {
-  360: "iconos", 390: "iconos", 768: "iconos", 1024: "estrecho", 1280: "medio",
+  360: "iconos", 390: "iconos", 768: "iconos", 1024: "iconos", 1280: "medio",
   1366: "estrecho", 1440: "estrecho", 1707: "medio", 1920: "ancho", 2560: "ancho",
 };
 it.each(MATRIZ_ANCHOS)("a %i px de pantalla la banda toma su nivel, sea cual sea el alto", (w) => {
@@ -250,7 +250,7 @@ it.each([360, 390, 768])("a %i px (táctil) la banda va en iconos con objetivos 
 });
 it("en iconos, cambiar el desplegable de vista llama a promote y el de distribución a setPreset", () => { /* simularPantalla(390); fireEvent.change(...{ target: { value: "axial" } }) → onLayoutChange(promote(DEFAULT_LAYOUT,"axial")); value "sola" → setPreset */ });
 it("en iconos, TEXTOS rota completo → esencial", () => { /* hudLevel "completo"; clic en /Nivel de textos: completo/ → onHudLevelChange("esencial") */ });
-it("a 1024 o más no hay marca táctil", () => { /* simularPantalla(1024); stubBandWidth(1024); raíz sin data-tactil; sin combobox */ });
+it("a 1025 o más no hay marca táctil", () => { /* simularPantalla(1025); stubBandWidth(1025); raíz sin data-tactil; sin combobox */ });
 ```
 
 En `hudLevel.test.tsx` (ya carga `hud.css` en un `<style>`), un `describe` nuevo:
@@ -608,7 +608,7 @@ git commit -m "Dock: marca hechos los pasos con resultado aunque vayan después;
 |---|---|---|
 | ≤ 640 (360, 390) | `mini` | `‹` paso anterior (44×44, `Icon BACK`, `aria-label="Paso anterior: <rótulo>"`), píldora `N/8 · Rótulo` (alto 44, 13 px, peso 600, elipsis a 180 px, `aria-label="Paso N de 8, <rótulo>. Ver todos los pasos"`, abre la paleta de mandos), `›` paso siguiente (`Icon ARROW_RIGHT`; `aria-disabled` y `title` con el motivo si está bloqueado; con aviso de la tarea 8, el aviso va en su nombre). Sin ⌘K. `left: 12`. |
 | 641–1024 (768) | `tactil` | los 8 botones a 44 px con número/✓, sin ampliación ni rótulo flotante; ⌘K con alto 44. `left: 24`. |
-| 1024–1280 (1024, 1280) | `compacto` | como hoy en estrecho: 36 px, sin ampliación. |
+| 1025–1280 (1280) | `compacto` | como hoy en estrecho: 36 px, sin ampliación. |
 | ≥ 1281 (1366 … 2560, 1707) | `completo` | como hoy: 44 px, activo 60, ampliación bajo el puntero, rótulo flotante. |
 
 La posición vertical (`abajo`, sobre la hoja) y la capa no cambian. El alto de pantalla no cambia el modo.
@@ -620,7 +620,7 @@ La posición vertical (`abajo`, sobre la hoja) y la capa no cambian. El alto de 
 `Workspace.test.tsx`:
 
 ```ts
-const MODO: Record<number, string> = { 360: "mini", 390: "mini", 768: "tactil", 1024: "compacto", 1280: "compacto",
+const MODO: Record<number, string> = { 360: "mini", 390: "mini", 768: "tactil", 1024: "tactil", 1280: "compacto",
   1366: "completo", 1440: "completo", 1707: "completo", 1920: "completo", 2560: "completo" };
 it.each(MATRIZ_ANCHOS)("a %i px el dock va en su modo, a cualquier alto", (w) => {
   for (const h of MATRIZ_ALTOS) {
@@ -674,7 +674,7 @@ git commit -m "Dock por pantalla: mínimo en móvil, 44 px en tableta, compacto 
 
 | pantalla | modo | barra |
 |---|---|---|
-| ≥ 1024 | `ancho` | como hoy (≤ 1366 solo iconos en las acciones, ya existente). |
+| ≥ 1025 | `ancho` | como hoy (≤ 1366 solo iconos en las acciones, ya existente). |
 | 641–1024 | `tactil` | volver 44×44; acciones `size="md"` (44); Grabar `size="md"`; `SaveStatus compacta`; ⌘K sustituido por «⋯» (`Icon MENU`, 44, `aria-label="Más acciones"`, `title="Más acciones: paleta de mandos"`, abre la paleta); sin `ThemeToggle` (el tema va a la paleta). |
 | ≤ 640 | `movil` | lo de `tactil` y además: fila con `left/right: 12` y `gap: 8`; solo la última miga (con elipsis y `title`); sin insignia de riesgo (está en Morfometría); acciones solo Captura y Guardar progreso (Grabar y Archivar fuera; Archivar va a la paleta; grabar vídeo no se ofrece en móvil). |
 
@@ -809,7 +809,7 @@ Anchos 360, 390, 768, 1024, 1280, 1366, 1440, 1707, 1920, 2560 × altos 600, 768
 - dock: modo de la tabla de la tarea 9; en móvil, «‹ N/8 · Rótulo ›» y la píldora abre la paleta;
 - barra superior: modo de la tabla de la tarea 10, sin desbordar a 360 con el nombre de paciente más largo disponible;
 - hoja inferior L5 (≤ 1280): asomar/media/completa usables; pies de panel sin botones partidos (a 360 en dos filas);
-- hoja de atajos (tecla «?» o botón): dos columnas a ≥ 1024, una por debajo, pantalla completa con «Cerrar» en móvil;
+- hoja de atajos (tecla «?» o botón): dos columnas a ≥ 1025, una por debajo, pantalla completa con «Cerrar» en móvil;
 - «Candidato 1» en panel, visor y confirmación; paso 4 con el aviso en el tooltip;
 - volver al paso 1 con 2 y 3 hechos: siguen con ✓;
 - sin scroll horizontal de página en ningún punto.

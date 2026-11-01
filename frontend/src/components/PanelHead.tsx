@@ -102,7 +102,8 @@ export function Collapsible({
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>{title}</span>
           {subtitle && (
-            <span className="truncate" style={{ display: "block", fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
+            // ≤ 1024: a 13 px (R19; «Reglas, ángulos, regiones y notas» se leía a 11).
+            <span className="truncate" style={{ display: "block", fontSize: tableta ? 13 : 11, color: "var(--muted-foreground)", marginTop: 2 }}>
               {subtitle}
             </span>
           )}

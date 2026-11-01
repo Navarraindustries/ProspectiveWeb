@@ -18,6 +18,7 @@ vi.mock("../../api/client", () => ({
 }));
 
 import { DetectPanel } from "./DetectPanel";
+import { simularPantalla } from "../../test/pantalla";
 import { PlanningProvider, usePlanning } from "../../store/planning";
 import type {
   AneurysmCandidate, AneurysmDetectionResult, DetectionDiagnostics, MorphometryResult,
@@ -194,6 +195,29 @@ describe("DetectPanel", () => {
     const menos = screen.getByRole("button", { name: "Menos" });
     expect(menos).toHaveAttribute("aria-expanded", "true");
   });
+
+  /* R19: a ≤ 1024 nada del panel por debajo de 13 px; en ancho, como estaba. */
+  it.each([[768, 13, 13, 13], [1280, 11, 12, 10.5]] as const)(
+    "a %i px: viñetas a %s, «Candidato N» a %s y «azul = dónde» a %s px", async (w, vinetas, nombre, azul) => {
+      simularPantalla(w);
+      try {
+        mockDetect({ candidates: [cand("a", 1), cand("b", 2)] });
+        render(<Wrapped />);
+        const nota = await screen.findByRole("note", { name: "Cómo leer la lista" });
+        expect(parseFloat(nota.style.fontSize)).toBe(vinetas);
+        expect(parseFloat(screen.getByText("Candidato 1").style.fontSize)).toBe(nombre);
+        expect(parseFloat(screen.getAllByText("azul = dónde, no el saco")[0].style.fontSize)).toBe(azul);
+        const plegable = screen.getByRole("button", { name: /Descartados \(2\)/ });
+        fireEvent.click(plegable);
+        const resto = [plegable, screen.getByText("Ver los descartados en el 3D"), screen.getByText(/El detector los apartó/),
+          screen.getAllByText(/^Descartado D/)[0]];
+        for (const el of resto) {
+          const px = parseFloat(el.style.fontSize);
+          if (w <= 1024) expect(px, el.textContent ?? "").toBeGreaterThanOrEqual(13);
+          else expect(px, el.textContent ?? "").toBeLessThan(13);
+        }
+      } finally { vi.unstubAllGlobals(); }
+    });
 
   /* F1-143: «Ø 3.7 mm est.» se leía como el diámetro del aneurisma. */
   it("el grosor se lee como grosor local, con coma decimal y «≈»", async () => {

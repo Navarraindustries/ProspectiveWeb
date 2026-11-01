@@ -1,5 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { fireEvent, render } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { simularPantalla } from "../test/pantalla";
 import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import type { VolumeMeta } from "../api/types";
 import { windowPresets } from "./windowPresets";
@@ -117,6 +120,77 @@ describe("SliceView · ventana y nivel", () => {
     const { readout, container } = mount({ compact: true, presets: windowPresets(metaOf("CT"), null), onPreset: vi.fn() });
     expect(readout.textContent).toBe("W 400 L 40");
     expect(container.querySelector("select.hud-wl-presets")).toBeNull();
+  });
+
+  /* R15: la escalera de cortes ocupa los 44 px del borde derecho. */
+  it("la lectura W/L va al lado de la escalera, no debajo", () => {
+    const { readout } = mount();
+    expect(readout.classList.contains("beside-ladder")).toBe(true);
+    const css = readFileSync(join(__dirname, "hud/hud.css"), "utf8").replace(/\s+/g, " ");
+    expect(css).toContain(".hud-readout.br.beside-ladder { right: 48px; }");
+  });
+
+  /* R16: en táctil no hay doble clic ni desplegable en la celda compacta. */
+  describe("táctil (≤ 1024)", () => {
+    afterEach(() => { vi.unstubAllGlobals(); });
+    it.each([["compacta", true], ["principal", false]] as const)(
+      "celda %s: un toque abre Restablecer y los preajustes, de 44 px, sin tocar corte ni crosshair", (_n, compact) => {
+        simularPantalla(768);
+        const presets = windowPresets(metaOf("CT"), null);
+        const onPreset = vi.fn();
+        const { props, readout, container, onGrid } = mount({ compact, presets, onPreset });
+        expect(readout.getAttribute("data-tactil")).toBe("true");
+        expect(readout.getAttribute("aria-haspopup")).toBe("menu");
+        expect(readout.getAttribute("aria-expanded")).toBe("false");
+        // En táctil el menú sustituye al desplegable.
+        expect(container.querySelector("select.hud-wl-presets")).toBeNull();
+        fireEvent.mouseDown(readout, { button: 0, clientX: 180, clientY: 180 });
+        fireEvent.mouseUp(readout, { button: 0, clientX: 180, clientY: 180 });
+        fireEvent.click(readout);
+        expect(readout.getAttribute("aria-expanded")).toBe("true");
+        const menu = screen.getByRole("menu", { name: "Ventana y nivel" });
+        const items = within(menu).getAllByRole("menuitem");
+        expect(items[0].textContent).toBe("Restablecer");
+        expect(items.map((b) => b.textContent)).toContain("CTA · 170/600");
+        expect(items.filter((b) => b.textContent === "Restablecer")).toHaveLength(1);
+        fireEvent.mouseDown(items[0]);
+        fireEvent.mouseUp(items[0]);
+        fireEvent.click(items[0]);
+        expect(props.onWindowLevelReset).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole("menu")).toBeNull();
+        fireEvent.click(readout);
+        fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "CTA · 170/600" }));
+        expect(onPreset).toHaveBeenCalledWith(presets.find((x) => x.name === "CTA"));
+        expect(props.onPlaneClick).not.toHaveBeenCalled();
+        expect(props.onWindowLevel).not.toHaveBeenCalled();
+        expect(onGrid).not.toHaveBeenCalled();
+      });
+    it("Esc cierra el menú y devuelve el foco a la lectura; tocar fuera también lo cierra", () => {
+      simularPantalla(390);
+      const { readout } = mount({ compact: true, presets: windowPresets(metaOf("XA"), null), onPreset: vi.fn() });
+      fireEvent.click(readout);
+      const menu = screen.getByRole("menu");
+      expect(document.activeElement?.textContent).toBe("Restablecer");
+      fireEvent.keyDown(menu, { key: "Escape" });
+      expect(screen.queryByRole("menu")).toBeNull();
+      expect(document.activeElement).toBe(readout);
+      fireEvent.click(readout);
+      fireEvent.pointerDown(document.body);
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+    it("CSS: diana de 44 px sobre la lectura de 10,5 y entradas del menú de 44 a 13 px", () => {
+      const css = readFileSync(join(__dirname, "hud/hud.css"), "utf8").replace(/\s+/g, " ");
+      expect(css).toMatch(/\.hud-wl\[data-tactil="true"\]::before \{[^}]*top: calc\(50% - 22px\); bottom: calc\(50% - 22px\);/);
+      expect(css).toMatch(/\.hud-wl \{[^}]*font-size: 10\.5px/);
+      expect(css).toMatch(/\.hud-wl-menu button \{[^}]*min-height: 44px;[^}]*font-size: 13px;/);
+    });
+  });
+
+  it("con ratón la lectura no abre menú (sigue el doble clic y el desplegable)", () => {
+    const { readout } = mount({ presets: windowPresets(metaOf("CT"), null), onPreset: vi.fn() });
+    expect(readout.hasAttribute("aria-haspopup")).toBe(false);
+    fireEvent.click(readout);
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("el selector de preajustes está en la celda no compacta y emite el preajuste", () => {

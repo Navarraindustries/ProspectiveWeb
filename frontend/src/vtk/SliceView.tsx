@@ -28,7 +28,9 @@ import { HudLadder } from "./hud/HudLadder";
 import { HudReadout } from "./hud/HudReadout";
 import { HudReticle } from "./hud/HudReticle";
 import { unitFor } from "./modality";
-import { WL_TITLE, type WindowPreset } from "./windowPresets";
+import { type WindowPreset } from "./windowPresets";
+import { HudWl } from "./hud/HudWl";
+import { useTableta } from "../hooks/useEstrecho";
 
 const MODE: Record<Plane, SlicingMode> = { axial: SlicingMode.K, coronal: SlicingMode.J, sagital: SlicingMode.I };
 const LABEL: Record<Plane, string> = { axial: "AXIAL", coronal: "CORONAL", sagital: "SAGITAL" };
@@ -114,6 +116,8 @@ export function SliceView(p: SliceViewProps) {
   // Rectángulo de la imagen en px del contenedor, para retícula y clics.
   const [box, setBox] = useState<{ left: number; top: number; w: number; h: number; mmPerPx: number } | null>(null);
   const count = planeCount(p.meta, p.plane);
+  // ≤ 1024: la lectura W/L abre un menú al tocarla (R16).
+  const tactil = useTableta();
   // Índice del vtkImageData (puede ir con stride en el plano): el índice de
   // corte del plano axial no cambia; los de coronal/sagital se dividen.
   const dims = p.image.getDimensions();
@@ -361,7 +365,7 @@ export function SliceView(p: SliceViewProps) {
     const d = drag.current; drag.current = null;
     // Soltar sobre la lectura W/L o el selector acaba el arrastre pero no es
     // un clic en la imagen: ni crosshair ni punto de anotación.
-    if ((e.target as Element).closest(".hud-wl, .hud-wl-presets")) return;
+    if ((e.target as Element).closest(".hud-wl, .hud-wl-presets, .hud-wl-menu")) return;
     if (!d || d.moved) return;
     const f = frac(e); if (!f) return;
     if (annotating) annotationClick(e, f);
@@ -429,34 +433,12 @@ export function SliceView(p: SliceViewProps) {
             forma corta (la larga se pisaba con el índice). Los gestos se
             paran aquí: llegar al contenedor empezaría un arrastre, y a la
             rejilla, maximizaría la celda. El mouseup sí sube: un arrastre
-            empezado en la imagen y soltado aquí tiene que acabar. */}
-        <button type="button" className="hud-readout br hud-wl" title={WL_TITLE}
-          onMouseDown={(e) => e.stopPropagation()}
-          onDoubleClick={(e) => { e.stopPropagation(); p.onWindowLevelReset?.(); }}>
-          {p.compact
+            empezado en la imagen y soltado aquí tiene que acabar. En táctil
+            un toque abre Restablecer y los preajustes (HudWl). */}
+        <HudWl tactil={tactil} compact={p.compact} presets={p.presets} onPreset={p.onPreset} onReset={p.onWindowLevelReset}
+          texto={p.compact
             ? `W ${Math.round(p.ww)} L ${Math.round(p.wc)}`
-            : `W ${Math.round(p.ww)}${unit}  L ${Math.round(p.wc)}${unit}`}
-        </button>
-        {/* Preajustes en toda celda no compacta, bajo su lectura: antes solo
-            en la principal, y una lateral no tenía cómo cambiar la ventana
-            salvo arrastrando. El select es transparente para no tapar la
-            imagen; las opciones llevan fondo propio porque lo heredan. */}
-        {!p.compact && !!p.presets?.length && (
-          <select className="hud-toggle hud-wl-presets" title="Preajuste de ventana/nivel" value=""
-            onChange={(e) => {
-              const preset = p.presets!.find((x) => x.name === e.target.value);
-              if (preset) p.onPreset?.(preset);
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}>
-            <option value="" disabled style={{ background: "var(--viewer-bg)" }}>Preajuste</option>
-            {p.presets.map((x) => (
-              <option key={x.name} value={x.name} style={{ background: "var(--viewer-bg)", color: "var(--hud-text)" }}>
-                {x.reset ? x.name : `${x.name} · ${Math.round(x.wc)}/${Math.round(x.ww)}`}
-              </option>
-            ))}
-          </select>
-        )}
+            : `W ${Math.round(p.ww)}${unit}  L ${Math.round(p.wc)}${unit}`} />
         {!p.compact && box && box.mmPerPx > 0 && (
           <div className="hud-scale" style={{ position: "absolute", right: 14, bottom: 40, width: 10 / box.mmPerPx, height: 1, background: "var(--hud-text-dim)" }}>
             <span style={{ position: "absolute", right: 0, top: -12, fontSize: fs - 1, color: "var(--hud-text-dim)" }}>10 mm</span>

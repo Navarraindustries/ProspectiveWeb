@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { simularPantalla } from "../test/pantalla";
 import { Card, Collapsible, ErrorNote, SectionLabel } from "./PanelHead";
 
 describe("SectionLabel", () => {
@@ -66,5 +67,15 @@ describe("Collapsible chevron", () => {
     fireEvent.click(b);
     expect(b).toHaveAttribute("aria-expanded", "true");
     expect(b.querySelector("[data-chevron]")).toHaveAttribute("data-abierto", "true");
+  });
+});
+
+/* R19: el subtítulo del plegable («Reglas, ángulos, regiones y notas») a 13 px en tableta. */
+describe("Collapsible · subtítulo por tramo", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+  it.each([[390, 13], [768, 13], [1024, 13], [1280, 11]] as const)("a %i px mide %i px", (w, px) => {
+    simularPantalla(w);
+    render(<Collapsible title="Anotaciones" subtitle="Reglas, ángulos, regiones y notas" storageKey={`r19-${w}`}>x</Collapsible>);
+    expect(parseFloat(screen.getByText("Reglas, ángulos, regiones y notas").style.fontSize)).toBe(px);
   });
 });

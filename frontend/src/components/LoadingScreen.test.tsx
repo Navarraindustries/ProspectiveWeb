@@ -28,6 +28,30 @@ describe("LoadingScreen", () => {
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 
+  it("avisa con onFading al empezar el fundido y con onDone al acabarlo", () => {
+    const onFading = vi.fn();
+    const onDone = vi.fn();
+    render(<LoadingScreen onFading={onFading} onDone={onDone} />);
+    act(() => { vi.advanceTimersByTime(SHOW_MS - 1); });
+    expect(onFading).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(onFading).toHaveBeenCalledTimes(1);
+    expect(onDone).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(FADE_MS); });
+    expect(onFading).toHaveBeenCalledTimes(1);
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it("la raíz es oscura también con el tema claro: el cristal se lee sobre el vídeo", () => {
+    document.documentElement.setAttribute("data-theme", "light");
+    try {
+      render(<LoadingScreen onDone={() => {}} />);
+      expect(screen.getByRole("status")).toHaveAttribute("data-theme", "dark");
+    } finally {
+      document.documentElement.removeAttribute("data-theme");
+    }
+  });
+
   it("dura lo mismo que antes de F2", () => {
     expect(SHOW_MS).toBe(2200);
     expect(FADE_MS).toBe(450);

@@ -60,7 +60,10 @@ function Router() {
   const [loginNotice, setLoginNotice] = useState<string | null>(null);
   // Transición de marca tras un login correcto (vídeo de carga, 2,2 s): solo
   // al entrar, no al recargar con sesión abierta.
+  // `loadingIn` pasa a falso cuando la carga empieza a fundirse (la oficina entra
+  // entonces, cruzándose con ella); `showLoading` sigue hasta que acaba el fundido.
   const [loadingIn, setLoadingIn] = useState(false);
+  const [showLoading, setShowLoading] = useState(false);
   const [resumeStep, setResumeStep] = useState(0);
   // Leaving the pipeline throws the session away: the store resets on the next
   // patient. Saving is manual, so an accidental click on the logo — or on the
@@ -254,7 +257,7 @@ function Router() {
     // A session that expired mid-study explains itself on the login screen.
     view = (
       <Login
-        onLogin={() => { setLoadingIn(true); setScreen("patients"); }}
+        onLogin={() => { setLoadingIn(true); setShowLoading(true); setScreen("patients"); }}
         onSignup={() => setScreen("signup")}
         notice={loginNotice ?? expiredNotice}
       />
@@ -358,7 +361,7 @@ function Router() {
           reanudarBloqueado={bloqueoPipeline}
         />
       )}
-      {loadingIn && <LoadingScreen onDone={() => setLoadingIn(false)} />}
+      {showLoading && <LoadingScreen onFading={() => setLoadingIn(false)} onDone={() => setShowLoading(false)} />}
       <UnsavedExitDialog
         open={blocker.state === "blocked"}
         hasPatient={!!(planning.patient ?? patient)}

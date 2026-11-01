@@ -15,11 +15,16 @@ export const SHOW_MS = 2200;
 export const FADE_MS = 450;
 const VIDEO_SRC = "/media/loading.mp4";
 
-export function LoadingScreen({ onDone, label = "Preparando el espacio de trabajo…" }: { onDone: () => void; label?: string }) {
+export function LoadingScreen({ onDone, onFading, label = "Preparando el espacio de trabajo…" }: {
+  onDone: () => void;
+  /** Se llama al empezar el fundido, para que lo que hay debajo entre a la vez. */
+  onFading?: () => void;
+  label?: string;
+}) {
   const [fading, setFading] = useState(false);
 
   useEffect(() => {
-    const t1 = window.setTimeout(() => setFading(true), SHOW_MS);
+    const t1 = window.setTimeout(() => { setFading(true); onFading?.(); }, SHOW_MS);
     const t2 = window.setTimeout(onDone, SHOW_MS + FADE_MS);
     return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -29,6 +34,9 @@ export function LoadingScreen({ onDone, label = "Preparando el espacio de trabaj
     <div
       role="status"
       aria-live="polite"
+      // Oscura en los dos temas: el cristal de la pastilla va sobre un vídeo oscuro y
+      // su texto es blanco (como la portada).
+      data-theme="dark"
       style={{
         position: "fixed",
         inset: 0,

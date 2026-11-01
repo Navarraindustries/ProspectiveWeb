@@ -93,3 +93,9 @@
 .tarjeta-nueva { min-height: 120px; border: 1px dashed color-mix(in srgb, var(--foreground) 18%, transparent); background: transparent; border-radius: var(--radius-card-lg); transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out); }
 .es-insignia { line-height: 1.3; pointer-events: none; }
 .tarjeta-nueva:hover, .tarjeta-nueva:focus-visible { border-color: var(--data); background: color-mix(in srgb, var(--data) 8%, transparent); }
+
+/* Detalle del pedido de clip (A43, A44): sans en los textos, mono solo en nº de pieza y medidas. */
+.po-datos { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 13px; font-family: var(--font-sans); }
+.po-datos dt { color: var(--muted-foreground); }
+.po-datos dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.po-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }

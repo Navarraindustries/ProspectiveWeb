@@ -6,7 +6,7 @@
    es lo único que distingue esta pantalla de un listado cualquiera. */
 
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const listClipOrders = vi.fn();
 const clipOrdersSummary = vi.fn();
@@ -583,5 +583,59 @@ describe("la lista con el estilo D (A42, A45, A46, A13)", () => {
     fireEvent.click(within(rows()[0]).getByRole("button", { name: /PR-LAT/ }));
     expect(await screen.findByRole("complementary", { name: "Detalle del pedido PR-LAT" })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Taller" })).toBeNull();
+  });
+});
+
+describe("el detalle con el estilo D (A43, A44)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const abrir = async (over: Partial<ClipOrder> = {}) => {
+    listClipOrders.mockResolvedValue([order({
+      part_no: "P-1", surgeon: "Administrador", needed_by: "", intended_use: "implante", jaw_mm: 10,
+      files: { packet: "p.zip", dossier_internal: "d.pdf", stl: "s.stl" },
+      next_states: ["enviado"], ...over,
+    })]);
+    render(<ClipOrdersPage onOpenSession={vi.fn().mockResolvedValue(undefined)} />);
+    fireEvent.click(await screen.findByRole("button", { name: /P-1/ }));
+  };
+
+  it("textos en sans; mono solo en nº de pieza y medidas (A43)", async () => {
+    await abrir();
+    expect(screen.getByText("Administrador")).not.toHaveStyle({ fontFamily: "var(--font-mono)" });
+    expect(screen.getByText("sin comprometer")).not.toHaveStyle({ fontFamily: "var(--font-mono)" });
+    expect(screen.getByText(/mordaza 10,0 mm/).closest("[data-mono]")).not.toBeNull();
+  });
+
+  it("descargas con icono y «Marcar enviado» como principal junto a «Abrir el caso» (A44)", async () => {
+    await abrir();
+    const grupo = await screen.findByRole("group", { name: "Descargas" });
+    for (const n of ["Paquete del taller (ZIP)", "Copia interna (PDF)", "STL"]) {
+      const b = within(grupo).getByRole("button", { name: n });
+      expect(b).toHaveAttribute("data-variant", "outline");
+      expect(b.querySelector("svg")).not.toBeNull();
+    }
+    const acciones = screen.getByTestId("po-acciones");
+    expect(within(acciones).getByRole("button", { name: "Marcar enviado" })).toHaveAttribute("data-variant", "default");
+    expect(within(acciones).getByRole("button", { name: "Abrir el caso" })).toHaveAttribute("data-variant", "outline");
+  });
+
+  it("fecha necesaria en dd/mm/aa y fuerza sin decimales", async () => {
+    await abrir({
+      needed_by: "2026-11-20", status: "recibida", status_label: "Recibida", next_states: [],
+      reception: { measured_jaw_mm: 10, measured_force_g: 150.4, jaw_within_tolerance: true, force_within_band: true },
+    });
+    expect(await screen.findByText("20/11/26")).toBeInTheDocument();
+    expect(screen.getByText(/fuerza 150 g/)).toBeInTheDocument();
+  });
+
+  it("a 1280 el detalle es una hoja; a 1707 va al lado; el pedido sigue elegido al cambiar", async () => {
+    const ctl = simularPantalla(1707);
+    await abrir();
+    expect(await screen.findByRole("complementary", { name: "Detalle del pedido P-1" })).toBeInTheDocument();
+    act(() => ctl.cambiar({ ancho: 1280 }));
+    expect(await screen.findByRole("dialog", { name: "Pedido P-1" })).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: /Detalle del pedido/ })).toBeNull();
+    act(() => ctl.cambiar({ ancho: 1707 }));
+    expect(await screen.findByRole("complementary", { name: "Detalle del pedido P-1" })).toBeInTheDocument();
   });
 });

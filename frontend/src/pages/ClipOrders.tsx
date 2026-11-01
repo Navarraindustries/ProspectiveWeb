@@ -14,7 +14,7 @@
       recibida cuya fuerza cayó fuera de la banda es justo lo que no puede
       quedar enterrado en una lista. */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { ClipOrder, OrderStatus, PatientSummary } from "../api/types";
 import { Badge } from "../components/Badge";
@@ -24,6 +24,7 @@ import { Icon } from "../components/Icon";
 import { EstadoVacio } from "../components/EstadoVacio";
 import { Input } from "../components/Input";
 import { Pastillas } from "../components/Pastillas";
+import { Sheet } from "../components/Sheet";
 import { Switch } from "../components/Switch";
 import { TablaTarjetas, type ColumnaTabla } from "../components/TablaTarjetas";
 import { Card, ErrorNote } from "../components/PanelHead";
@@ -88,7 +89,7 @@ export function nombrePieza(o: Pick<ClipOrder, "series" | "shape" | "angle_deg" 
   return `${o.series} ${forma.charAt(0).toLowerCase()}${forma.slice(1)}`;
 }
 
-/** Más de 1280 px: el detalle del pedido va al lado de la lista; en menos, debajo (tarea 12: hoja). */
+/** Más de 1280 px: el detalle del pedido va al lado de la lista; en menos, en una hoja. */
 export function useDetalleLateral(): boolean {
   return !useEstrecho();
 }
@@ -157,9 +158,11 @@ function columnasPedido(conTaller: boolean): ColumnaTabla<ClipOrder>[] {
 
 /* ── Detalle ─────────────────────────────────────────────────────────────── */
 
-function Detail({ order, onChanged, onClose, onOpenSession }: {
+function Detail({ order, onChanged, onClose, onOpenSession, enHoja = false }: {
   order: ClipOrder; onChanged: () => void; onClose: () => void;
   onOpenSession?: (sessionId: string, patientId: number | null) => Promise<void>;
+  /** Dentro de una hoja: la hoja trae su propio botón de cerrar. */
+  enHoja?: boolean;
 }) {
   const [error, setError] = useState("");
   // El servidor dijo que la sesión ya no existe: no tiene sentido reintentar.
@@ -187,37 +190,39 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
       .finally(() => setBusy(false));
   };
 
-  return (
-    <Card>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
-        <b style={{ fontFamily: "var(--font-mono)", fontSize: 13, flex: 1 }}>{order.part_no}</b>
+  const siguientes = order.next_states.filter((s) => ADVANCE_LABEL[s]);
+  const cuerpo = (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <b data-mono style={{ fontFamily: "var(--font-mono)", fontSize: 15, fontWeight: 600, flex: 1, minWidth: 0 }}>
+          {order.part_no}
+        </b>
         <Badge variant={STATUS_VARIANT[order.status]}>{order.status_label}</Badge>
-        <button
-          onClick={onClose}
-          aria-label="Cerrar"
-          style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted-foreground)", fontSize: 14 }}
-        >
-          ✕
-        </button>
+        {!enHoja && (
+          <Button size="icon" variant="ghost" aria-label="Cerrar el detalle" title="Cerrar el detalle" onClick={onClose}>
+            <Icon name="CLOSE" size={14} />
+          </Button>
+        )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px", fontSize: 13 }}>
+      <dl className="po-datos">
         {([
-          ["Paciente", order.patient || "—"],
-          ["Caso", order.case_label || "—"],
-          ["Pieza", `${order.series} ${shapeLabel(order.shape, order.angle_deg, order.window_mm)} · mordaza ${cifra(order.jaw_mm, 1)} mm`],
-          ["Piezas", String(order.total_pieces)],
-          ["Cirujano", order.surgeon || "sin firmar"],
-          ["Taller", order.workshop_name || "por asignar"],
-          ["Fecha necesaria", order.needed_by || "sin comprometer"],
-          ["Uso previsto", order.intended_use],
-        ] as [string, string][]).map(([k, v]) => (
+          ["Paciente", order.patient || "—", false],
+          ["Caso", order.case_label || "—", false],
+          ["Pieza", `${order.series} ${shapeLabel(order.shape, order.angle_deg, order.window_mm)} · mordaza ${cifra(order.jaw_mm, 1)} mm`, true],
+          ["Piezas", String(order.total_pieces), true],
+          ["Cirujano", order.surgeon || "sin firmar", false],
+          ["Taller", order.workshop_name || "por asignar", false],
+          ["Fecha necesaria", order.needed_by ? fechaDia(order.needed_by) : "sin comprometer", false],
+          ["Uso previsto", order.intended_use, false],
+        ] as [string, string, boolean][]).map(([k, v, mono]) => (
           <div key={k} style={{ display: "contents" }}>
-            <div style={{ color: "var(--muted-foreground)" }}>{k}</div>
-            <div style={{ fontFamily: "var(--font-mono)" }}>{v}</div>
+            <dt>{k}</dt>
+            <dd {...(mono ? { "data-mono": true } : {})}
+                style={mono ? { fontFamily: "var(--font-mono)" } : undefined}>{v}</dd>
           </div>
         ))}
-      </div>
+      </dl>
 
       {order.override_reason && (
         <div style={{ fontSize: 13, color: "var(--warning)", marginTop: 10, lineHeight: 1.5 }}>
@@ -230,31 +235,23 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
           fontSize: 13, marginTop: 10, fontFamily: "var(--font-mono)", lineHeight: 1.5,
           color: outOfSpec ? "var(--destructive)" : "var(--success)",
         }}>
-          Medido: mordaza {cifra(r.measured_jaw_mm, 2)} mm · fuerza {r.measured_force_g?.toFixed(0)} g
+          Medido: mordaza {cifra(r.measured_jaw_mm, 2)} mm · fuerza {cifra(r.measured_force_g, 0)} g
           {outOfSpec ? " — fuera de especificación" : " — dentro de especificación"}
         </div>
       )}
 
       {(order.files.packet || order.files.dossier_internal || order.files.stl) && (
-        <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
-          {order.files.packet && (
-            <Button size="sm" variant="ghost"
-                    onClick={() => void api.downloadClipOrderFile(order.part_no, "packet")}>
-              Paquete taller (ZIP)
+        <div role="group" aria-label="Descargas" style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
+          {([
+            ["packet", "Paquete del taller (ZIP)"],
+            ["dossier_internal", "Copia interna (PDF)"],
+            ["stl", "STL"],
+          ] as const).filter(([k]) => order.files[k]).map(([k, rotulo]) => (
+            <Button key={k} size="sm" variant="outline" leadingIcon={<Icon name="EXPORT" size={14} />}
+                    onClick={() => void api.downloadClipOrderFile(order.part_no, k)}>
+              {rotulo}
             </Button>
-          )}
-          {order.files.dossier_internal && (
-            <Button size="sm" variant="ghost"
-                    onClick={() => void api.downloadClipOrderFile(order.part_no, "dossier_internal")}>
-              Copia interna (PDF)
-            </Button>
-          )}
-          {order.files.stl && (
-            <Button size="sm" variant="ghost"
-                    onClick={() => void api.downloadClipOrderFile(order.part_no, "stl")}>
-              STL
-            </Button>
-          )}
+          ))}
         </div>
       )}
 
@@ -284,9 +281,41 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
         </div>
       )}
 
-      {onOpenSession && (
-        <div style={{ marginTop: 12 }}>
-          <Button size="sm" variant="secondary" disabled={busy || sessionGone}
+      <div className="po-acciones" data-testid="po-acciones">
+        {siguientes.map((s, i) => {
+          const variante = i === 0 ? "default" : "outline";
+          return s === "recibida" ? (
+            <Button key={s} size="sm" variant={variante} disabled={busy}
+                    onClick={() => setReceiving(true)}>
+              {ADVANCE_LABEL[s]}
+            </Button>
+          ) : s === "firmado" ? (
+            <Button key={s} size="sm" variant={variante} disabled={busy || cannotSign}
+                    title={cannotSign ? SIGN_DENIED : undefined}
+                    onClick={() => setAsking("firmar")}>
+              {ADVANCE_LABEL[s]}
+            </Button>
+          ) : (
+            <Button key={s} size="sm" variant={variante} disabled={busy}
+                    onClick={() => act(api.advanceClipOrder(order.part_no, s))}>
+              {ADVANCE_LABEL[s]}
+            </Button>
+          );
+        })}
+        {order.status === "recibida" && (
+          <>
+            <Button size="sm" variant="default" disabled={busy}
+                    onClick={() => act(api.verifyClipOrder(order.part_no, deviation))}>
+              Aceptar la pieza
+            </Button>
+            <Button size="sm" variant="destructive" disabled={busy}
+                    onClick={() => setAsking("rechazar")}>
+              Rechazar
+            </Button>
+          </>
+        )}
+        {onOpenSession && (
+          <Button size="sm" variant="outline" disabled={busy || sessionGone}
                   title={sessionGone ? "La sesión de este pedido ya no existe" : undefined}
                   onClick={() => {
                     setBusy(true);
@@ -300,40 +329,6 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
                   }}>
             Abrir el caso
           </Button>
-        </div>
-      )}
-
-      <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
-        {order.next_states.filter((s) => ADVANCE_LABEL[s]).map((s) => (
-          s === "recibida" ? (
-            <Button key={s} size="sm" variant="outline" disabled={busy}
-                    onClick={() => setReceiving(true)}>
-              {ADVANCE_LABEL[s]}
-            </Button>
-          ) : s === "firmado" ? (
-            <Button key={s} size="sm" variant="outline" disabled={busy || cannotSign}
-                    title={cannotSign ? SIGN_DENIED : undefined}
-                    onClick={() => setAsking("firmar")}>
-              {ADVANCE_LABEL[s]}
-            </Button>
-          ) : (
-            <Button key={s} size="sm" variant="outline" disabled={busy}
-                    onClick={() => act(api.advanceClipOrder(order.part_no, s))}>
-              {ADVANCE_LABEL[s]}
-            </Button>
-          )
-        ))}
-        {order.status === "recibida" && (
-          <>
-            <Button size="sm" disabled={busy}
-                    onClick={() => act(api.verifyClipOrder(order.part_no, deviation))}>
-              Aceptar la pieza
-            </Button>
-            <Button size="sm" variant="destructive" disabled={busy}
-                    onClick={() => setAsking("rechazar")}>
-              Rechazar
-            </Button>
-          </>
         )}
       </div>
       {cannotSign && order.next_states.includes("firmado") && (
@@ -368,8 +363,9 @@ function Detail({ order, onChanged, onClose, onOpenSession }: {
       </ConfirmDialog>
 
       <ErrorNote>{error}</ErrorNote>
-    </Card>
+    </>
   );
+  return enHoja ? <div>{cuerpo}</div> : <Card>{cuerpo}</Card>;
 }
 
 /* ── La pantalla ─────────────────────────────────────────────────────────── */
@@ -452,6 +448,9 @@ export function ClipOrdersPage({
   for (const o of base) counts[o.status] = (counts[o.status] ?? 0) + 1;
   const todosCount = openOnly ? base.filter((o) => !CLOSED.includes(o.status)).length : base.length;
   const lateral = useDetalleLateral();
+  // La hoja conserva el último pedido mientras se cierra (la salida dura unos ms).
+  const ultimo = useRef<ClipOrder | null>(null);
+  if (selected) ultimo.current = selected;
   const needAttention = sorted.filter((o) => attention(o) !== null).length;
 
   return (
@@ -529,9 +528,9 @@ export function ClipOrdersPage({
           </div>
         )}
 
-        <div style={lateral
+        <div style={lateral && selected
           ? { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 360px", gap: 16, alignItems: "start" }
-          : { display: "flex", flexDirection: "column", gap: 16 }}>
+          : { display: "block" }}>
           <div style={{ minWidth: 0 }}>
             <TablaTarjetas
               rotulo="Pedidos de clips"
@@ -554,16 +553,22 @@ export function ClipOrdersPage({
             />
           </div>
 
-          {selected && (
+          {lateral && selected && (
             <aside
               aria-label={`Detalle del pedido ${selected.part_no}`}
-              style={lateral ? { position: "sticky", top: 16, minWidth: 0 } : { minWidth: 0 }}
+              style={{ position: "sticky", top: 16, minWidth: 0 }}
             >
               <Detail order={selected} onChanged={load} onClose={() => setSel(null)}
                       onOpenSession={onOpenSession} />
             </aside>
           )}
         </div>
+        {!lateral && ultimo.current && (
+          <Sheet open={!!selected} title={`Pedido ${ultimo.current.part_no}`} width={460} onClose={() => setSel(null)}>
+            <Detail order={selected ?? ultimo.current} enHoja onChanged={load} onClose={() => setSel(null)}
+                    onOpenSession={onOpenSession} />
+          </Sheet>
+        )}
       </PageBody>
     </AppShell>
   );

@@ -15,7 +15,6 @@ import type { IconName } from "../Icon";
 import { MenuMas } from "../MenuMas";
 import type { ItemMenu } from "../MenuMas";
 import { useTramo } from "../../hooks/useEstrecho";
-import { Logo } from "./Logo";
 import { ThemeToggle } from "../ThemeToggle";
 import { UserMenu } from "./UserMenu";
 import { glass } from "../../styles/glass";
@@ -45,6 +44,8 @@ export interface AccionBarra {
   /** Tooltip; si falta, label. */
   title?: string;
   disabled?: boolean;
+  /** `onClick` abre una hoja o un diálogo que toma el foco: desde el menú «⋯» no se devuelve al botón. */
+  abreDialogo?: boolean;
 }
 
 function Accion({ a, soloIcono, tam }: { a: AccionBarra; soloIcono: boolean; tam: "sm" | "md" }) {
@@ -86,9 +87,7 @@ function Accion({ a, soloIcono, tam }: { a: AccionBarra; soloIcono: boolean; tam
   );
 }
 
-export function TopBar({ brand = false, crumbs, subtitle, status, acciones, extra, onAbrirSecciones, seccionesAbiertas = false }: {
-  /** Marca a la izquierda de la miga, para pantallas sin barra lateral (el pipeline). */
-  brand?: boolean;
+export function TopBar({ crumbs, subtitle, status, acciones, extra, onAbrirSecciones, seccionesAbiertas = false }: {
   crumbs?: Crumb[];
   subtitle?: ReactNode;
   status?: ReactNode;
@@ -108,7 +107,7 @@ export function TopBar({ brand = false, crumbs, subtitle, status, acciones, extr
   const secundarias = lista.filter((a) => !a.principal);
   const itemsMenu: ItemMenu[] = movil
     ? [
-        ...secundarias.map((a): ItemMenu => ({ id: a.id, label: a.label, icon: a.icon, href: a.href, onSelect: a.onClick, disabled: a.disabled })),
+        ...secundarias.map((a): ItemMenu => ({ id: a.id, label: a.label, icon: a.icon, href: a.href, onSelect: a.onClick, disabled: a.disabled, abreDialogo: a.abreDialogo })),
         { id: "paleta", label: "Paleta de mandos", icon: "SEARCH", onSelect: openCommandPalette, separadoAntes: secundarias.length > 0 },
       ]
     : [];
@@ -128,11 +127,6 @@ export function TopBar({ brand = false, crumbs, subtitle, status, acciones, extr
         >
           <Icon name="MENU" size={18} />
         </button>
-      )}
-      {brand && (
-        <span className="shell-brand">
-          <Logo size={24} firma={false} />
-        </span>
       )}
       {migas && migas.length > 0 && (
         <nav aria-label="Miga de pan" className="shell-crumbs">

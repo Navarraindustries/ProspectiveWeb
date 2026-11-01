@@ -13,6 +13,14 @@ import type { AccionBarra } from "./TopBar";
 
 afterEach(() => vi.unstubAllGlobals());
 
+/** El bloque de tableta de shell.css desde la regla de los controles de la barra. */
+function cssTableta(): string {
+  const css = readFileSync(resolve(__dirname, "shell.css"), "utf8").replace(/\r\n/g, "\n");
+  const i = css.search(/@media \(max-width:\s*1024px\)\s*\{\s*\.shell-user-btn/);
+  expect(i).toBeGreaterThan(-1);
+  return css.slice(i);
+}
+
 const LARGO = "Segura Restrepo, María Fernanda de los Ángeles";
 const acciones: AccionBarra[] = [
   { id: "np", label: "Nuevo paciente", icon: "PLUS", principal: true, onClick: () => {} },
@@ -74,7 +82,18 @@ describe("TopBar", () => {
     expect(screen.getByRole("button", { name: "Nuevo paciente" })).toHaveAttribute("data-size", "md");
     expect(screen.getByRole("button", { name: "Nuevo caso" }).style.height).toBe("var(--control-md)");
     expect(screen.getByRole("button", { name: /tema/i }).style.height).toBe("44px");
+    // «Ctrl K» no cabe en 44 px: el botón de la paleta lleva mínimo, no ancho fijo.
+    const cmdk = screen.getByRole("button", { name: /Abrir la paleta de mandos/ });
+    expect(cmdk).toHaveClass("shell-cmdk");
+    expect(cmdk.style.width).toBe("");
+    const regla = /\.shell-cmdk\s*\{([^}]*)\}/.exec(cssTableta())![1];
+    expect(regla).toMatch(/min-width:\s*var\(--control-md\)/);
+    expect(regla).toMatch(/(^|[^-])width:\s*auto/);
+    expect(regla).not.toMatch(/(^|[^-])width:\s*var\(--control-md\)/);
     p.restaurar();
+  });
+  it("a 1024 «Cerrar sesión» y la chincheta tienen diana de 44 px por CSS", () => {
+    expect(cssTableta()).toMatch(/\.shell-logout,\s*\.shell-nav-pin\s*\{\s*min-height:\s*var\(--control-md\);\s*min-width:\s*var\(--control-md\)/);
   });
   it("a 390: icono principal, «⋯» con secundarias y la paleta, solo el último segmento de la miga y sin subtítulo", () => {
     const p = simularPantalla({ ancho: 390 });
@@ -99,6 +118,22 @@ describe("TopBar", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Paleta de mandos" }));
     window.removeEventListener(OPEN_PALETTE_EVENT, fn);
     expect(fn).toHaveBeenCalledTimes(1);
+    p.restaurar();
+  });
+  it("desde «⋯», la acción que abre una hoja no recupera el foco; la que no, sí", () => {
+    const p = simularPantalla({ ancho: 390 });
+    render(<TopBar acciones={[
+      { id: "np", label: "Nuevo paciente", icon: "PLUS", principal: true, onClick: () => {} },
+      { id: "nc", label: "Nuevo caso", icon: "FOLDER", abreDialogo: true, onClick: () => {} },
+      { id: "ac", label: "Actualizar", icon: "REFRESH", onClick: () => {} },
+    ]} />);
+    const mas = screen.getByRole("button", { name: "Más acciones" });
+    fireEvent.click(mas);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Nuevo caso" }));
+    expect(document.activeElement).not.toBe(mas);
+    fireEvent.click(mas);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Actualizar" }));
+    expect(document.activeElement).toBe(mas);
     p.restaurar();
   });
   it("al pasar de 1707 a 390 en vivo, las secundarias se recogen en «⋯»", () => {

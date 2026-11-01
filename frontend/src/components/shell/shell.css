@@ -473,15 +473,6 @@
   border-color: color-mix(in srgb, var(--destructive) 40%, var(--border));
 }
 
-/* ── Marca en la barra superior (pantallas sin barra lateral) ───────────── */
-.shell-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  margin-right: 8px;
-}
-
 /* ── Estado del guardado ────────────────────────────────────────────────── */
 .ws-save-status {
   display: inline-flex;
@@ -605,7 +596,11 @@
 .shell-accion[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; }
 .shell-accion:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 @media (max-width: 1024px) {
-  .shell-user-btn, .shell-cmdk { width: var(--control-md); min-width: var(--control-md); height: var(--control-md); }
+  .shell-user-btn { width: var(--control-md); min-width: var(--control-md); height: var(--control-md); }
+  /* «Ctrl K» no cabe en 44 px: mínimo de 44 y crece con el texto. */
+  .shell-cmdk { width: auto; min-width: var(--control-md); height: var(--control-md); }
+  /* Diana táctil de 44 px también en el pie de la barra y en el cajón. */
+  .shell-logout, .shell-nav-pin { min-height: var(--control-md); min-width: var(--control-md); }
 }
 @media (max-width: 640px) {
   .shell-top { height: auto; min-height: 56px; padding: 6px 12px; gap: 8px; }

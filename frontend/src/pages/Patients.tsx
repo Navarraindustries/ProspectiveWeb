@@ -161,8 +161,8 @@ export function Patients({
       // F2-20, F2-21: «Usuarios», «Cuentas pendientes» y «Estudios» están en el
       // panel lateral; aquí quedan solo las acciones clínicas, la prueba rápida la última.
       acciones={[
-        { id: "nuevo-paciente", label: "Nuevo paciente", icon: "PLUS", principal: true, onClick: openCreate },
-        { id: "nuevo-caso", label: "Nuevo caso", icon: "FOLDER", onClick: () => setCaseSheet(true) },
+        { id: "nuevo-paciente", label: "Nuevo paciente", icon: "PLUS", principal: true, abreDialogo: true, onClick: openCreate },
+        { id: "nuevo-caso", label: "Nuevo caso", icon: "FOLDER", abreDialogo: true, onClick: () => setCaseSheet(true) },
         ...(onStartWithoutPatient ? [{
           id: "prueba-rapida", label: "Prueba rápida sin paciente", icon: "STEP_SEGMENT" as const,
           title: "Sube un DICOM y planifica ya. Si no lo adjuntas después a un paciente y un caso, se borra al caducar la sesión.",

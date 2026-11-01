@@ -184,7 +184,7 @@ export function WorkshopsPage() {
     <AppShell
       crumbs={[{ label: "Talleres" }]}
       subtitle="Quién fabrica las piezas. Se escriben una vez y se eligen en cada pedido."
-      acciones={[{ id: "nuevo-taller", label: "Nuevo taller", icon: "PLUS", principal: true, onClick: () => { setEditing(null); setSheetOpen(true); } }]}
+      acciones={[{ id: "nuevo-taller", label: "Nuevo taller", icon: "PLUS", principal: true, abreDialogo: true, onClick: () => { setEditing(null); setSheetOpen(true); } }]}
     >
       <PageBody className="fade-rise">
         <ErrorNote>{error}</ErrorNote>

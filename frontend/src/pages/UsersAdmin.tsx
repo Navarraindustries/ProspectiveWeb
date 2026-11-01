@@ -404,7 +404,7 @@ function UsersAdminPage() {
       crumbs={USERS_CRUMBS}
       subtitle={subtitulo}
       extra={<Input icon={<Icon name="SEARCH" />} placeholder="Buscar usuario…" aria-label="Buscar usuario" value={q} onChange={(e) => setQ(e.target.value)} />}
-      acciones={[{ id: "nuevo-usuario", label: "Nuevo usuario", icon: "PLUS", principal: true, onClick: () => setNewOpen(true) }]}
+      acciones={[{ id: "nuevo-usuario", label: "Nuevo usuario", icon: "PLUS", principal: true, abreDialogo: true, onClick: () => setNewOpen(true) }]}
     >
 
       <PageBody className="fade-rise">

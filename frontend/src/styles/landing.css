@@ -120,7 +120,7 @@
   min-height: 100vh;
   overflow: visible;
 }
-@media (max-width: 760px), (max-height: 700px) {
+@media (max-width: 760px), (max-height: 600px) {
   .landing-stitch .hero-cortes__escenario {
     position: relative;
     height: auto;

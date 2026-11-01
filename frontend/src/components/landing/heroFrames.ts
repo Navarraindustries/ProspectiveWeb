@@ -47,10 +47,11 @@ export const rutaFotograma =(i: number): string =>
   `/media/landing/hero/${String(i).padStart(3, "0")}.webp`;
 
 /* Pantallas donde el escenario fijado de 100 vh no cabe (un iPhone con las
-   barras visibles, un móvil apaisado, un portátil bajo): el hero pasa a la
+   barras visibles, un móvil apaisado): el hero pasa a la
    disposición quieta, la misma que con movimiento reducido. Debe coincidir con
-   el @media de `.hero-cortes` en landing.css. */
-export const CONSULTA_HERO_QUIETO = "(max-width: 760px), (max-height: 700px)";
+   el @media de `.hero-cortes` en landing.css. 600 px de alto deja entrar al
+   portátil de 1366 × 768 (≈ 650 px útiles): el contenido del hero mide ≈ 600. */
+export const CONSULTA_HERO_QUIETO = "(max-width: 760px), (max-height: 600px)";
 
 /* Peticiones simultáneas tras el fotograma 0. */
 const EN_PARALELO = 4;

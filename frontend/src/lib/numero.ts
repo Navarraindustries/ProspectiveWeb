@@ -22,3 +22,10 @@ export function mm(v: number | null | undefined, decimales = 1): string {
   const t = cifra(v, decimales);
   return t === "—" ? t : `${t} mm`;
 }
+
+/** «(1,2; 4,6; −7,9)»: tres ejes separados por «; » para que la coma de los
+ *  decimales no se confunda con la que separa x, y, z. Sin valor, «—». */
+export function coordenadas(v: readonly number[] | null | undefined, decimales = 1): string {
+  if (!v) return "—";
+  return `(${v.map((x) => cifra(x, decimales, { menosTipografico: true })).join("; ")})`;
+}

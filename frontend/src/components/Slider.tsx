@@ -1,6 +1,10 @@
 /* Slider — range control with mono numeric readout (HU thresholds, smoothing…). */
 
 import { useId } from "react";
+import { cifra } from "../lib/numero";
+
+/** Al décimo del paso, con coma; un valor entero se queda entero. */
+const legible = (v: number) => { const r = Math.round(v * 10) / 10; return Number.isInteger(r) ? String(r) : cifra(r, 1); };
 
 export function Slider({
   label,
@@ -33,7 +37,7 @@ export function Slider({
           {/* Los límites de la caja salen de la malla y traen todos los
               decimales del flotante: «19.8441951751789 mm» no dice más que
               «19.8» y llena la fila. Se redondea al paso del deslizador. */}
-          {Number.isInteger(step) ? value : Math.round(value * 10) / 10}
+          {Number.isInteger(step) ? value : legible(value)}
           <span style={{ color: "var(--muted-foreground)", fontSize: 11 }}>{unit}</span>
         </span>
       </div>

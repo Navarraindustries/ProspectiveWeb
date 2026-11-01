@@ -18,7 +18,7 @@ import { useVolumeMeta } from "../../vtk/useVolumeMeta";
 import { indexAtArc, nearestIndex, tangentAt } from "../../vtk/centerlineWalk";
 import { useCenterlineTrack } from "../../vtk/useCenterlineTrack";
 import { planeFromNormal } from "../../vtk/freePlane";
-import { cifra } from "../../lib/numero";
+import { cifra, coordenadas } from "../../lib/numero";
 
 const RESOLUTIONS = [
   { value: "1.0", label: "1.0 mm · rápida" },
@@ -27,7 +27,7 @@ const RESOLUTIONS = [
 ];
 
 function fmt(p: [number, number, number] | null): string {
-  return p ? `(${cifra(p[0], 1)}, ${cifra(p[1], 1)}, ${cifra(p[2], 1)})` : "—";
+  return coordenadas(p);
 }
 
 function tortuosityBadge(t: number): [string, "success" | "warning" | "destructive"] {

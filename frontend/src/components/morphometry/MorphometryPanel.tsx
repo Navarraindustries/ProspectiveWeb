@@ -26,7 +26,7 @@ import { LongitudinalChart } from "./LongitudinalChart";
 import { usePlanning } from "../../store/planning";
 import type { MorphometryResult } from "../../api/types";
 import { MANUAL_NO_SAC, isManual } from "../planning/detectCopy";
-import { cifra } from "../../lib/numero";
+import { cifra, coordenadas } from "../../lib/numero";
 
 const TABS = ["Métricas", "Índices", "PHASES", "ELAPSS", "UIATS", "Seguimiento"] as const;
 
@@ -61,8 +61,7 @@ function siteOptions(current: string | null | undefined) {
 /** «(1,2; 4,6; −7,9) mm»: coma decimal y punto y coma entre ejes, para que
  *  la coma de los decimales no se confunda con la que separa x, y, z. */
 export function coordMm(p: readonly [number, number, number]): string {
-  const f = (v: number) => cifra(v, 1, { menosTipografico: true });
-  return `(${p.map(f).join("; ")}) mm`;
+  return `${coordenadas(p)} mm`;
 }
 
 /* F1-153: tras «Marcar cuello» el botón decía «Cuello ✓» y nada más; en el 3D

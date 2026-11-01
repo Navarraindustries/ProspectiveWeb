@@ -29,8 +29,6 @@ export const UIATS_CUTS = [...new Set([...UIATS_DIAMETER_CUTS, ...UIATS_SIZE_RIS
 /** Distancia a un corte por debajo de la cual se avisa: el orden del error de medida. */
 export const CUT_MARGIN_MM = 1;
 
-/** «10,9»: coma decimal, como lee la cifra el clínico. */
-
 /** El corte más cercano a menos de 1 mm, o null. */
 export function nearCut(x: number, cuts: readonly number[]): number | null {
   if (!(x > 0)) return null;

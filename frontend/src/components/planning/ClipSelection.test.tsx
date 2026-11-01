@@ -260,7 +260,7 @@ describe("sizing a made-to-order clip", () => {
     fireEvent.change(slider, { target: { value: "18.5" } });
     // The design-system Slider keeps the value and its unit in separate spans,
     // so the readout is asserted the way that component renders it.
-    expect(screen.getByText("18.5")).toBeInTheDocument();
+    expect(screen.getByText("18,5")).toBeInTheDocument();
     expect(slider).toHaveValue("18.5");
   });
 

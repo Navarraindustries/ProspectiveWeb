@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cifra, mm } from "./numero";
+import { cifra, coordenadas, mm } from "./numero";
 
 describe("cifra", () => {
   it("usa coma decimal y un decimal por defecto", () => {
@@ -33,5 +33,12 @@ describe("mm", () => {
   it("sin valor, solo la raya", () => {
     expect(mm(null)).toBe("—");
     expect(mm(NaN)).toBe("—");
+  });
+});
+
+describe("coordenadas", () => {
+  it("separa los ejes con punto y coma", () => {
+    expect(coordenadas([1.5, 2.25, -4.1])).toBe("(1,5; 2,3; −4,1)");
+    expect(coordenadas(null)).toBe("—");
   });
 });

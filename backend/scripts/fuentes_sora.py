@@ -10,6 +10,7 @@ Uso (necesita fonttools y brotli, que no están en el venv del backend):
 Recorta el eje wght a 500-600 y escribe Sora-latin.woff2 y Sora-latin-ext.woff2 con los
 mismos unicode-range que el «Inter» de fonts.css; imprime tamaño y nº de glifos.
 """
+import io
 import os
 import sys
 
@@ -38,11 +39,11 @@ def main(dl: str, sal: str) -> None:
     base = TTFont(os.path.join(dl, "Sora[wght].ttf"))
     base = instancer.instantiateVariableFont(base, {"wght": (500, 600)})
     for nombre, rango in RANGOS.items():
-        # Copia independiente del instanciado: se guarda y se vuelve a abrir.
-        ruta_tmp = os.path.join(sal, f".sora-{nombre}.tmp.ttf")
-        base.save(ruta_tmp)
-        fuente = TTFont(ruta_tmp)
-        os.remove(ruta_tmp)
+        # Copia independiente del instanciado: se guarda en memoria y se vuelve a abrir.
+        buf = io.BytesIO()
+        base.save(buf)
+        buf.seek(0)
+        fuente = TTFont(buf)
         cmap = fuente.getBestCmap()
         cps = [c for c in puntos(rango) if c in cmap]
         opciones = subset.Options()

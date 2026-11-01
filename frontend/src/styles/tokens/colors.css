@@ -70,7 +70,7 @@
 
   /* ---- Cristal: hojas, menús y barra superior ---- */
   --glass:              linear-gradient(rgba(5, 6, 8, 0.55), rgba(5, 6, 8, 0.55)), rgba(255, 255, 255, 0.08);
-  --veil:               rgba(5, 6, 8, 0.55);    /* velo sobre la imagen de fondo */
+  --veil:               rgba(5, 6, 8, 0.55);    /* velo sobre el vídeo de la landing */
   --veil-dense:         rgba(5, 6, 8, 0.72);
   --ambient-glow-1:     rgba(96, 173, 255, 0.12);   /* brillo arriba a la izquierda */
   --ambient-glow-2:     rgba(96, 173, 255, 0.08);   /* brillo abajo a la derecha */

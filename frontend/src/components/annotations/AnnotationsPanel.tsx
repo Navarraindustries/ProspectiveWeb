@@ -26,8 +26,10 @@ const SLICE_TAG = { axial: "AX", coronal: "COR", sagital: "SAG" } as const;
 // decir el mismo número que el médico lee en el visor para ir a buscarla.
 const origin = (a: Annotation) => (a.plane ? `${SLICE_TAG[a.plane.plane]} ${a.plane.index + 1}` : "3D");
 
-/** Fotogramas que se reintenta enfocar la nota de un marcador nuevo. */
-export const NOTE_FOCUS_FRAMES = 5;
+/** Milisegundos que se reintenta enfocar la nota de un marcador nuevo.
+    WHY tiempo y no fotogramas: con la CPU cargada el despliegue de la columna
+    dura más fotogramas de los previstos y un tope fijo se rendía antes. */
+export const NOTE_FOCUS_MS = 500;
 
 export const EMPTY_TEXT = "Sin anotaciones. Elige una herramienta y pincha en un corte o en la malla";
 export const FULL_TEXT = `Máximo ${ANNOTATIONS_MAX} anotaciones por sesión: borra alguna para añadir otra`;
@@ -54,10 +56,11 @@ export function AnnotationsPanel() {
     // mousedown que llega después en la misma pulsación devuelve el foco al
     // visor; enfocar en el acto lo perdía y lo tecleado iba a los atajos.
     // También falla en silencio sobre un nodo oculto (columna plegada). Se
-    // reintenta unos fotogramas y solo se da por cumplida cuando el campo
-    // tiene de verdad el foco; agotados los intentos se suelta la petición
+    // reintenta hasta NOTE_FOCUS_MS y solo se da por cumplida cuando el campo
+    // tiene de verdad el foco (un nodo oculto no lo recibe, así que enfocar ya
+    // comprueba que sea visible); agotado el tiempo se suelta la petición
     // (la columna ya quedó desplegada) para no dejarla colgada.
-    let tries = 0;
+    const deadline = performance.now() + NOTE_FOCUS_MS;
     let raf = 0;
     const attempt = () => {
       const el = document.querySelector<HTMLInputElement>(`[data-note-for="${noteFocusRequest}"]`);
@@ -65,7 +68,7 @@ export function AnnotationsPanel() {
         el.focus();
         if (document.activeElement === el) { setNoteFocusRequest(null); return; }
       }
-      if (++tries < NOTE_FOCUS_FRAMES) raf = requestAnimationFrame(attempt);
+      if (performance.now() < deadline) raf = requestAnimationFrame(attempt);
       else if (el) setNoteFocusRequest(null);
     };
     raf = requestAnimationFrame(attempt);

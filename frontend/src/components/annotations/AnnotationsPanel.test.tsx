@@ -5,7 +5,7 @@ import { useEffect, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Annotation } from "../../vtk/annotations";
 import { PlanningProvider, usePlanning } from "../../store/planning";
-import { AnnotationsPanel, NOTE_FOCUS_FRAMES } from "./AnnotationsPanel";
+import { AnnotationsPanel, NOTE_FOCUS_MS } from "./AnnotationsPanel";
 
 const regla: Annotation = {
   id: "a1", kind: "regla", points: [[0, 0, 3], [5, 0, 3]], plane: { plane: "axial", index: 2 },
@@ -247,15 +247,39 @@ describe("AnnotationsPanel", () => {
     await waitFor(() => expect(visto?.noteFocusRequest).toBeNull());
   });
 
-  it("si el foco no llega nunca, la petición sigue pendiente hasta agotar los intentos", async () => {
+  it("si el campo tarda más de cinco fotogramas en poder recibir el foco, lo recibe igual", async () => {
     const frame = fotogramas();
+    // Un despliegue lento de la columna: focus() no hace nada durante 12 fotogramas.
+    const real = HTMLElement.prototype.focus;
+    let fotograma = 0;
+    vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (this: HTMLElement) {
+      if (this.dataset.noteFor && fotograma <= 12) return;
+      real.call(this);
+    });
+    const nota = await marcadorNuevo();
+    for (fotograma = 1; fotograma <= 12; fotograma++) {
+      frame();
+      expect(nota).not.toHaveFocus();
+      expect(visto?.noteFocusRequest, `fotograma ${fotograma}`).toBe("m2");
+    }
+    frame();
+    expect(nota).toHaveFocus();
+    await waitFor(() => expect(visto?.noteFocusRequest).toBeNull());
+  });
+
+  it("si el foco no llega nunca, la petición sigue pendiente hasta agotar el tiempo", async () => {
+    const frame = fotogramas();
+    let ahora = 1000;
+    vi.spyOn(performance, "now").mockImplementation(() => ahora);
     // Como un campo dentro de una columna con display:none: focus() no hace nada.
     vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(() => {});
     const nota = await marcadorNuevo();
-    for (let i = 1; i < NOTE_FOCUS_FRAMES; i++) {
+    for (let i = 1; i <= 10; i++) {
+      ahora += NOTE_FOCUS_MS / 20;
       frame();
       expect(visto?.noteFocusRequest, `fotograma ${i}`).toBe("m2");
     }
+    ahora += NOTE_FOCUS_MS;
     frame();
     expect(nota).not.toHaveFocus();
     await waitFor(() => expect(visto?.noteFocusRequest).toBeNull());

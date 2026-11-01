@@ -125,11 +125,11 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
   };
 
   return (
-    <Entorno>
+    <Entorno dense>
       <div style={{ display: "flex", minHeight: "100dvh" }}>
         <AuthBrand flex="1 1 56%" />
 
-        {/* Zona del formulario: ventana de cristal sobre el Entorno; el formulario es largo y la zona hace scroll. */}
+        {/* Zona del formulario: ventana de cristal sobre el Entorno; el formulario es largo y es la página la que desplaza (el panel de marca queda fijo). */}
         <div className="login-form" style={{ flex: "1 1 44%", display: "flex", flexDirection: "column", minWidth: 340, padding: "0 16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 24 }}>
             <button

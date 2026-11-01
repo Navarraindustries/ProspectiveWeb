@@ -21,7 +21,8 @@ const { signup, ApiError } = vi.hoisted(() => {
 
 vi.mock("../api/client", () => ({ api: { signup: (...a: unknown[]) => signup(...a) }, ApiError }));
 vi.mock("../components/ThemeToggle", () => ({ ThemeToggle: () => null }));
-vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
+const tema = vi.hoisted(() => ({ actual: "light" as "light" | "dark" }));
+vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: tema.actual }) }));
 
 import { Signup } from "./Signup";
 
@@ -175,6 +176,16 @@ describe("la ventana de cristal de «Crear cuenta»", () => {
     const ventana = screen.getByRole("region", { name: "Crear cuenta" });
     expect(ventana).toHaveAttribute("data-glass");
     expect(ventana).toContainElement(screen.getByLabelText("Usuario * (mín. 3)"));
+  });
+
+  it("el velo del Entorno es el denso", () => {
+    tema.actual = "dark";
+    try {
+      const { container } = render(<MemoryRouter><Signup onBack={() => {}} onDone={() => {}} /></MemoryRouter>);
+      expect(container.querySelector<HTMLElement>("[data-entorno] > div")!.style.background).toBe("var(--veil-dense)");
+    } finally {
+      tema.actual = "light";
+    }
   });
 
   it("los contenedores de la ventana no tapan la imagen del Entorno", () => {

@@ -95,6 +95,11 @@ describe("de dónde viene la contraseña que hay que cambiar (F1b-4)", () => {
     expect(container.querySelector("img[aria-hidden='true']")).not.toBeNull();
   });
 
+  it("el velo del Entorno es el denso", () => {
+    const { container } = render(<ForcePasswordChange />);
+    expect(container.querySelector<HTMLElement>("[data-entorno] > div")!.style.background).toBe("var(--veil-dense)");
+  });
+
   it("los contenedores de la ventana no tapan la imagen del Entorno", () => {
     render(<ForcePasswordChange />);
     sinFondoOpaco(screen.getByRole("region", { name: "Cambia la contraseña asignada" }));

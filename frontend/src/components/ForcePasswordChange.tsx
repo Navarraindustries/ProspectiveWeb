@@ -47,7 +47,7 @@ export function ForcePasswordChange() {
   };
 
   return (
-    <Entorno>
+    <Entorno dense>
       <div style={{ minHeight: "100dvh", display: "grid", placeItems: "center", padding: 16 }}>
         <AuthWindow titulo="Cambia la contraseña asignada">
           <form onSubmit={(e) => { e.preventDefault(); void submit(); }}>

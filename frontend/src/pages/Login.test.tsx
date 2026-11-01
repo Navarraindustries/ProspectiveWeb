@@ -204,6 +204,11 @@ describe("identidad nueva de «Entrar» (F2-10, F2-11, F2-12)", () => {
     expect(screen.getByText("Accede con tu cuenta de Prospective.")).toBeInTheDocument();
   });
 
+  it("el velo del Entorno es el denso (el texto apagado fuera de la ventana llega a 4,5:1)", () => {
+    const { container } = montar();
+    expect(container.querySelector<HTMLElement>("[data-entorno] > div")!.style.background).toBe("var(--veil-dense)");
+  });
+
   it("los contenedores de la ventana no tapan la imagen del Entorno", () => {
     montar();
     sinFondoOpaco(screen.getByRole("region", { name: "Iniciar sesión" }));

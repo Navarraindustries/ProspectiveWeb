@@ -31,7 +31,12 @@ export function AuthBrand({ flex }: { flex: string }) {
       className="login-media"
       style={{
         flex,
-        position: "relative",
+        // Fijo a la altura de la pantalla: si el formulario es más alto que ella
+        // (Crear cuenta, pantallas bajas) la página desplaza y el panel no se estira.
+        position: "sticky",
+        top: 0,
+        height: "100dvh",
+        alignSelf: "flex-start",
         overflow: "hidden",
         background: "var(--media-bg)",
         borderRight: "1px solid var(--border)",

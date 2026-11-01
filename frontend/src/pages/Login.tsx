@@ -76,7 +76,7 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
   };
 
   return (
-    <Entorno>
+    <Entorno dense>
       <div style={{ display: "flex", minHeight: "100dvh" }}>
         <AuthBrand flex="1 1 62%" />
 

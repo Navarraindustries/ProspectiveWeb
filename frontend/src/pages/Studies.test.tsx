@@ -230,7 +230,7 @@ describe("«Estudios»: gestión (fase 9, A34–A36)", () => {
     listStudies.mockResolvedValue([tarjeta({ resumable_session_id: "s1" })]);
     render(<Studies {...props} />);
     await abrirMenu();
-    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Nueva sesión", "Abrir ficha", "Borrar estudio"]);
+    expect(screen.getAllByRole("menuitem").map((m) => m.querySelector("[data-rotulo]")!.textContent)).toEqual(["Nueva sesión", "Abrir ficha", "Borrar estudio"]);
     expect(screen.getByRole("menuitem", { name: "Borrar estudio" })).toHaveAttribute("data-danger", "true");
     expect(screen.getByRole("separator")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reanudar" })).toHaveAttribute("data-variant", "default");

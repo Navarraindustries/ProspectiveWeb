@@ -3,7 +3,7 @@
    El error salía encima del texto de vacío «Aún no hay estudios archivados»:
    con el servidor caído parecía que el archivo se había borrado. */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const listStudies = vi.fn();
@@ -26,6 +26,7 @@ vi.mock("../components/shell/AppShell", () => ({
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user }) }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 
+import { simularPantalla } from "../test/pantalla";
 import { STEP_LABELS } from "../pipeline/steps";
 import { Studies } from "./Studies";
 
@@ -39,6 +40,9 @@ class FakeApiError extends Error {
 
 const noop = () => {};
 
+afterEach(() => { vi.unstubAllGlobals(); });
+const abrirMenu = async () =>
+  fireEvent.click(await screen.findByRole("button", { name: /Más acciones del estudio/ }));
 beforeEach(() => {
   listStudies.mockReset(); deleteImagingStudy.mockReset();
   user = { id: 7, role: "medico" };
@@ -90,9 +94,10 @@ describe("«Estudios»: tarjeta y borrado (F2-33, F2-34, F2-35)", () => {
   it("«Nueva sesión» sustituye a «De cero» y explica que la anterior se conserva", async () => {
     listStudies.mockResolvedValue([tarjeta()]);
     render(<Studies {...props} />);
-    const b = await screen.findByRole("button", { name: "Nueva sesión" });
+    await abrirMenu();
+    const b = screen.getByRole("menuitem", { name: "Nueva sesión" });
     expect(b.getAttribute("title")).toBe("La sesión anterior se conserva en la ficha");
-    expect(screen.queryByRole("button", { name: "De cero" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "De cero" })).toBeNull();
     expect(screen.getByRole("button", { name: "Reanudar" })).toBeTruthy();
     expect(screen.getByText(`Último paso: ${STEP_LABELS[3]}`)).toBeTruthy();
   });
@@ -101,7 +106,8 @@ describe("«Estudios»: tarjeta y borrado (F2-33, F2-34, F2-35)", () => {
     listStudies.mockResolvedValue([tarjeta()]);
     const onOpenPatient = vi.fn();
     render(<Studies {...props} onOpenPatient={onOpenPatient} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Abrir ficha" }));
+    await abrirMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Abrir ficha" }));
     expect(onOpenPatient).toHaveBeenCalledWith(9);
   });
 
@@ -109,19 +115,22 @@ describe("«Estudios»: tarjeta y borrado (F2-33, F2-34, F2-35)", () => {
     listStudies.mockResolvedValue([tarjeta({ owner_id: 99 })]);
     const { unmount } = render(<Studies {...props} />);
     await screen.findByText("Restrepo, María");
-    expect(screen.queryByRole("button", { name: "Borrar estudio" })).toBeNull();
+    await abrirMenu();
+    expect(screen.queryByRole("menuitem", { name: "Borrar estudio" })).toBeNull();
     unmount();
 
     user = { id: 1, role: "admin" };
     render(<Studies {...props} />);
-    expect(await screen.findByRole("button", { name: "Borrar estudio" })).toBeTruthy();
+    await abrirMenu();
+    expect(screen.getByRole("menuitem", { name: "Borrar estudio" })).toBeTruthy();
   });
 
   it("confirmar borra por el API y la tarjeta desaparece; cancelar no llama", async () => {
     listStudies.mockResolvedValue([tarjeta()]);
     deleteImagingStudy.mockResolvedValue(undefined);
     render(<Studies {...props} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Borrar estudio" }));
+    await abrirMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Borrar estudio" }));
     // Un borrado irreversible elegido entre tarjetas parecidas: el diálogo dice cuál.
     const dialogo = screen.getByRole("alertdialog");
     expect(dialogo.textContent).toContain("Restrepo, María · Angio-TC · sin fecha · 120 archivos");
@@ -131,7 +140,8 @@ describe("«Estudios»: tarjeta y borrado (F2-33, F2-34, F2-35)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(deleteImagingStudy).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Borrar estudio" }));
+    await abrirMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Borrar estudio" }));
     const dlg = screen.getByRole("alertdialog");
     fireEvent.click(Array.from(dlg.querySelectorAll("button")).find((x) => x.textContent === "Borrar estudio")!);
     await waitFor(() => expect(deleteImagingStudy).toHaveBeenCalledWith(5));
@@ -141,7 +151,8 @@ describe("«Estudios»: tarjeta y borrado (F2-33, F2-34, F2-35)", () => {
   it("sin sesión guardada que conserve copia, avisa de que el DICOM se pierde del todo", async () => {
     listStudies.mockResolvedValue([tarjeta({ resumable_session_id: null, session_count: 0, acquired_at: "2026-09-30" })]);
     render(<Studies {...props} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Borrar estudio" }));
+    await abrirMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Borrar estudio" }));
     const dialogo = screen.getByRole("alertdialog");
     expect(dialogo.textContent).toContain("Restrepo, María");
     expect(dialogo.textContent).toContain("Ninguna sesión guardada conserva copia: las imágenes se pierden del todo.");
@@ -151,7 +162,8 @@ describe("«Estudios»: tarjeta y borrado (F2-33, F2-34, F2-35)", () => {
     listStudies.mockResolvedValue([tarjeta()]);
     deleteImagingStudy.mockRejectedValue(new FakeApiError(409, "Este estudio tiene capturas guardadas. Bórralas desde la ficha del paciente antes de borrar el estudio."));
     render(<Studies {...props} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Borrar estudio" }));
+    await abrirMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Borrar estudio" }));
     const dlg = screen.getByRole("alertdialog");
     fireEvent.click(Array.from(dlg.querySelectorAll("button")).find((x) => x.textContent === "Borrar estudio")!);
     expect(await screen.findByText(/tiene capturas guardadas/)).toBeTruthy();
@@ -202,5 +214,61 @@ describe("«Estudios»: cristal (fase 2)", () => {
     const t = container.querySelector(".tarjeta-estudio");
     expect(t).not.toBeNull();
     expect(t!.hasAttribute("data-glass")).toBe(true);
+  });
+});
+
+describe("«Estudios»: gestión (fase 9, A34–A36)", () => {
+  it("insignias legibles: modalidad y riesgo sobre fondo sólido", async () => {
+    listStudies.mockResolvedValue([tarjeta({ modality: "CT", n_slices: 621, rupture_risk_label: "Alto", has_thumbnail: true })]);
+    render(<Studies {...props} />);
+    const mod = await screen.findByText("CT · 621 cortes");
+    expect(mod.closest("[data-insignia='modalidad']")).toHaveStyle({ background: "var(--glass-solid)", color: "var(--foreground)" });
+    expect(screen.getByText("Alto").closest("[data-insignia='riesgo']")).toHaveStyle({ background: "var(--glass-solid)" });
+  });
+
+  it("Reanudar como principal; lo demás en «⋯», con Borrar en rojo y separado", async () => {
+    listStudies.mockResolvedValue([tarjeta({ resumable_session_id: "s1" })]);
+    render(<Studies {...props} />);
+    await abrirMenu();
+    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Nueva sesión", "Abrir ficha", "Borrar estudio"]);
+    expect(screen.getByRole("menuitem", { name: "Borrar estudio" })).toHaveAttribute("data-danger", "true");
+    expect(screen.getByRole("separator")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reanudar" })).toHaveAttribute("data-variant", "default");
+  });
+
+  it("sin sesión que reanudar, la principal es «Abrir» y el menú no ofrece «Nueva sesión»", async () => {
+    listStudies.mockResolvedValue([tarjeta({ resumable_session_id: null })]);
+    render(<Studies {...props} />);
+    expect(await screen.findByRole("button", { name: "Abrir" })).toHaveAttribute("data-variant", "default");
+    await abrirMenu();
+    expect(screen.queryByRole("menuitem", { name: "Nueva sesión" })).toBeNull();
+  });
+
+  it("la tarjeta «Subir un estudio nuevo» se estira como las demás", async () => {
+    listStudies.mockResolvedValue([tarjeta()]);
+    render(<Studies {...props} />);
+    expect(await screen.findByRole("button", { name: "Subir un estudio nuevo" })).toHaveStyle({ alignSelf: "stretch", height: "100%" });
+  });
+
+  it("buscador con icono y sin rótulo; el borrado nombra la fecha en dd/mm/aa", async () => {
+    listStudies.mockResolvedValue([tarjeta({ acquired_at: "2026-10-30" })]);
+    render(<Studies {...props} />);
+    expect(await screen.findByRole("textbox", { name: "Buscar por paciente, HC o diagnóstico" })).toBeInTheDocument();
+    await abrirMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Borrar estudio" }));
+    expect(screen.getByRole("alertdialog").textContent).toContain("30/10/26");
+  });
+
+  it("a ≤ 640 una columna y menú táctil; a 1280 el menú es compacto", async () => {
+    listStudies.mockResolvedValue([tarjeta()]);
+    simularPantalla(390);
+    const { container, unmount } = render(<Studies {...props} />);
+    expect(await screen.findByRole("button", { name: /Más acciones del estudio/ })).toHaveStyle({ width: "44px" });
+    const rejilla = container.querySelector(".tarjeta-estudio")!.parentElement!;
+    expect(rejilla.style.gridTemplateColumns).toBe("repeat(auto-fill, minmax(min(220px, 100%), 1fr))");
+    unmount();
+    simularPantalla(1280);
+    render(<Studies {...props} />);
+    expect(await screen.findByRole("button", { name: /Más acciones del estudio/ })).toHaveStyle({ width: "32px" });
   });
 });

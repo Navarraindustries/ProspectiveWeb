@@ -27,6 +27,8 @@ export interface ItemMenu {
   disabled?: boolean;
   /** `onSelect` abre un diálogo o una hoja que toma el foco: no se devuelve al disparador. */
   abreDialogo?: boolean;
+  /** Texto de ayuda al pasar el puntero. */
+  title?: string;
   separadoAntes?: boolean;
 }
 
@@ -154,6 +156,7 @@ export function MenuMas({ items, label = "Más acciones", tactil = false }: {
               role: "menuitem" as const,
               tabIndex: -1,
               "aria-disabled": it.disabled || undefined,
+              title: it.title,
               "data-danger": it.destructive ? "true" : undefined,
               style: { ...estiloItem, color: it.destructive ? "var(--destructive)" : "inherit", opacity: it.disabled ? 0.45 : 1, cursor: it.disabled ? "not-allowed" : "pointer" },
             };

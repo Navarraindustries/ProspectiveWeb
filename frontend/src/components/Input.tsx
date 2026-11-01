@@ -17,6 +17,8 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   obligatorio?: boolean;
 }
 
+const ROTULO = { fontSize: "var(--text-label)", fontWeight: "var(--weight-label)", color: "var(--muted-foreground)" } as const;
+
 export function Input({ label, icon, hint, invalid, obligatorio, multiline, style, ...rest }: InputProps) {
   const id = useId();
   // aria-invalid solo cuando el llamador lo pide: un campo vacío no nace en rojo (F2-63).
@@ -53,13 +55,12 @@ export function Input({ label, icon, hint, invalid, obligatorio, multiline, styl
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
       {label && (
-        <label
-          htmlFor={id}
-          style={{ fontSize: "var(--text-label)", fontWeight: "var(--weight-label)", color: "var(--muted-foreground)" }}
-        >
-          {label}
-          {obligatorio && <span aria-hidden="true"> *</span>}
-        </label>
+        // El asterisco va FUERA del <label> (y mudo): el nombre accesible es solo
+        // el rótulo («Apellidos») y lo obligatorio lo dice aria-required.
+        <div>
+          <label htmlFor={id} style={ROTULO}>{label}</label>
+          {obligatorio && <span aria-hidden="true" style={ROTULO}> *</span>}
+        </div>
       )}
       <div
         style={{

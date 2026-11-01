@@ -24,7 +24,7 @@ beforeEach(() => onClose.mockReset());
 describe("descartar el caso a medio escribir", () => {
   it("«Cancelar» con diagnóstico escrito pregunta y no cierra hasta confirmar", () => {
     montar();
-    fireEvent.change(screen.getByLabelText("Diagnóstico *"), { target: { value: "Aneurisma ACM" } });
+    fireEvent.change(screen.getByLabelText("Diagnóstico"), { target: { value: "Aneurisma ACM" } });
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(screen.getByRole("alertdialog", { name: "¿Descartar los cambios?" })).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
@@ -35,12 +35,12 @@ describe("descartar el caso a medio escribir", () => {
 
   it("Escape también pregunta, y «Seguir editando» conserva lo escrito", () => {
     montar();
-    fireEvent.change(screen.getByLabelText("Diagnóstico *"), { target: { value: "Aneurisma ACM" } });
+    fireEvent.change(screen.getByLabelText("Diagnóstico"), { target: { value: "Aneurisma ACM" } });
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.getByRole("alertdialog", { name: "¿Descartar los cambios?" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Seguir editando" }));
     expect(onClose).not.toHaveBeenCalled();
-    expect((screen.getByLabelText("Diagnóstico *") as HTMLInputElement).value).toBe("Aneurisma ACM");
+    expect((screen.getByLabelText("Diagnóstico") as HTMLInputElement).value).toBe("Aneurisma ACM");
   });
 
   it("«Cancelar» sin cambios cierra sin preguntar", () => {
@@ -81,7 +81,7 @@ describe("el glosario en el formulario del caso", () => {
 describe("el formulario del caso (F2)", () => {
   it("«Diagnóstico *» explica que da nombre al caso y propone un formato", () => {
     montar();
-    const campo = screen.getByLabelText("Diagnóstico *") as HTMLInputElement;
+    const campo = screen.getByLabelText("Diagnóstico") as HTMLInputElement;
     expect(campo.placeholder).toBe("Aneurisma basilar sacular");
     expect(screen.getByText("Da nombre al caso en toda la aplicación")).toBeInTheDocument();
     expect(screen.getByLabelText("Clínica")).toBeInTheDocument();
@@ -92,7 +92,7 @@ describe("el formulario del caso (F2)", () => {
     createStudy.mockResolvedValue({ id: 9 });
     montar();
     expect(screen.queryByLabelText("Tipo de aneurisma")).toBeNull();
-    fireEvent.change(screen.getByLabelText("Diagnóstico *"), { target: { value: "Aneurisma ACM" } });
+    fireEvent.change(screen.getByLabelText("Diagnóstico"), { target: { value: "Aneurisma ACM" } });
     fireEvent.change(screen.getByLabelText("Morfología"), { target: { value: "Sacular" } });
     fireEvent.change(screen.getByLabelText("Tamaño"), { target: { value: "Pequeño (< 10 mm)" } });
     fireEvent.click(screen.getByRole("button", { name: "Crear caso" }));
@@ -115,7 +115,7 @@ describe("el formulario del caso (F2)", () => {
     montar();
     expect(screen.getByText("El DICOM se sube en el paso 1 al abrir el caso.")).toBeInTheDocument();
     expect(screen.queryByLabelText(/Panangiografía/)).toBeNull();
-    fireEvent.change(screen.getByLabelText("Diagnóstico *"), { target: { value: "X" } });
+    fireEvent.change(screen.getByLabelText("Diagnóstico"), { target: { value: "X" } });
     fireEvent.click(screen.getByRole("switch", { name: "Angiografía por catéter" }));
     fireEvent.click(screen.getByRole("button", { name: "Crear caso" }));
     await waitFor(() => expect(createStudy).toHaveBeenCalled());
@@ -128,7 +128,7 @@ describe("el formulario del caso (F2)", () => {
     createStudy.mockClear();
     montar();
     fireEvent.click(screen.getByRole("button", { name: "Crear caso" }));
-    const campo = screen.getByLabelText("Diagnóstico *");
+    const campo = screen.getByLabelText("Diagnóstico");
     expect(campo).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByText("El diagnóstico es obligatorio.")).toBeInTheDocument();
     expect(document.activeElement).toBe(campo);
@@ -201,7 +201,7 @@ describe("hojas de caso y paciente (A30–A33)", () => {
     render(<NuevoEstudioSheet open patientId={1} onClose={vi.fn()} onCreated={vi.fn()} />);
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
     expect(screen.getAllByRole("switch")).toHaveLength(10);
-    expect(screen.getByLabelText("Diagnóstico *", { selector: "input" })).toHaveAttribute("aria-required", "true");
+    expect(screen.getByLabelText("Diagnóstico", { selector: "input" })).toHaveAttribute("aria-required", "true");
     expect(document.querySelectorAll(".hoja-dos-columnas").length).toBeGreaterThan(0);
   });
 

@@ -20,10 +20,10 @@ import "../shell/shell.css";
 export const CONSULTA_SOLO_ICONO = "(max-width: 1366px)";
 
 /** Rótulo de un botón de acción: con texto, o solo el icono con el texto como
- *  nombre accesible y tooltip. Se esparce sobre `<Button>`. */
+ *  nombre accesible y, de tooltip, la explicación si la hay (o el texto). Se esparce sobre `<Button>`. */
 export function rotuloAccion(soloIcono: boolean, texto: string, title?: string) {
   return soloIcono
-    ? { "aria-label": texto, title: texto, children: undefined }
+    ? { "aria-label": texto, title: title ?? texto, children: undefined }
     : { title, children: texto };
 }
 

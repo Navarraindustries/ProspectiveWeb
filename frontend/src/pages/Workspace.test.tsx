@@ -361,11 +361,16 @@ describe("acciones de la píldora derecha a ≤ 1366 px", () => {
   it("solo el icono: «Guardar progreso» conserva su nombre accesible y su title, sin texto visible", () => {
     estado.imagingStudyId = null;
     render(<Workspace patient={PACIENTE} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    // Nombre accesible = el texto del modo ancho; title = la explicación.
     for (const nombre of ["Guardar progreso", "Captura", "Archivar en un caso"]) {
       const b = screen.getByRole("button", { name: nombre });
       expect(b.textContent, nombre).toBe("");
-      expect(b.getAttribute("title"), nombre).toBe(nombre);
+      expect(b.getAttribute("title"), nombre).not.toBe(nombre);
+      expect(b.getAttribute("title"), nombre).toBeTruthy();
     }
+    expect(screen.getByRole("button", { name: "Guardar progreso" }).getAttribute("title")).toMatch(/^Guarda el estudio/);
+    // Captura conserva su explicación (aquí, sin visor o sin estudio archivado).
+    expect(screen.getByRole("button", { name: "Captura" }).getAttribute("title")).toMatch(/visor|imagen/);
     // Sigue siendo el modo ancho: el inspector no baja a hoja.
     expect(screen.queryByRole("region", { name: "Panel del paso" })).toBeNull();
   });

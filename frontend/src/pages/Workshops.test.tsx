@@ -102,7 +102,7 @@ describe("registering a workshop without opening an order", () => {
   });
 
   it("states the copy rule once, under «Cómo se usa» (F2-64)", async () => {
-    listWorkshops.mockResolvedValue([]);
+    listWorkshops.mockResolvedValue([shop()]);
     render(<WorkshopsPage />);
     fireEvent.click(await abrirDesdeBarra());
     expect(screen.queryByText(/guardan su propia copia/)).toBeNull();
@@ -194,8 +194,21 @@ describe("Talleres con el estilo D (A47–A50)", () => {
     render(<WorkshopsPage />);
     const tarjeta = (await screen.findByText("Taller Uno")).closest("article")!;
     expect(tarjeta).toHaveAttribute("data-glass");
-    expect(within(tarjeta).getByRole("button", { name: "Editar" })).toHaveAttribute("data-variant", "outline");
-    expect(within(tarjeta).getByRole("button", { name: "Borrar" })).toHaveAttribute("data-variant", "destructive-ghost");
+    expect(within(tarjeta).getByRole("button", { name: "Editar el taller Taller Uno" })).toHaveAttribute("data-variant", "outline");
+    expect(within(tarjeta).getByRole("button", { name: "Borrar el taller Taller Uno" })).toHaveAttribute("data-variant", "destructive-ghost");
+    // El rótulo visible sigue siendo corto.
+    expect(within(tarjeta).getByRole("button", { name: "Editar el taller Taller Uno" })).toHaveTextContent(/^Editar$/);
+  });
+
+  it("alta y último pedido en sans 13 px; mono solo en el NIF (M1)", async () => {
+    listWorkshops.mockResolvedValue([shop({ created_at: 1730000000, last_used_at: 1740000000 })]);
+    render(<WorkshopsPage />);
+    await screen.findByText("Taller Mecánico Sur");
+    const linea = screen.getByTestId("tl-alta");
+    expect(linea).toHaveStyle({ fontSize: "13px" });
+    expect(linea.getAttribute("style") ?? "").not.toContain("--font-mono");
+    expect([...linea.querySelectorAll("[data-mono]")].map((e) => e.textContent)).toEqual(["B12345678"]);
+    expect(within(linea).getByText(fechaEpoch(1730000000))).toHaveStyle({ fontVariantNumeric: "tabular-nums" });
   });
 
   it("fechas de alta y uso en dd/mm/aa y plural escrito", async () => {
@@ -218,12 +231,27 @@ describe("Talleres con el estilo D (A47–A50)", () => {
     expect(screen.getByRole("button", { name: "Registrar taller" })).not.toBeDisabled();
   });
 
-  it("«Cómo se usa» es una pista con icono; sin talleres, estado vacío con botón (A50)", async () => {
+  it("«Cómo se usa» es una pista con icono, solo con talleres en la lista (A50, P4)", async () => {
+    listWorkshops.mockResolvedValue([shop()]);
+    render(<WorkshopsPage />);
+    await screen.findByText("Taller Mecánico Sur");
+    expect(screen.getByText("Cómo se usa")).toBeInTheDocument();
+    expect(screen.getByRole("note").querySelector("svg")).not.toBeNull();
+  });
+
+  it("con error de carga no sale «Cómo se usa» (P4)", async () => {
+    listWorkshops.mockRejectedValue(new Error("caído"));
+    render(<WorkshopsPage />);
+    expect(await screen.findByRole("button", { name: "Reintentar" })).toBeInTheDocument();
+    expect(screen.queryByText("Cómo se usa")).toBeNull();
+  });
+
+  it("sin talleres, estado vacío con botón y sin «Cómo se usa» (A50, P4)", async () => {
     listWorkshops.mockResolvedValue([]);
     render(<WorkshopsPage />);
     expect(await screen.findByText("Todavía no hay talleres")).toBeInTheDocument();
-    const nota = screen.getByRole("note");
-    expect(nota.querySelector("svg")).not.toBeNull();
+    expect(screen.queryByText("Cómo se usa")).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
     const vacio = screen.getByText("Todavía no hay talleres").closest("[data-glass]") as HTMLElement;
     fireEvent.click(within(vacio).getByRole("button", { name: "Nuevo taller" }));
     expect(screen.getByRole("button", { name: "Registrar taller" })).toBeInTheDocument();

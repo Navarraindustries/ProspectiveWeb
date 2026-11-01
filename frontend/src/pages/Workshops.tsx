@@ -25,7 +25,7 @@ import { Card, ErrorNote, SectionLabel } from "../components/PanelHead";
 import { Sheet } from "../components/Sheet";
 import { EstadoVacio } from "../components/EstadoVacio";
 import { Icon } from "../components/Icon";
-import { fechaEpoch } from "../lib/fecha";
+import { ESTILO_FECHA, fechaEpoch } from "../lib/fecha";
 import { glass } from "../styles/glass";
 import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
@@ -219,18 +219,23 @@ export function WorkshopsPage() {
                 {w.notes && (
                   <div style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.5 }}>{w.notes}</div>
                 )}
-                <div style={{ fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
-                  {w.tax_id && <>NIF {w.tax_id} · </>}
-                  alta {fechaEpoch(w.created_at)}
-                  {w.last_used_at ? ` · último pedido ${fechaEpoch(w.last_used_at)}` : " · sin usar"}
+                {/* Sans 13 px; mono solo en el código (NIF) y fechas con cifras tabulares. */}
+                <div data-testid="tl-alta" style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
+                  {w.tax_id && <>NIF <span data-mono style={{ fontFamily: "var(--font-mono)" }}>{w.tax_id}</span> · </>}
+                  alta <span style={ESTILO_FECHA}>{fechaEpoch(w.created_at)}</span>
+                  {w.last_used_at
+                    ? <> · último pedido <span style={ESTILO_FECHA}>{fechaEpoch(w.last_used_at)}</span></>
+                    : " · sin usar"}
                 </div>
                 <div className="tl-pie">
                   <Button size="sm" variant="outline" leadingIcon={<Icon name="EDIT" />}
+                          aria-label={`Editar el taller ${w.name}`}
                           onClick={() => { setEditing(w); setSheetOpen(true); }}>
                     Editar
                   </Button>
                   {isAdmin && (
                     <Button size="sm" variant="destructive-ghost" leadingIcon={<Icon name="DELETE" />}
+                            aria-label={`Borrar el taller ${w.name}`}
                             onClick={() => setToDelete(w)}>
                       Borrar
                     </Button>
@@ -247,6 +252,8 @@ export function WorkshopsPage() {
           </div>
         )}
 
+        {/* Con la lista vacía lo explica el estado vacío; con error, no hay lista que explicar. */}
+        {!loadError && workshops.length > 0 && (
         <div style={{ marginTop: 20 }}>
           <SectionLabel>Cómo se usa</SectionLabel>
           <p className="pista" role="note">
@@ -259,6 +266,7 @@ export function WorkshopsPage() {
             </span>
           </p>
         </div>
+        )}
       </PageBody>
 
       <WorkshopSheet

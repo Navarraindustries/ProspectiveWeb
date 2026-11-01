@@ -340,8 +340,11 @@ accent) and one shell around every screen after sign-in.
   - Breakpoints: 1280 px (the sidebar starts folded and the planning panel
     becomes a bottom sheet), 900 px (the landing nav folds) and 760 px (the
     landing hero uses the still layout; the sign-in video panel hides at 820).
-  - Visible figures go through `lib/numero.ts` (`cifra`, `mm`, `coordenadas`),
-    which writes the decimal comma. Text built by the backend still uses a dot.
+  - «Lo que lee una persona lleva coma decimal; lo que lee una máquina lleva
+    punto.» Screen, PDF, clipboard and labels: «7,5 mm». JSON numbers, params,
+    filenames, IDs, exports, logs and `<input type=number>`: dot or raw number.
+  - Visible figures go through `lib/numero.ts` (`cifra`, `mm`, `coordenadas`);
+    human strings built by the backend use `backend/services/numero.py`.
   - `styles/cristal.audit.test.ts` checks glass, contrast and accessible names.
 
 ---

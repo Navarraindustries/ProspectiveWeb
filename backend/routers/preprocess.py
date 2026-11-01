@@ -14,6 +14,7 @@ import numpy as np
 from fastapi import APIRouter, HTTPException
 
 from models.preprocess import PreprocessRequest, PreprocessResult, PreprocessStatus
+from services.numero import cifra_corta
 from services.sessions import read_state, session_exists, write_state
 
 logger = logging.getLogger(__name__)
@@ -97,9 +98,9 @@ def _run(session_id: str, req: PreprocessRequest) -> PreprocessResult:
     if clip_hu:
         ops.append("recorte HU")
     if req.resample_isotropic:
-        ops.append(f"remuestreo isotrópico {req.target_spacing_mm} mm")
+        ops.append(f"remuestreo isotrópico {cifra_corta(req.target_spacing_mm)} mm")
     if req.smooth:
-        ops.append(f"suavizado σ={req.smooth_sigma}")
+        ops.append(f"suavizado σ={cifra_corta(req.smooth_sigma)}")
     write_state(session_id, _OPS_KEY, ", ".join(ops))
     note = f"Aplicado: {', '.join(ops)}. Vuelve a segmentar para usar el volumen preprocesado."
     if clip_skipped:

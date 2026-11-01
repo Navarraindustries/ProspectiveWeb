@@ -67,7 +67,7 @@ def strategy_hint(strategy: str, lower: float, upper: float, is_dsa: bool) -> st
     hints = {
         "dsa": (
             f"DSA detectada: fondo sustraído ≈ −1024 HU. "
-            f"Umbral inferior = {lower:.0f} HU (brillo del ~0.4% superior de vóxeles) — "
+            f"Umbral inferior = {lower:.0f} HU (brillo del ~0,4 % superior de vóxeles) — "
             f"captura el árbol vascular con pared. Superior = 95% del máximo ({upper:.0f} HU)."
         ),
         "xa_band_pass": (

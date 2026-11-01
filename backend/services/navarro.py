@@ -58,6 +58,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from services.numero import cifra
+
 logger = logging.getLogger(__name__)
 
 #: Default location of the design library, beside the backend.
@@ -734,7 +736,7 @@ def to_spec(variant: NavarroVariant, jaw_mm: float | None = None):
     jaw = float(jaw_mm if jaw_mm is not None else variant.jaw_mm)
     custom = jaw_mm is not None and abs(jaw - variant.jaw_mm) > 1e-6
     shape = _shape_for(variant.angle_deg, variant.shape)
-    label = (f"NAVARRO™ {variant.series} {variant.shape_label} {jaw:.1f} mm"
+    label = (f"NAVARRO™ {variant.series} {variant.shape_label} {cifra(jaw)} mm"
              + (" (a medida)" if custom else ""))
     return ClipSpec(
         # Structured, so the placement endpoint can rebuild the real geometry

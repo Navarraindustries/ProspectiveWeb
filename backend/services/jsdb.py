@@ -56,6 +56,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from services.numero import cifra
+
 SOURCE = (
     "Japan Stroke Data Bank, post hoc — Neurol Med Chir (Tokyo) 2021;61(2). "
     "Regresión logística sobre 3 547 HSA aneurismáticas; validado en 269. "
@@ -174,7 +176,7 @@ def _clip_arm(age: int | None, prior_stroke: int | None, wfns: int | None,
     elif max_diameter_mm > LARGE_MM_CLIP:
         pts += 1
         items.append(JsdbItem(f"Aneurisma > {LARGE_MM_CLIP:.0f} mm "
-                              f"({max_diameter_mm:.1f} mm)", 1,
+                              f"({cifra(max_diameter_mm)} mm)", 1,
                               "El tamaño solo penaliza a esta vía en el modelo."))
 
     loc = (location or "").strip()

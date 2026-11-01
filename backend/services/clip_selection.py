@@ -58,8 +58,9 @@ from services.clips import (
     JawRequirement,
     jaw_requirement,
 )
+from services.numero import cifra
 
-Verdict = Literal["ok", "warn", "fail"]
+Verdict =Literal["ok", "warn", "fail"]
 
 # ── Geometric limits ──────────────────────────────────────────────────────── #
 
@@ -314,8 +315,8 @@ class ClipCandidate:
             return self.failures[0].detail
         if self.warnings:
             return self.warnings[0].detail
-        return (f"Cumple todos los criterios · cobertura ×{self.coverage_ratio:.2f}, "
-                f"margen {self.safety_margin_mm:.1f} mm")
+        return (f"Cumple todos los criterios · cobertura ×{cifra(self.coverage_ratio, 2)}, "
+                f"margen {cifra(self.safety_margin_mm)} mm")
 
 
 #: Floor for a criterion that warns rather than fails. A warning means the clip
@@ -347,8 +348,8 @@ def _coverage_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
     if req.mm > 0.0 and bl < req.mm:
         return Criterion(
             "coverage", "Longitud de hoja", "fail",
-            f"Hoja de {bl:.0f} mm insuficiente: el cuello de {neck:.1f} mm mide "
-            f"{req.mm:.1f} mm una vez aplastado entre las hojas, y por debajo de "
+            f"Hoja de {bl:.0f} mm insuficiente: el cuello de {cifra(neck)} mm mide "
+            f"{cifra(req.mm)} mm una vez aplastado entre las hojas, y por debajo de "
             f"eso el cierre queda incompleto",
             0.0, weight=2.0,
         )
@@ -359,7 +360,7 @@ def _coverage_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
         # provisional, como la banda de fuerza.
         return Criterion(
             "coverage", "Longitud de hoja", "warn",
-            f"Hoja larga para el cuello: hoja de {bl:.0f} mm, ×{cov:.1f} el "
+            f"Hoja larga para el cuello: hoja de {bl:.0f} mm, ×{cifra(cov)} el "
             f"cuello; el extremo distal queda sobre tejido sano",
             WARN_SCORE_FLOOR, weight=2.0,
         )
@@ -371,14 +372,14 @@ def _coverage_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
     if cov > COVERAGE_COMFORTABLE_HI:
         return Criterion(
             "coverage", "Longitud de hoja", "warn",
-            f"Cierra el cuello aplastado ({req.mm:.1f} mm) pero sobran "
-            f"{margin:.1f} mm de hoja (×{cov:.2f} el cuello)",
+            f"Cierra el cuello aplastado ({cifra(req.mm)} mm) pero sobran "
+            f"{cifra(margin)} mm de hoja (×{cifra(cov, 2)} el cuello)",
             score, weight=2.0,
         )
     return Criterion(
         "coverage", "Longitud de hoja", "ok",
-        f"Cierra el cuello aplastado ({req.mm:.1f} mm) con {margin:.1f} mm "
-        f"de margen (×{cov:.2f} el cuello sin deformar)",
+        f"Cierra el cuello aplastado ({cifra(req.mm)} mm) con {cifra(margin)} mm "
+        f"de margen (×{cifra(cov, 2)} el cuello sin deformar)",
         score, weight=2.0,
     )
 
@@ -408,19 +409,19 @@ def _fenestration_criterion(clip: ClipSpec, case: ClipCase) -> Criterion | None:
         return Criterion(
             "fenestration", "Fenestración", "warn",
             f"Fenestrado indicado; el catálogo no declara el diámetro de ventana — "
-            f"verificar que admite un vaso de {parent:.1f} mm",
+            f"verificar que admite un vaso de {cifra(parent)} mm",
             0.80,
         )
     if clip.fenestration_mm < parent:
         return Criterion(
             "fenestration", "Fenestración", "fail",
-            f"Ventana de {clip.fenestration_mm:.1f} mm menor que el vaso padre "
-            f"({parent:.1f} mm): estrangularía la rama",
+            f"Ventana de {cifra(clip.fenestration_mm)} mm menor que el vaso padre "
+            f"({cifra(parent)} mm): estrangularía la rama",
             0.0,
         )
     return Criterion(
         "fenestration", "Fenestración", "ok",
-        f"Ventana de {clip.fenestration_mm:.1f} mm admite el vaso padre ({parent:.1f} mm)",
+        f"Ventana de {cifra(clip.fenestration_mm)} mm admite el vaso padre ({cifra(parent)} mm)",
         1.0,
     )
 
@@ -439,7 +440,7 @@ def _reach_criterion(clip: ClipSpec, case: ClipCase) -> Criterion | None:
     # actual angle is on screen and in the order form, as the surgeon's choice.
     bent = clip.shape in (ClipShape.ANGLED, ClipShape.ANGLED_45,
                           ClipShape.BAYONET, ClipShape.CURVED)
-    head = (f"Domo profundo (AR {case.ar:.2f}, altura {case.dome_height_mm:.1f} mm): "
+    head = (f"Domo profundo (AR {cifra(case.ar, 2)}, altura {cifra(case.dome_height_mm)} mm): "
             f"{clip.shape.value.lower()}")
     if bent:
         bend = f" con acodado de {clip.bend_angle_deg:.0f}°" if clip.bend_angle_deg else ""
@@ -567,7 +568,7 @@ def _force_criterion(clip: ClipSpec, case: ClipCase) -> Criterion:
     if hi < acc_lo:
         return Criterion(
             "force", "Fuerza de cierre", "fail",
-            f"{shown} insuficiente para un cuello de {case.neck_mm:.1f} mm "
+            f"{shown} insuficiente para un cuello de {cifra(case.neck_mm)} mm "
             f"(mínimo {acc_lo:.0f} g): riesgo de deslizamiento{tail}",
             0.0,
         )
@@ -662,14 +663,14 @@ def _opening_criterion(clip: ClipSpec, case: ClipCase) -> Criterion | None:
     if opening > case.neck_mm:
         return Criterion(
             "opening", "Apertura de las hojas", "ok",
-            f"Las puntas separan {opening:.1f} mm, más que el cuello "
-            f"({case.neck_mm:.1f} mm) — {how}",
+            f"Las puntas separan {cifra(opening)} mm, más que el cuello "
+            f"({cifra(case.neck_mm)} mm) — {how}",
             1.0, 0.0,
         )
     return Criterion(
         "opening", "Apertura de las hojas", "warn",
-        f"Las puntas separan {opening:.1f} mm y el cuello mide "
-        f"{case.neck_mm:.1f} mm: la apertura no lo supera, así que hay que "
+        f"Las puntas separan {cifra(opening)} mm y el cuello mide "
+        f"{cifra(case.neck_mm)} mm: la apertura no lo supera, así que hay que "
         f"comprobar en el ensayo que el clip llega a montarse sobre él "
         f"({how})",
         0.0, 0.0,
@@ -777,7 +778,7 @@ class ManufactureSpec:
 
     @property
     def label(self) -> str:
-        fen = f", ventana {self.fenestration_mm:.1f} mm" if self.fenestration_mm > 0 else ""
+        fen = f", ventana {cifra(self.fenestration_mm)} mm" if self.fenestration_mm > 0 else ""
         # El nombre de la FORMA lleva su ángulo canónico dentro («Angulado 90°»),
         # y una pieza a fabricar puede tener otro: con un corredor marcado la
         # acodadura sale de la geometría. Rotularla con el ángulo de catálogo
@@ -786,7 +787,7 @@ class ManufactureSpec:
         canonico = _SHAPE_ANGLE_OUT.get(self.shape, 0.0)
         if canonico > 0 and abs(self.angle_deg - canonico) > 0.5:
             nombre = f"Angulado {self.angle_deg:.0f}°"
-        return (f"{nombre} de {self.blade_length_mm:.1f} mm"
+        return (f"{nombre} de {cifra(self.blade_length_mm)} mm"
                 f"{fen} · {self.closing_force_g:.0f} g")
 
 
@@ -917,7 +918,7 @@ def derive_manufacture_spec(case: ClipCase, rejected: list[ClipCandidate],
     # `clip_manufacture.perfect_from_id` cambia esta nota por la de la pieza.
     notes.append(
         f"{fuerza['text']}. La fuerza de cierre sale del centro de la ventana "
-        f"heurística para un cuello de {case.neck_mm:.1f} mm, llevado a la banda de "
+        f"heurística para un cuello de {cifra(case.neck_mm)} mm, llevado a la banda de "
         f"la familia; confirmar con el fabricante."
     )
     if case.neck_source == "auto":
@@ -932,9 +933,9 @@ def derive_manufacture_spec(case: ClipCase, rejected: list[ClipCandidate],
     spring = blade * s_r
     if width < w_min or height < h_min or spring < s_min:
         notes.append(
-            f"Para una hoja de {blade:.1f} mm las proporciones del catálogo darían una "
-            f"pieza por debajo de lo que existe fabricado (muelle {spring:.1f} mm frente "
-            f"a un mínimo real de {s_min:.1f} mm). Anchura, altura y muelle se han "
+            f"Para una hoja de {cifra(blade)} mm las proporciones del catálogo darían una "
+            f"pieza por debajo de lo que existe fabricado (muelle {cifra(spring)} mm frente "
+            f"a un mínimo real de {cifra(s_min)} mm). Anchura, altura y muelle se han "
             f"llevado al mínimo real: el muelle lo dimensiona la fuerza que debe "
             f"sostener, no la hoja que lleva delante."
         )
@@ -987,7 +988,7 @@ class CustomJaw:
         from services.navarro import shape_label
         return (f"NAVARRO™ {self.series} "
                 f"{shape_label(self.shape, self.angle_deg, self.window_mm)}, "
-                f"mordaza {self.jaw_mm:.1f} mm")
+                f"mordaza {cifra(self.jaw_mm)} mm")
 
 
 def ideal_jaw_mm(case: ClipCase) -> float:
@@ -1083,11 +1084,11 @@ def suggest_custom_jaw(case: ClipCase, best: ClipCandidate | None) -> CustomJaw 
     if gap < 1.5 and src.jaw_mm >= want:
         return None
     if want < min(STOCK_JAW_MM) or want > max(STOCK_JAW_MM):
-        reason = (f"Un cuello de {case.neck_mm:.1f} mm pide {want:.1f} mm de mordaza, "
+        reason = (f"Un cuello de {cifra(case.neck_mm)} mm pide {cifra(want)} mm de mordaza, "
                   f"fuera de las tallas dibujadas ({min(STOCK_JAW_MM)}–{max(STOCK_JAW_MM)} mm).")
     else:
-        reason = (f"Un cuello de {case.neck_mm:.1f} mm pide {want:.1f} mm de mordaza; "
-                  f"la talla dibujada más cercana es {src.jaw_mm} mm ({gap:.1f} mm de diferencia).")
+        reason = (f"Un cuello de {cifra(case.neck_mm)} mm pide {cifra(want)} mm de mordaza; "
+                  f"la talla dibujada más cercana es {src.jaw_mm} mm ({cifra(gap)} mm de diferencia).")
     reason += curved_note + bayonet_note
     return CustomJaw(series=src.series, angle_deg=src.angle_deg, jaw_mm=want,
                      nearest_drawn_mm=float(src.jaw_mm), reason=reason,
@@ -1249,10 +1250,10 @@ def _bajo_pedido_summary(n: int, neck_mm: float, spec: ManufactureSpec | None,
     if n > 0:
         plural = n != 1
         return (f"{head} {n} diseño{'s' if plural else ''} bajo pedido "
-                f"{'sirven' if plural else 'sirve'} para un cuello de {neck_mm:.1f} mm; "
+                f"{'sirven' if plural else 'sirve'} para un cuello de {cifra(neck_mm)} mm; "
                 f"la pieza se concreta en Fabricación.")
     que = ("supera la comprobación sobre la malla de este paciente" if verified
-           else f"sirve para un cuello de {neck_mm:.1f} mm")
+           else f"sirve para un cuello de {cifra(neck_mm)} mm")
     label = f": {spec.label}" if spec is not None else ""
     return f"{head} Ningún diseño bajo pedido {que}; la pieza se concreta en Fabricación{label}."
 
@@ -1371,7 +1372,7 @@ def repartition_after_verification(selection: "ClipSelection") -> None:
         selection.summary = (
             f"{len(clean)} clip{'s' if plural else ''} del inventario "
             f"cumple{'n' if plural else ''} todos los criterios para un cuello de "
-            f"{case.neck_mm:.1f} mm."
+            f"{cifra(case.neck_mm)} mm."
         )
     else:
         spec = selection.manufacture or derive_manufacture_spec(case, selection.rejected)
@@ -1440,7 +1441,8 @@ def _tie_caveat(recommended: list[ClipCandidate]) -> list[str]:
     tied = [c for c in recommended if abs(c.score - top) < 0.05]
     if len(tied) < 2 or top <= 0:
         return []
-    names = ", ".join(c.clip.name.replace("NAVARRO™ ", "") for c in tied[:4])
+    # «; » y no «, »: los nombres llevan coma decimal («T1 Recto 7,0 mm»).
+    names = "; ".join(c.clip.name.replace("NAVARRO™ ", "") for c in tied[:4])
     return [f"{len(tied)} clips empatan en la primera posición ({names}): las medidas "
             f"del caso no eligen entre ellos, la forma la decide el abordaje."]
 
@@ -1491,7 +1493,7 @@ def select_clips(
             resumen = _bajo_pedido_summary(0, case.neck_mm, spec)
         else:
             resumen = (
-                f"Ningún clip del inventario sirve para un cuello de {case.neck_mm:.1f} mm. "
+                f"Ningún clip del inventario sirve para un cuello de {cifra(case.neck_mm)} mm. "
                 f"Se necesita fabricar: {spec.label}."
             )
         if multiclip is not None:
@@ -1532,7 +1534,7 @@ def select_clips(
             summary=(
                 f"{len(clean)} clip{'s' if plural else ''} del inventario "
                 f"cumple{'n' if plural else ''} todos los criterios para un "
-                f"cuello de {case.neck_mm:.1f} mm."
+                f"cuello de {cifra(case.neck_mm)} mm."
             ),
             case=case, recommended=recommended, rejected=rejected,
             # The ideal clip is offered even when the shelf already serves. It

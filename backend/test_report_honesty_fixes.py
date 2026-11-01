@@ -24,12 +24,12 @@ class TestElRiesgoDicePorQue:
         etiqueta, motivos = _m(aspect_ratio=0.85, dome_to_neck_ratio=1.17, undulation_index=0.08,
                                size_ratio=2.03).rupture_risk()
         assert etiqueta == "Moderado"
-        assert motivos == ["cociente de tamaño (SR) 2.03 ≥ 2.0"]
+        assert motivos == ["cociente de tamaño (SR) 2,03 ≥ 2,0"]
 
     def test_alto_lista_solo_los_criterios_de_alto_que_se_cumplen(self):
         etiqueta, motivos = _m(aspect_ratio=1.7, dome_to_neck_ratio=1.2, undulation_index=0.3).rupture_risk()
         assert etiqueta == "Alto"
-        assert motivos == ["AR 1.70 ≥ 1.6", "ondulación (UI) 0.30 ≥ 0.25"]
+        assert motivos == ["AR 1,70 ≥ 1,6", "ondulación (UI) 0,30 ≥ 0,25"]
 
     def test_bajo_no_tiene_motivos_y_la_etiqueta_de_siempre_no_cambia(self):
         m = _m(aspect_ratio=0.9, dome_to_neck_ratio=1.1)
@@ -191,8 +191,8 @@ class TestMorfometriaEnCastellano:
                               "undulation_index": 0.31, "neck_diameter_mm": 4.0}
         celdas = _celdas(_tabla(ReportGenerator(data)._section_morphometrics()))
         texto = " ".join(celdas)
-        assert "Factor de abultamiento (BF)" in celdas and "1.62" in celdas
-        assert "Índice de ondulación (UI)" in celdas and "0.310" in celdas
+        assert "Factor de abultamiento (BF)" in celdas and "1,62" in celdas
+        assert "Índice de ondulación (UI)" in celdas and "0,310" in celdas
         assert "Relación de aspecto (AR)" in celdas
         assert "Aspect Ratio" not in texto and "Dome/Neck" not in texto
         assert "Riesgo ruptura" not in texto

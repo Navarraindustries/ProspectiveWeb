@@ -20,6 +20,7 @@ import numpy as np
 import vtk
 
 from services import index_thresholds as T
+from services.numero import cifra, cifra_corta
 
 try:
     from vtkmodules.util import numpy_support as ns
@@ -94,17 +95,17 @@ class MorphometricResult:
         # Los cortes son los de la insignia y los de Decisión (F1-160/161/163):
         # antes aquí el AR moderado cortaba en 1,3 y la insignia en 1,2.
         alto = [
-            (self.aspect_ratio >= T.AR_HIGH, f"AR {self.aspect_ratio:.2f} ≥ {T.AR_HIGH:g}"),
-            (self.dome_to_neck_ratio >= T.DNR_HIGH, f"DNR {self.dome_to_neck_ratio:.2f} ≥ {T.DNR_HIGH:.1f}"),
-            (self.undulation_index >= T.UI_HIGH, f"ondulación (UI) {self.undulation_index:.2f} ≥ {T.UI_HIGH:.2f}"),
-            (self.size_ratio >= T.SR_HIGH, f"cociente de tamaño (SR) {self.size_ratio:.2f} ≥ {T.SR_HIGH:.1f}"),
+            (self.aspect_ratio >= T.AR_HIGH, f"AR {cifra(self.aspect_ratio, 2)} ≥ {cifra_corta(T.AR_HIGH)}"),
+            (self.dome_to_neck_ratio >= T.DNR_HIGH, f"DNR {cifra(self.dome_to_neck_ratio, 2)} ≥ {cifra(T.DNR_HIGH)}"),
+            (self.undulation_index >= T.UI_HIGH, f"ondulación (UI) {cifra(self.undulation_index, 2)} ≥ {cifra(T.UI_HIGH, 2)}"),
+            (self.size_ratio >= T.SR_HIGH, f"cociente de tamaño (SR) {cifra(self.size_ratio, 2)} ≥ {cifra(T.SR_HIGH)}"),
         ]
         moderado = [
-            (self.aspect_ratio >= T.AR_MOD, f"AR {self.aspect_ratio:.2f} ≥ {T.AR_MOD:g}"),
-            (self.dome_to_neck_ratio >= T.DNR_MOD, f"DNR {self.dome_to_neck_ratio:.2f} ≥ {T.DNR_MOD:g}"),
-            (self.ellipticity_index >= T.EI_MOD, f"elipticidad (EI) {self.ellipticity_index:.2f} ≥ {T.EI_MOD:.2f}"),
-            (self.undulation_index >= T.UI_MOD, f"ondulación (UI) {self.undulation_index:.2f} ≥ {T.UI_MOD:.2f}"),
-            (self.size_ratio >= T.SR_MOD, f"cociente de tamaño (SR) {self.size_ratio:.2f} ≥ {T.SR_MOD:.1f}"),
+            (self.aspect_ratio >= T.AR_MOD, f"AR {cifra(self.aspect_ratio, 2)} ≥ {cifra_corta(T.AR_MOD)}"),
+            (self.dome_to_neck_ratio >= T.DNR_MOD, f"DNR {cifra(self.dome_to_neck_ratio, 2)} ≥ {cifra_corta(T.DNR_MOD)}"),
+            (self.ellipticity_index >= T.EI_MOD, f"elipticidad (EI) {cifra(self.ellipticity_index, 2)} ≥ {cifra(T.EI_MOD, 2)}"),
+            (self.undulation_index >= T.UI_MOD, f"ondulación (UI) {cifra(self.undulation_index, 2)} ≥ {cifra(T.UI_MOD, 2)}"),
+            (self.size_ratio >= T.SR_MOD, f"cociente de tamaño (SR) {cifra(self.size_ratio, 2)} ≥ {cifra(T.SR_MOD)}"),
         ]
         por_alto = [texto for cumple, texto in alto if cumple]
         if por_alto:

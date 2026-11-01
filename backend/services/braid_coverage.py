@@ -57,6 +57,7 @@ from vtkmodules.util.numpy_support import numpy_to_vtk, vtk_to_numpy
 
 from services.apposition import SCALAR as GAP_SCALAR
 from services.apposition import ZONE, ZONE_AXIS, ZONE_NECK, ZONE_WALL, _arc_of
+from services.numero import cifra, cifra_corta
 
 #: Diferencia de cobertura respecto a la nominal, en puntos porcentuales
 #: (− = poros más abiertos que en el catálogo).
@@ -173,8 +174,8 @@ def annotate(stent: vtk.vtkPolyData, centerline_segment: np.ndarray, nominal_mm:
     if gap_arr is None or zone_arr is None:
         raise ValueError("Falta el mapa de aposición: la cobertura sale de él.")
     if not (braid.min_diameter_mm <= nominal_mm <= braid.max_diameter_mm):
-        raise ValueError(f"{braid.name} se fabrica de {braid.min_diameter_mm:g} a "
-                         f"{braid.max_diameter_mm:g} mm; con {nominal_mm:g} mm no hay construcción que aplicar.")
+        raise ValueError(f"{braid.name} se fabrica de {cifra_corta(braid.min_diameter_mm)} a "
+                         f"{cifra_corta(braid.max_diameter_mm)} mm; con {cifra_corta(nominal_mm)} mm no hay construcción que aplicar.")
     gap, zone = vtk_to_numpy(gap_arr).astype(float), vtk_to_numpy(zone_arr)
     P = vtk_to_numpy(stent.GetPoints().GetData()).astype(float)
     cl = np.asarray(centerline_segment, dtype=float)
@@ -221,7 +222,7 @@ def annotate(stent: vtk.vtkPolyData, centerline_segment: np.ndarray, nominal_mm:
     # La longitud de catálogo que, alargada por el vaso, cubre el tramo dibujado.
     labelled = float(np.sum((total / n_rings) / elong_ring))
     if float(D_ring.min()) < nominal_mm - 0.25:
-        notes.append(f"El vaso baja a {D_ring.min():.2f} mm bajo un dispositivo de {nominal_mm:.2f}: "
+        notes.append(f"El vaso baja a {cifra(D_ring.min(), 2)} mm bajo un dispositivo de {cifra(nominal_mm, 2)}: "
                      f"ahí los hilos se tumban, los poros se abren y el dispositivo se alarga.")
     if float(np.abs(1 - escala).max()) > 0.15:
         notes.append("En la curva la cobertura baja por fuera y sube por dentro; si el cuello "

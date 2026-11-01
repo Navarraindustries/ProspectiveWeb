@@ -151,7 +151,7 @@ class TestTheChosenClipTravels:
         b = client.post(f"/api/clips/manufacture/{sid}").json()
         assert b["blade_length_mm"] == pytest.approx(13.0)
         assert b["part_no"].endswith("-0130"), b["part_no"]
-        assert "13.0 mm" in b["label"], b["label"]
+        assert "13,0 mm" in b["label"], b["label"]
 
     def test_el_prefill_dice_que_la_pieza_es_la_colocada(self):
         sid = _session()

@@ -51,6 +51,8 @@ from typing import Literal
 import numpy as np
 import vtk
 
+from services.numero import cifra
+
 logger = logging.getLogger(__name__)
 
 #: Radio del corredor de trabajo. El clip entra en la punta de un aplicador, y
@@ -340,7 +342,7 @@ def assess_corridor(
         res.verdict = "no_viable"
         res.verdict_reason = (
             f"El corredor atraviesa {len(bloqueantes)} vaso(s) antes de llegar al "
-            f"aneurisma; el mayor mide ⌀ {peor.calibre_mm:.1f} mm, a "
+            f"aneurisma; el mayor mide ⌀ {cifra(peor.calibre_mm)} mm, a "
             f"{peor.distance_from_entry_mm:.0f} mm de la entrada. Un vaso así no "
             f"se aparta: el abordaje tiene que entrar por otro sitio."
         )
@@ -349,27 +351,27 @@ def assess_corridor(
         res.verdict_reason = (
             f"El corredor roza {len(res.vessels_crossed)} estructura(s) vascular(es) "
             f"fina(s) (la mayor, ⌀ "
-            f"{max(v.calibre_mm for v in res.vessels_crossed):.1f} mm). Puede ser "
+            f"{cifra(max(v.calibre_mm for v in res.vessels_crossed))} mm). Puede ser "
             f"una vena o una rama movilizable; hay que verlo."
         )
     elif res.nearest_branch_mm is not None and res.nearest_branch_mm <= BRANCH_WARN_MM:
         res.verdict = "revisar"
         res.verdict_reason = (
-            f"No cruza ningún vaso, pero pasa a {res.nearest_branch_mm:.1f} mm del "
-            f"origen de una rama de ⌀ {res.nearest_branch_calibre_mm:.1f} mm."
+            f"No cruza ningún vaso, pero pasa a {cifra(res.nearest_branch_mm)} mm del "
+            f"origen de una rama de ⌀ {cifra(res.nearest_branch_calibre_mm)} mm."
         )
     else:
         res.verdict = "viable"
         res.verdict_reason = (
             "El corredor no atraviesa ningún vaso de la malla antes del aneurisma"
-            + (f", y la rama más próxima queda a {res.nearest_branch_mm:.1f} mm."
+            + (f", y la rama más próxima queda a {cifra(res.nearest_branch_mm)} mm."
                if res.nearest_branch_mm is not None else ".")
         )
 
     # ── Lo que se ve, dicho en palabras ───────────────────────────────────── #
     for v in res.vessels_crossed:
         res.findings.append(
-            f"Vaso de ⌀ {v.calibre_mm:.1f} mm a {v.distance_from_entry_mm:.0f} mm de "
+            f"Vaso de ⌀ {cifra(v.calibre_mm)} mm a {v.distance_from_entry_mm:.0f} mm de "
             f"la entrada ({'calibre medido en el barrido de ramas' if v.calibre_source == 'barrido' else 'calibre estimado sobre la malla'})."
         )
     if res.dense_tissue_measurable and res.dense_tissue_mm > 0:

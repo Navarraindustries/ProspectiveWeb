@@ -17,6 +17,23 @@ export function cifra(v: number | null | undefined, decimales = 1, opciones?: Op
   return opciones?.menosTipografico ? txt.replace("-", "−") : txt;
 }
 
+/** Sin ceros de relleno, con coma: `2` → «2», `2.5` → «2,5», `0.05` → «0,05».
+ *  Para tallas de catálogo y umbrales que se citan tal como están definidos.
+ *  Espejo de `cifra_corta` en `backend/services/numero.py`. */
+export function cifraCorta(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  const r = Math.round(v * 1e6) / 1e6;
+  return (Object.is(r, -0) ? "0" : String(r)).replace(".", ",");
+}
+
+/** Lo que una persona va a leer FUERA de la pantalla (portapapeles, correo)
+ *  y llega mezclado con textos del backend: las cifras con punto pasan a
+ *  coma. Solo toca un punto entre dígitos, así que «v2.0» de un número de
+ *  versión también cambiaría: no usar sobre identificadores. */
+export function comaDecimal(texto: string): string {
+  return texto.replace(/(\d)\.(\d)/g, "$1,$2");
+}
+
 /** `11` → «11,0 mm»; sin valor → «—» (sin unidad). */
 export function mm(v: number | null | undefined, decimales = 1): string {
   const t = cifra(v, decimales);

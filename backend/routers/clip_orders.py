@@ -38,6 +38,7 @@ from services.access import is_admin, own_patient_ids, require_patient, session_
 from services.auth_service import require_admin, require_user
 from services.database import get_db
 from services.db_models import Study, User
+from services.numero import cifra
 from services.sessions import session_exists
 
 logger = logging.getLogger(__name__)
@@ -286,7 +287,7 @@ def _ordered_piece(case, advised_spec, *, angle_deg: float, jaw_mm: float,
     if changed and override_reason:
         notes.append(
             f"Pieza modificada respecto a lo recomendado "
-            f"({advised_spec.shape.value}, {advised_spec.blade_length_mm:.1f} mm · "
+            f"({advised_spec.shape.value}, {cifra(advised_spec.blade_length_mm)} mm · "
             f"{advised_spec.angle_deg:.0f}°): {override_reason}"
         )
 
@@ -301,19 +302,19 @@ def _ordered_piece(case, advised_spec, *, angle_deg: float, jaw_mm: float,
     # will not have.
     if shape == CURVED and abs(src.jaw_mm - jaw_mm) > 1e-6:
         notes.append(
-            f"La serie curva no se estira: se pidieron {jaw_mm:.1f} mm y se fabrica "
+            f"La serie curva no se estira: se pidieron {cifra(jaw_mm)} mm y se fabrica "
             f"la talla dibujada de {src.jaw_mm} mm.")
         jaw_mm = float(src.jaw_mm)
     elif store.outside_drawn_range(jaw_mm):
         notes.append(
-            f"La mordaza de {jaw_mm:.1f} mm queda FUERA del rango dibujado: el perfil "
+            f"La mordaza de {cifra(jaw_mm)} mm queda FUERA del rango dibujado: el perfil "
             f"se extiende más allá de cualquier talla diseñada, no se interpola entre "
             f"dos. Confirmar con el diseñador antes de mecanizar.")
 
     if src.window_mm and abs(src.window_mm - window_mm) > 1e-6:
         notes.append(
             f"La ventana se lleva a {src.window_mm} mm, la dibujada más cercana a los "
-            f"{window_mm:.1f} mm pedidos.")
+            f"{cifra(window_mm)} mm pedidos.")
 
     spec = replace(advised_spec, blade_length_mm=float(jaw_mm),
                    angle_deg=float(angle_deg), shape=clip_shape,
@@ -321,7 +322,7 @@ def _ordered_piece(case, advised_spec, *, angle_deg: float, jaw_mm: float,
     drawn = abs(src.jaw_mm - jaw_mm) < 1e-6
     return PerfectClip(
         source="navarro", spec=spec,
-        label=f"NAVARRO™ {src.series} {src.shape_label}, mordaza {jaw_mm:.1f} mm",
+        label=f"NAVARRO™ {src.series} {src.shape_label}, mordaza {cifra(jaw_mm)} mm",
         navarro_series=src.series, navarro_angle_deg=float(src.angle_deg),
         navarro_jaw_mm=float(jaw_mm), navarro_is_drawn_size=drawn,
         navarro_shape=src.shape, navarro_window_mm=float(src.window_mm),
@@ -349,7 +350,7 @@ def _rebuild_piece(order: store.ClipOrder):
     src = nearest_variant(order.angle_deg, order.jaw_mm, shape=order.shape or "straight",
                           window_mm=order.window_mm)
     label = (f"NAVARRO™ {order.series} "
-             f"{src.shape_label if src else ''}, mordaza {order.jaw_mm:.1f} mm")
+             f"{src.shape_label if src else ''}, mordaza {cifra(order.jaw_mm)} mm")
     piece = PerfectClip(
         source="navarro", spec=spec,
         label=label,
@@ -695,8 +696,8 @@ async def create_order(session_id: str, req: OrderIn, user: CurrentUser, db: Db)
                or abs(angle - advised.angle_deg) > 1e-6)
     if differs and not req.override_reason.strip():
         problems.append(
-            f"La pieza pedida ({jaw:.1f} mm · {angle:.0f}°) no es la recomendada "
-            f"({advised.blade_length_mm:.1f} mm · {advised.angle_deg:.0f}°). "
+            f"La pieza pedida ({cifra(jaw)} mm · {angle:.0f}°) no es la recomendada "
+            f"({cifra(advised.blade_length_mm)} mm · {advised.angle_deg:.0f}°). "
             f"Hay que decir por qué; el motivo queda en nuestra copia del dossier."
         )
     if problems:

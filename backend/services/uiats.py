@@ -23,6 +23,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from services.numero import cifra
+
 SRC_UIATS = ("Etminan et al., Neurology 2015;85(10):881-889 — UIATS (consenso Delphi, "
              "figura 2)")
 
@@ -168,7 +170,7 @@ def compute_uiats(*, age: int, risk_factors: list[str], symptoms: list[str],
     _sum(risk_factors, RISK_FACTORS, "factor de riesgo", rep)
     _sum(symptoms, SYMPTOMS, "síntoma", rep)
     _sum(patient_other, PATIENT_OTHER, "otro (paciente)", rep)
-    rep.append((f"Diámetro máximo ({diameter_mm:.1f} mm)", diameter_points(diameter_mm)))
+    rep.append((f"Diámetro máximo ({cifra(diameter_mm)} mm)", diameter_points(diameter_mm)))
     _sum(morphology, MORPHOLOGY, "morfología", rep)
     if location not in LOCATION:
         raise ValueError(f"«{location}» no es una localización.")

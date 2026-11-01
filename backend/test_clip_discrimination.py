@@ -325,7 +325,7 @@ class TestTheOpeningIsJudgedAgainstTheNeck:
         # candidato del que leer el criterio. 12 sigue pasandose de la apertura.
         crit, _top = self._opening(12.0)
         assert crit.verdict == "warn", crit.detail
-        assert "10.0 mm" in crit.detail and "12.0 mm" in crit.detail
+        assert "10,0 mm" in crit.detail and "12,0 mm" in crit.detail
 
     def test_a_neck_the_clip_clears_is_not_flagged(self):
         crit, _top = self._opening(6.0)

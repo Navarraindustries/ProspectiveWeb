@@ -65,7 +65,7 @@ def deploy_stent_on_centerline(
     s0 = max(0.0, min(s0, total_len))
     s1 = max(s0, min(s1, total_len))
     if s1 - s0 < 0.5:
-        raise ValueError("El segmento seleccionado es demasiado corto (< 0.5 mm).")
+        raise ValueError("El segmento seleccionado es demasiado corto (< 0,5 mm).")
 
     mask = (seg_lens >= s0 - 1e-6) & (seg_lens <= s1 + 1e-6)
     sub_arcs = seg_lens[mask]

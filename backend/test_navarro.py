@@ -246,7 +246,7 @@ class TestCustomJaw:
         case = ClipCase(neck_mm=3.0, ar=1.3, dome_height_mm=3.9, neck_source="rim")
         cj = suggest_custom_jaw(case, None)
         assert cj is not None
-        assert "mordaza" in cj.reason and "3.0" in cj.reason
+        assert "mordaza" in cj.reason and "3,0" in cj.reason
 
 
 # ── 6. The endpoint ───────────────────────────────────────────────────────── #

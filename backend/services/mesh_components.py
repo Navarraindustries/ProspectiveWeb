@@ -51,6 +51,8 @@ from dataclasses import dataclass
 import numpy as np
 import vtk
 
+from services.numero import cifra
+
 logger = logging.getLogger(__name__)
 
 # ── Umbrales del guardarraíl ───────────────────────────────────────────────── #
@@ -183,7 +185,7 @@ def looks_like_tree(info: ComponentInfo) -> tuple[bool, str]:
         )
     if info.thickness_mm > MAX_TREE_THICKNESS_MM:
         return False, (
-            f"La estructura mayor tiene {info.thickness_mm:.1f} mm de espesor "
+            f"La estructura mayor tiene {cifra(info.thickness_mm)} mm de espesor "
             f"equivalente: es maciza, no tubular. Probablemente sea hueso o "
             f"tejido, no el árbol."
         )
@@ -279,7 +281,7 @@ def remove_component_at(
     dist = float(np.linalg.norm(hit - np.asarray(point, float)))
     if dist > max_distance_mm:
         return poly, None, (
-            f"El punto señalado está a {dist:.1f} mm de la malla más cercana. "
+            f"El punto señalado está a {cifra(dist)} mm de la malla más cercana. "
             f"Pincha sobre la superficie de la pieza que quieres quitar."
         )
 

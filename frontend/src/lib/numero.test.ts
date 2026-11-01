@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cifra, coordenadas, mm } from "./numero";
+import { cifra, cifraCorta, comaDecimal, coordenadas, mm } from "./numero";
 
 describe("cifra", () => {
   it("usa coma decimal y un decimal por defecto", () => {
@@ -33,6 +33,26 @@ describe("mm", () => {
   it("sin valor, solo la raya", () => {
     expect(mm(null)).toBe("—");
     expect(mm(NaN)).toBe("—");
+  });
+});
+
+describe("cifraCorta", () => {
+  it("sin ceros de relleno y con coma", () => {
+    expect(cifraCorta(2)).toBe("2");
+    expect(cifraCorta(2.5)).toBe("2,5");
+    expect(cifraCorta(0.05)).toBe("0,05");
+    expect(cifraCorta(0.1 + 0.2)).toBe("0,3");
+    expect(cifraCorta(-0)).toBe("0");
+    expect(cifraCorta(null)).toBe("—");
+    expect(cifraCorta(NaN)).toBe("—");
+  });
+});
+
+describe("comaDecimal", () => {
+  it("cambia el punto entre dígitos y nada más", () => {
+    expect(comaDecimal("NAVARRO™ T1 Recto, mordaza 7.5 mm")).toBe("NAVARRO™ T1 Recto, mordaza 7,5 mm");
+    expect(comaDecimal("Fin de frase. Otra 3.25 g.")).toBe("Fin de frase. Otra 3,25 g.");
+    expect(comaDecimal("ya con coma: 7,5 mm")).toBe("ya con coma: 7,5 mm");
   });
 });
 

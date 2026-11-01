@@ -139,7 +139,7 @@ class TestElVeredicto:
         r = assess_corridor(ENTRADA, OBJETIVO, malla, neck_axis=(0, 0, 1))
         assert r.verdict == "no_viable"
         assert "no se aparta" in r.verdict_reason
-        assert f"{r.vessels_crossed[0].calibre_mm:.1f}" in r.verdict_reason
+        assert f"{r.vessels_crossed[0].calibre_mm:.1f}".replace(".", ",") in r.verdict_reason
 
     def test_un_vaso_fino_es_para_revisar_no_para_descartar(self):
         # Puede ser una vena o una rama movilizable: decidirlo es del cirujano.

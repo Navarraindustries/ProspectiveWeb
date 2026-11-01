@@ -43,6 +43,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Iterable
 
+from services.numero import cifra
+
 logger = logging.getLogger(__name__)
 
 #: Private store: an order carries patient identity and institutional geometry.
@@ -463,7 +465,7 @@ def validate_request(*, jaw_mm: float, angle_deg: float, quantity: int,
         problems.append("La mordaza tiene que ser mayor que cero.")
     elif not (lo * 0.5 <= jaw_mm <= hi * 1.5):
         problems.append(
-            f"Una mordaza de {jaw_mm:.1f} mm queda demasiado lejos de las tallas "
+            f"Una mordaza de {cifra(jaw_mm)} mm queda demasiado lejos de las tallas "
             f"dibujadas ({lo:.0f}–{hi:.0f} mm): el estirado dejaría de reproducir "
             f"el diseño de la familia."
         )

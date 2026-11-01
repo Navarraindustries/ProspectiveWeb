@@ -62,7 +62,7 @@ const spec: ManufactureSpecOut = {
   blade_length_mm: 27, blade_width_mm: 3.5, blade_height_mm: 3,
   spring_length_mm: 24, shape: "Angulado 90°", angle_deg: 90,
   closing_force_g: 155, fenestration_mm: 0, neck_mm: 20,
-  label: "Angulado 90° de 27.0 mm · 155 g",
+  label: "Angulado 90° de 27,0 mm · 155 g",
   reasons: ["Ninguna hoja del catálogo cubre este cuello con margen suficiente"],
   confidence_notes: ["La fuerza de cierre (155 g) es el centro de la ventana heurística"],
   stl_url: null,
@@ -212,7 +212,7 @@ describe("failures", () => {
 
 describe("made-to-order designs", () => {
   const navarro = candidate({
-    clip_id: "navarro-t1-16", clip_name: "NAVARRO™ T1 Recto 16.0 mm",
+    clip_id: "navarro-t1-16", clip_name: "NAVARRO™ T1 Recto 16,0 mm",
     manufacturer: "NAVARRO™ (UNINAVARRA)", blade_length_mm: 16,
     availability: "made_to_order",
     closing_force_min_g: 120, closing_force_max_g: 200, force_provisional: true,
@@ -240,15 +240,15 @@ describe("sizing a made-to-order clip", () => {
     clip_id: "",
     series: "T1", shape: "straight", angle_deg: 0, window_mm: 0, resizable: true,
     jaw_mm: 27, nearest_drawn_mm: 22,
-    label: "NAVARRO™ T1 Recto, mordaza 27.0 mm",
-    reason: "Un cuello de 20.0 mm pide 27.0 mm de mordaza, fuera de las tallas dibujadas (7–22 mm).",
+    label: "NAVARRO™ T1 Recto, mordaza 27,0 mm",
+    reason: "Un cuello de 20,0 mm pide 27,0 mm de mordaza, fuera de las tallas dibujadas (7–22 mm).",
     mesh_url: null, stl_url: null,
   };
 
   it("offers the exact jaw the neck asks for", async () => {
     clipSelection.mockResolvedValue(result({ custom_jaw: custom }));
     render(<ClipSelectionPanel sessionId="s1" />);
-    expect(await screen.findByText("NAVARRO™ T1 Recto, mordaza 27.0 mm")).toBeInTheDocument();
+    expect(await screen.findByText("NAVARRO™ T1 Recto, mordaza 27,0 mm")).toBeInTheDocument();
     expect(screen.getByText(/fuera de las tallas dibujadas/)).toBeInTheDocument();
   });
 
@@ -283,7 +283,7 @@ describe("sizing a made-to-order clip", () => {
     const onPick = vi.fn();
     buildNavarroClip.mockResolvedValue({
       ...custom, clip_id: "navarro:t1:0:18.5", jaw_mm: 18.5,
-      label: "NAVARRO™ T1 Recto, mordaza 18.5 mm", stl_url: "/x.stl",
+      label: "NAVARRO™ T1 Recto, mordaza 18,5 mm", stl_url: "/x.stl",
     });
     clipSelection.mockResolvedValue(result({ custom_jaw: custom }));
     render(<ClipSelectionPanel sessionId="s1" onPick={onPick} />);
@@ -293,7 +293,7 @@ describe("sizing a made-to-order clip", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Elegir esta medida/ }));
 
     expect(onPick).toHaveBeenCalledWith("navarro:t1:0:18.5",
-                                        "NAVARRO™ T1 Recto, mordaza 18.5 mm");
+                                        "NAVARRO™ T1 Recto, mordaza 18,5 mm");
   });
 
   it("does not offer to place a piece that has not been generated", async () => {
@@ -322,7 +322,7 @@ describe("a custom jaw keeps the shape the case argued for", () => {
       clip_id: "",
       series: "T4", shape: "fenestrated", angle_deg: 0, window_mm: 5,
       resizable: true, jaw_mm: 8.5, nearest_drawn_mm: 7,
-      label: "NAVARRO™ T4 Fenestrado ventana 5 mm, mordaza 8.5 mm",
+      label: "NAVARRO™ T4 Fenestrado ventana 5 mm, mordaza 8,5 mm",
       reason: "El cuello pide 8.5 mm.", mesh_url: null, stl_url: null,
     };
     clipSelection.mockResolvedValue(result({ outcome: "stock", custom_jaw: fen }));
@@ -595,11 +595,11 @@ describe("guardar el corredor relanza la selección (F1-193)", () => {
 describe("la remisión a Fabricación (F1-198)", () => {
   it("con un clip colocado nombra esa pieza", async () => {
     clipSelection.mockResolvedValue(result({
-      manufacture: { ...spec, piece_label: "NAVARRO™ T2 Curvo, mordaza 7.0 mm" },
+      manufacture: { ...spec, piece_label: "NAVARRO™ T2 Curvo, mordaza 7,0 mm" },
     }));
     render(<ClipSelectionPanel sessionId="s1" />);
     expect(await screen.findByText(/Fabricación tomará el clip colocado/)).toBeInTheDocument();
-    expect(screen.getByText("NAVARRO™ T2 Curvo, mordaza 7.0 mm")).toBeInTheDocument();
+    expect(screen.getByText("NAVARRO™ T2 Curvo, mordaza 7,0 mm")).toBeInTheDocument();
     expect(screen.queryByText(/pieza a medida especificada/)).toBeNull();
   });
 });

@@ -35,6 +35,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from services.numero import cifra, cifra_corta
+
 SRC_RULE = (
     "Brain Sci 2021;11(7):901 (Ansari et al.) — anchura del aneurisma más 1–2 mm "
     "(1 en pequeños, 2 en grandes), y la altura menos lo mismo"
@@ -161,8 +163,8 @@ def _candidates(shape: str, catalogue, W: float, H: float, volume: float) -> lis
         out.append(WebOption(shape=shape, width_mm=float(w), height_mm=float(h),
                              added_mm=round(add, 2), target_height_mm=round(target, 2),
                              dav=_dav(shape, w, h, volume),
-                             label=f"WEB {shape} {w:g}" + (f"×{h:g}" if shape == "SL" else ""),
-                             note=(f"Solo {add:.1f} mm más ancho que el aneurisma: por debajo "
+                             label=f"WEB {shape} {cifra_corta(w)}" + (f"×{cifra_corta(h)}" if shape == "SL" else ""),
+                             note=(f"Solo {cifra(add)} mm más ancho que el aneurisma: por debajo "
                                    f"del +1 de la regla." if add < MIN_ADD_MM - 1e-6 else "")))
     # Primero las que cumplen la regla entera; luego la altura que más se acerca
     # a la buscada; luego lo menos sumado.
@@ -215,7 +217,7 @@ def size_web(dims: SacDims, neck_mm: float, volume_mm3: float = 0.0, top: int = 
     if irregular:
         warnings.append(
             f"El saco aislado no es un domo lleno: encierra {volume_mm3:.0f} mm³ y un "
-            f"domo de {dims.width_max_mm:.1f} × {dims.width_min_mm:.1f} × {H:.1f} mm "
+            f"domo de {cifra(dims.width_max_mm)} × {cifra(dims.width_min_mm)} × {cifra(H)} mm "
             f"tendría unos {domo_lleno:.0f}. La anchura puede incluir partes donde el "
             f"dispositivo no entra: revisa el saco en el visor. No se da el DAV.")
         volume_mm3_dav = 0.0
@@ -228,10 +230,10 @@ def size_web(dims: SacDims, neck_mm: float, volume_mm3: float = 0.0, top: int = 
     within = in_dome and wide_neck
     if not in_dome:
         warnings.append(
-            f"Domo de {dome:.1f} mm: fuera de los 3–10 mm de la indicación aprobada.")
+            f"Domo de {cifra(dome)} mm: fuera de los 3–10 mm de la indicación aprobada.")
     if neck_mm > 0 and not wide_neck:
         warnings.append(
-            f"Cuello de {neck_mm:.1f} mm y cociente domo/cuello {dnr:.2f}: no es un "
+            f"Cuello de {cifra(neck_mm)} mm y cociente domo/cuello {cifra(dnr, 2)}: no es un "
             f"cuello ancho según la indicación aprobada (≥ 4 mm, o cociente entre 1 y 2).")
     if dims.source != "sac":
         warnings.append(
@@ -242,18 +244,18 @@ def size_web(dims: SacDims, neck_mm: float, volume_mm3: float = 0.0, top: int = 
                + _candidates("SLS", CATALOGUE_SLS, W, H, volume_mm3_dav)[:top])
     if not options:
         warnings.append(
-            f"Ninguna medida del catálogo cumple la regla con {W:.1f} × {H:.1f} mm "
+            f"Ninguna medida del catálogo cumple la regla con {cifra(W)} × {cifra(H)} mm "
             f"(anchura + 1–2 mm y altura reducida en lo mismo).")
     for o in options:
         if neck_mm > 0 and o.width_mm <= neck_mm:
             warnings.append(
-                f"{o.label}: no es más ancho que el cuello ({neck_mm:.1f} mm); "
+                f"{o.label}: no es más ancho que el cuello ({cifra(neck_mm)} mm); "
                 f"nada lo retiene dentro del saco.")
 
     notes.append(
-        f"Anchura media {W:.1f} mm (entre {dims.width_min_mm:.1f} y {dims.width_max_mm:.1f} "
+        f"Anchura media {cifra(W)} mm (entre {cifra(dims.width_min_mm)} y {cifra(dims.width_max_mm)} "
         f"según la dirección), medida en el plano del cuello e incluyendo lóbulos; "
-        f"altura {H:.1f} mm desde el plano del cuello.")
+        f"altura {cifra(H)} mm desde el plano del cuello.")
     notes.append(
         "Se suma 1 mm en los aneurismas pequeños y 2 en los grandes; las opciones "
         "cubren las dos cosas.")

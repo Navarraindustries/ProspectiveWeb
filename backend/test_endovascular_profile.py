@@ -95,7 +95,7 @@ class TestTheAspectRatioTalksAboutDurability:
         p = endovascular_profile(neck_mm=2.5, dnr=2.6,
                                  aspect_ratio=AR_RECANALIZATION + 0.4)
         assert "recanalización" in p.durability
-        assert "4.15" in p.durability
+        assert "4,15" in p.durability
 
     def test_it_does_not_turn_that_into_a_contraindication(self):
         # Un OR de 4 sobre la recurrencia no cierra la vía: cambia el plan.
@@ -105,7 +105,7 @@ class TestTheAspectRatioTalksAboutDurability:
 
     def test_a_low_aspect_ratio_is_reported_too(self):
         p = endovascular_profile(neck_mm=2.5, dnr=2.6, aspect_ratio=1.1)
-        assert p.durability and "1.6" in p.durability
+        assert p.durability and "1,6" in p.durability
 
     def test_an_irregular_dome_is_flagged_as_unvalidated(self):
         # Razonable no es lo mismo que medido, y la diferencia se dice.
@@ -137,7 +137,7 @@ class TestTheDecisionUsesTheProfileInsteadOfVoting:
     def test_the_profile_travels_with_the_decision(self):
         d = compute_decision(**self.FULL, location=LOCATION_MCA)
         assert d["endovascular"]["technique"] == "assisted"
-        assert "4.15" in d["endovascular"]["durability"]
+        assert "4,15" in d["endovascular"]["durability"]
 
     def test_it_is_computed_even_when_clipping_wins(self):
         # Una sesión multidisciplinar compara las dos opciones, no sólo la que

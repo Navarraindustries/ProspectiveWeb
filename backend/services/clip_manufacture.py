@@ -42,6 +42,7 @@ from dataclasses import dataclass, field
 from services.clip_selection import ClipCase, ManufactureSpec
 from services.clips import ClipShape
 from services.neck_provenance import neck_provenance_label
+from services.numero import cifra
 
 logger = logging.getLogger(__name__)
 
@@ -194,7 +195,7 @@ def perfect_from_id(clip_id: str, spec: ManufactureSpec) -> PerfectClip | None:
                        "Es la del clip colocado en el plan.")
     return PerfectClip(
         source="navarro", spec=pinned,
-        label=f"NAVARRO™ {src.series} {src.shape_label}, mordaza {jaw:.1f} mm",
+        label=f"NAVARRO™ {src.series} {src.shape_label}, mordaza {cifra(jaw)} mm",
         navarro_series=src.series, navarro_angle_deg=float(src.angle_deg),
         navarro_jaw_mm=float(jaw),
         navarro_is_drawn_size=abs(src.jaw_mm - jaw) < 1e-6,
@@ -223,26 +224,26 @@ def resolve_perfect_clip(case: ClipCase, spec: ManufactureSpec) -> PerfectClip:
                 # curvature. The drawn size is what gets made, and the note says
                 # the piece is not the size that was asked for.
                 notes.append(
-                    f"La serie curva no se estira: la mordaza sale de {jaw:.1f} mm "
+                    f"La serie curva no se estira: la mordaza sale de {cifra(jaw)} mm "
                     f"pedidos a los {src.jaw_mm} mm dibujados, que es la talla más "
                     f"cercana que existe con esa curvatura."
                 )
                 jaw, drawn = float(src.jaw_mm), True
             elif not drawn:
                 notes.append(
-                    f"La mordaza de {jaw:.1f} mm no es una talla dibujada "
+                    f"La mordaza de {cifra(jaw)} mm no es una talla dibujada "
                     f"({min(STOCK_JAW_MM)}–{max(STOCK_JAW_MM)} mm en pasos de 3): se mecaniza "
                     f"a partir del diseño de {src.jaw_mm} mm, estirando SOLO la mordaza."
                 )
             if src.window_mm and abs(src.window_mm - spec.fenestration_mm) > 1e-6:
                 notes.append(
                     f"La ventana se lleva a {src.window_mm} mm, la dibujada más cercana "
-                    f"a los {spec.fenestration_mm:.1f} mm que pide el vaso "
+                    f"a los {cifra(spec.fenestration_mm)} mm que pide el vaso "
                     f"({', '.join(str(x) for x in (3, 5, 7))} mm son las que existen)."
                 )
             return PerfectClip(
                 source="navarro", spec=spec,
-                label=f"NAVARRO™ {src.series} {src.shape_label}, mordaza {jaw:.1f} mm",
+                label=f"NAVARRO™ {src.series} {src.shape_label}, mordaza {cifra(jaw)} mm",
                 navarro_series=src.series, navarro_angle_deg=float(src.angle_deg),
                 navarro_jaw_mm=jaw, navarro_is_drawn_size=drawn,
                 navarro_shape=src.shape, navarro_window_mm=float(src.window_mm),
@@ -262,10 +263,10 @@ def resolve_perfect_clip(case: ClipCase, spec: ManufactureSpec) -> PerfectClip:
         # be to name a clip that cannot close this neck.
         return PerfectClip(
             source="unavailable", spec=spec,
-            label=f"{spec.shape.value} de {spec.blade_length_mm:.1f} mm — sin proveedor",
+            label=f"{spec.shape.value} de {cifra(spec.blade_length_mm)} mm — sin proveedor",
             fallback_reason=(
                 f"{missing} Y ningún clip {spec.shape.value.lower()} del catálogo cubre "
-                f"un cuello de {spec.neck_mm:.1f} mm: el mayor se queda corto. No hay "
+                f"un cuello de {cifra(spec.neck_mm)} mm: el mayor se queda corto. No hay "
                 f"nada que ofrecer para este caso hasta que exista la serie."
             ),
             notes=notes + [
@@ -309,15 +310,17 @@ def _dimension_rows(spec: ManufactureSpec, perfect: PerfectClip) -> list[tuple[s
     """(dimension, value, tolerance) — the table both dossiers share."""
     rows = [
         ("Forma", spec.shape.value + (f" · {spec.angle_deg:.0f}°" if spec.angle_deg else ""), "—"),
-        ("Longitud de mordaza (agarre útil)", f"{spec.blade_length_mm:.1f} mm", f"± {TOL_JAW_MM:.2f} mm"),
-        ("Anchura de hoja", f"{spec.blade_width_mm:.2f} mm", f"± {TOL_OTHER_MM:.2f} mm"),
-        ("Altura de hoja", f"{spec.blade_height_mm:.2f} mm", f"± {TOL_OTHER_MM:.2f} mm"),
-        ("Longitud de cuerpo/muelle", f"{spec.spring_length_mm:.1f} mm", f"± {TOL_OTHER_MM:.2f} mm"),
+        ("Longitud de mordaza (agarre útil)", f"{cifra(spec.blade_length_mm)} mm",
+         f"± {cifra(TOL_JAW_MM, 2)} mm"),
+        ("Anchura de hoja", f"{cifra(spec.blade_width_mm, 2)} mm", f"± {cifra(TOL_OTHER_MM, 2)} mm"),
+        ("Altura de hoja", f"{cifra(spec.blade_height_mm, 2)} mm", f"± {cifra(TOL_OTHER_MM, 2)} mm"),
+        ("Longitud de cuerpo/muelle", f"{cifra(spec.spring_length_mm)} mm",
+         f"± {cifra(TOL_OTHER_MM, 2)} mm"),
     ]
     if spec.fenestration_mm > 0:
-        rows.append(("Ventana (diámetro interior)", f"{spec.fenestration_mm:.1f} mm",
-                     f"+{TOL_OTHER_MM:.2f} / −0.00 mm"))
-    rows.append(("Apertura máxima de puntas", "10.0 mm", "máximo del mecanismo"))
+        rows.append(("Ventana (diámetro interior)", f"{cifra(spec.fenestration_mm)} mm",
+                     f"+{cifra(TOL_OTHER_MM, 2)} / −0,00 mm"))
+    rows.append(("Apertura máxima de puntas", "10,0 mm", "máximo del mecanismo"))
     # La cifra y su banda, la misma cadena que la tarjeta del mapa de calor,
     # Fabricación y el pedido (F1-202). La tolerancia es la que aplica la
     # recepción (`clip_orders.receive`): la banda ± 15 g, no ± 15 g sobre una
@@ -379,12 +382,13 @@ def internal_dossier(perfect: PerfectClip, case: ClipCase, *, part_no: str,
         # The measurements the dimensions were derived FROM: without these the
         # order cannot be re-derived or audited later.
         "derived_from": [
-            ("Cuello medido", f"{case.neck_mm:.2f} mm"),
+            ("Cuello medido", f"{cifra(case.neck_mm, 2)} mm"),
             # La misma frase que el informe y el formulario (F1-215).
             ("Procedencia del cuello", neck_provenance_label(case.neck_source)),
-            ("Altura de domo", f"{case.dome_height_mm:.2f} mm"),
-            ("Ø máximo del saco", f"{case.max_diameter_mm:.2f} mm"),
-            ("Vaso padre", f"{case.parent_artery_mm:.2f} mm" if case.parent_artery_mm > 0 else "sin medir"),
+            ("Altura de domo", f"{cifra(case.dome_height_mm, 2)} mm"),
+            ("Ø máximo del saco", f"{cifra(case.max_diameter_mm, 2)} mm"),
+            ("Vaso padre", f"{cifra(case.parent_artery_mm, 2)} mm" if case.parent_artery_mm > 0
+             else "sin medir"),
             ("Región anatómica", case.region or "no registrada"),
         ],
         "why_not_stock": spec.reasons,

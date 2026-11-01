@@ -13,7 +13,7 @@ import { SectionLabel, ErrorNote, Card } from "../PanelHead";
 import { Select } from "../Select";
 import { Slider } from "../Slider";
 import { usePlanning } from "../../store/planning";
-import { cifra } from "../../lib/numero";
+import { cifra, cifraCorta } from "../../lib/numero";
 
 export function PrintPrepPanel() {
   const { sessionId, segmentation } = usePlanning();
@@ -106,7 +106,7 @@ export function PrintPrepPanel() {
       </div>
       <Select
         label="Cama de impresión"
-        options={beds.map((b) => ({ value: b.name, label: b.x_mm > 0 ? `${b.name} — ${b.x_mm}×${b.y_mm}×${b.z_mm} mm` : b.name }))}
+        options={beds.map((b) => ({ value: b.name, label: b.x_mm > 0 ? `${b.name} — ${cifraCorta(b.x_mm)}×${cifraCorta(b.y_mm)}×${cifraCorta(b.z_mm)} mm` : b.name }))}
         value={bedName}
         onChange={(e) => setBedName(e.target.value)}
       />

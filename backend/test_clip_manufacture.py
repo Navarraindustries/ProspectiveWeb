@@ -259,7 +259,7 @@ class TestDossiers:
     def test_the_ten_millimetre_opening_is_stated(self, tmp_path):
         ti, te = self._both(tmp_path)
         for doc in (ti, te):
-            assert "10.0 mm" in doc and "Apertura" in doc
+            assert "10,0 mm" in doc and "Apertura" in doc
 
 
 # ── The endpoint ──────────────────────────────────────────────────────────── #

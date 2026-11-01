@@ -100,7 +100,6 @@ def refine_in_band(
     tile_vox: int = TILE_VOX,
     halo_vox: int = HALO_VOX,
     inside: Callable[[tuple[slice, slice, slice]], np.ndarray] | None = None,
-    shell: Callable[[tuple[slice, slice, slice]], np.ndarray] | None = None,
     on_progress: Callable[[str, float], None] | None = None,
 ) -> RefineResult:
     """Máscara a resolución nativa en la banda del árbol grueso.
@@ -154,9 +153,8 @@ def refine_in_band(
         stats["band_vox"] += int(np.count_nonzero(
             band_t[tuple(slice(a - h.start, b - h.start) for (a, b), h in zip((tz, ty, tx), halo))]))
         within_t = inside(halo) if inside is not None else None
-        shell_t = shell(halo) if shell is not None else None
-        mr = build_vascular_mask(vol_t, spacing, params, seed_mask=seed_t, within=within_t, shell=shell_t)
-        del vol_t, seed_t, within_t, shell_t
+        mr = build_vascular_mask(vol_t, spacing, params, seed_mask=seed_t, within=within_t)
+        del vol_t, seed_t, within_t
         if mr.stats.get("final_vox", 0) == 0:
             stats["tiles_empty"] += 1
             continue

@@ -52,17 +52,6 @@ OPEN_MM = 4.0
 COARSE_MM = 3.0
 #: Por debajo de esto no es una cabeza (un fantoma, un recorte): no se aplica.
 MIN_HEAD_CM3 = 400.0
-#: La CORTEZA: la banda exterior de la envolvente, piel y cráneo (30-10). Vista
-#: en 123, 084 y 180 (pieza mayor de 130–150 cm³ con la bóveda entera dentro):
-#: en algunos pacientes el cráneo no llega a 700 HU (084: máximo 650 en el
-#: perfil nativo; 123: tabla interna a 530–620) y la máscara de hueso, que
-#: busca componentes > 700, no lo ve; el diploe y la tabla interna (300–650)
-#: pasan por vaso y la bóveda entera entra en la malla. En la banda exterior
-#: de la cabeza no hay arteria intracraneal: cuero cabelludo 4–7 mm y cráneo
-#: 5–8 mm ponen la tabla interna a 9–15 mm de la piel; lo más superficial que
-#: importa, el seno sagital y las venas corticales, se pega a ella (y es venoso).
-#: Dentro de esta banda, lo que supera `MaskParams.shell_hu` se quita como hueso.
-SHELL_MM = 12.0
 
 
 @dataclass
@@ -72,47 +61,30 @@ class HeadMask:
     head_cm3: float = 0.0
     removed_cm3: float = 0.0      # vóxeles > HEAD_HU fuera de la envolvente
     mask: np.ndarray | None = None  # bool (z, y, x) a la resolución gruesa
-    #: La corteza (ver SHELL_MM): banda de `shell_mm` hacia dentro desde la
-    #: superficie de la envolvente, a la misma resolución gruesa.
-    shell_mm: float = 0.0
-    shell: np.ndarray | None = None
 
     def as_dict(self) -> dict:
         d = asdict(self)
         d.pop("mask", None)
-        d.pop("shell", None)
         d["stride"] = list(self.stride)
         d["head_cm3"] = round(self.head_cm3, 1)
         d["removed_cm3"] = round(self.removed_cm3, 1)
         return d
 
-    def _sample(self, mask: np.ndarray | None, fill: bool,
-                box: tuple[slice, slice, slice], factor: int) -> np.ndarray:
-        if mask is None:
-            return np.full(tuple(int(sl.stop - sl.start) for sl in box), fill, dtype=bool)
-        idx = []
-        for sl, s, m in zip(box, self.stride, mask.shape):
-            i = np.rint(np.arange(int(sl.start), int(sl.stop)) * factor / s).astype(int)
-            idx.append(np.clip(i, 0, m - 1))
-        return mask[np.ix_(*idx)]
-
     def inside_box(self, box: tuple[slice, slice, slice], factor: int = 1) -> np.ndarray:
         """La envolvente dentro de una caja de cortes (z, y, x) de un volumen
         reducido por `factor` respecto al que la calculó (índice × factor /
         stride, vecino más cercano). Sin envolvente, todo dentro."""
-        return self._sample(self.mask, True, box, factor)
+        if self.mask is None:
+            return np.ones(tuple(int(sl.stop - sl.start) for sl in box), dtype=bool)
+        idx = []
+        for sl, s, m in zip(box, self.stride, self.mask.shape):
+            i = np.rint(np.arange(int(sl.start), int(sl.stop)) * factor / s).astype(int)
+            idx.append(np.clip(i, 0, m - 1))
+        return self.mask[np.ix_(*idx)]
 
     def inside(self, shape: Sequence[int], factor: int = 1) -> np.ndarray:
         """La envolvente con la forma de un volumen entero reducido por `factor`."""
         return self.inside_box(tuple(slice(0, int(n)) for n in shape), factor)
-
-    def shell_box(self, box: tuple[slice, slice, slice], factor: int = 1) -> np.ndarray:
-        """La corteza dentro de una caja, como `inside_box`. Sin envolvente, nada."""
-        return self._sample(self.shell, False, box, factor)
-
-    def shell_in(self, shape: Sequence[int], factor: int = 1) -> np.ndarray:
-        """La corteza con la forma de un volumen entero reducido por `factor`."""
-        return self.shell_box(tuple(slice(0, int(n)) for n in shape), factor)
 
 
 def _none() -> HeadMask:
@@ -140,8 +112,8 @@ def _convex_hull_slices(m: np.ndarray) -> np.ndarray:
 
 def head_mask(volume: np.ndarray, spacing: Sequence[float], modality: str | None,
               head_hu: float = HEAD_HU, open_mm: float = OPEN_MM,
-              coarse_mm: float = COARSE_MM, shell_mm: float = SHELL_MM) -> HeadMask:
-    """La envolvente de la cabeza de un volumen (z, y, x), y su corteza. Solo en TC."""
+              coarse_mm: float = COARSE_MM) -> HeadMask:
+    """La envolvente de la cabeza de un volumen (z, y, x). Solo en TC."""
     if not (modality or "").upper().startswith("CT"):
         return _none()
     sp = tuple(float(v) for v in spacing)
@@ -160,13 +132,5 @@ def head_mask(volume: np.ndarray, spacing: Sequence[float], modality: str | None
         return _none()
     hull = _convex_hull_slices(head)
     removed = int(np.count_nonzero(tissue & ~hull))
-    shell = None
-    if shell_mm > 0:
-        # Distancia 3D a lo que está fuera de la envolvente. El borde del
-        # volumen NO cuenta como fuera: la banda de la cabeza corta por abajo
-        # (cuello) y ahí una corteza falsa se llevaría las carótidas.
-        dist = ndimage.distance_transform_edt(hull, sampling=[s * k for s, k in zip(sp, stride)])
-        shell = hull & (dist <= shell_mm)
-        del dist
     return HeadMask(applied=True, stride=stride, head_cm3=float(hull.sum()) * vox_cm3,
-                    removed_cm3=removed * vox_cm3, mask=hull, shell_mm=float(shell_mm), shell=shell)
+                    removed_cm3=removed * vox_cm3, mask=hull)

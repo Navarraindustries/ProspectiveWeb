@@ -24,6 +24,8 @@ beforeEach(() => {
   vi.stubGlobal("scrollY", 0);
 });
 afterEach(() => {
+  // Corta lo que un test haya dejado en curso antes de limpiar los espías.
+  window.dispatchEvent(new Event("wheel"));
   el.remove();
   stop.mockClear();
   vi.mocked(animate).mockClear();
@@ -45,8 +47,8 @@ describe("desplazamiento", () => {
     expect(document.activeElement).toBe(el);
     expect(location.hash).toBe("#indices");
   });
-  it("la rueda, un toque o una tecla cortan la animación", () => {
-    for (const tipo of ["wheel", "touchstart", "keydown"]) {
+  it("la rueda, un toque, un clic o una tecla cortan la animación", () => {
+    for (const tipo of ["wheel", "touchstart", "pointerdown", "keydown"]) {
       stop.mockClear();
       desplazarA("indices", { reducido: false });
       window.dispatchEvent(new Event(tipo));
@@ -59,6 +61,36 @@ describe("desplazamiento", () => {
     op.onComplete();
     window.dispatchEvent(new Event("wheel"));
     expect(stop).not.toHaveBeenCalled();
+  });
+  it("solo un desplazamiento a la vez: el segundo corta el primero y solo se enfoca su sección", () => {
+    const otra = document.createElement("section");
+    otra.id = "dispositivos";
+    otra.tabIndex = -1;
+    otra.getBoundingClientRect = () => ({ top: 2600 }) as DOMRect;
+    document.body.appendChild(otra);
+    const paradas = [vi.fn(), vi.fn()];
+    vi.mocked(animate)
+      .mockImplementationOnce((() => ({ stop: paradas[0] })) as never)
+      .mockImplementationOnce((() => ({ stop: paradas[1] })) as never);
+    try {
+      desplazarA("indices", { reducido: false });
+      desplazarA("dispositivos", { reducido: false });
+      expect(paradas[0]).toHaveBeenCalledTimes(1);
+      expect(paradas[1]).not.toHaveBeenCalled();
+      const [primera, segunda] = vi.mocked(animate).mock.calls.map((c) => c[2] as unknown as { onComplete(): void });
+      // Aunque la primera avisara de que ha acabado, ya no enfoca nada.
+      primera.onComplete();
+      expect(document.activeElement).not.toBe(el);
+      segunda.onComplete();
+      expect(document.activeElement).toBe(otra);
+      expect(location.hash).toBe("#dispositivos");
+      // Ni la primera (cortada) ni la segunda (acabada) siguen escuchando la rueda.
+      window.dispatchEvent(new Event("wheel"));
+      expect(paradas[0]).toHaveBeenCalledTimes(1);
+      expect(paradas[1]).not.toHaveBeenCalled();
+    } finally {
+      otra.remove();
+    }
   });
   it("con movimiento reducido salta directo, sin animar", () => {
     desplazarA("indices", { reducido: true });

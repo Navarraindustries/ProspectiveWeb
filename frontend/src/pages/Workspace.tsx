@@ -291,9 +291,10 @@ export function Workspace({
         // espacio lo arranca con el foco en cualquier sitio y Escape tiene que
         // pararlo igual. Con la hoja de atajos abierta no llega aquí: la hoja
         // se queda la tecla (fase de captura) y solo se cierra ella.
-        // Salvo si la hoja inferior ya se quedó la tecla (la bajó a «asomar»).
-        if (e.defaultPrevented) return;
-        setPickMode(null);
+        // La hoja inferior (modo estrecho) se queda Esc para bajar a «asomar» y
+        // lo marca con preventDefault: entonces no se cancela el marcado, pero
+        // el cine sí se para (parar es inocuo y vale con el foco en cualquier sitio).
+        if (!e.defaultPrevented) setPickMode(null);
         window.dispatchEvent(new CustomEvent("viewer:shortcut", { detail: "escape" }));
         return;
       }

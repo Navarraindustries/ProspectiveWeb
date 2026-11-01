@@ -369,6 +369,33 @@ describe("hoja inferior a ≤ 1280 px", () => {
     expect(hoja().style.height).toBe("96px");
   });
 
+  it("P desde «completa» baja a «asomar»", () => {
+    montar_();
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar la altura del panel" })); // completa
+    expect(hoja().style.height).toBe("calc(100% - 72px)");
+    pulsarP();
+    expect(hoja().style.height).toBe("96px");
+  });
+
+  it("un Esc con el foco en la hoja la baja y para el cine, pero no cancela el marcado", () => {
+    const setPickMode = vi.fn();
+    estado.setPickMode = setPickMode;
+    montar_();
+    const alCine = vi.fn();
+    const oyente = (e: Event) => { if ((e as CustomEvent).detail === "escape") alCine(); };
+    window.addEventListener("viewer:shortcut", oyente);
+    try {
+      screen.getByRole("button", { name: "Cambiar la altura del panel" }).focus();
+      fireEvent.keyDown(document.activeElement as Element, { key: "Escape" });
+      expect(hoja().style.height).toBe("96px");
+      expect(alCine).toHaveBeenCalledTimes(1);
+      expect(setPickMode).not.toHaveBeenCalled();
+      // Ya asomada, el siguiente Esc sí cancela el marcado.
+      fireEvent.keyDown(document.activeElement as Element, { key: "Escape" });
+      expect(setPickMode).toHaveBeenCalledWith(null);
+    } finally { window.removeEventListener("viewer:shortcut", oyente); }
+  });
+
   it("el dock compacto sube con la hoja y queda sobre ella, igual que la banda de avisos", () => {
     montar_();
     expect(dock().style.bottom).toBe("calc(50% + 12px)");

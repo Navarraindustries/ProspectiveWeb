@@ -8,7 +8,7 @@ const SRC = join(__dirname, "..");
 const leer = (f: string) => readFileSync(join(SRC, f), "utf8").replace(/\r\n/g, "\n");
 
 /** Rutas relativas a `src/`, con «/». */
-const REVISADOS: string[] = [];
+const REVISADOS: string[] = ["components/TablaTarjetas.tsx", "styles/office.css"];
 
 const quitarComentarios = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/[^\n]*/g, "$1");
 

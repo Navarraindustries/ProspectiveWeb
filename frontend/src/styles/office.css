@@ -20,6 +20,28 @@
 /* Sin puntero (táctil) no hay hover: las acciones de fila quedan a plena opacidad. */
 @media (hover: none) { .tabla-oficina tbody tr .fila-acciones { opacity: 1; } }
 
+/* TablaTarjetas: fila pulsable (cursor y hover de cristal; el anillo de foco
+   lo pone :focus-visible de base.css) y fila seleccionada (fondo de cristal y
+   filo izquierdo de 2 px en el color primario, como sombra interior). */
+.tabla-oficina tbody tr[data-pulsable] { cursor: pointer; transition: background var(--dur-1) var(--ease-out); }
+.tabla-oficina tbody tr[data-pulsable]:hover,
+.tabla-oficina tbody tr[data-pulsable]:focus-visible { background: var(--glass-hover); }
+.tabla-oficina tbody tr[data-seleccionada="true"] { background: var(--glass-hover); }
+.tabla-oficina tbody tr[data-seleccionada="true"] > td:first-child { box-shadow: inset 2px 0 0 var(--primary); }
+@media (prefers-reduced-motion: reduce) { .tabla-oficina tbody tr[data-pulsable] { transition: none; } }
+
+/* TablaTarjetas en ≤ 640 px: lista de tarjetas de cristal (el cristal y la
+   marca de seleccionada van en línea). */
+.tt-tarjetas { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.tt-tarjeta { padding: 14px 16px; border-radius: var(--radius-card-lg); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.tt-tarjeta[data-pulsable] { cursor: pointer; }
+.tt-tarjeta-titulo { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.tt-tarjeta dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 13px; }
+.tt-tarjeta dt { color: var(--muted-foreground); }
+.tt-tarjeta dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.tt-tarjeta-detalle { font-size: 13px; overflow-wrap: anywhere; min-width: 0; }
+.tt-tarjeta-pie { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+
 @keyframes fila-nueva { from { background: var(--brand-subtle); } to { background: transparent; } }
 .fila-nueva { animation: fila-nueva 1.2s var(--ease-out) 1; }
 
@@ -36,7 +58,7 @@
 }
 
 .hoja-dos-columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
-@media (max-width: 760px) { .hoja-dos-columnas { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .hoja-dos-columnas { grid-template-columns: 1fr; } }
 
 /* Tarjeta punteada «Subir un estudio nuevo»: se enciende al apuntarla o enfocarla. */
 .tarjeta-nueva { border: 1px dashed color-mix(in srgb, var(--foreground) 18%, transparent); background: transparent; border-radius: var(--radius-card-lg); transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out); }

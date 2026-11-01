@@ -65,8 +65,8 @@ describe("cómo se nombra lo que se ha encontrado", () => {
     // Antes todas las filas llevaban 0.4 mm: una constante que el API declaraba
     // como «estimated vessel radius» y que nadie había medido.
     withSession({});
-    expect(await screen.findByText("⌀1.1")).toBeInTheDocument();
-    expect(screen.getByText("⌀1.8")).toBeInTheDocument();
+    expect(await screen.findByText("⌀1,1")).toBeInTheDocument();
+    expect(screen.getByText("⌀1,8")).toBeInTheDocument();
   });
 });
 
@@ -168,7 +168,7 @@ describe("when there is nothing to show", () => {
     perforators.mockResolvedValue({ ...result, candidates: [], high_count: 0, medium_count: 0 });
     withSession({});
     expect(await screen.findByText(/no resuelve un vaso/)).toBeInTheDocument();
-    expect(screen.getByText(/1\.0 mm/)).toBeInTheDocument();
+    expect(screen.getByText(/1,0 mm/)).toBeInTheDocument();
   });
 
   it("explains what to run first when the endpoint fails", async () => {

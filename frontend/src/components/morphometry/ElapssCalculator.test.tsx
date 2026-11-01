@@ -31,7 +31,7 @@ describe("ELAPSS", () => {
       session_id: "s1", population: "other", location: "ica_aca_acom", age_years: 68,
       size_mm: 7.7, earlier_sah: false, irregular: true,
     }));
-    expect(await screen.findByText("25.8 %")).toBeInTheDocument();
+    expect(await screen.findByText("25,8 %")).toBeInTheDocument();
     expect(screen.getByText(/de crecimiento a 3 años/)).toBeInTheDocument();
   });
 

@@ -47,7 +47,7 @@ describe("la línea central al reanudar", () => {
   it("con el tubo ya en el visor, pide las métricas y las enseña", async () => {
     render(<CenterlinePanel />);
     await waitFor(() => expect(getCenterline).toHaveBeenCalledWith("s"));
-    expect(await screen.findByText("1.110")).toBeInTheDocument();   // tortuosidad
+    expect(await screen.findByText("1,110")).toBeInTheDocument();   // tortuosidad
   });
 
   it("sin línea central no pide nada", () => {
@@ -75,7 +75,7 @@ describe("«Limpiar» la línea central", () => {
   it("con stent guiado pide confirmación, avisa del stent y no borra hasta confirmar", async () => {
     planning.deviceMeshes = { stent: "/m/cl_stent.vtp" };
     render(<CenterlinePanel />);
-    await screen.findByText("1.110");
+    await screen.findByText("1,110");
     fireEvent.click(screen.getByRole("button", { name: "Limpiar" }));
     const dialogo = screen.getByRole("alertdialog", { name: "¿Limpiar la línea central?" });
     expect(dialogo).toHaveTextContent("stent guiado");

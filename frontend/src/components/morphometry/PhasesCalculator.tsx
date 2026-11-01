@@ -14,9 +14,10 @@ import { ageFromDob } from "../patientAge";
 import { CUT_WARN, DiameterSource } from "./DiameterSource";
 import {
   PHASES_AGE_MIN, PHASES_AGE_PTS, PHASES_CUTS, PHASES_HTN_PTS, PHASES_POP_PTS, PHASES_SAH_PTS,
-  PHASES_SITE_PTS, mm, nearCut, phasesLabel, phasesSizePoints,
+  PHASES_SITE_PTS, nearCut, phasesLabel, phasesSizePoints,
 } from "./diameterCut";
 import { InheritedSite } from "./InheritedSite";
+import { cifra } from "../../lib/numero";
 import { isSiteKnown, siteFor } from "./thresholds";
 
 const POPULATIONS: { value: PhasesPopulation; label: string }[] = [
@@ -100,7 +101,7 @@ export function PhasesCalculator({
       alto = body != null && body >= corte ? body : Math.round((sizeNum + 1) * 10) / 10;
     }
     avisoCorte =
-      `El tamaño (${mm(sizeNum)} mm) está junto al corte de ${corte} mm: con ${mm(bajo)} mm el PHASES ` +
+      `El tamaño (${cifra(sizeNum)} mm) está junto al corte de ${corte} mm: con ${cifra(bajo)} mm el PHASES ` +
       `baja de ${resto + phasesSizePoints(alto)} a ${resto + phasesSizePoints(bajo)} puntos.`;
   }
 
@@ -193,7 +194,7 @@ export function PhasesCalculator({
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 20, fontWeight: 800, color: BAND_COLOR[result.risk_band] }}>
-                {mm(result.risk_5yr_pct)} %
+                {cifra(result.risk_5yr_pct)} %
               </div>
               {/* El mismo rótulo que Decisión y el PDF, con la tabla de la que sale. */}
               <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>

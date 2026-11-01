@@ -14,6 +14,7 @@ import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
 import { PanelFooter } from "../PanelFooter";
 import { usePlanning } from "../../store/planning";
+import { cifra } from "../../lib/numero";
 
 /* Recorre recursivamente las entradas de un drop (FileSystemEntry API) para
    que arrastrar una CARPETA suba todos los .dcm de dentro — el navegador no
@@ -332,7 +333,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
                     acquisitions): label each one so they can be told apart. */}
                 {planning.seriesList.map((s, i) => (
                   <option key={s.series_id} value={s.series_id}>
-                    {i + 1}. {seriesLabel(s)} · {s.slices} cortes · {s.spacing.z.toFixed(2)} mm
+                    {i + 1}. {seriesLabel(s)} · {s.slices} cortes · {cifra(s.spacing.z, 2)} mm
                     {s.is_projection ? " · ⚠ proyección 2D" : ""}
                   </option>
                 ))}
@@ -348,7 +349,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
           <Metric label="Cortes" value={series.slices} />
           <Metric
             label="Espaciado"
-            value={`${series.spacing.x.toFixed(2)} × ${series.spacing.y.toFixed(2)} × ${series.spacing.z.toFixed(2)}`}
+            value={`${cifra(series.spacing.x, 2)} × ${cifra(series.spacing.y, 2)} × ${cifra(series.spacing.z, 2)}`}
             unit=" mm"
           />
           <Metric label="Descripción" value={seriesLabel(series)} />

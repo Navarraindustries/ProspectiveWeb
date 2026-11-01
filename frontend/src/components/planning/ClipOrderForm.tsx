@@ -30,6 +30,7 @@ import { seriesAndShape, shapeLabel } from "./clipShape";
 import { forceWithBand } from "./clipForce";
 import { surgeonPrefill } from "../../lib/cirujano";
 import { useAuth } from "../../store/auth";
+import { cifra } from "../../lib/numero";
 
 const STATUS_VARIANT: Record<OrderStatus, "default" | "secondary" | "outline" | "subtle" | "success" | "warning" | "destructive"> = {
   borrador: "outline",
@@ -237,7 +238,7 @@ export function ClipOrderForm({
   // La cuarta copia de la misma regla: esta acertaba, pero al lado de tres que
   // no, y una regla escrita cuatro veces se separa a la cuarta modificación.
   const currentLabel =
-    `NAVARRO™ ${seriesAndShape(shape, angle, window_)}, mordaza ${jaw.toFixed(1)} mm`;
+    `NAVARRO™ ${seriesAndShape(shape, angle, window_)}, mordaza ${cifra(jaw, 1)} mm`;
 
   /** Cambiar de serie tiene que dejar los demás campos en un valor que esa
       serie admita. Sin esto el título decía «Angulado 0°» mientras el
@@ -311,12 +312,12 @@ export function ClipOrderForm({
         <SectionLabel>De dónde salen las medidas</SectionLabel>
         <Card>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Field label="Cuello" value={`${pre.neck_mm.toFixed(2)} mm`} />
-            <Field label="Altura domo" value={`${pre.dome_height_mm.toFixed(2)} mm`} />
-            <Field label="Ø máximo" value={`${pre.max_diameter_mm.toFixed(2)} mm`} />
+            <Field label="Cuello" value={`${cifra(pre.neck_mm, 2)} mm`} />
+            <Field label="Altura domo" value={`${cifra(pre.dome_height_mm, 2)} mm`} />
+            <Field label="Ø máximo" value={`${cifra(pre.max_diameter_mm, 2)} mm`} />
             <Field
               label="Vaso padre"
-              value={pre.parent_artery_mm > 0 ? `${pre.parent_artery_mm.toFixed(2)} mm` : "sin medir"}
+              value={pre.parent_artery_mm > 0 ? `${cifra(pre.parent_artery_mm, 2)} mm` : "sin medir"}
             />
           </div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 10, lineHeight: 1.5 }}>
@@ -427,7 +428,7 @@ export function ClipOrderForm({
 
           {outsideRange && jawIsFree && (
             <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 10, lineHeight: 1.5 }}>
-              Una mordaza de {jaw.toFixed(1)} mm queda fuera del rango dibujado
+              Una mordaza de {cifra(jaw, 1)} mm queda fuera del rango dibujado
               ({Math.min(...pre.stock_sizes_mm)}–{Math.max(...pre.stock_sizes_mm)} mm): el
               perfil se extiende más allá de cualquier talla diseñada, no se interpola
               entre dos.
@@ -692,7 +693,7 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
           fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)",
         }}>
           {order.series} {shapeLabel(order.shape, order.angle_deg, order.window_mm)} ·
-          mordaza {order.jaw_mm.toFixed(1)} mm · {order.total_pieces} pieza(s)
+          mordaza {cifra(order.jaw_mm, 1)} mm · {order.total_pieces} pieza(s)
           {order.workshop_name ? ` · ${order.workshop_name}` : ""}
         </span>
       </div>
@@ -708,7 +709,7 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
           fontSize: 11, marginTop: 4, fontFamily: "var(--font-mono)",
           color: outOfSpec ? "var(--destructive)" : "var(--success)",
         }}>
-          Medido: mordaza {r.measured_jaw_mm?.toFixed(2)} mm · fuerza {r.measured_force_g?.toFixed(0)} g
+          Medido: mordaza {cifra(r.measured_jaw_mm, 2)} mm · fuerza {r.measured_force_g?.toFixed(0)} g
           {outOfSpec ? " — fuera de especificación" : " — dentro de especificación"}
         </div>
       )}

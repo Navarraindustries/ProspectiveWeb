@@ -27,7 +27,7 @@ describe("dimensionado de WEB", () => {
     expect(await screen.findByText("WEB SL 7×5")).toBeInTheDocument();
     expect(screen.getByText("WEB SL 8×4")).toBeInTheDocument();
     expect(screen.getByText("Dentro de la indicación aprobada")).toBeInTheDocument();
-    expect(screen.getByText("DAV 1.70")).toBeInTheDocument();
+    expect(screen.getByText("DAV 1,70")).toBeInTheDocument();
     expect(screen.getByText(/por debajo del \+1 de la regla/)).toBeInTheDocument();
   });
 

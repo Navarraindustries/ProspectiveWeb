@@ -416,7 +416,7 @@ describe("DevicesPanel · campo del clip", () => {
     vi.mocked(api.placedDevices).mockResolvedValueOnce({ cleared: [], remaining: ["clips"], meshes_removed: 0, mesh_urls: { clips: "/m/clips.vtp?v=9" } });
     render(<PlanningProvider><Reanudada><DevicesPanel onNext={() => {}} /></Reanudada></PlanningProvider>);
     fireEvent.click(await screen.findByText("Colocar"));
-    expect(await screen.findByText(/77\.0/)).toBeInTheDocument();
+    expect(await screen.findByText(/77,0/)).toBeInTheDocument();
     act(() => { vi.advanceTimersByTime(400); });
     expect(api.planClips).not.toHaveBeenCalled();
   });

@@ -17,6 +17,7 @@ import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { SectionLabel, Card } from "../PanelHead";
 import { usePlanning } from "../../store/planning";
+import { cifra } from "../../lib/numero";
 
 export function PerforatorsPanel() {
   const { sessionId, setPerforators, visiblePerforators, togglePerforator, setVisiblePerforators } = usePlanning();
@@ -81,7 +82,7 @@ export function PerforatorsPanel() {
           {result.calibre_floor_mm > 0 && (
             <>
               <br />
-              No son perforantes: por debajo de {result.calibre_floor_mm.toFixed(1)} mm de
+              No son perforantes: por debajo de {cifra(result.calibre_floor_mm, 1)} mm de
               diámetro la imagen no resuelve un vaso, y una perforante mide 0,1–0,5 mm.
             </>
           )}
@@ -97,7 +98,7 @@ export function PerforatorsPanel() {
           <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
             Ninguna rama visible cerca del cuello.
             {result.calibre_floor_mm > 0 && (
-              <> Esto no dice que no las haya: por debajo de {result.calibre_floor_mm.toFixed(1)} mm
+              <> Esto no dice que no las haya: por debajo de {cifra(result.calibre_floor_mm, 1)} mm
               de diámetro esta imagen no resuelve un vaso.</>
             )}
           </div>
@@ -114,7 +115,7 @@ export function PerforatorsPanel() {
               title={
                 active
                   ? `Quitar el resalte de ${p.id} en el visor 3D`
-                  : `Resaltar ${p.id} en el visor 3D (${p.distance_to_neck_mm.toFixed(1)} mm del cuello)`
+                  : `Resaltar ${p.id} en el visor 3D (${cifra(p.distance_to_neck_mm, 1)} mm del cuello)`
               }
               onClick={() => togglePerforator(p.id)}
               style={{
@@ -145,13 +146,13 @@ export function PerforatorsPanel() {
                 style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}
                 title="Calibre del vaso, medido sobre la malla"
               >
-                ⌀{(p.radius_mm * 2).toFixed(1)}
+                ⌀{cifra(p.radius_mm * 2, 1)}
               </span>
               <span
                 style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }}
                 title="Distancia al cuello del aneurisma"
               >
-                {p.distance_to_neck_mm.toFixed(1)} mm
+                {cifra(p.distance_to_neck_mm, 1)} mm
               </span>
               {/* F1-167: «Medio» solo no decía de qué: es el riesgo de
                   pinzar esa rama con el clip, por su distancia al cuello. */}

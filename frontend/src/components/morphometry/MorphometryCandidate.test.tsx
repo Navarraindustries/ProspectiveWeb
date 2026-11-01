@@ -57,20 +57,20 @@ describe("morfometría del candidato elegido", () => {
       medida(id ?? "cand-001", id === "cand-002" ? 3.3 : 7.7));
     render(<PlanningProvider><Seed><MorphometryPanel onNext={() => {}} /></Seed></PlanningProvider>);
 
-    expect(await screen.findByText("7.7")).toBeInTheDocument();
+    expect(await screen.findByText("7,7")).toBeInTheDocument();
     expect(vi.mocked(api.morphometry)).toHaveBeenLastCalledWith("s1", "cand-001");
 
     act(() => store!.setSelectedCandidate(1));
     // La medida vieja se va del store en el mismo cambio: no se enseña la de cand-001.
     expect(store!.morphometry === null || store!.morphometry.candidate_id === "cand-002").toBe(true);
-    expect(await screen.findByText("3.3")).toBeInTheDocument();
-    expect(screen.queryByText("7.7")).toBeNull();
+    expect(await screen.findByText("3,3")).toBeInTheDocument();
+    expect(screen.queryByText("7,7")).toBeNull();
     expect(vi.mocked(api.morphometry)).toHaveBeenLastCalledWith("s1", "cand-002");
 
     // Volver a elegir el mismo candidato no vuelve a medir.
     const n = vi.mocked(api.morphometry).mock.calls.length;
     act(() => store!.setSelectedCandidate(1));
-    await waitFor(() => expect(screen.getByText("3.3")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("3,3")).toBeInTheDocument());
     expect(vi.mocked(api.morphometry).mock.calls.length).toBe(n);
   });
 });

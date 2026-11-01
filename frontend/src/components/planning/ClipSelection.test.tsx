@@ -352,7 +352,7 @@ describe("la mordaza mínima que pide el cuello", () => {
   it("enseña el mínimo y dice que sale de la regla del cuello aplastado", async () => {
     clipSelection.mockResolvedValue(result());
     render(<ClipSelectionPanel sessionId="s1" />);
-    expect(await screen.findByText("9.0 mm")).toBeInTheDocument();
+    expect(await screen.findByText("9,0 mm")).toBeInTheDocument();
     expect(screen.getByText(/regla del cuello aplastado/)).toBeInTheDocument();
   });
 
@@ -367,7 +367,7 @@ describe("la mordaza mínima que pide el cuello", () => {
       },
     }));
     render(<ClipSelectionPanel sessionId="s1" />);
-    expect(await screen.findByText("7.1 mm")).toBeInTheDocument();
+    expect(await screen.findByText("7,1 mm")).toBeInTheDocument();
     expect(screen.getByText(/medida sobre el contorno del cuello/)).toBeInTheDocument();
     expect(screen.queryByText(/regla del cuello aplastado/)).not.toBeInTheDocument();
   });
@@ -420,7 +420,7 @@ describe("el montaje de varios clips", () => {
     clipSelection.mockResolvedValue(result({ outcome: "manufacture", multiclip: MONTAJE }));
     const { container } = render(<ClipSelectionPanel sessionId="s1" />);
     await screen.findByText(/O un montaje de varios clips/);
-    expect(container.textContent).toMatch(/cubre 30\.0 mm de los 30\.0 mm/);
+    expect(container.textContent).toMatch(/cubre 30,0 mm de los 30,0 mm/);
     expect(screen.getByText(/solapadas/)).toBeInTheDocument();
   });
 
@@ -545,7 +545,7 @@ describe("tarjetas de la selección (F1-194, F1-195)", () => {
     expect(await screen.findByText(/3\.0 mm de margen/)).toBeInTheDocument();
     // La segunda se ve por su nombre y su forma, sin los criterios.
     expect(screen.getByText("Sugita Curvo 12mm")).toBeInTheDocument();
-    expect(screen.getByText(/Curvo · mordaza 12\.0 mm/)).toBeInTheDocument();
+    expect(screen.getByText(/Curvo · mordaza 12,0 mm/)).toBeInTheDocument();
     expect(screen.queryByText(/6\.0 mm de margen/)).toBeNull();
     const [primera, segunda] = screen.getAllByRole("button")
       .filter((b) => b.hasAttribute("aria-expanded"));

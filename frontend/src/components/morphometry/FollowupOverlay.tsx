@@ -11,8 +11,8 @@ import type { FollowupResult, FollowupStudy } from "../../api/types";
 import { Button } from "../Button";
 import { ErrorNote, SectionLabel } from "../PanelHead";
 import { usePlanning } from "../../store/planning";
+import { cifra, mm } from "../../lib/numero";
 
-const mm = (v: number) => `${v.toFixed(2)} mm`;
 
 export function FollowupOverlay({ sessionId }: { sessionId: string }) {
   const { followup, setFollowup } = usePlanning();
@@ -83,18 +83,18 @@ export function FollowupOverlay({ sessionId }: { sessionId: string }) {
         <div style={{ marginTop: 12, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: crecio ? "var(--warning)" : "var(--foreground)" }}>
             {crecio
-              ? `Ha crecido hasta ${mm(r.max_growth_mm)} en ${r.grew_area_pct.toFixed(0)} % de la lesión`
+              ? `Ha crecido hasta ${mm(r.max_growth_mm, 2)} en ${r.grew_area_pct.toFixed(0)} % de la lesión`
               : "Sin crecimiento distinguible del ruido"}
           </div>
           {/* La barra de color, con la franja gris del ruido en medio. */}
           <div aria-hidden style={{ height: 8, borderRadius: 4, margin: "8px 0 2px",
                                     background: "linear-gradient(90deg, #2659d9, #c7ccd1 40%, #c7ccd1 60%, #e0331f)" }} />
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--muted-foreground)" }}>
-            <span>encogió</span><span>± {mm(r.noise_mm)} = ruido</span><span>creció</span>
+            <span>encogió</span><span>± {mm(r.noise_mm, 2)} = ruido</span><span>creció</span>
           </div>
           <div style={{ fontSize: 11.5, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.6 }}>
-            Encaje de los vasos de alrededor: residuo mediano {mm(r.residual_median_mm)}, giro corregido {r.rotation_deg.toFixed(1)}°.
-            {r.max_shrink_mm > r.noise_mm && <> Encogió hasta {mm(r.max_shrink_mm)} en algún punto.</>}
+            Encaje de los vasos de alrededor: residuo mediano {mm(r.residual_median_mm, 2)}, giro corregido {cifra(r.rotation_deg, 1)}°.
+            {r.max_shrink_mm > r.noise_mm && <> Encogió hasta {mm(r.max_shrink_mm, 2)} en algún punto.</>}
             {r.volume_prev_mm3 != null && r.volume_curr_mm3 != null && (
               <> Volumen del saco: {r.volume_prev_mm3.toFixed(0)} → {r.volume_curr_mm3.toFixed(0)} mm³.</>
             )}

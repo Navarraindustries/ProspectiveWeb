@@ -1,6 +1,7 @@
 /* DiameterChart — inline SVG profile of vessel diameter (mm) vs arc position
    along the centreline. Highlights the narrowest point (stenosis). Theme-aware. */
 import { useRef } from "react";
+import { cifra } from "../../lib/numero";
 
 // El panel lleva el cursor al punto de la línea central más cercano (remuestreada
 // cada 0,5 mm), así que tras elegir una muestra el cursor puede quedar hasta
@@ -98,7 +99,7 @@ export function DiameterChart({ arc, diameters, meanDiameter, onPick, cursorArcM
       {/* mean reference line */}
       <line x1={P.l} y1={sy(meanDiameter)} x2={P.l + iw} y2={sy(meanDiameter)} stroke="var(--muted-foreground)" strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
       <text x={P.l + iw} y={sy(meanDiameter) - 3} textAnchor="end" fontSize={9} fill="var(--muted-foreground)">
-        media {meanDiameter.toFixed(1)}
+        media {cifra(meanDiameter, 1)}
       </text>
 
       {/* diameter profile */}
@@ -107,7 +108,7 @@ export function DiameterChart({ arc, diameters, meanDiameter, onPick, cursorArcM
       {/* narrowest point */}
       <circle cx={sx(arc[minIdx])} cy={sy(dMin)} r={3.5} fill="var(--destructive)" />
       <text x={sx(arc[minIdx])} y={sy(dMin) + 14} textAnchor="middle" fontSize={9} fill="var(--destructive)">
-        {dMin.toFixed(1)} mm
+        {cifra(dMin, 1)} mm
       </text>
 
       {/* y ticks */}

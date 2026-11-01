@@ -10,6 +10,7 @@ import { api } from "../../api/client";
 import type { FdLandingZone, FdSizingResult } from "../../api/types";
 import { Button } from "../Button";
 import { Card, ErrorNote, SectionLabel } from "../PanelHead";
+import { cifra } from "../../lib/numero";
 
 function zona(nombre: string, z: FdLandingZone) {
   return (
@@ -18,7 +19,7 @@ function zona(nombre: string, z: FdLandingZone) {
         {nombre}
       </div>
       <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 700 }}>
-        {z.diameter_mm > 0 ? `${z.diameter_mm.toFixed(2)} mm` : "sin medir"}
+        {z.diameter_mm > 0 ? `${cifra(z.diameter_mm, 2)} mm` : "sin medir"}
       </div>
       {/* F1-208: el calibre dice dónde se mide. Es la mediana de los cortes
           en el anclaje, no la arteria portadora en el cuello ni la media del
@@ -28,7 +29,7 @@ function zona(nombre: string, z: FdLandingZone) {
       </div>
       {z.diameter_mm > 0 && (
         <div style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>
-          {z.min_mm.toFixed(2)}–{z.max_mm.toFixed(2)} · {z.n_sections} cortes
+          {cifra(z.min_mm, 2)}–{cifra(z.max_mm, 2)} · {z.n_sections} cortes
         </div>
       )}
     </div>
@@ -78,10 +79,10 @@ export function FdSizing({
             {zona("Anclaje distal", r.distal)}
           </div>
           <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-            Cuello a lo largo del vaso: {r.neck_arc_mm[0].toFixed(1)}–{r.neck_arc_mm[1].toFixed(1)} mm
+            Cuello a lo largo del vaso: {cifra(r.neck_arc_mm[0], 1)}–{cifra(r.neck_arc_mm[1], 1)} mm
             {r.neck_from_rim ? " (del borde marcado)" : " (del ancho del cuello)"}.
             Hace falta cubrir <b style={{ color: "var(--foreground)" }}>{r.required_length_mm.toFixed(0)} mm</b>
-            {r.mismatch_mm > 0 ? `; diferencia proximal–distal ${r.mismatch_mm.toFixed(2)} mm.` : "."}
+            {r.mismatch_mm > 0 ? `; diferencia proximal–distal ${cifra(r.mismatch_mm, 2)} mm.` : "."}
           </div>
 
           {r.warnings.map((w) => (
@@ -100,7 +101,7 @@ export function FdSizing({
                   <div style={{ flex: 1 }} />
                   {o.fits && (
                     <span style={{ fontFamily: "var(--font-mono)", fontSize: 13 }}>
-                      Ø{o.diameter_mm.toFixed(2)} × {o.length_mm.toFixed(0)} mm
+                      Ø{cifra(o.diameter_mm, 2)} × {o.length_mm.toFixed(0)} mm
                     </span>
                   )}
                 </div>

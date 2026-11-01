@@ -102,7 +102,7 @@ describe("el nombre del fichero descargado", () => {
 describe("el peso", () => {
   it("se lee de un vistazo", () => {
     expect(humanSize(512000)).toBe("500 KB");
-    expect(humanSize(2_400_000)).toBe("2.4 MB");
+    expect(humanSize(2_400_000)).toBe("2,4 MB");
     expect(humanSize(0)).toBe("");
   });
 });

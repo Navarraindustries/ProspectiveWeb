@@ -1,5 +1,6 @@
 /* Textos del panel de detección. Puro: sin React ni estado, para que la copia
    se pruebe y se cambie en un solo sitio. */
+import { cifra } from "../../lib/numero";
 
 /** Nota bajo un candidato descartado cuando es el elegido, con su motivo.
  *  La etiqueta va entre comillas y tal cual: algunas son frases («No es
@@ -48,8 +49,7 @@ export const DETECT_MORE: readonly string[] = [
  *  grosor que el detector estimó en ese punto. Coma decimal, como el resto
  *  de la copia en español. */
 export function thicknessLabel(mm: number): string {
-  const n = mm.toLocaleString("es", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  return `≈${n} mm de grosor local`;
+  return `≈${cifra(mm)} mm de grosor local`;
 }
 
 /** Canal del saco pequeño (30-10, informe §4.20): el consenso le reserva el

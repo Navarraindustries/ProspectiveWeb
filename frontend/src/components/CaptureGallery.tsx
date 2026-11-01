@@ -20,6 +20,7 @@ import { Card, ErrorNote, SectionLabel } from "./PanelHead";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon } from "./Icon";
 import { desdeServidor, fechaHora, type OpcionesFecha } from "../lib/fecha";
+import { cifra } from "../lib/numero";
 
 /** Nombre del fichero al descargar: legible y sin datos del paciente. */
 export function downloadName(
@@ -54,7 +55,7 @@ export function formatDuration(s: number): string {
 /** Peso legible, para que se vea cuánto ocupa lo que se va acumulando. */
 export function humanSize(bytes: number): string {
   if (!bytes) return "";
-  return bytes >= 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+  return bytes >= 1e6 ? `${cifra(bytes / 1e6, 1)} MB` : `${Math.round(bytes / 1024)} KB`;
 }
 
 export function CaptureGallery({

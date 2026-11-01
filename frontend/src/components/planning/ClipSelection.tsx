@@ -23,6 +23,7 @@ import { Button } from "../Button";
 import { Card, Collapsible, ErrorNote, SectionLabel } from "../PanelHead";
 import { Slider } from "../Slider";
 import { shapeWithBend } from "./clipShape";
+import { cifra } from "../../lib/numero";
 
 const VERDICT_MARK: Record<ClipVerdict, string> = { ok: "✓", warn: "!", fail: "✕" };
 const VERDICT_COLOR: Record<ClipVerdict, string> = {
@@ -118,7 +119,7 @@ function CandidateCard({
 
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", marginTop: 2 }}>
         {shapeWithBend(cand.shape, cand.bend_angle_deg)}
-        {" · mordaza "}{cand.blade_length_mm.toFixed(1)} mm ·{" "}
+        {" · mordaza "}{cifra(cand.blade_length_mm, 1)} mm ·{" "}
         {/* Una banda es una banda: quedarse con el punto medio inventaría una
             precisión que la pieza todavía no tiene. */}
         {cand.closing_force_max_g > cand.closing_force_min_g
@@ -366,8 +367,8 @@ export function ClipSelectionPanel({
         </div>
         {sel.case.neck_mm > 0 && (
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", marginTop: 4 }}>
-            cuello {sel.case.neck_mm.toFixed(2)} mm · AR {sel.case.ar.toFixed(2)}
-            {sel.case.parent_artery_mm > 0 && ` · vaso padre ${sel.case.parent_artery_mm.toFixed(2)} mm`}
+            cuello {cifra(sel.case.neck_mm, 2)} mm · AR {cifra(sel.case.ar, 2)}
+            {sel.case.parent_artery_mm > 0 && ` · vaso padre ${cifra(sel.case.parent_artery_mm, 2)} mm`}
             {sel.case.region && ` · ${sel.case.region}`}
           </div>
         )}
@@ -401,7 +402,7 @@ export function ClipSelectionPanel({
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
             Mordaza mínima{" "}
             <b style={{ color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
-              {sel.case.required_jaw_mm.toFixed(1)} mm
+              {cifra(sel.case.required_jaw_mm, 1)} mm
             </b>
             {sel.case.required_jaw_source === "perimeter"
               ? " — medida sobre el contorno del cuello"
@@ -485,8 +486,8 @@ export function ClipSelectionPanel({
             <b>{sel.multiclip.label}</b>
           </div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", marginTop: 4 }}>
-            cubre {sel.multiclip.covered_mm.toFixed(1)} mm de los{" "}
-            {sel.multiclip.required_mm.toFixed(1)} mm que mide el cuello aplastado
+            cubre {cifra(sel.multiclip.covered_mm, 1)} mm de los{" "}
+            {cifra(sel.multiclip.required_mm, 1)} mm que mide el cuello aplastado
           </div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
             Las hojas van <b>solapadas</b>, no adosadas: dejarlas tocándose por la

@@ -33,10 +33,10 @@ describe("dimensionado de flow-diverter", () => {
     vi.mocked(api.fdSizing).mockResolvedValue(resultado);
     render(<FdSizing sessionId="s1" onApply={() => {}} />);
     fireEvent.click(screen.getByText("Dimensionar"));
-    expect(await screen.findByText("4.50 mm")).toBeInTheDocument();
-    expect(screen.getByText("3.00 mm")).toBeInTheDocument();
+    expect(await screen.findByText("4,50 mm")).toBeInTheDocument();
+    expect(screen.getByText("3,00 mm")).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(/varios/);
-    expect(screen.getByText("Ø4.50 × 16 mm")).toBeInTheDocument();
+    expect(screen.getByText("Ø4,50 × 16 mm")).toBeInTheDocument();
     expect(screen.getByText(/sobredimensionado 1.50 mm/)).toBeInTheDocument();
     expect(screen.getByText("Ninguna medida encaja")).toBeInTheDocument();
     // Solo la opción que encaja se puede llevar al despliegue.

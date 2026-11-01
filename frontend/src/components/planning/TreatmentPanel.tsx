@@ -22,6 +22,7 @@ import { InheritedSite } from "../morphometry/InheritedSite";
 import { NEEDS_MORPHOMETRY } from "../../pipeline/steps";
 import { TeamDecisionCard } from "./TeamDecisionCard";
 import type { DecisionFactor } from "../../api/types";
+import { cifra } from "../../lib/numero";
 
 /** La primera letra en minúscula, para una frase que sigue a dos puntos. */
 function minuscula(s: string): string {
@@ -124,17 +125,15 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
 
   const t = treatment;
 
-  // Coma decimal, como el resto del panel.
-  const n1 = (v: number, d = 1) => v.toLocaleString("es-ES", { minimumFractionDigits: d, maximumFractionDigits: d });
   // Geometría que el panel ya tiene (morfometría): solo lo que se midió.
   const m = planning.morphometry;
   const geometria: [string, string, string?][] = [];
   // Como en Morfometría: el cuello y lo que depende de él solo si el cuello es válido.
   const neckOk = m ? (m.neck_valid ?? m.reliable) : false;
-  if (m && Number.isFinite(m.neck_mm)) geometria.push(neckOk ? ["Cuello", n1(m.neck_mm), " mm"] : ["Cuello", "—"]);
-  if (m && Number.isFinite(m.dnr)) geometria.push(neckOk ? ["Relación domo-cuello", n1(m.dnr, 2)] : ["Relación domo-cuello", "—"]);
-  if (m && Number.isFinite(m.dome_height_mm)) geometria.push(neckOk ? ["Altura del domo", n1(m.dome_height_mm), " mm"] : ["Altura del domo", "—"]);
-  if (m && Number.isFinite(m.max_diameter_mm)) geometria.push(["Ø máximo", n1(m.max_diameter_mm), " mm"]);
+  if (m && Number.isFinite(m.neck_mm)) geometria.push(neckOk ? ["Cuello", cifra(m.neck_mm), " mm"] : ["Cuello", "—"]);
+  if (m && Number.isFinite(m.dnr)) geometria.push(neckOk ? ["Relación domo-cuello", cifra(m.dnr, 2)] : ["Relación domo-cuello", "—"]);
+  if (m && Number.isFinite(m.dome_height_mm)) geometria.push(neckOk ? ["Altura del domo", cifra(m.dome_height_mm), " mm"] : ["Altura del domo", "—"]);
+  if (m && Number.isFinite(m.max_diameter_mm)) geometria.push(["Ø máximo", cifra(m.max_diameter_mm), " mm"]);
 
   return (
     <div className="fade-rise">

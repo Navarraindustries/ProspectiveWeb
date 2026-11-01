@@ -74,7 +74,7 @@ describe("Morfometría con un candidato marcado a mano", () => {
       candidate_id: "cand-004", origin: { x: 0, y: 3, z: 0 },
     })));
     // Las métricas se pintan y la nota se va.
-    expect(await screen.findByText("3.1")).toBeInTheDocument();
+    expect(await screen.findByText("3,1")).toBeInTheDocument();
     expect(screen.queryByRole("note", { name: "Candidato marcado a mano" })).toBeNull();
   });
 

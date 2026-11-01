@@ -1,8 +1,9 @@
 import type { LogEntry } from "../../pipeline/sessionLog";
+import { cifra } from "../../lib/numero";
 
 const dos = (n: number) => String(n).padStart(2, "0");
 const hora = (d: Date) => `${dos(d.getHours())}:${dos(d.getMinutes())}:${dos(d.getSeconds())}`;
-const segundos = (ms: number) => (ms / 1000).toFixed(1).replace(".", ",");
+const segundos = (ms: number) => cifra(ms / 1000, 1);
 
 /** Lo que ha pasado en la sesión, una línea por hecho, en mono. */
 export function SessionLog({ entries }: { entries: LogEntry[] }) {

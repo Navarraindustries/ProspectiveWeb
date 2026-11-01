@@ -17,6 +17,7 @@ import { DiameterSource } from "./DiameterSource";
 import { UIATS_CUTS, isProvisional } from "./diameterCut";
 import { InheritedSite } from "./InheritedSite";
 import { AR_HIGH, SR_HIGH, isSiteKnown, siteFor } from "./thresholds";
+import { cifra } from "../../lib/numero";
 
 type Opt = [key: string, label: string, pts: number];
 
@@ -161,7 +162,7 @@ export function UiatsCalculator({
         {checks("morphology", MORPHOLOGY)}
         {pistaSrAr && !(sel.morphology?.has("sr_ar")) && (
           <div style={{ fontSize: 11, color: "var(--warning)" }}>
-            La morfometría da SR {m.sr.toFixed(2)} y AR {m.ar.toFixed(2)}: revisa si aplica.
+            La morfometría da SR {cifra(m.sr, 2)} y AR {cifra(m.ar, 2)}: revisa si aplica.
           </div>
         )}
         {checks("aneurysm_other", ANEURYSM_OTHER)}
@@ -179,7 +180,7 @@ export function UiatsCalculator({
           trombo, tortuosidad o estenosis proximal, una rama en el cuello o el saco, o &lt; 3 mm.
           {pistaComplejo && complexity === "low" && (
             <span style={{ color: "var(--warning)" }}> La morfometría sugiere complejidad alta (cuello
-              {" "}{m.neck_mm.toFixed(1)} mm{parent > 0 ? ` frente a ${parent.toFixed(1)} mm de arteria madre` : ""}).</span>
+              {" "}{cifra(m.neck_mm, 1)} mm{parent > 0 ? ` frente a ${cifra(parent, 1)} mm de arteria madre` : ""}).</span>
           )}
         </div>
       </div>

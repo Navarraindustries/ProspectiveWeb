@@ -198,9 +198,9 @@ describe("la pieza colocada en Dispositivos manda", () => {
     clipOrderPrefill.mockResolvedValue(colocado as never);
     draw();
     expect(await screen.findByText("NAVARRO™ T2 Curvo, mordaza 7.0 mm")).toBeInTheDocument();
-    expect(screen.getByText("7.0 mm")).toBeInTheDocument();
+    expect(screen.getByText("7,0 mm")).toBeInTheDocument();
     expect(screen.getByText("Curvo")).toBeInTheDocument();
-    expect(screen.queryByText("8.0 mm")).toBeNull();
+    expect(screen.queryByText("8,0 mm")).toBeNull();
     expect(screen.getByText(/Es el clip que colocaste en Dispositivos/)).toBeInTheDocument();
   });
 
@@ -208,7 +208,7 @@ describe("la pieza colocada en Dispositivos manda", () => {
     clipSelection.mockResolvedValue(result({ outcome: "stock", manufacture: selector }));
     clipOrderPrefill.mockResolvedValue({ can_order: false, reason: "", placed_in_plan: false } as never);
     draw();
-    expect(await screen.findByText("8.0 mm")).toBeInTheDocument();
+    expect(await screen.findByText("8,0 mm")).toBeInTheDocument();
     expect(screen.queryByText(/Es el clip que colocaste/)).toBeNull();
   });
 });

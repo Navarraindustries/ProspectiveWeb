@@ -1,3 +1,4 @@
+import { cifra } from "../../lib/numero";
 /* El Ø que entra en PHASES, ELAPSS y UIATS, y lo cerca que está de un corte.
 
    Case 3 mide 10,9 mm de Ø máximo y 9,5 de cuerpo: con uno el PHASES suma 10
@@ -29,7 +30,6 @@ export const UIATS_CUTS = [...new Set([...UIATS_DIAMETER_CUTS, ...UIATS_SIZE_RIS
 export const CUT_MARGIN_MM = 1;
 
 /** «10,9»: coma decimal, como lee la cifra el clínico. */
-export const mm = (x: number) => x.toFixed(1).replace(".", ",");
 
 /** El corte más cercano a menos de 1 mm, o null. */
 export function nearCut(x: number, cuts: readonly number[]): number | null {
@@ -67,5 +67,5 @@ export const PHASES_SITE_PTS = { ica: 0, mca: 2, aca_pcom_posterior: 4 } as cons
 
 /** «PHASES n · x,x % a 5 años (Greving 2014)», el rótulo de Decisión y del PDF. */
 export function phasesLabel(score: number, riskPct: number): string {
-  return `PHASES ${score} · ${mm(riskPct)} % a 5 años (Greving 2014)`;
+  return `PHASES ${score} · ${cifra(riskPct, 1)} % a 5 años (Greving 2014)`;
 }

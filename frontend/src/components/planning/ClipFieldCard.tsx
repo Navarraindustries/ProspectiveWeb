@@ -14,6 +14,7 @@ import { Badge } from "../Badge";
 import { Metric } from "../Metric";
 import { Card, SectionLabel } from "../PanelHead";
 import { CriterionChip } from "./ClipSelection";
+import { cifra } from "../../lib/numero";
 
 type BadgeVariant = "success" | "warning" | "destructive";
 
@@ -100,7 +101,7 @@ export function ClipFieldCard({
         <Metric
           wrapLabel
           label="Área pinzada estimada"
-          value={s.contact_area_mm2 > 0 ? `${s.contact_area_mm2.toFixed(1)} mm²` : "—"}
+          value={s.contact_area_mm2 > 0 ? `${cifra(s.contact_area_mm2, 1)} mm²` : "—"}
         />
       </div>
 

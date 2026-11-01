@@ -111,3 +111,16 @@ def test_informe_sin_sesion_adjunta_usa_la_historia_del_formulario():
         assert _paciente_auditoria(db, uuid.uuid4().hex, "HC-9") == {"patient_id": "HC-9"}
     finally:
         db.close()
+
+
+def test_cada_bloque_trae_su_paciente_y_el_borrado_queda_vacio():
+    p = _paciente()
+    _bloque(p, "CON_PACIENTE")
+    SkullChain.instance().append("SIN_COINCIDENCIA", {}, "admin", patient_id="HC-NO-EXISTE", patient_dob="1900-01-01")
+    todos = {b["action"]: b for b in admin.get("/api/audit/blocks").json()}
+    assert todos["CON_PACIENTE"]["patient_id"] == p.id
+    assert todos["CON_PACIENTE"]["patient_name"] != ""
+    assert todos["SIN_COINCIDENCIA"]["patient_id"] is None
+    assert todos["SIN_COINCIDENCIA"]["patient_name"] == ""
+    filtrado = admin.get(f"/api/audit/blocks?patient_id={p.id}").json()
+    assert all(b["patient_id"] == p.id for b in filtrado)

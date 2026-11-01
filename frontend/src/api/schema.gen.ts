@@ -3178,6 +3178,13 @@ export interface components {
             iso_ts: string;
             /** Patient Hash */
             patient_hash: string;
+            /** Patient Id */
+            patient_id?: number | null;
+            /**
+             * Patient Name
+             * @default
+             */
+            patient_name: string;
             /** Payload Json */
             payload_json: string;
             /** Prev Hash */

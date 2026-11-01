@@ -178,6 +178,8 @@ export interface AuditBlock {
   payload_json: string;
   block_hash: string;
   prev_hash: string;
+  patient_id: number | null;
+  patient_name: string;
 }
 
 export interface AuditVerifyResult {

@@ -78,3 +78,21 @@
 - [ ] **Step 1:** `npx vitest run` completo, `npx tsc -b` y `npm run build` verdes.
 - [ ] **Step 2:** Escribir la documentación.
 - [ ] **Step 3: Commit** — «Diseño: rediseño D completado; documentación de la interfaz».
+
+### Task 5: Restos diferidos de las fases 1–6 (se ejecuta antes de la tarea 4)
+
+Añadida por el controlador el 2026-10-31 con los menores visibles que las revisiones de las fases 1–6 aparcaron para el pulido.
+
+**Files:**
+- Modify: los componentes nombrados; sus tests
+
+**Interfaces:**
+- Consumes: tokens de `styles/tokens/*.css` (fase 1), `--hud-text`/`--hud-text-dim` (fase 4), `useMediaQuery` (fase 4).
+
+- [ ] **Step 1: Tokens y literales.** `components/planning/DevicesPanel.tsx` usa `var(--text-muted)`, que no existe (≈ líneas 1071, 1104, 1117, 1295): cámbialo por `var(--muted-foreground)`. Los `#000` que quedan en `HudLadder`, `ShortcutsSheet`, `MipView`, `ObliqueView` y la celda de `ViewerGrid` (y `CapturePicker` si es fondo de imagen) pasan a un token (`--viewer-bg` u otro existente del visor; si no hay, se crea en `colors.css` con el mismo valor en los dos temas). Añade a `tokens.test.ts` un test que falle si un `var(--nombre)` usado en `src/**/*.tsx|ts|css` no está definido en `styles/tokens/*.css` ni en otra hoja (`base.css`, `landing.css`, `office.css`…) ni en un `style` en línea (`"--nombre":`).
+- [ ] **Step 2: Glifos.** Las flechas y `≥ ≤ ≈ → ←` caen a la fuente del sistema porque los paquetes de fontsource cargan solo el subconjunto latín: importa además el subconjunto que los contiene (`latin-ext` no basta; fontsource expone `symbols`/`math` o el fichero «-all» según el paquete; comprueba qué hay en `node_modules/@fontsource*/inter` y `jetbrains-mono`). Si el subconjunto no existe, documenta el hallazgo en el informe y no hagas nada más.
+- [ ] **Step 3: Migas del quirófano.** La fase 4 dejó de enseñar el número de historia clínica (HC) del paciente en las migas del pipeline: vuelve a mostrarlo junto al nombre si el paciente lo tiene (mira cómo lo pintaba `main` antes de la fase 4 con `git log -S "hc" -- frontend/src/pages`), con test.
+- [ ] **Step 4: Oficina.** El `aria-label` de la sección «Cuentas pendientes» tapa su contador para lectores de pantalla (que el nombre accesible incluya la cifra, o quitar el aria-label si el texto visible basta); doble línea bajo la cabecera de la tabla de Usuarios (`borderBottom` del `th` + `border-top` de `office.css`): deja una.
+- [ ] **Step 5: Landing.** Entre 761 y ~800 px la pastilla de la nav se parte en dos filas: sube el punto de plegado a la anchura donde ya no cabe (actualiza `NavPildora.test` y el `@media` correspondiente); el menú plegado se cierra también al tocar fuera y al hacer scroll.
+- [ ] **Step 6: Tests** de cada arreglo; `npx vitest run` de los ficheros tocados y `npx tsc -b`.
+- [ ] **Step 7: Commit** — «Pulido D: restos de las fases 1–6».

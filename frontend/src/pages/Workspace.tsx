@@ -494,10 +494,15 @@ export function Workspace({
         zIndex={estrecho ? Z_SOBRE_HOJA : 3}
       />
 
-      {/* Visor: ocupa la zona libre (ni bajo el inspector ni bajo las pastillas). */}
+      {/* Visor: ocupa la zona libre (ni bajo el inspector ni bajo las pastillas).
+          `isolation: isolate` encierra las capas internas del visor (asa de
+          celda z 7, cine y preajustes z 6, botones z 5): sin ello competían con
+          los avisos, el menú de usuario, la hoja inferior y el dock. La hoja de
+          atajos, que sí debe taparlo todo, se pinta en un portal a <body>. */}
       <div data-zona-libre
            style={{
              position: "absolute", display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0,
+             isolation: "isolate",
              // Ancho: el dock (76 px de alto a 20 del borde) tapa 96 px de la esquina.
              // Estrecho: el dock compacto (52 px) va 12 px sobre la zona libre, que acaba en la hoja.
              "--dock-holgura": estrecho ? "72px" : "96px",

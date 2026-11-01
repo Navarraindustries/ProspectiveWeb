@@ -9,6 +9,13 @@ describe("ShortcutsSheet", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("abierta se pinta en document.body, fuera de la zona libre que aísla las capas del visor", () => {
+    const { container } = render(<div data-zona-libre style={{ isolation: "isolate" }}><ShortcutsSheet open onClose={vi.fn()} /></div>);
+    const fondo = screen.getByTestId("shortcuts-backdrop");
+    expect(fondo.parentElement).toBe(document.body);
+    expect(container.querySelector("[data-zona-libre]")?.contains(fondo)).toBe(false);
+  });
+
   it("renderiza las tres secciones con sus teclas", () => {
     render(<ShortcutsSheet open onClose={vi.fn()} />);
     const dlg = screen.getByRole("dialog", { name: "Atajos" });

@@ -5,6 +5,7 @@
    así que no puede quedarse desfasada. Sustituye a la pista efímera que «?»
    volvía a mostrar: aquella solo enseñaba los gestos de la celda principal. */
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { shortcutsByScope, type Shortcut, type ShortcutScope } from "../shortcuts";
 
 const HEADINGS: [ShortcutScope, string][] = [["visor", "Visor"], ["celda", "Celda"], ["flujo", "Flujo"], ["raton", "Ratón"]];
@@ -50,7 +51,10 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
   }, [open]);
   if (!open) return null;
   const groups = shortcutsByScope();
-  return (
+  // En un portal a <body>: el visor vive en la zona libre del quirófano, que
+  // aísla sus capas (isolation: isolate); dentro de ella su z 50 no pasaría de
+  // la zona y la hoja quedaría bajo las pastillas, el dock y el inspector.
+  return createPortal(
     <div data-testid="shortcuts-backdrop" onClick={onClose}
          style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div ref={cardRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Atajos" onClick={(e) => e.stopPropagation()}
@@ -75,6 +79,7 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

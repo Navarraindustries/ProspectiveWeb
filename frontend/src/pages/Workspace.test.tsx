@@ -220,6 +220,11 @@ describe("zona libre del visor", () => {
     expect((document.querySelector("[data-zona-libre]") as HTMLElement).style.right).toBe("568px");
   });
 
+  it("aísla sus capas: los z-index internos del visor no compiten con avisos, hoja ni dock", () => {
+    render_(2);
+    expect((document.querySelector("[data-zona-libre]") as HTMLElement).style.isolation).toBe("isolate");
+  });
+
   it("plegado el panel, el visor llega al borde", () => {
     localStorage.setItem("ws.panelCollapsed", "1");
     render_(2);

@@ -6,12 +6,14 @@
    acción viva junto al estado que la habilita. El espacio de trabajo no la usa
    en F2: conserva su barra superior y su carril. */
 
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Ambiente } from "../Ambiente";
 import { SideNav } from "./SideNav";
 import { TopBar } from "./TopBar";
 import type { Crumb } from "./TopBar";
 import { useShellState } from "./useShellState";
+import { useMovil } from "../../hooks/useEstrecho";
 import "./shell.css";
 
 export function AppShell({ crumbs, subtitle, status, actions, children }: {
@@ -23,16 +25,30 @@ export function AppShell({ crumbs, subtitle, status, actions, children }: {
   children: ReactNode;
 }) {
   const state = useShellState();
+  const movil = useMovil();
+  const [cajonAbierto, setCajonAbierto] = useState(false);
+  // Si la ventana crece por encima de 640 con el cajón abierto, vuelve el carril.
+  useEffect(() => { if (!movil) setCajonAbierto(false); }, [movil]);
   // Fija, la barra ocupa su columna (240 px) y el contenido se reparte el
   // resto; expandida solo por el ratón o Alt+B se superpone al contenido, para
   // que cruzarla no mueva la tabla que hay debajo. Por eso la rejilla mira
   // `pinned` y el ancho de la barra mira `expanded`.
   return (
     <Ambiente>
-      <div className="shell" data-pinned={state.pinned ? "true" : "false"}>
-        <SideNav state={state} />
+      <div className="shell" data-pinned={state.pinned ? "true" : "false"} data-movil={movil ? "true" : undefined}>
+        {!movil && <SideNav state={state} />}
+        {movil && (
+          <SideNav state={state} modo="cajon" abierto={cajonAbierto} onCerrar={() => setCajonAbierto(false)} />
+        )}
         <div className="shell-body">
-          <TopBar crumbs={crumbs} subtitle={subtitle} status={status} actions={actions} />
+          <TopBar
+            crumbs={crumbs}
+            subtitle={subtitle}
+            status={status}
+            actions={actions}
+            onAbrirSecciones={movil ? () => setCajonAbierto(true) : undefined}
+            seccionesAbiertas={cajonAbierto}
+          />
           <main className="shell-main">{children}</main>
         </div>
       </div>

@@ -209,7 +209,7 @@
 }
 .shell-nav-user-role {
   color: var(--muted-foreground);
-  font-size: 11px;
+  font-size: 13px;
 }
 .shell-nav[data-expanded="false"] .shell-nav-user {
   flex-direction: column;
@@ -531,3 +531,43 @@
 .page-body[data-modo="pantalla"] > .page-body__ancho { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 24px 32px; }
 @media (max-width: 1024px) { .page-body__ancho { padding: 24px 24px 40px; } .page-body[data-modo="pantalla"] > .page-body__ancho { padding: 20px 24px; } }
 @media (max-width: 640px)  { .page-body__ancho { padding: 16px 16px 32px; } .page-body[data-modo="pantalla"] > .page-body__ancho { padding: 16px; } }
+
+/* ── Barra lateral por punto de corte (fase 8) ──────────────────────────── */
+/* Tableta: el carril sigue, pero los enlaces miden 44 px. */
+@media (max-width: 1024px) {
+  .shell-nav-link { height: 44px; }
+}
+/* Móvil: una columna; la barra es un cajón que se abre desde la barra superior. */
+.shell[data-movil="true"],
+.shell[data-movil="true"][data-pinned="true"] {
+  grid-template-columns: 1fr;
+}
+.shell-top-menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.shell-top-menu:hover { background: var(--glass-hover); }
+.shell-nav[data-modo="cajon"] {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(280px, 86vw);
+  z-index: 200;
+}
+.shell-nav-velo {
+  position: fixed;
+  inset: 0;
+  z-index: 199;
+  background: var(--scrim);
+}

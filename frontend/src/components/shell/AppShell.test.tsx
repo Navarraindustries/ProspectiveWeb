@@ -3,8 +3,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ComponentProps } from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { simularPantalla } from "../../test/pantalla";
 
 const auth = { user: { id: 1, username: "admin", full_name: "Administrador", role: "admin", institution: "" } as { role: string; [k: string]: unknown } | null };
 const nav = { screen: "patients", go: vi.fn() };
@@ -22,6 +23,8 @@ function renderShell(props: Omit<ComponentProps<typeof AppShell>, "children">) {
 }
 
 beforeEach(() => { resetSessionPinned(); localStorage.clear(); localStorage.setItem("shell.sidebar", "collapsed"); auth.user = { id: 1, username: "admin", full_name: "Administrador", role: "admin", institution: "" }; });
+
+afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("AppShell", () => {
   it("el administrador ve Administración con la insignia de pendientes", async () => {
@@ -105,5 +108,74 @@ describe("AppShell", () => {
     expect(screen.getByRole("banner")).toHaveClass("shell-top");
     const css = readFileSync(resolve(__dirname, "shell.css"), "utf8");
     expect(css).toMatch(/\.shell-top\s*\{[^}]*height:\s*56px/);
+  });
+
+  it("> 1280 con la preferencia «fijada»: carril fijado a 240", () => {
+    const s = simularPantalla({ ancho: 1707 }); localStorage.setItem("shell.sidebar", "pinned");
+    const { container } = renderShell({});
+    expect(container.querySelector(".shell")).toHaveAttribute("data-pinned", "true");
+    expect(screen.queryByRole("button", { name: "Abrir las secciones" })).toBeNull();
+    s.restaurar();
+  });
+  it("a 1024: carril plegado, sin botón de cajón; enlaces de 44 px por CSS", () => {
+    const s = simularPantalla({ ancho: 1024 });
+    const { container } = renderShell({});
+    expect(screen.getByRole("navigation", { name: "Secciones" })).toHaveAttribute("data-modo", "carril");
+    expect(container.querySelector(".shell")).toHaveAttribute("data-pinned", "false");
+    const css = readFileSync(resolve(__dirname, "shell.css"), "utf8");
+    expect(css).toMatch(/@media \(max-width: 1024px\)\s*\{[^}]*\.shell-nav-link\s*\{\s*height:\s*44px/);
+    s.restaurar();
+  });
+  it("a 390: sin carril; el botón abre el cajón con el foco en el primer enlace y Escape lo cierra devolviendo el foco", () => {
+    const s = simularPantalla({ ancho: 390 });
+    const { container } = renderShell({ crumbs: [{ label: "Pacientes" }] });
+    expect(container.querySelector(".shell")).toHaveAttribute("data-movil", "true");
+    expect(screen.queryByRole("navigation", { name: "Secciones" })).toBeNull();
+    const boton = screen.getByRole("button", { name: "Abrir las secciones" });
+    fireEvent.click(boton);
+    const cajon = screen.getByRole("navigation", { name: "Secciones" });
+    expect(cajon).toHaveAttribute("data-modo", "cajon");
+    expect(cajon).toHaveAttribute("data-expanded", "true");
+    expect(boton).toHaveAttribute("aria-expanded", "true");
+    expect(document.activeElement).toBe(within(cajon).getAllByRole("link")[0]);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("navigation", { name: "Secciones" })).toBeNull();
+    expect(document.activeElement).toBe(boton);
+    s.restaurar();
+  });
+  it("a 390: el Tab no sale del cajón (foco atrapado)", () => {
+    const s = simularPantalla({ ancho: 390 });
+    renderShell({});
+    fireEvent.click(screen.getByRole("button", { name: "Abrir las secciones" }));
+    const cajon = screen.getByRole("navigation", { name: "Secciones" });
+    const foco = Array.from(cajon.querySelectorAll<HTMLElement>("a[href], button:not([disabled])"));
+    foco[foco.length - 1].focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(document.activeElement).toBe(foco[0]);
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(foco[foco.length - 1]);
+    s.restaurar();
+  });
+  it("a 390: elegir una sección navega y cierra; el velo también cierra", () => {
+    const s = simularPantalla({ ancho: 390 });
+    const { container } = renderShell({});
+    nav.go.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir las secciones" }));
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Secciones" })).getByRole("link", { name: "Estudios" }));
+    expect(nav.go).toHaveBeenCalledWith("studies");
+    expect(screen.queryByRole("navigation", { name: "Secciones" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir las secciones" }));
+    fireEvent.click(container.querySelector(".shell-nav-velo")!);
+    expect(screen.queryByRole("navigation", { name: "Secciones" })).toBeNull();
+    s.restaurar();
+  });
+  it("si la ventana pasa de 640 con el cajón abierto, vuelve el carril", () => {
+    const s = simularPantalla({ ancho: 390 });
+    renderShell({});
+    fireEvent.click(screen.getByRole("button", { name: "Abrir las secciones" }));
+    act(() => s.cambiar({ ancho: 1024 }));
+    expect(screen.getByRole("navigation", { name: "Secciones" })).toHaveAttribute("data-modo", "carril");
+    expect(screen.queryByRole("button", { name: "Abrir las secciones" })).toBeNull();
+    s.restaurar();
   });
 });

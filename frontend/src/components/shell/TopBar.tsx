@@ -24,16 +24,32 @@ export interface Crumb {
   detail?: string;
 }
 
-export function TopBar({ brand = false, crumbs, subtitle, status, actions }: {
+export function TopBar({ brand = false, crumbs, subtitle, status, actions, onAbrirSecciones, seccionesAbiertas = false }: {
   /** Marca a la izquierda de la miga, para pantallas sin barra lateral (el pipeline). */
   brand?: boolean;
   crumbs?: Crumb[];
   subtitle?: ReactNode;
   status?: ReactNode;
   actions?: ReactNode;
+  /** Si viene (móvil), pinta al principio el botón que abre el cajón de secciones. */
+  onAbrirSecciones?: () => void;
+  seccionesAbiertas?: boolean;
 }) {
   return (
     <header className="shell-top" style={{ ...glass("normal"), borderWidth: "0 0 1px", boxShadow: "var(--glass-highlight)" }} data-glass>
+      {onAbrirSecciones && (
+        <button
+          type="button"
+          className="shell-top-menu"
+          data-abrir-secciones
+          aria-label="Abrir las secciones"
+          aria-expanded={seccionesAbiertas}
+          aria-controls="shell-cajon"
+          onClick={onAbrirSecciones}
+        >
+          <Icon name="MENU" size={18} />
+        </button>
+      )}
       {brand && (
         <span className="shell-brand">
           <Logo size={24} firma={false} />

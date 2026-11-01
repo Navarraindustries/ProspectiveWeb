@@ -28,6 +28,13 @@ vi.mock("../components/ThemeToggle", () => ({ ThemeToggle: () => null }));
 
 import { Login } from "./Login";
 
+/** Ningún contenedor de la ventana pinta un fondo opaco: la imagen del Entorno debe verse. */
+function sinFondoOpaco(ventana: HTMLElement) {
+  for (let el = ventana.parentElement; el && el !== document.body; el = el.parentElement) {
+    expect(el.style.background).toBe("");
+  }
+}
+
 // F1-41: el aviso de conexión ya no habla de «backend».
 const CONNECTIVITY = "El servidor no responde. Avisa al responsable de la instalación.";
 
@@ -186,5 +193,24 @@ describe("identidad nueva de «Entrar» (F2-10, F2-11, F2-12)", () => {
     await attempt(new ApiError(401, "Credenciales incorrectas"));
     await screen.findByText("Credenciales incorrectas");
     expect(screen.getByLabelText("Contraseña")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("el formulario vive en una ventana de cristal «Iniciar sesión»", () => {
+    montar();
+    const ventana = screen.getByRole("region", { name: "Iniciar sesión" });
+    expect(ventana).toHaveAttribute("data-glass");
+    expect(ventana).toContainElement(screen.getByLabelText("Usuario"));
+    expect(ventana).toContainElement(screen.getByRole("button", { name: "Entrar" }));
+    expect(screen.getByText("Accede con tu cuenta de Prospective.")).toBeInTheDocument();
+  });
+
+  it("el velo del Entorno es el denso (el texto apagado fuera de la ventana llega a 4,5:1)", () => {
+    const { container } = montar();
+    expect(container.querySelector<HTMLElement>("[data-entorno] > div")!.style.background).toBe("var(--veil-dense)");
+  });
+
+  it("los contenedores de la ventana no tapan la imagen del Entorno", () => {
+    montar();
+    sinFondoOpaco(screen.getByRole("region", { name: "Iniciar sesión" }));
   });
 });

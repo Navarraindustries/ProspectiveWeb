@@ -12,6 +12,8 @@ import { FileField } from "../components/FileField";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
 import { AuthBrand } from "../components/shell/AuthBrand";
+import { AuthWindow } from "../components/shell/AuthWindow";
+import { Entorno } from "../components/Entorno";
 import { ThemeToggle } from "../components/ThemeToggle";
 
 const SPECIALTIES = [
@@ -123,81 +125,78 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
   };
 
   return (
-    <div style={{ display: "flex", height: "100%", background: "var(--canvas)" }}>
-      <AuthBrand flex="1 1 56%" />
+    <Entorno dense>
+      <div style={{ display: "flex", minHeight: "100dvh" }}>
+        <AuthBrand flex="1 1 56%" />
 
-      {/* Form panel — theme-aware, scrollable (the form is long). */}
-      <div className="login-form" style={{ flex: "1 1 44%", display: "flex", flexDirection: "column", minWidth: 340, overflowY: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "24px clamp(24px, 3.5vw, 60px) 0" }}>
-          <button
-            onClick={onBack}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: "var(--muted-foreground)", fontSize: 13, fontWeight: 600, fontFamily: "var(--font-sans)", padding: 0 }}
-          >
-            ← Volver a Entrar
-          </button>
-          <ThemeToggle />
-        </div>
-
-        <div style={{ maxWidth: 480, width: "100%", margin: "0 auto", padding: "18px clamp(24px, 3.5vw, 60px) 40px" }}>
-          <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: "var(--tracking-title)", color: "var(--foreground)" }}>
-            Crear cuenta
-          </div>
-          <div style={{ fontSize: 14, color: "var(--muted-foreground)", marginTop: 6 }}>
-            Regístrate para acceder a PROSPECTIVE.
+        {/* Zona del formulario: ventana de cristal sobre el Entorno; el formulario es largo y es la página la que desplaza (el panel de marca queda fijo). */}
+        <div className="login-form" style={{ flex: "1 1 44%", display: "flex", flexDirection: "column", minWidth: 340, padding: "0 16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 24 }}>
+            <button
+              onClick={onBack}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: "var(--muted-foreground)", fontSize: 13, fontWeight: 600, fontFamily: "var(--font-sans)", padding: 0 }}
+            >
+              ← Volver a Entrar
+            </button>
+            <ThemeToggle />
           </div>
 
-          <form onSubmit={submit}>
-            <div style={GROUP_LABEL}>Tus datos</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <Input label="Nombre completo *" value={form.full_name} onChange={set("full_name")} placeholder="Dr. …" {...props("full_name")} />
-              <Input label="DNI / NIE (opcional)" hint="Solo si tu centro lo pide" value={form.national_id} onChange={set("national_id")} />
-              <FileField label="Foto de perfil" accept="image/*" file={photo} onPick={setPhoto} />
-            </div>
+          <div style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "24px 0 40px" }}>
+            <AuthWindow titulo="Crear cuenta" subtitulo="Regístrate para acceder a PROSPECTIVE.">
+              <form onSubmit={submit}>
+                <div style={GROUP_LABEL}>Tus datos</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <Input label="Nombre completo *" value={form.full_name} onChange={set("full_name")} placeholder="Dr. …" {...props("full_name")} />
+                  <Input label="DNI / NIE (opcional)" hint="Solo si tu centro lo pide" value={form.national_id} onChange={set("national_id")} />
+                  <FileField label="Foto de perfil" accept="image/*" file={photo} onPick={setPhoto} />
+                </div>
 
-            <div style={GROUP_LABEL}>Datos profesionales</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <Input label="Número de colegiado (opcional)" value={form.professional_id} onChange={set("professional_id")} />
-              <Select label="Especialidad" options={SPECIALTIES} value={form.specialty} onChange={set("specialty")} />
-              <Input label="Universidad" value={form.university} onChange={set("university")} />
-              <Input label="Hospital / Centro" value={form.hospital} onChange={set("hospital")} />
-              <Select label="Cargo" options={POSITIONS} value={form.position} onChange={set("position")} />
-              <Input label="ORCID (opcional)" hint="Identificador de investigador, si lo tienes" value={form.orcid} onChange={set("orcid")} placeholder="0000-0000-0000-0000" />
-            </div>
-            <div style={{ marginTop: 12 }}>
-              <FileField label="Currículum (CV)" accept=".pdf,.doc,.docx" file={cv} onPick={setCv} />
-            </div>
+                <div style={GROUP_LABEL}>Datos profesionales</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
+                  <Input label="Número de colegiado (opcional)" value={form.professional_id} onChange={set("professional_id")} />
+                  <Select label="Especialidad" options={SPECIALTIES} value={form.specialty} onChange={set("specialty")} />
+                  <Input label="Universidad" value={form.university} onChange={set("university")} />
+                  <Input label="Hospital / Centro" value={form.hospital} onChange={set("hospital")} />
+                  <Select label="Cargo" options={POSITIONS} value={form.position} onChange={set("position")} />
+                  <Input label="ORCID (opcional)" hint="Identificador de investigador, si lo tienes" value={form.orcid} onChange={set("orcid")} placeholder="0000-0000-0000-0000" />
+                </div>
+                <div style={{ marginTop: 12 }}>
+                  <FileField label="Currículum (CV)" accept=".pdf,.doc,.docx" file={cv} onPick={setCv} />
+                </div>
 
-            <div style={GROUP_LABEL}>Credenciales de acceso</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <Input label="Usuario * (mín. 3)" value={form.username} onChange={set("username")} autoComplete="username" {...props("username")} />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Input label="Contraseña * (mín. 8)" type="password" value={form.password} onChange={set("password")} autoComplete="new-password" {...props("password")} />
-                <Input label="Repite la contraseña *" type="password" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" {...props("confirm")} />
+                <div style={GROUP_LABEL}>Credenciales de acceso</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <Input label="Usuario * (mín. 3)" value={form.username} onChange={set("username")} autoComplete="username" {...props("username")} />
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
+                    <Input label="Contraseña * (mín. 8)" type="password" value={form.password} onChange={set("password")} autoComplete="new-password" {...props("password")} />
+                    <Input label="Repite la contraseña *" type="password" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" {...props("confirm")} />
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 18, padding: "10px 14px", borderRadius: "var(--radius-md)", background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 40%, transparent)", color: "var(--warning)", fontSize: 12 }}>
+                  Tu cuenta quedará <b>pendiente de aprobación</b> hasta que un administrador la active.
+                  {" "}No recibirás ningún aviso: vuelve a intentar entrar en unos días. Para consultas, escribe a{" "}
+                  <a href={`mailto:${CONTACTO_ADMIN}`} style={{ color: "inherit", fontWeight: 600 }}>{CONTACTO_ADMIN}</a>
+                </div>
+
+                {error && (
+                  <div style={{ marginTop: 12, fontSize: 12, color: "var(--destructive)" }}>{error}</div>
+                )}
+
+                <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+                  <Button type="submit" style={{ flex: 1 }} disabled={busy}>
+                    {busy ? "Enviando…" : "Enviar solicitud de registro"}
+                  </Button>
+                </div>
+              </form>
+
+              <div style={{ textAlign: "center", marginTop: 20, fontSize: 11, color: "var(--muted-foreground)" }}>
+                PROSPECTIVE™ Web — Laboratorio de Imagen Médica
               </div>
-            </div>
-
-            <div style={{ marginTop: 18, padding: "10px 14px", borderRadius: "var(--radius-md)", background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 40%, transparent)", color: "var(--warning)", fontSize: 12 }}>
-              Tu cuenta quedará <b>pendiente de aprobación</b> hasta que un administrador la active.
-              {" "}No recibirás ningún aviso: vuelve a intentar entrar en unos días. Para consultas, escribe a{" "}
-              <a href={`mailto:${CONTACTO_ADMIN}`} style={{ color: "inherit", fontWeight: 600 }}>{CONTACTO_ADMIN}</a>
-            </div>
-
-            {error && (
-              <div style={{ marginTop: 12, fontSize: 12, color: "var(--destructive)" }}>{error}</div>
-            )}
-
-            <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-              <Button type="submit" style={{ flex: 1 }} disabled={busy}>
-                {busy ? "Enviando…" : "Enviar solicitud de registro"}
-              </Button>
-            </div>
-          </form>
-
-          <div style={{ textAlign: "center", marginTop: 20, fontSize: 11, color: "var(--muted-foreground)" }}>
-            PROSPECTIVE™ Web — Laboratorio de Imagen Médica
+            </AuthWindow>
           </div>
         </div>
       </div>
-    </div>
+    </Entorno>
   );
 }

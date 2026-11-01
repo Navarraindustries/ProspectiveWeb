@@ -33,6 +33,8 @@ import { MORPHO_INVALIDATED } from "./components/planning/detectCopy";
 import { CommandPalette } from "./components/CommandPalette";
 import { useRegisterCommands } from "./lib/commands";
 
+const SOLO_OPACIDAD = { initial: { opacity: 0 }, animate: { opacity: 1 } };
+
 function Router() {
   const { user, ready, expiredNotice } = useAuth();
   const planning = usePlanning();
@@ -58,7 +60,10 @@ function Router() {
   const [loginNotice, setLoginNotice] = useState<string | null>(null);
   // Transición de marca tras un login correcto (vídeo de carga, 2,2 s): solo
   // al entrar, no al recargar con sesión abierta.
+  // `loadingIn` pasa a falso cuando la carga empieza a fundirse (la oficina entra
+  // entonces, cruzándose con ella); `showLoading` sigue hasta que acaba el fundido.
   const [loadingIn, setLoadingIn] = useState(false);
+  const [showLoading, setShowLoading] = useState(false);
   const [resumeStep, setResumeStep] = useState(0);
   // Leaving the pipeline throws the session away: the store resets on the next
   // patient. Saving is manual, so an accidental click on the logo — or on the
@@ -252,7 +257,7 @@ function Router() {
     // A session that expired mid-study explains itself on the login screen.
     view = (
       <Login
-        onLogin={() => { setLoadingIn(true); setScreen("patients"); }}
+        onLogin={() => { setLoadingIn(true); setShowLoading(true); setScreen("patients"); }}
         onSignup={() => setScreen("signup")}
         notice={loginNotice ?? expiredNotice}
       />
@@ -335,7 +340,20 @@ function Router() {
       go: (s) => { if (s === "orders") setOrdersPatient(null); setScreen(s); },
     }}>
     <div style={{ height: "100%", position: "relative" }}>
-      {view}
+      {/* Mientras dura la carga la oficina espera oculta bajo ella; al acabar entra
+          una vez con «glide» (solo opacidad con movimiento reducido). `initial={false}`:
+          quien recarga con la sesión abierta no ve ninguna entrada. En reposo el
+          transform es «none», así que los elementos fixed de dentro no cambian. */}
+      <motion.div
+        key="oficina"
+        variants={reduced ? SOLO_OPACIDAD : glide}
+        initial={false}
+        animate={loadingIn ? "initial" : "animate"}
+        transition={reduced ? { duration: 0.15 } : glideTransition}
+        style={{ height: "100%" }}
+      >
+        {view}
+      </motion.div>
       {user && (
         <CommandPalette
           onOpenPatient={(id) => navigate(patientPath(id))}
@@ -343,7 +361,7 @@ function Router() {
           reanudarBloqueado={bloqueoPipeline}
         />
       )}
-      {loadingIn && <LoadingScreen onDone={() => setLoadingIn(false)} />}
+      {showLoading && <LoadingScreen onFading={() => setLoadingIn(false)} onDone={() => setShowLoading(false)} />}
       <UnsavedExitDialog
         open={blocker.state === "blocked"}
         hasPatient={!!(planning.patient ?? patient)}

@@ -13,6 +13,13 @@ vi.mock("../api/client", () => ({ api: { changePassword: vi.fn().mockResolvedVal
 import { api } from "../api/client";
 import { ForcePasswordChange } from "./ForcePasswordChange";
 
+/** Ningún contenedor de la ventana pinta un fondo opaco: la imagen del Entorno debe verse. */
+function sinFondoOpaco(ventana: HTMLElement) {
+  for (let el = ventana.parentElement; el && el !== document.body; el = el.parentElement) {
+    expect(el.style.background).toBe("");
+  }
+}
+
 const escribir = (label: RegExp | string, v: string) =>
   fireEvent.change(screen.getByLabelText(label), { target: { value: v } });
 
@@ -78,5 +85,23 @@ describe("de dónde viene la contraseña que hay que cambiar (F1b-4)", () => {
     render(<ForcePasswordChange />);
     expect(screen.getByText(/no eligió y que conoce otra persona/)).toBeInTheDocument();
     expect(screen.queryByText(/se creó/)).toBeNull();
+  });
+
+  it("el formulario está en una ventana de cristal sobre el Entorno", () => {
+    const { container } = render(<ForcePasswordChange />);
+    const ventana = screen.getByRole("region", { name: "Cambia la contraseña asignada" });
+    expect(ventana).toHaveAttribute("data-glass");
+    expect(ventana).toContainElement(screen.getByLabelText("Contraseña actual"));
+    expect(container.querySelector("img[aria-hidden='true']")).not.toBeNull();
+  });
+
+  it("el velo del Entorno es el denso", () => {
+    const { container } = render(<ForcePasswordChange />);
+    expect(container.querySelector<HTMLElement>("[data-entorno] > div")!.style.background).toBe("var(--veil-dense)");
+  });
+
+  it("los contenedores de la ventana no tapan la imagen del Entorno", () => {
+    render(<ForcePasswordChange />);
+    sinFondoOpaco(screen.getByRole("region", { name: "Cambia la contraseña asignada" }));
   });
 });

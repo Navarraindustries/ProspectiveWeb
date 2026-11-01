@@ -27,4 +27,25 @@ describe("AuthBrand", () => {
     expect(container.textContent).not.toMatch(/VTK|SimpleITK|SKULLAPP/);
     expect(container.querySelector(".login-media")).not.toBeNull();
   });
+
+  it("se queda fijo a la altura de la pantalla aunque el formulario haga scroll", () => {
+    const { container } = montar();
+    const panel = container.querySelector<HTMLElement>(".login-media")!;
+    expect(panel.style.position).toBe("sticky");
+    expect(panel.style.top).toBe("0px");
+    expect(panel.style.height).toBe("100dvh");
+    expect(panel.style.alignSelf).toBe("flex-start");
+  });
+
+  it("conserva la atribución «por SkullApp» en gris sobre el vídeo y el lema una sola vez", () => {
+    montar();
+    expect(screen.getByText("por SkullApp").style.color).toBe("var(--on-media-muted)");
+    expect(screen.getAllByText("Planificación neurovascular con datos")).toHaveLength(1);
+  });
+
+  it("lleva la frase secundaria bajo el lema, en gris sobre el vídeo", () => {
+    montar();
+    const frase = screen.getByText("Del DICOM al clip, en un solo espacio de trabajo.");
+    expect(frase.style.color).toBe("var(--on-media-muted)");
+  });
 });

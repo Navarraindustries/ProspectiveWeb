@@ -20,6 +20,7 @@ import { useNavigate } from "react-router-dom";
 import { Logo } from "./Logo";
 
 const LEMA = "Planificación neurovascular con datos";
+const FRASE = "Del DICOM al clip, en un solo espacio de trabajo.";
 export const VIDEO_MARCA = "/media/intro.mp4";
 
 export function AuthBrand({ flex }: { flex: string }) {
@@ -30,7 +31,12 @@ export function AuthBrand({ flex }: { flex: string }) {
       className="login-media"
       style={{
         flex,
-        position: "relative",
+        // Fijo a la altura de la pantalla: si el formulario es más alto que ella
+        // (Crear cuenta, pantallas bajas) la página desplaza y el panel no se estira.
+        position: "sticky",
+        top: 0,
+        height: "100dvh",
+        alignSelf: "flex-start",
         overflow: "hidden",
         background: "var(--media-bg)",
         borderRight: "1px solid var(--border)",
@@ -39,9 +45,6 @@ export function AuthBrand({ flex }: { flex: string }) {
         justifyContent: "flex-start",
         padding: "48px 56px",
         color: "var(--on-media)",
-        // «por SkullApp» del logotipo lee este token: sobre el vídeo tiene que
-        // ser claro aunque el tema sea el claro.
-        ["--muted-foreground" as string]: "var(--on-media-muted)",
       } as CSSProperties}
     >
       <video
@@ -65,12 +68,24 @@ export function AuthBrand({ flex }: { flex: string }) {
         type="button"
         onClick={() => navigate("/")}
         title="Ir a la página principal"
-        style={{ position: "relative", alignSelf: "flex-start", background: "transparent", border: "none", cursor: "pointer", padding: 0, color: "var(--on-media)" }}
+        style={{ position: "relative", alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 12, background: "transparent", border: "none", cursor: "pointer", padding: 0, color: "var(--on-media)" }}
       >
-        <Logo size={32} />
+        <Logo compact size={32} />
+        <span style={{ display: "inline-flex", flexDirection: "column", gap: 2, textAlign: "left", textShadow: "var(--on-media-shadow)" }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-eyebrow)", fontWeight: 600, letterSpacing: "var(--tracking-eyebrow)" }}>
+            PROSPECTIVE
+          </span>
+          {/* Color propio en vez de heredar --muted-foreground: sobre el vídeo tiene que ser claro aunque el tema sea el claro. */}
+          <span style={{ fontSize: 11, color: "var(--on-media-muted)" }}>por SkullApp</span>
+        </span>
       </button>
-      <div style={{ position: "relative", margin: "auto 0", color: "var(--on-media)", fontSize: 38, fontWeight: 700, letterSpacing: "var(--tracking-title)", lineHeight: 1.1, maxWidth: 460, textShadow: "var(--on-media-shadow)" }}>
-        {LEMA}
+      <div style={{ position: "relative", margin: "auto 0", maxWidth: 460 }}>
+        <div style={{ color: "var(--on-media)", fontSize: 38, fontWeight: 700, letterSpacing: "var(--tracking-title)", lineHeight: 1.1, textShadow: "var(--on-media-shadow)" }}>
+          {LEMA}
+        </div>
+        <p style={{ margin: "16px 0 0", color: "var(--on-media-muted)", fontSize: 16, lineHeight: 1.45, textShadow: "var(--on-media-shadow)" }}>
+          {FRASE}
+        </p>
       </div>
     </div>
   );

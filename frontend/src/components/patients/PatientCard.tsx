@@ -111,7 +111,7 @@ export function PatientCard({ patient: p, onOpen, onResume, onPlan }: Props) {
       {/* Sin captura o sin sesión el bloque va atenuado (spec §4.2): el icono es un hueco, no un dato. */}
       <div className={`pt-card-media${imagen && paso ? "" : " pt-card-media--tenue"}`}>
         {imagen ? <img src={imagen} alt="" /> : <Icon name={icono} size={32} />}
-        <span className="pt-card-pill">{paso ? `Paso ${paso.n} · ${paso.label}` : "Sin sesión"}</span>
+        <span className="pt-card-pill" data-glass>{paso ? `Paso ${paso.n} · ${paso.label}` : "Sin sesión"}</span>
       </div>
 
       <div className="pt-card-body">

@@ -3,6 +3,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { ratio } from "./contraste";
 
 // El selector oscuro se declara una sola vez junto a :root (ver colors.css).
 const css = readFileSync(join(__dirname, "tokens/colors.css"), "utf8").replace(/\r\n/g, "\n");
@@ -12,9 +13,6 @@ const block = (sel: string) => {
   return css.slice(i, css.indexOf("}", i));
 };
 const names = (b: string) => new Set([...b.matchAll(/--([a-z0-9-]+)\s*:/g)].map((m) => m[1]));
-// contraste WCAG calculado sobre hex #RRGGBB
-const l = (hex: string) => { const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
-const ratio = (a: string, b: string) => { const [x, y] = [l(a), l(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
 
 describe("tokens de la dirección D", () => {
   it("el claro define exactamente los mismos nombres que el oscuro", () => {

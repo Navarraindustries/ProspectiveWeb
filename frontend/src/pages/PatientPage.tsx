@@ -16,7 +16,7 @@ import { EstadoVacio } from "../components/EstadoVacio";
 import { CaptureGallery } from "../components/CaptureGallery";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { PatientFormSheet } from "../components/PatientFormSheet";
-import { Cascada, type ColumnaCascada } from "../components/ficha/Cascada";
+import { Cascada, COLUMNAS_VISIBLES, type ColumnaCascada } from "../components/ficha/Cascada";
 import { ColumnaCasos, casoEnFoco, ultimaSesionDelCaso, type SeleccionCaso } from "../components/ficha/ColumnaCasos";
 import { ColumnaDatos, derechosPaciente, nombrePaciente, type SeccionFicha } from "../components/ficha/ColumnaDatos";
 import { ColumnaEstudios } from "../components/ficha/ColumnaEstudios";
@@ -279,9 +279,10 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
       },
       cerrar: () => elegirSeccion(null),
     });
-    if (casoSel === null && casos && casos.length > 0) {
+    if (casoSel === null && casos && casos.length > 0 && COLUMNAS_VISIBLES[tramo] >= 3) {
       // Sin caso elegido: la última sesión del más reciente, para no dejar el
-      // hueco de la derecha vacío.
+      // hueco de la derecha vacío. Solo con sitio para tres columnas: con dos
+      // (≤ 1280 px) empujaría a Datos a una miga y Datos y Casos deben verse juntas.
       const foco = casoEnFoco(casos, null);
       const ultima = foco ? ultimaSesionDelCaso(sesiones, foco.id) : null;
       entradas.push({

@@ -311,8 +311,10 @@ describe("PatientPage · casos, estudios y sesiones en cascada", () => {
     expect(within(datos).getByRole("heading", { name: "Zenodo, Caso 002" })).toBeTruthy();
     expect(screen.queryByRole("region", { name: "Casos" })).toBeNull();
     fireEvent.click(within(datos).getByRole("button", { name: /^Casos/ }));
-    expect(await screen.findByRole("region", { name: "Vista previa" })).toBeTruthy();
-    expect(within(screen.getByRole("navigation", { name: "Volver a una columna anterior" })).getByRole("button", { name: "Casos" })).toBeTruthy();
+    // Con una sola columna no hay vista previa por defecto: se ve Casos y Paciente queda de miga.
+    expect(await screen.findByRole("region", { name: "Casos" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Vista previa" })).toBeNull();
+    expect(within(screen.getByRole("navigation", { name: "Volver a una columna anterior" })).getByRole("button", { name: "Paciente" })).toBeTruthy();
   });
 
   it("sin caso elegido: Casos a 380 px y una vista previa del caso más reciente", async () => {
@@ -559,11 +561,23 @@ describe("PatientPage · casos, estudios y sesiones en cascada", () => {
       const migas = screen.getByRole("navigation", { name: "Volver a una columna anterior" });
       fireEvent.click(within(migas).getByRole("button", { name: "Casos" }));
       expect(region("Casos")).toBeTruthy();
-      // Sin caso elegido vuelve la vista previa por defecto; Paciente es ya una miga.
-      expect(within(screen.getByRole("navigation", { name: "Volver a una columna anterior" })).getByRole("button", { name: "Paciente" })).toBeTruthy();
+      // Con dos columnas no hay vista previa por defecto: Datos y Casos vuelven
+      // a verse juntas y no queda ninguna miga.
+      expect(region("Paciente")).toBeTruthy();
+      expect(screen.queryByRole("navigation", { name: "Volver a una columna anterior" })).toBeNull();
       expect(screen.queryByRole("region", { name: "Estudios de imagen" })).toBeNull();
       expect(screen.queryByRole("region", { name: /^Sesiones guardadas/ })).toBeNull();
-      expect(await screen.findByRole("region", { name: "Vista previa" })).toBeTruthy();
+      expect(screen.queryByRole("region", { name: "Vista previa" })).toBeNull();
+      await esperaColumnaDatos();
+    });
+
+    it("al abrir, Datos y Casos se ven juntas sin vista previa por defecto (I4)", async () => {
+      renderPage();
+      expect(await screen.findByRole("region", { name: "Casos" })).toBeTruthy();
+      expect(region("Paciente")).toBeTruthy();
+      expect(screen.queryByRole("region", { name: "Vista previa" })).toBeNull();
+      expect(screen.queryByRole("navigation", { name: "Volver a una columna anterior" })).toBeNull();
+      await esperaColumnaDatos();
     });
 
     it("la miga «Paciente» deja solo la columna Datos", async () => {

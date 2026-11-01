@@ -287,7 +287,7 @@ describe("ViewerHeader — modo iconos (táctil ≤ 1024, móvil ≤ 640)", () =
     simularPantalla(390); stubBandWidth(anchoBanda(390));
     const { props, rerender } = setup({ hudLevel: "completo" });
     const b = screen.getByRole("button", { name: /Nivel de textos: completo/ });
-    expect(b).toHaveTextContent(/^C$/);
+    expect(b).toHaveTextContent(/^TXT C$/);
     expect(b).toHaveAccessibleName("Nivel de textos: completo. Cambiar (H)");
     fireEvent.click(b);
     expect(props.onHudLevelChange).toHaveBeenLastCalledWith("esencial");
@@ -295,7 +295,7 @@ describe("ViewerHeader — modo iconos (táctil ≤ 1024, móvil ≤ 640)", () =
     fireEvent.click(screen.getByRole("button", { name: /Nivel de textos: esencial/ }));
     expect(props.onHudLevelChange).toHaveBeenLastCalledWith("limpio");
     rerender(<ViewerHeader {...props} hudLevel="limpio" />);
-    expect(screen.getByRole("button", { name: /Nivel de textos: limpio/ })).toHaveTextContent(/^L$/);
+    expect(screen.getByRole("button", { name: /Nivel de textos: limpio/ })).toHaveTextContent(/^TXT L$/);
     fireEvent.click(screen.getByRole("button", { name: /Nivel de textos: limpio/ }));
     expect(props.onHudLevelChange).toHaveBeenLastCalledWith("completo");
   });
@@ -337,7 +337,7 @@ describe("ViewerHeader — modo iconos (táctil ≤ 1024, móvil ≤ 640)", () =
   });
 
   // Revisión de la tarea 2 (a): el grupo izquierdo no puede desbordar a 360.
-  it("a 360 el grupo izquierdo de iconos cabe: solo los dos desplegables y puede encoger y envolver", () => {
+  it("a 360 el grupo izquierdo de iconos lleva solo los dos desplegables y puede encoger y envolver", () => {
     simularPantalla(360); stubBandWidth(anchoBanda(360));
     const { container } = setup({ onHelp: () => {}, hasClipField: true });
     const izq = container.querySelector('[data-banda="izq"]') as HTMLElement;
@@ -346,10 +346,8 @@ describe("ViewerHeader — modo iconos (táctil ≤ 1024, móvil ≤ 640)", () =
     expect(izq.style.flexShrink).toBe("1");
     expect(izq.style.minWidth).toMatch(/^0(px)?$/);
     for (const s of izq.querySelectorAll("select")) expect((s as HTMLElement).style.maxWidth).toBe("100%");
-    // Estimación a 13 px mono (≈ 8,9 px por carácter con .08em) más 28 px de
-    // relleno y flecha: dos desplegables de 7 caracteres y el hueco caben en
-    // 360 menos el relleno lateral de la banda (24).
-    expect(2 * (7 * 8.9 + 28) + 10).toBeLessThanOrEqual(360 - 24);
+    // jsdom no maqueta: aquí solo se comprueba que el grupo puede encoger y
+    // envolver. La medida real a 360 se verifica en el navegador (tarea 12).
   });
 
   // Revisión de la tarea 2 (c): el ⚠ es un objetivo táctil como los demás.

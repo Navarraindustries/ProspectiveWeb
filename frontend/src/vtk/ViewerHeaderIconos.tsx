@@ -66,11 +66,11 @@ export function ViewerHeaderIconos({
                 aria-pressed={!planesHidden} onClick={() => onPlanesHiddenChange(!planesHidden)} style={OBJETIVO}>
           <Icon name="MPR_VIEW" size={iconSize} />
         </button>
-        {/* Un solo botón que recorre los niveles como la tecla H; la letra
-            dice en cuál está y el nombre accesible lo dice entero. */}
+        {/* Un solo botón que recorre los niveles como la tecla H; «TXT C/E/L»
+            dice qué es y en cuál está, y el nombre accesible lo dice entero. */}
         <button type="button" aria-label={`Nivel de textos: ${hudLevel}. Cambiar (H)`} title="Nivel de textos (H)"
                 onClick={() => onHudLevelChange(nextHudLevel(hudLevel))} style={OBJETIVO}>
-          {hudLevel[0].toUpperCase()}
+          {`TXT ${hudLevel[0].toUpperCase()}`}
         </button>
         <button type="button" aria-label="Vincular las vistas" title="Encendido: un clic en una vista centra las demás en ese punto"
                 aria-pressed={syncViews} onClick={() => onSyncViewsChange(!syncViews)} style={OBJETIVO}>

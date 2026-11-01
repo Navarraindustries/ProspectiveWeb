@@ -35,8 +35,9 @@
 /* El ⚠ del aviso de nivel en la banda: mismo foco que los conmutadores. */
 .hud-note-toggle:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
 /* Desplegables de la banda en el nivel iconos (vista principal, distribución):
-   se leen como los conmutadores, en mono y mayúsculas. */
-.viewer-band-select { font-family: inherit; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-text); background: var(--viewer-bg); border: 1px solid var(--hud-text-dim); height: 18px; padding: 0 4px; cursor: pointer; }
+   se leen como los conmutadores, en mono y mayúsculas. El fondo del visor es
+   siempre oscuro: `color-scheme: dark` para que la lista nativa también lo sea. */
+.viewer-band-select { color-scheme: dark; font-family: inherit; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-text); background: var(--viewer-bg); border: 1px solid var(--hud-text-dim); height: 18px; padding: 0 4px; cursor: pointer; }
 .viewer-band-select:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
 /* Pantalla táctil (≤ 1024, `data-tactil` en la raíz de la banda): objetivos de
    44 px para todo lo que se pulsa, el ⚠ incluido, y letra de 13 px. */

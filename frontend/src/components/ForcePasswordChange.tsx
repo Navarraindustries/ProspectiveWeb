@@ -12,7 +12,7 @@ import { useAuth } from "../store/auth";
 import { Button } from "./Button";
 import { Input } from "./Input";
 import { ErrorNote } from "./PanelHead";
-import { Entorno } from "./Entorno";
+import { Ambiente } from "./Ambiente";
 import { AuthWindow } from "./shell/AuthWindow";
 
 const MIN_LEN = 8;
@@ -47,7 +47,7 @@ export function ForcePasswordChange() {
   };
 
   return (
-    <Entorno dense>
+    <Ambiente>
       <div style={{ minHeight: "100dvh", display: "grid", placeItems: "center", padding: 16 }}>
         <AuthWindow titulo="Cambia la contraseña asignada">
           <form onSubmit={(e) => { e.preventDefault(); void submit(); }}>
@@ -81,6 +81,6 @@ export function ForcePasswordChange() {
           </form>
         </AuthWindow>
       </div>
-    </Entorno>
+    </Ambiente>
   );
 }

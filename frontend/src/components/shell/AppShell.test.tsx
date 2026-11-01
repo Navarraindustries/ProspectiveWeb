@@ -13,7 +13,6 @@ vi.mock("../../store/nav", async (orig) => ({ ...(await orig<object>()), useNav:
 vi.mock("../../store/theme", () => ({ useThemeContext: () => ({ theme: "dark", toggle: vi.fn() }) }));
 vi.mock("../../api/client", () => ({ api: { listPending: vi.fn().mockResolvedValue([{ id: 9 }, { id: 10 }]) } }));
 
-import { ENTORNO_SRC } from "../Entorno";
 import { AppShell } from "./AppShell";
 import { resetSessionPinned } from "./useShellState";
 
@@ -75,9 +74,10 @@ describe("AppShell", () => {
     expect(within(header).getByRole("button", { name: "Menú de usuario" })).toBeInTheDocument();
     expect(within(header).queryByText("Cerrar sesión")).toBeNull();
   });
-  it("se pinta sobre el Entorno: la imagen de fondo está en el árbol", () => {
+  it("se pinta sobre el Ambiente", () => {
     const { container } = renderShell({});
-    expect(container.querySelector("[data-entorno] img")?.getAttribute("src")).toBe(ENTORNO_SRC);
+    expect(container.querySelector("[data-ambiente]")).not.toBeNull();
+    expect(container.querySelector("img")).toBeNull();
     expect(container.querySelector(".shell")).toBeTruthy();
   });
   it("fijada, la rejilla es de 240px y plegada de 64px", () => {

@@ -201,14 +201,17 @@ const NEGRO = [0, 0, 0];
 const BLANCO = [255, 255, 255];
 const TEXTOS = ["--foreground", "--muted-foreground", "--data", "--destructive-text", "--warning", "--success"];
 
+/** Fondo ambiente en hex: --canvas con los dos brillos apilados (lo más claro que ve el cristal). */
+const ambiente = (b: string) => apilar(b, ["--ambient-glow-1", "--ambient-glow-2"], deHex(hexDe(b, "--canvas")));
+
 /* Cada superficie de cristal con lo que de verdad tiene detrás. Para el visor se toma
    el píxel sin desenfocar (con data-blur="bajo" el desenfoque del visor es 0) y los dos
    extremos de la imagen: negro (el fondo del visor) y blanco (hueso en el MIP). */
 const superficies = (b: string): { donde: string; fondo: string }[] => {
   const visor = deHex(hexDe(b, "--viewer-bg"));
   return [
-    { donde: "cristal sobre Entorno (blanco bajo --veil)", fondo: apilar(b, ["--veil", "--glass"], BLANCO) },
-    { donde: "cristal denso sobre Entorno (blanco bajo --veil-dense)", fondo: apilar(b, ["--veil-dense", "--glass-dense"], BLANCO) },
+    { donde: "cristal sobre el Ambiente (los dos brillos apilados)", fondo: apilar(b, ["--glass"], deHex(ambiente(b))) },
+    { donde: "cristal denso sobre el Ambiente (los dos brillos apilados)", fondo: apilar(b, ["--glass-dense"], deHex(ambiente(b))) },
     { donde: "hoja o diálogo (--glass-dense) sobre el lienzo bajo --scrim-dense", fondo: apilar(b, ["--scrim-dense", "--glass-dense"], deHex(hexDe(b, "--canvas"))) },
     { donde: "pastillas del quirófano (--glass) sobre --viewer-bg", fondo: apilar(b, ["--glass"], visor) },
     { donde: "inspector (--glass-dense) sobre --viewer-bg", fondo: apilar(b, ["--glass-dense"], visor) },
@@ -224,6 +227,18 @@ describe("contraste sobre cristal", () => {
   });
 
   for (const [tema, b] of [["oscuro", oscuro], ["claro", claro]] as const) {
+    // Texto sin cristal directamente sobre el Ambiente. --success y --warning no van nunca
+    // sobre el fondo: viven dentro del cristal, que ya cubre la lista de arriba.
+    it(`en ${tema}, el texto sin cristal aguanta 4,5:1 sobre el Ambiente`, () => {
+      const fondo = ambiente(b);
+      const fallos: string[] = [];
+      for (const n of ["--foreground", "--muted-foreground", "--data", "--destructive-text"]) {
+        const r = ratio(hexDe(b, n), fondo);
+        if (r < 4.5) fallos.push(`${n} sobre el Ambiente (${fondo}): ${r.toFixed(2)}:1`);
+      }
+      expect(fallos).toEqual([]);
+    });
+
     it(`en ${tema}, el texto aguanta 4,5:1 sobre el peor fondo de cada superficie de cristal`, () => {
       const fallos: string[] = [];
       for (const { donde, fondo } of superficies(b)) {

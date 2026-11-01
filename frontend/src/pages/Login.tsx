@@ -8,7 +8,7 @@ import { Input } from "../components/Input";
 import { Icon } from "../components/Icon";
 import { AuthBrand } from "../components/shell/AuthBrand";
 import { AuthWindow } from "../components/shell/AuthWindow";
-import { Entorno } from "../components/Entorno";
+import { Ambiente } from "../components/Ambiente";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { useAuth } from "../store/auth";
 import { ApiError } from "../api/client";
@@ -76,11 +76,11 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
   };
 
   return (
-    <Entorno dense>
+    <Ambiente>
       <div style={{ display: "flex", minHeight: "100dvh" }}>
         <AuthBrand flex="1 1 62%" />
 
-        {/* Zona del formulario: la ventana de cristal, centrada sobre el Entorno. */}
+        {/* Zona del formulario: la ventana de cristal, centrada sobre el Ambiente. */}
         <div className="login-form" style={{ flex: "1 1 38%", display: "flex", flexDirection: "column", padding: "0 16px", minWidth: 320 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 24 }}>
             <button
@@ -153,6 +153,6 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
           </div>
         </div>
       </div>
-    </Entorno>
+    </Ambiente>
   );
 }

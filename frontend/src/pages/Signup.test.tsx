@@ -26,7 +26,7 @@ vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: tema.actual 
 
 import { Signup } from "./Signup";
 
-/** Ningún contenedor de la ventana pinta un fondo opaco: la imagen del Entorno debe verse. */
+/** Ningún contenedor de la ventana pinta un fondo opaco: el Ambiente debe verse. */
 function sinFondoOpaco(ventana: HTMLElement) {
   for (let el = ventana.parentElement; el && el !== document.body; el = el.parentElement) {
     expect(el.style.background).toBe("");
@@ -178,17 +178,18 @@ describe("la ventana de cristal de «Crear cuenta»", () => {
     expect(ventana).toContainElement(screen.getByLabelText("Usuario * (mín. 3)"));
   });
 
-  it("el velo del Entorno es el denso", () => {
+  it("la pantalla va sobre el Ambiente", () => {
     tema.actual = "dark";
     try {
       const { container } = render(<MemoryRouter><Signup onBack={() => {}} onDone={() => {}} /></MemoryRouter>);
-      expect(container.querySelector<HTMLElement>("[data-entorno] > div")!.style.background).toBe("var(--veil-dense)");
+      expect(container.querySelector("[data-ambiente]")).not.toBeNull();
+    expect(container.querySelector("img[aria-hidden]")).toBeNull();
     } finally {
       tema.actual = "light";
     }
   });
 
-  it("los contenedores de la ventana no tapan la imagen del Entorno", () => {
+  it("los contenedores de la ventana no tapan el Ambiente", () => {
     render(<MemoryRouter><Signup onBack={() => {}} onDone={() => {}} /></MemoryRouter>);
     sinFondoOpaco(screen.getByRole("region", { name: "Crear cuenta" }));
   });

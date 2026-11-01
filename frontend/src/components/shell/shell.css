@@ -5,7 +5,7 @@
 .shell {
   display: grid;
   grid-template-columns: 64px 1fr;
-  /* El Entorno no da altura a sus hijos: la rejilla mide la ventana. */
+  /* El Ambiente no da altura a sus hijos: la rejilla mide la ventana. */
   height: 100vh;
   height: 100dvh;
   transition: grid-template-columns var(--dur-fast) var(--ease-out);

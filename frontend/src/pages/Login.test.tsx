@@ -28,7 +28,7 @@ vi.mock("../components/ThemeToggle", () => ({ ThemeToggle: () => null }));
 
 import { Login } from "./Login";
 
-/** Ningún contenedor de la ventana pinta un fondo opaco: la imagen del Entorno debe verse. */
+/** Ningún contenedor de la ventana pinta un fondo opaco: el Ambiente debe verse. */
 function sinFondoOpaco(ventana: HTMLElement) {
   for (let el = ventana.parentElement; el && el !== document.body; el = el.parentElement) {
     expect(el.style.background).toBe("");
@@ -204,12 +204,13 @@ describe("identidad nueva de «Entrar» (F2-10, F2-11, F2-12)", () => {
     expect(screen.getByText("Accede con tu cuenta de Prospective.")).toBeInTheDocument();
   });
 
-  it("el velo del Entorno es el denso (el texto apagado fuera de la ventana llega a 4,5:1)", () => {
+  it("la pantalla va sobre el Ambiente", () => {
     const { container } = montar();
-    expect(container.querySelector<HTMLElement>("[data-entorno] > div")!.style.background).toBe("var(--veil-dense)");
+    expect(container.querySelector("[data-ambiente]")).not.toBeNull();
+    expect(container.querySelector("img[aria-hidden]")).toBeNull();
   });
 
-  it("los contenedores de la ventana no tapan la imagen del Entorno", () => {
+  it("los contenedores de la ventana no tapan el Ambiente", () => {
     montar();
     sinFondoOpaco(screen.getByRole("region", { name: "Iniciar sesión" }));
   });

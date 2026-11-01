@@ -13,7 +13,7 @@ import { Input } from "../components/Input";
 import { Select } from "../components/Select";
 import { AuthBrand } from "../components/shell/AuthBrand";
 import { AuthWindow } from "../components/shell/AuthWindow";
-import { Entorno } from "../components/Entorno";
+import { Ambiente } from "../components/Ambiente";
 import { ThemeToggle } from "../components/ThemeToggle";
 
 const SPECIALTIES = [
@@ -125,11 +125,11 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
   };
 
   return (
-    <Entorno dense>
+    <Ambiente>
       <div style={{ display: "flex", minHeight: "100dvh" }}>
         <AuthBrand flex="1 1 56%" />
 
-        {/* Zona del formulario: ventana de cristal sobre el Entorno; el formulario es largo y es la página la que desplaza (el panel de marca queda fijo). */}
+        {/* Zona del formulario: ventana de cristal sobre el Ambiente; el formulario es largo y es la página la que desplaza (el panel de marca queda fijo). */}
         <div className="login-form" style={{ flex: "1 1 44%", display: "flex", flexDirection: "column", minWidth: 340, padding: "0 16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 24 }}>
             <button
@@ -197,6 +197,6 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
           </div>
         </div>
       </div>
-    </Entorno>
+    </Ambiente>
   );
 }

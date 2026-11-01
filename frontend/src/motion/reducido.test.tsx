@@ -1,7 +1,7 @@
 /* Movimiento reducido (§4.7): solo opacidad. Las superficies que antes saltaban
    con duración 0 ahora se funden, y ninguna aplica transformaciones de escala. */
 
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { STEPS } from "../pipeline/steps";
 
@@ -18,10 +18,8 @@ vi.mock("../store/auth", () => ({
 
 import { CommandPalette } from "../components/CommandPalette";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { Entorno } from "../components/Entorno";
 import { Sheet } from "../components/Sheet";
 import { StepDock } from "../components/stepper/StepDock";
-import { ThemeProvider } from "../store/theme";
 
 const sinEscala = (el: HTMLElement) => {
   expect(el.style.transform).not.toMatch(/scale|translate/);
@@ -82,30 +80,5 @@ describe("movimiento reducido", () => {
       expect(b).toHaveAttribute("data-escala", "1");
       expect(b.style.transform).not.toMatch(/scale/);
     }
-  });
-});
-
-describe("transparencia reducida en vivo", () => {
-  it("Entorno quita y devuelve la imagen cuando cambia la preferencia, sin remontar", () => {
-    let activa = false;
-    const oyentes = new Set<() => void>();
-    vi.spyOn(window, "matchMedia").mockImplementation((q: string) => ({
-      get matches() { return q.includes("reduced-transparency") ? activa : false; },
-      media: q,
-      addEventListener: (_: string, f: () => void) => oyentes.add(f),
-      removeEventListener: (_: string, f: () => void) => oyentes.delete(f),
-    }) as unknown as MediaQueryList);
-    localStorage.setItem("prospective.theme", "dark");
-
-    const { container } = render(<ThemeProvider><Entorno><p>x</p></Entorno></ThemeProvider>);
-    expect(container.querySelector("img")).not.toBeNull();
-
-    activa = true;
-    act(() => oyentes.forEach((f) => f()));
-    expect(container.querySelector("img")).toBeNull();
-
-    activa = false;
-    act(() => oyentes.forEach((f) => f()));
-    expect(container.querySelector("img")).not.toBeNull();
   });
 });

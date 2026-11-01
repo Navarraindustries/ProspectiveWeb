@@ -151,6 +151,15 @@ describe("tokens de la dirección D", () => {
     expect(dark).toMatch(/--glass-hover:\s*rgba\(255, ?255, ?255, ?0?\.14\)/);
     expect(light).toMatch(/--glass-hover:\s*rgba\(0, ?0, ?0, ?0?\.04\)/);
   });
+  it("el fondo ambiente tiene sus tokens en los dos temas", () => {
+    const dark = block(DARK), light = block('[data-theme="light"]');
+    expect(dark).toMatch(/--ambient-glow-1:\s*rgba\(96, ?173, ?255, ?0?\.12\)/);
+    expect(dark).toMatch(/--ambient-glow-2:\s*rgba\(96, ?173, ?255, ?0?\.08\)/);
+    expect(dark).toMatch(/--ambient-grain-opacity:\s*0?\.04\b/);
+    expect(light).toMatch(/--ambient-glow-1:\s*rgba\(10, ?102, ?255, ?0?\.08\)/);
+    expect(light).toMatch(/--ambient-glow-2:\s*rgba\(10, ?102, ?255, ?0?\.06\)/);
+    expect(light).toMatch(/--ambient-grain-opacity:\s*0?\.03\b/);
+  });
   it("el texto secundario aguanta 4,5:1 sobre cristal encima de lo más claro del corte", () => {
     // peor caso: blanco puro bajo el velo .55 y bajo el cristal .55 + blanco .08
     const mix = (top: number[], a: number, under: number[]) => under.map((u, i) => u * (1 - a) + top[i] * a);

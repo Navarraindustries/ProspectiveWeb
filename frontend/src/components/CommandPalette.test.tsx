@@ -78,6 +78,40 @@ describe("CommandPalette", () => {
     for (const o of opciones) expect((o as HTMLElement).style.minHeight).toBe("44px");
   });
 
+  it("R8: el buscador no encoge (su fila tampoco) y a 1707 la paleta es la ventana flotante", async () => {
+    simularPantalla({ ancho: 1707, alto: 743 });
+    setup();
+    open();
+    const campo = await screen.findByRole("combobox", { name: "Buscar en la paleta" });
+    expect(campo.style.flexShrink).toBe("0");
+    expect(campo.style.height).toBe("var(--field-h)");
+    expect((campo.parentElement as HTMLElement).style.flexShrink).toBe("0");
+    expect(campo).toHaveAttribute("placeholder", "Buscar una sección, un paciente o una acción…");
+    const dlg = screen.getByRole("dialog", { name: "Paleta de mandos" });
+    expect(dlg.style.width).toBe("640px");
+    expect(dlg.style.maxHeight).toBe("min(560px, 72vh)");
+    expect(screen.queryByRole("button", { name: "Cerrar la paleta" })).toBeNull();
+  });
+
+  it("R8: a 390 la paleta ocupa la pantalla, con placeholder corto y cierre de 44 px", async () => {
+    simularPantalla({ ancho: 390, alto: 700 });
+    setup();
+    const field = open();
+    const campo = await screen.findByRole("combobox", { name: "Buscar en la paleta" });
+    expect(campo).toHaveAttribute("placeholder", "Buscar…");
+    const dlg = screen.getByRole("dialog", { name: "Paleta de mandos" });
+    expect(dlg.style.width).toBe("100%");
+    expect(dlg.style.height).toBe("100dvh");
+    expect(dlg.style.maxHeight).toBe("");
+    expect((dlg.parentElement as HTMLElement).style.paddingTop).toBe("0px");
+    const cerrar = screen.getByRole("button", { name: "Cerrar la paleta" });
+    expect(cerrar.style.width).toBe("44px");
+    expect(cerrar.style.height).toBe("44px");
+    fireEvent.click(cerrar);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(field);
+  });
+
   it("a 1280 no se fuerza el alto táctil", async () => {
     simularPantalla({ ancho: 1280 });
     setup();

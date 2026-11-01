@@ -218,3 +218,20 @@ Fase 6 completada el 2026-10-31: la landing deja three.js y `border-beam` y pasa
 - Se retiran las secciones antiguas que el tablero D no tiene: vídeo del flujo, casos de uso, Tecnología, Seguridad y las tarjetas con marcas de coils y stents.
 
 Pendiente del dueño: la fuente y la licencia de la figura. El crédito dice «Figura: [fuente de la figura]» hasta entonces. Plan: `docs/superpowers/plans/2026-10-31-cristal-fase6-landing.md`.
+
+Fase 7 completada el 2026-10-31: auditoría estática del cristal, el contraste y los nombres accesibles (`styles/cristal.audit.test.ts`, con el cálculo de contraste en `styles/contraste.ts`, que lee las alfas del velo y del cristal de `colors.css` en vez de copiarlas). El `--data` oscuro pasa de #5AA9FF a #60ADFF para llegar a 4,5:1 (daba 4,41) sobre el peor fondo de cristal. Con `prefers-reduced-transparency` el desenfoque queda a cero y el fondo opaco de `[data-glass]` toma el relevo; `html[data-blur="bajo"]` hace lo mismo para el portátil sin GPU y lo fija `Entorno`. Con movimiento reducido, hojas, diálogos, paleta y dock usan un fundido de opacidad (`fundido`) en lugar de duración 0, y `Entorno` escucha los cambios de las dos preferencias sin recargar. `lib/numero.ts` (`cifra`, `mm`, `coordenadas`) unifica la coma decimal en las cifras clínicas visibles (unas 190 sustituciones de `toFixed`; los helpers locales con coma llaman ya a `cifra`/`mm`, y el `Slider` también). Restos diferidos de fases anteriores resueltos: `--viewer-bg` en lugar del `#000` del visor; `--text-muted` y `--brand` (en `DiameterChart` pasa a `--primary`) corregidos; test de que toda `var(--…)` usada está definida (con suelo de recuento y los nombres dinámicos de `avisosOficina` comprobados); la HC vuelve a la miga del quirófano (con texto oculto «HC » para lectores de pantalla); la nav de la landing se pliega a 900 px y se cierra al tocar fuera o al desplazarse. Plan: `docs/superpowers/plans/2026-10-31-cristal-fase7-pulido.md`.
+
+Desviaciones de las siete fases:
+- Fase 1: fuentes Inter y JetBrains Mono autoalojadas en lugar de Geist; la lente de los botones anima a 120 ms; con movimiento reducido las hojas usaban duración 0 (resuelto en la fase 7 con el fundido).
+- Fase 2: tarjetas de paciente y de estudio sin desenfoque propio (coste de GPU); el velo de la paleta es `--scrim-dense`; las solicitudes pendientes siguen como tarjetas; `useEstrecho` pasa de 1100 a 1280 px.
+- Fase 3: derechos que fallan cerrados si no llega el resumen del paciente; cuentas compartidas con «Ver datos» de solo lectura; entrada «Sesiones sin caso»; ↑/↓ entre filas aún no está; reanudar va siempre por Estudio › Sesión › Vista previa; la primera columna se titula «Paciente».
+- Fase 4: la barra del quirófano no lleva logotipo; el registro no tiene duraciones; una sesión reanudada anota al reanudar lo que trae; Esc con la hoja alta baja la hoja y para el cine sin cancelar el marcado.
+- Fase 5: ninguna desviación; la pantalla de carga conserva `loading.mp4`.
+- Fase 6: la ventana del hero enseña el caso 036 real, no las cifras del 002; los textos fijados por los tests prevalecen sobre la copia D; se retiran las secciones antiguas que el tablero D no tiene; el crédito de la figura sigue sin fuente.
+- Fase 7: las fuentes de glifos no se arreglan, porque las fuentes autoalojadas son solo latín y latín extendido y no traen subconjunto de símbolos; los textos que genera el backend (`piece_label`, `clip_name`, «sobredimensionado 1.50 mm», la etiqueta de la mordaza) siguen con punto decimal; la nav se pliega a 900 px por estimación (≈ 810 px de ancho natural).
+
+Pendiente del dueño:
+- La fuente y la licencia de la figura `paperfinal.jpg` (hasta entonces, el crédito dice «Figura: [fuente de la figura]»).
+- Confirmar los textos de la landing que se retiraron en la fase 6.
+- Las fuentes de glifos: descargar los ficheros de un subconjunto de símbolos si se quieren esos caracteres.
+- Comprobar a ojo en un navegador la nav de la landing entre 761 y 900 px.

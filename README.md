@@ -312,6 +312,24 @@ accent) and one shell around every screen after sign-in.
   folds and unfolds the sidebar without taking focus from a field. The pin
   button keeps it open; that choice is stored in `localStorage` under
   `shell.sidebar` (`pinned` or `collapsed`).
+- **Interfaz: dirección D, Quirófano de cristal.** The last redesign (spec
+  `docs/superpowers/specs/2026-10-31-rediseno-cristal-d-design.md`) puts every
+  screen on the `Entorno` backdrop, with surfaces of glass.
+  - Glass comes from the `--glass*` tokens and the `glass()` helper, which sets
+    `data-glass`. Without `backdrop-filter`, or with reduced transparency, the
+    opaque fallback in `[data-glass]` takes over and the blur is zero.
+    `html[data-blur="bajo"]` does the same on a laptop without a GPU.
+  - `Entorno` mounts once, draws the backdrop and listens to the motion and
+    transparency preferences, so they apply without a reload. With reduced
+    motion, transitions become opacity fades (`fundido`).
+  - Ctrl/⌘+K opens the command palette. Mandos are registered in
+    `lib/commands.ts`; a screen adds its own with `useRegisterCommands`.
+  - Breakpoints: 1280 px (the sidebar starts folded and the planning panel
+    becomes a bottom sheet), 900 px (the landing nav folds) and 760 px (the
+    landing hero uses the still layout; the sign-in video panel hides at 820).
+  - Visible figures go through `lib/numero.ts` (`cifra`, `mm`, `coordenadas`),
+    which writes the decimal comma. Text built by the backend still uses a dot.
+  - `styles/cristal.audit.test.ts` checks glass, contrast and accessible names.
 
 ---
 

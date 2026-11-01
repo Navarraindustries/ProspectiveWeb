@@ -28,6 +28,12 @@ describe("AuthBrand", () => {
     expect(container.querySelector(".login-media")).not.toBeNull();
   });
 
+  it("conserva la atribución «por SkullApp» en gris sobre el vídeo y el lema una sola vez", () => {
+    montar();
+    expect(screen.getByText("por SkullApp").style.color).toBe("var(--on-media-muted)");
+    expect(screen.getAllByText("Planificación neurovascular con datos")).toHaveLength(1);
+  });
+
   it("lleva la frase secundaria bajo el lema, en gris sobre el vídeo", () => {
     montar();
     const frase = screen.getByText("Del DICOM al clip, en un solo espacio de trabajo.");

@@ -20,12 +20,12 @@ const leer = (ruta: string) => readFileSync(join(__dirname, ruta), "utf8").repla
 it("R9 Tabs: 44 px de alto en táctil y barra a todo el ancho con pestañas que se reparten en móvil", () => {
   simularPantalla(768);
   const { unmount } = render(<Tabs tabs={["A", "B", "C"]} value="A" onChange={() => {}} />);
-  expect(screen.getByRole("tab", { name: "A" }).style.minHeight).toBe("44px");
+  expect(screen.getByRole("tab", { name: "A" }).style.minHeight).toBe("var(--control-md)");
   expect(screen.getByRole("tablist").style.width).toBe("fit-content");
   unmount();
   simularPantalla(360);
   render(<Tabs tabs={["A", "B", "C"]} value="A" onChange={() => {}} />);
-  expect(screen.getByRole("tab", { name: "B" }).style.minHeight).toBe("44px");
+  expect(screen.getByRole("tab", { name: "B" }).style.minHeight).toBe("var(--control-md)");
   expect(screen.getByRole("tab", { name: "B" }).style.flex).toContain("1");
   expect(screen.getByRole("tablist").style.width).toBe("100%");
 });

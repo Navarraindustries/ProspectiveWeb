@@ -218,7 +218,11 @@ describe("AppShell", () => {
     act(() => openCommandPalette());
     const buscar = screen.getByRole("combobox", { name: "Buscar en la paleta" });
     expect(document.activeElement).toBe(buscar);
+    // En móvil la paleta es a pantalla completa: Tab va del buscador a «Cerrar» y vuelve; nunca al cajón.
     fireEvent.keyDown(buscar, { key: "Tab" });
+    const cerrar = screen.getByRole("button", { name: "Cerrar la paleta" });
+    expect(document.activeElement).toBe(cerrar);
+    fireEvent.keyDown(cerrar, { key: "Tab" });
     expect(document.activeElement).toBe(buscar);
     fireEvent.keyDown(buscar, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "Paleta de mandos" })).toBeNull();

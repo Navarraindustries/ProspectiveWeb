@@ -32,6 +32,36 @@ cambia la marca y el caso del hero.
    entrada y desplazamiento animado al pulsar «Qué es», «Cómo funciona»…
 5. **Revisión exhaustiva** y arreglo de lo encontrado (auditoría).
 
+## Responsive: requisito de toda la ronda
+
+Decisión del dueño (01-11): «independientemente del tamaño de la pantalla se
+pueda ver de la mejor manera toda la herramienta». Aplica a CADA vista que
+toque cualquier fase, no solo a los hallazgos que lo mencionan.
+
+- **Matriz de anchos** (CSS px): 360, 390, 768, 1024, 1280, 1366, 1440, 1920,
+  2560. **Altos**: 600, 768, 900, 1080+. Ojo: el dueño usa Chrome al 80 %, así
+  que su portátil de 1366 px físicos da 1707×743 CSS; no hay que suponer que
+  «portátil» = 1366.
+- **Criterios en todos los anchos:** nada se corta ni se pisa; ningún scroll
+  horizontal de página; ningún scroll interno si el contenedor puede crecer;
+  objetivos táctiles ≥ 44 px por debajo de 1024; textos ≥ 13 px; los
+  formularios y hojas usan el ancho disponible (hoja a pantalla completa en
+  móvil); las tablas pasan a tarjetas por debajo de 640; a ≥ 1920 el
+  contenido no se estira sin fin (`--content-max`), y lo que es lienzo
+  (visor, landing) sí aprovecha el ancho.
+- **Puntos de corte comunes** en un solo sitio (`styles/tokens` o
+  `hooks/useEstrecho`): 640 (móvil), 1024 (tableta), 1280 (L5, ya existe),
+  1920 (pantalla grande). Nada de números sueltos nuevos en los componentes.
+- **Quirófano en móvil y tableta:** debe abrirse y usarse para revisar un
+  caso (visor + hoja inferior L5 + dock), aunque la segmentación fina siga
+  siendo de escritorio; en ≤ 640 el dock y la banda del visor se compactan a
+  iconos y nada se monta.
+- **Verificación:** cada fase añade, por vista tocada, un test que fije el
+  comportamiento por punto de corte (clases/atributos con `matchMedia`
+  simulado, ya que jsdom no hace layout) y, al cerrar la fase, una pasada en
+  el navegador por la matriz con capturas. Fase 12 final: pasada completa por
+  la matriz en todas las vistas y arreglo de lo que quede.
+
 ## Fondo ambiente (sustituye a Entorno)
 
 - Componente `components/Ambiente.tsx` (Entorno se borra, con su test y su
@@ -138,6 +168,7 @@ Cada fase en su worktree, SDD, fusión local `--no-ff`, sin push.
 | 9 | Páginas de gestión: auditoría §4–§13. |
 | 10 | Quirófano: auditoría §14. |
 | 11 | Landing: Case 3, movimiento, visuales, auditoría §1. |
+| 12 | Responsive: pasada por la matriz de anchos y altos en TODAS las vistas (también las que ninguna fase tocó) y arreglo de lo que quede. |
 
 Los assets de Case 3 (proceso VTK pesado) se generan en paralelo a las fases
 8–9, fuera de los worktrees de código, y entran en la fase 11.

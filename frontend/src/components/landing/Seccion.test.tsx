@@ -54,9 +54,12 @@ describe("Seccion", () => {
     expect((container.querySelector(".r") as HTMLElement).style.opacity).not.toBe("0");
   });
 
-  it("la sección se puede enfocar al llegar por el desplazamiento y se anuncia por su rótulo", () => {
-    render(<Seccion id="x" rotulo="Qué es" titulo="T">a</Seccion>);
-    const s = screen.getByRole("region", { name: "Qué es" });
+  it("la sección se puede enfocar al llegar por el desplazamiento y se anuncia por su h2", () => {
+    render(<Seccion id="x" rotulo="Qué es" titulo="Una mesa de quirófano">a</Seccion>);
+    const s = screen.getByRole("region", { name: "Una mesa de quirófano" });
+    const h2 = screen.getByRole("heading", { level: 2, name: "Una mesa de quirófano" });
+    expect(s).toHaveAttribute("aria-labelledby", h2.id);
+    expect(s).not.toHaveAttribute("aria-label");
     expect(s).toHaveAttribute("tabindex", "-1");
     expect(s).toHaveAttribute("id", "x");
   });

@@ -4,7 +4,7 @@
    `useVisible` es `true` desde el primer render y no hay nada que revelar; con
    movimiento reducido ni opacidad ni desplazamiento. */
 
-import { useRef, type CSSProperties, type ReactNode } from "react";
+import { useId, useRef, type CSSProperties, type ReactNode } from "react";
 import { useVisible } from "../patients/useVisible";
 import { ESCALONADO, motion, revelar, revelarTransition, useReducedMotion } from "../../motion";
 
@@ -55,12 +55,14 @@ export function Seccion({ id, rotulo, titulo, children, className }: {
   children: ReactNode;
   className?: string;
 }) {
+  // La región se anuncia por su titular (h2), no por el rótulo de encima.
+  const idTitulo = useId();
   return (
-    <section id={id} aria-label={rotulo} tabIndex={-1} className={className ? `sec ${className}` : "sec"}>
+    <section id={id} aria-labelledby={idTitulo} tabIndex={-1} className={className ? `sec ${className}` : "sec"}>
       <Revelar className="sec__cuerpo" escalonado>
         <RevelarItem className="sec__cabecera">
           <div className="sec__rotulo">{rotulo}</div>
-          <h2 className="sec__titulo">{titulo}</h2>
+          <h2 id={idTitulo} className="sec__titulo">{titulo}</h2>
         </RevelarItem>
         {children}
       </Revelar>

@@ -552,11 +552,13 @@
 }
 
 /* «Cómo funciona»: riel de pasos con la línea que se enciende al avanzar */
+.landing-stitch .riel__marco {
+  position: relative;
+}
 .landing-stitch .riel {
   list-style: none;
   margin: 0;
   padding: 0;
-  position: relative;
   display: grid;
 }
 .landing-stitch .riel__pista {
@@ -607,13 +609,13 @@
   gap: 8px;
   text-align: center;
 }
-.landing-stitch .riel[data-disposicion="horizontal"] .riel__pista {
+.landing-stitch .riel__marco[data-disposicion="horizontal"] .riel__pista {
   top: 22px;
   left: calc(100% / 16);
   right: calc(100% / 16);
   height: 2px;
 }
-.landing-stitch .riel[data-disposicion="horizontal"] .riel__relleno {
+.landing-stitch .riel__marco[data-disposicion="horizontal"] .riel__relleno {
   transform-origin: left center;
 }
 .landing-stitch .riel[data-disposicion="horizontal"] .riel__paso {
@@ -634,13 +636,13 @@
   grid-template-columns: minmax(0, 1fr);
   row-gap: 20px;
 }
-.landing-stitch .riel[data-disposicion="vertical"] .riel__pista {
+.landing-stitch .riel__marco[data-disposicion="vertical"] .riel__pista {
   left: 22px;
   top: 22px;
   bottom: 22px;
   width: 2px;
 }
-.landing-stitch .riel[data-disposicion="vertical"] .riel__relleno {
+.landing-stitch .riel__marco[data-disposicion="vertical"] .riel__relleno {
   transform-origin: center top;
 }
 .landing-stitch .riel[data-disposicion="vertical"] .riel__paso {

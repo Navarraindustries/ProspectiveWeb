@@ -30,6 +30,15 @@ describe("ComoFunciona", () => {
     expect(screen.getByRole("list")).toHaveAttribute("data-disposicion", "vertical");
   });
 
+  it("la lista solo tiene <li> como hijos: la pista va en el marco, fuera del <ol>", () => {
+    const { container } = render(<ComoFunciona />);
+    const ol = screen.getByRole("list");
+    expect([...ol.children].map((h) => h.tagName)).toEqual(Array(STEPS.length).fill("LI"));
+    const marco = container.querySelector(".riel__marco")!;
+    expect(ol.parentElement).toBe(marco);
+    expect(marco.querySelector(":scope > .riel__pista")).not.toBeNull();
+  });
+
   it("ocho pasos, cada uno con su icono, en el orden de STEPS", () => {
     render(<ComoFunciona />);
     const items = within(screen.getByRole("list")).getAllByRole("listitem");

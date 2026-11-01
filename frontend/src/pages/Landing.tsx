@@ -28,11 +28,11 @@ import { CONTACTO_ADMIN } from "../lib/contacto";
 /* ── Contacto y pie ─────────────────────────────────────────────────────── */
 function Contacto({ onEntrar, onCrearCuenta }: { onEntrar: () => void; onCrearCuenta: () => void }) {
   return (
-    <section id="contacto" aria-label="Contacto" tabIndex={-1} className="sec">
+    <section id="contacto" aria-labelledby="contacto-titulo" tabIndex={-1} className="sec">
       <Revelar className="sec__cuerpo">
         <div className="contacto" data-glass>
           <div>
-            <h2 className="sec__titulo sec__titulo--contacto">Hablemos de tu servicio</h2>
+            <h2 id="contacto-titulo" className="sec__titulo sec__titulo--contacto">Hablemos de tu servicio</h2>
             <p className="sec__texto">
               Escríbenos para una demostración con tus propios estudios:{" "}
               <a href={`mailto:${CONTACTO_ADMIN}`}>{CONTACTO_ADMIN}</a>

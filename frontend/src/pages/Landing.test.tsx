@@ -223,9 +223,9 @@ describe("Landing D: secciones del tablero", () => {
 
   it("«Casos reales» va entre «Funcionalidades» e «Índices morfométricos» y su figura es la real", () => {
     const { container } = show();
-    const antes = screen.getByRole("region", { name: "Funcionalidades" });
+    const antes = screen.getByRole("region", { name: "Lo que hay dentro" });
     const casos = screen.getByRole("region", { name: "Casos reales" });
-    const despues = screen.getByRole("region", { name: "Índices morfométricos" });
+    const despues = screen.getByRole("region", { name: "Ocho números que describen el saco" });
     expect(antes.compareDocumentPosition(casos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(casos.compareDocumentPosition(despues) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const img = casos.querySelector("img");

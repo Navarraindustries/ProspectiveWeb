@@ -32,6 +32,7 @@ const ICONO_PASO: Record<string, IconName> = { upload: "UPLOAD", manufacture: "W
 export function ComoFunciona() {
   const reducido = useReducedMotion() ?? false;
   const vertical = useTableta();
+  const disposicion = vertical ? "vertical" : "horizontal";
   const olRef = useRef<HTMLOListElement>(null);
   const [encendidos, setEncendidos] = useState(reducido ? STEPS.length : 0);
   const { scrollYProgress } = useScroll({ target: olRef, offset: ["start 75%", "end 55%"] });
@@ -45,29 +46,32 @@ export function ComoFunciona() {
       rotulo="Cómo funciona"
       titulo={`Del estudio al plan, en ${spell(STEPS.length)} pasos y en el orden de la cirugía`}
     >
-      <ol ref={olRef} className="riel" data-disposicion={vertical ? "vertical" : "horizontal"}>
+      {/* La pista va en el marco, junto al <ol> y no dentro: una lista solo tiene <li>. */}
+      <div className="riel__marco" data-disposicion={disposicion}>
         <div className="riel__pista" aria-hidden="true">
           <motion.div
             className="riel__relleno"
             style={reducido ? undefined : vertical ? { scaleY: scrollYProgress } : { scaleX: scrollYProgress }}
           />
         </div>
-        {STEPS.map((s, i) => (
-          <RevelarItem
-            as="li"
-            key={s.key}
-            className="riel__paso"
-            data-encendido={i < total ? "true" : "false"}
-          >
-            <span className="riel__nodo">
-              <Icon name={ICONO_PASO[s.key] ?? s.icon} size={20} />
-            </span>
-            <span className="riel__num">{String(i + 1).padStart(2, "0")}</span>
-            <span className="riel__nombre">{s.label}</span>
-            <span className="riel__linea">{LINEA_PASO[s.key] ?? ""}</span>
-          </RevelarItem>
-        ))}
-      </ol>
+        <ol ref={olRef} className="riel" data-disposicion={disposicion}>
+          {STEPS.map((s, i) => (
+            <RevelarItem
+              as="li"
+              key={s.key}
+              className="riel__paso"
+              data-encendido={i < total ? "true" : "false"}
+            >
+              <span className="riel__nodo">
+                <Icon name={ICONO_PASO[s.key] ?? s.icon} size={20} />
+              </span>
+              <span className="riel__num">{String(i + 1).padStart(2, "0")}</span>
+              <span className="riel__nombre">{s.label}</span>
+              <span className="riel__linea">{LINEA_PASO[s.key] ?? ""}</span>
+            </RevelarItem>
+          ))}
+        </ol>
+      </div>
     </Seccion>
   );
 }

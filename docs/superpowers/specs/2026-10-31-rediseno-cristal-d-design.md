@@ -235,3 +235,7 @@ Pendiente del dueño:
 - Confirmar los textos de la landing que se retiraron en la fase 6.
 - Las fuentes de glifos: descargar los ficheros de un subconjunto de símbolos si se quieren esos caracteres.
 - Comprobar a ojo en un navegador la nav de la landing entre 761 y 900 px.
+
+Ajustes tras la revisión del dueño (2026-11-01):
+- Crédito de la figura: es del conjunto IntrA (Yang, Xia, Kin e Igarashi, CVPR 2020). El repositorio no publica licencia y solo pide citar el artículo. El pie dice «Figura: modelos del conjunto IntrA (Yang, Xia, Kin e Igarashi, CVPR 2020), recoloreados.», con enlace al repositorio.
+- Glifos: nuevo subconjunto «símbolos» de Inter y JetBrains Mono (flechas, operadores, técnicos, formas, dingbats y griego), sacado de las fuentes completas con `backend/scripts/fuentes_simbolos.py`. Los que Inter no tiene (✕ ▸ ▾ ∩ …) los da JetBrains Mono dentro de la familia «Inter».

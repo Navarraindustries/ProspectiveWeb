@@ -31,7 +31,11 @@ export function FranjaCasos() {
           Cada pieza es un aneurisma real: el saco en rojo, el vaso que lo lleva en gris.
         </p>
       </div>
-      <div className="franja-casos__credito">Figura: [fuente de la figura]</div>
+      <div className="franja-casos__credito">
+        Figura: modelos del conjunto{" "}
+        <a href="https://github.com/intra3d2019/IntrA" target="_blank" rel="noopener noreferrer">IntrA</a>{" "}
+        (Yang, Xia, Kin e Igarashi, CVPR 2020), recoloreados.
+      </div>
     </section>
   );
 }

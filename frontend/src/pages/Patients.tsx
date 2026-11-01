@@ -22,6 +22,7 @@ import { CasePatientPicker, NuevoEstudioSheet } from "./NuevoCaso";
 
 import { avisosOficina } from "../lib/avisosOficina";
 import { filtraPestana, hayCompartidos, recuentoPacientes, ultimaActividad, type PestanaPacientes } from "../lib/pacientes";
+import { PageBody } from "../components/shell/PageBody";
 
 /** El aviso tras crear: el siguiente paso, para no tener que buscarlo (F2-22). */
 type Aviso =
@@ -177,9 +178,8 @@ export function Patients({
       }
     >
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px 48px" }}>
+      <PageBody className="fade-rise">
         {/* 1440: tres columnas de tarjetas más el panel lateral caben sin apretar. */}
-        <div style={{ maxWidth: 1440, margin: "0 auto" }} className="fade-rise">
           {avisos.length > 0 && (
             // Franja de chips: cada aviso es una pastilla de cristal, no una tarjeta de la rejilla.
             <div role="list" aria-label="Avisos clínicos" className="pt-avisos">
@@ -280,8 +280,7 @@ export function Patients({
             <PatientsSidePanel patients={patients} loading={loading} error={!!loadError} version={version}
                                onOpenPatient={openSheet} onNewPatient={openCreate} />
           </section>
-        </div>
-      </div>
+      </PageBody>
 
       <PatientFormSheet
         open={sheetOpen}

@@ -28,6 +28,7 @@ import { glass } from "../styles/glass";
 import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
+import { PageBody } from "../components/shell/PageBody";
 
 const BLANK: WorkshopIn = {
   name: "", contact_name: "", email: "", phone: "", address: "", tax_id: "", notes: "",
@@ -194,7 +195,7 @@ export function WorkshopsPage() {
         </Button>
       }
     >
-      <div style={{ maxWidth: "var(--content-max)", width: "100%", margin: "0 auto", padding: "18px var(--page-padding-x) 40px" }}>
+      <PageBody className="fade-rise">
         <ErrorNote>{error}</ErrorNote>
 
         {loadError && (
@@ -286,7 +287,7 @@ export function WorkshopsPage() {
             </div>
           </Card>
         </div>
-      </div>
+      </PageBody>
 
       <WorkshopSheet
         open={sheetOpen}

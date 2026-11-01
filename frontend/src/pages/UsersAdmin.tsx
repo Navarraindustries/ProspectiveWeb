@@ -23,6 +23,7 @@ import { AdminOnlyCard } from "../components/AdminOnly";
 import { fechaHora } from "../lib/fecha";
 import { ROLE_LABEL, ROLE_OPTS, ROLE_PERMITE } from "../lib/roles";
 import "../styles/office.css";
+import { PageBody } from "../components/shell/PageBody";
 
 /** Qué permite el rol elegido (F1-86): el nombre solo no dice si el Observador puede editar. */
 function RolePermite({ role }: { role: string }) {
@@ -412,8 +413,7 @@ function UsersAdminPage() {
       }
     >
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "28px 32px 48px" }}>
-        <div style={{ maxWidth: 1000, margin: "0 auto" }} className="fade-rise">
+      <PageBody className="fade-rise">
           <ErrorNote>{error}</ErrorNote>
 
           <div data-glass style={{ ...glass("dense"), borderRadius: "var(--radius-card-lg)", overflow: "hidden" }}>
@@ -492,8 +492,7 @@ function UsersAdminPage() {
             </table>
             </div>
           </div>
-        </div>
-      </div>
+      </PageBody>
 
       <EditUserSheet open={editOpen} user={editUser} onClose={() => { setEditOpen(false); setEditUser(null); }} onSaved={() => load()} />
       <NewUserSheet open={newOpen} onClose={() => setNewOpen(false)} onCreated={() => load(true)} />

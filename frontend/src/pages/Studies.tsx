@@ -21,6 +21,7 @@ import { LoadState, loadErrorText } from "../components/LoadState";
 import { STEP_LABELS } from "../pipeline/steps";
 import { conTransicion } from "../lib/viewTransition";
 import "../styles/office.css";
+import { PageBody } from "../components/shell/PageBody";
 
 /** Preview image of a study — fetched with the JWT, so it goes through a blob. */
 function Thumbnail({ study }: { study: StudyCard }) {
@@ -366,8 +367,7 @@ export function Studies({
           ? "No se pudo cargar la lista"
           : `${count} ${count === 1 ? "estudio" : "estudios"} de imagen ${count === 1 ? "archivado" : "archivados"}${count > 0 ? " · pulsa uno para reanudarlo o abrirlo" : ""}`}
     >
-      <div style={{ flex: 1, overflowY: "auto" }}>
-        <div style={{ maxWidth: 1320, margin: "0 auto", padding: "28px 24px 40px" }}>
+      <PageBody className="fade-rise">
           <StudyGallery
             onOpen={(s) => conTransicion(() => onOpen(s))}
             onResume={(s) => conTransicion(() => onResume(s))}
@@ -375,8 +375,7 @@ export function Studies({
             onNew={onNew}
             onCount={setCount}
           />
-        </div>
-      </div>
+      </PageBody>
     </AppShell>
   );
 }

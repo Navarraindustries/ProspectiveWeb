@@ -25,6 +25,7 @@ import { AppShell } from "../components/shell/AppShell";
 import { useAuth } from "../store/auth";
 import { SCREEN_PATH } from "../store/nav";
 import { NuevoEstudioSheet } from "./NuevoCaso";
+import { PageBody } from "../components/shell/PageBody";
 
 export interface PatientPageProps {
   patientId: number;
@@ -344,7 +345,7 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
 
   return (
     <AppShell crumbs={crumbs}>
-      <div style={{ padding: 24, display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      <PageBody modo="pantalla">
         {loading ? (
           <LoadState state="cargando" />
         ) : denied ? (
@@ -363,7 +364,7 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
             <Cascada columnas={columnas} onVolver={volver} />
           </div>
         )}
-      </div>
+      </PageBody>
       {patient && (
         <>
           <PatientFormSheet

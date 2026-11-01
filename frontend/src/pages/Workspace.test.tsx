@@ -225,11 +225,11 @@ describe("zona libre del visor", () => {
     expect((document.querySelector("[data-zona-libre]") as HTMLElement).style.isolation).toBe("isolate");
   });
 
-  it("plegado el panel, el visor llega al borde", () => {
+  it("plegado el panel, el visor llega hasta la tira (36 px y sus márgenes)", () => {
     localStorage.setItem("ws.panelCollapsed", "1");
     render_(2);
     const z = document.querySelector("[data-zona-libre]") as HTMLElement;
-    expect(z.style.right).toBe("0px");
+    expect(z.style.right).toBe("84px");
     expect(z.style.top).toBe("72px");
   });
 });
@@ -332,6 +332,32 @@ describe("Mandos del pipeline en la paleta", () => {
     expect(mios().length).toBeGreaterThan(0);
     unmount();
     expect(mios()).toHaveLength(0);
+  });
+});
+
+describe("acciones de la píldora derecha a ≤ 1366 px", () => {
+  const original = window.matchMedia;
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin almacenamiento */ }
+    // Portátil: cumple la consulta de 1366, no la del modo estrecho.
+    window.matchMedia = ((q: string) => ({
+      matches: q === "(max-width: 1366px)", media: q, onchange: null, addEventListener: () => {}, removeEventListener: () => {},
+      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+  });
+  afterEach(() => { window.matchMedia = original; });
+
+  it("solo el icono: «Guardar progreso» conserva su nombre accesible y su title, sin texto visible", () => {
+    estado.imagingStudyId = null;
+    render(<Workspace patient={PACIENTE} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    for (const nombre of ["Guardar progreso", "Captura", "Archivar en un caso"]) {
+      const b = screen.getByRole("button", { name: nombre });
+      expect(b.textContent, nombre).toBe("");
+      expect(b.getAttribute("title"), nombre).toBe(nombre);
+    }
+    // Sigue siendo el modo ancho: el inspector no baja a hoja.
+    expect(screen.queryByRole("region", { name: "Panel del paso" })).toBeNull();
   });
 });
 

@@ -39,6 +39,15 @@ beforeEach(() => {
 });
 
 describe("el botón de grabar", () => {
+  it("solo con icono (≤ 1366 px): «Grabar» es su nombre y su tooltip; grabando, el contador sigue a la vista", async () => {
+    render(<RecordButton step="morpho" onMessage={vi.fn()} soloIcono />);
+    const b = screen.getByRole("button", { name: "Grabar" });
+    expect(b.textContent).toBe("");
+    expect(b.getAttribute("title")).toBe("Grabar");
+    fireEvent.click(b);
+    expect((await screen.findByRole("button", { name: /Detener/ })).textContent).toContain("REC 00:");
+  });
+
   it("sin visor no deja empezar", () => {
     planning.viewerRecording = null;
     render(<RecordButton step="morpho" onMessage={vi.fn()} />);

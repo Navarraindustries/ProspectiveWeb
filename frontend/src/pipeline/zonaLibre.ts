@@ -11,6 +11,8 @@ export const BANDA_SUPERIOR = 72;
 export const MARGEN_INSPECTOR = 24;
 /** Alto de la hoja inferior asomada (modo estrecho). */
 export const HOJA_ASOMAR = 96;
+/** Ancho de la tira del inspector plegado (`.ws-panel-strip` en responsive.css). */
+export const ANCHO_TIRA = 36;
 
 const INSPECTOR = 380;
 const INSPECTOR_ANCHO = 520;
@@ -24,6 +26,8 @@ export function zonaLibre(o: {
   hoja?: "asomar" | "media" | "completa";
 }): Insets {
   if (o.estrecho) return { top: BANDA_SUPERIOR, right: 0, bottom: HOJA_ASOMAR, left: 0 };
-  const inspector = o.plegado ? 0 : (o.ancho ? INSPECTOR_ANCHO : INSPECTOR) + 2 * MARGEN_INSPECTOR;
+  // Plegado, la tira se queda en su columna: sobre el lienzo tapaba la banda
+  // del visor (botón «?», VINCULAR/CALOR) y la escalera de cortes.
+  const inspector = (o.plegado ? ANCHO_TIRA : o.ancho ? INSPECTOR_ANCHO : INSPECTOR) + 2 * MARGEN_INSPECTOR;
   return { top: BANDA_SUPERIOR, right: inspector, bottom: 0, left: 0 };
 }

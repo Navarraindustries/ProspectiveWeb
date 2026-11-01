@@ -30,6 +30,20 @@ describe("QuirofanoBar", () => {
     const { container } = render(<QuirofanoBar crumbs={[]} onBack={vi.fn()} />);
     expect(container.querySelectorAll("[data-glass]").length).toBe(2);
   });
+  it("las dos píldoras van en una sola fila flex: la izquierda encoge, la derecha no", () => {
+    // En portátiles (1280–1366) dos píldoras absolutas se solapaban.
+    const { container } = render(<QuirofanoBar crumbs={[{ label: "Pacientes" }, { label: "Ana Pérez" }]} onBack={vi.fn()} />);
+    const [izq, der] = Array.from(container.querySelectorAll<HTMLElement>("[data-glass]"));
+    const fila = izq.parentElement as HTMLElement;
+    expect(der.parentElement).toBe(fila);
+    const s = fila.style;
+    expect([s.position, s.top, s.left, s.right, s.display, s.gap, s.justifyContent])
+      .toEqual(["absolute", "16px", "24px", "24px", "flex", "12px", "space-between"]);
+    for (const p of [izq, der]) expect(p.style.position).not.toBe("absolute");
+    expect(izq.style.flex).toBe("0 1 auto");
+    expect(parseFloat(izq.style.minWidth)).toBe(0);
+    expect(der.style.flexShrink).toBe("0");
+  });
   it("lleva estado, acciones y el botón ⌘K que abre la paleta", () => {
     const fn = vi.fn();
     window.addEventListener(OPEN_PALETTE_EVENT, fn);

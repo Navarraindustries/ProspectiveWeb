@@ -10,12 +10,12 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { NEEDS_MORPHOMETRY, STEPS } from "../pipeline/steps";
-import { QuirofanoBar } from "../components/stepper/QuirofanoBar";
+import { CONSULTA_SOLO_ICONO, QuirofanoBar, rotuloAccion } from "../components/stepper/QuirofanoBar";
 import { SaveStatus } from "../components/stepper/SaveStatus";
 import { BANDA_SUPERIOR, HOJA_ASOMAR, zonaLibre } from "../pipeline/zonaLibre";
 import { StepDock } from "../components/stepper/StepDock";
 import { Z_SOBRE_HOJA, type AlturaHoja } from "../components/BottomSheet";
-import { useEstrecho } from "../hooks/useEstrecho";
+import { useEstrecho, useMediaQuery } from "../hooks/useEstrecho";
 import { ToastStack, type ToastItem } from "../components/ToastStack";
 import { Collapsible } from "../components/PanelHead";
 import { UploadPanel } from "../components/upload/UploadPanel";
@@ -112,6 +112,8 @@ export function Workspace({
   // Al entrar en modo estrecho arranca a media altura (se deriva en el propio
   // render: así el primer pintado ya la enseña a media).
   const estrecho = useEstrecho();
+  // Hasta 1366 px los botones de acción de la píldora derecha son solo icono.
+  const soloIcono = useMediaQuery(CONSULTA_SOLO_ICONO);
   const [alturaHoja, setAlturaHoja] = useState<AlturaHoja>("media");
   const [estrechoVisto, setEstrechoVisto] = useState(estrecho);
   if (estrecho !== estrechoVisto) {
@@ -433,20 +435,18 @@ export function Workspace({
           size="sm"
           onClick={() => void tomarCaptura()}
           disabled={!captureCase || shot === "busy"}
-          title={
+          {...rotuloAccion(soloIcono,
+            shot === "busy" ? "Capturando…"
+              : shot === "ok" ? (imagingStudyId ? "Captura guardada ✓" : "Captura descargada ✓")
+              : shot === "err" ? "No se guardó" : "Captura",
             !captureCase
               ? "Abre un paso con el visor para capturar lo que se ve"
               : !imagingStudyId
                 ? "Descarga una imagen de lo que se ve (sin estudio archivado no se puede guardar en el caso)"
-                : "Guarda una imagen de lo que se ve ahora, adjunta al caso"
-          }
+                : "Guarda una imagen de lo que se ve ahora, adjunta al caso")}
           leadingIcon={<Icon name={shot === "ok" ? "STATUS_OK" : "CAMERA"} />}
-        >
-          {shot === "busy" ? "Capturando…"
-            : shot === "ok" ? (imagingStudyId ? "Captura guardada ✓" : "Captura descargada ✓")
-            : shot === "err" ? "No se guardó" : "Captura"}
-        </Button>
-        <RecordButton step={step} onMessage={setRecMessage} />
+        />
+        <RecordButton step={step} onMessage={setRecMessage} soloIcono={soloIcono} />
         {/* Sin estudio archivado: la sesión aún no es de nadie. Con el
             paciente ya fijado, «Adjuntar a un caso» sonaba a elegir paciente
             otra vez; lo que falta es el caso donde archivar (F1-107). */}
@@ -455,22 +455,19 @@ export function Workspace({
             size="sm"
             onClick={() => setAttachOpen(true)}
             leadingIcon={<Icon name="SAVE" />}
-            title={patient
+            {...rotuloAccion(soloIcono, patient ? ARCHIVAR_EN_CASO : "Adjuntar a un caso", patient
               ? "Crea o elige un caso de este paciente y guarda en él el DICOM, las capturas y los vídeos"
-              : "Liga esta sesión a un paciente y un caso y archiva su DICOM"}
-          >
-            {patient ? ARCHIVAR_EN_CASO : "Adjuntar a un caso"}
-          </Button>
+              : "Liga esta sesión a un paciente y un caso y archiva su DICOM")}
+          />
         )}
         <Button
           size="sm"
           onClick={() => void saveProgress()}
           disabled={!sessionId || saving === "saving"}
-          title="Guarda el estudio, la malla, las medidas, la decisión, los dispositivos y las anotaciones de esta sesión"
+          {...rotuloAccion(soloIcono, "Guardar progreso",
+            "Guarda el estudio, la malla, las medidas, la decisión, los dispositivos y las anotaciones de esta sesión")}
           leadingIcon={<Icon name="SAVE" />}
-        >
-          Guardar progreso
-        </Button>
+        />
         </>}
       />
 

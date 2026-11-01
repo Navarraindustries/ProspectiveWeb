@@ -1,7 +1,10 @@
 /* Pastillas superiores del pipeline (F4): dos píldoras de cristal flotando
    sobre el visor, sin barra que ocupe ancho. A la izquierda, volver, las migas
    y el riesgo; a la derecha, estado, acciones, ⌘K, tema y usuario. Miden 48 px
-   a 16 px del borde: caben en la banda superior (72) y no invaden la zona libre. */
+   a 16 px del borde: caben en la banda superior (72) y no invaden la zona libre.
+   Van en una sola fila flex: en portátiles (1280–1366) dos píldoras absolutas
+   se solapaban; ahora la izquierda encoge (las migas se recortan con elipsis)
+   y la derecha conserva su ancho. */
 
 import type { CSSProperties, ReactNode } from "react";
 import { Badge, riskVariant } from "../Badge";
@@ -13,9 +16,30 @@ import { glass } from "../../styles/glass";
 import { openCommandPalette } from "../../lib/commands";
 import "../shell/shell.css";
 
-const PASTILLA: CSSProperties = {
+/** Hasta este ancho los botones de acción de la píldora derecha enseñan solo el icono. */
+export const CONSULTA_SOLO_ICONO = "(max-width: 1366px)";
+
+/** Rótulo de un botón de acción: con texto, o solo el icono con el texto como
+ *  nombre accesible y tooltip. Se esparce sobre `<Button>`. */
+export function rotuloAccion(soloIcono: boolean, texto: string, title?: string) {
+  return soloIcono
+    ? { "aria-label": texto, title: texto, children: undefined }
+    : { title, children: texto };
+}
+
+const FILA: CSSProperties = {
   position: "absolute",
   top: 16,
+  left: 24,
+  right: 24,
+  display: "flex",
+  gap: 12,
+  justifyContent: "space-between",
+  // La fila cruza la banda de lado a lado: solo las píldoras reciben el puntero.
+  pointerEvents: "none",
+};
+
+const PASTILLA: CSSProperties = {
   height: 48,
   display: "flex",
   alignItems: "center",
@@ -23,7 +47,7 @@ const PASTILLA: CSSProperties = {
   padding: "0 12px",
   borderRadius: "var(--radius-full)",
   boxShadow: "var(--glass-highlight)",
-  maxWidth: "calc(100% - 48px)",
+  pointerEvents: "auto",
 };
 
 export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions }: {
@@ -34,8 +58,8 @@ export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions }: {
   actions?: ReactNode;
 }) {
   return (
-    <>
-      <div style={{ ...glass("normal"), ...PASTILLA, left: 24, minWidth: 0 }} data-glass>
+    <div style={FILA}>
+      <div style={{ ...glass("normal"), ...PASTILLA, flex: "0 1 auto", minWidth: 0 }} data-glass>
         <button
           type="button"
           aria-label="Volver a Pacientes"
@@ -75,7 +99,7 @@ export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions }: {
         )}
         {riskLabel && <Badge variant={riskVariant(riskLabel)}>{riskLabel}</Badge>}
       </div>
-      <div style={{ ...glass("normal"), ...PASTILLA, right: 24 }} data-glass>
+      <div style={{ ...glass("normal"), ...PASTILLA, flex: "none" }} data-glass>
         {status}
         {actions}
         <button type="button" className="shell-cmdk" aria-label="Abrir la paleta de mandos (Ctrl+K)" title="Paleta de mandos (Ctrl+K)" onClick={openCommandPalette}>
@@ -84,6 +108,6 @@ export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions }: {
         <ThemeToggle size="sm" />
         <UserMenu />
       </div>
-    </>
+    </div>
   );
 }

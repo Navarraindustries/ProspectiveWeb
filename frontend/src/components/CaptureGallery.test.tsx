@@ -6,7 +6,7 @@
    al desmontar — son memoria del navegador y una lista abierta veinte veces
    las acumula. */
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 const listCaptures = vi.fn();
 const captureObjectUrl = vi.fn();
@@ -20,7 +20,9 @@ vi.mock("../api/client", () => ({
   },
 }));
 
-import { CaptureGallery, downloadName, humanSize } from "./CaptureGallery";
+import { CaptureGallery, downloadName, etiquetaPaso, humanSize } from "./CaptureGallery";
+import { simularPantalla } from "../test/pantalla";
+import { ICON_NAMES, Icon } from "./Icon";
 
 const fila = (over = {}) => ({
   id: 7, imaging_study_id: 2, case_id: 3, patient_id: 4, session_id: "s1",
@@ -139,7 +141,7 @@ describe("grabaciones en la galería", () => {
 describe("«Borrar esta captura»", () => {
   it("abre la confirmación y no borra hasta confirmar", async () => {
     render(<CaptureGallery patientId={4} />);
-    fireEvent.click(await screen.findByTitle("Borrar esta captura"));
+    fireEvent.click(await screen.findByRole("button", { name: /^Borrar la captura «/ }));
     expect(screen.getByRole("alertdialog", { name: "¿Borrar la captura?" })).toBeInTheDocument();
     expect(deleteCapture).not.toHaveBeenCalled();
 
@@ -150,10 +152,54 @@ describe("«Borrar esta captura»", () => {
 
   it("«Cancelar» la deja donde estaba", async () => {
     render(<CaptureGallery patientId={4} />);
-    fireEvent.click(await screen.findByTitle("Borrar esta captura"));
+    fireEvent.click(await screen.findByRole("button", { name: /^Borrar la captura «/ }));
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(deleteCapture).not.toHaveBeenCalled();
     expect(screen.getByText("Morfometría · plano de cuello")).toBeInTheDocument();
+  });
+});
+
+const pathDe = (n: string) => render(<Icon name={n as never} />).container.querySelector("path")!.getAttribute("d");
+
+describe("la ficha de capturas (A40)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("un solo título: la galería no repite «Capturas (N)»", async () => {
+    render(<CaptureGallery patientId={4} />);
+    await screen.findByText("Morfometría · plano de cuello");
+    expect(screen.queryByText(/^Capturas \(/i)).toBeNull();
+  });
+
+  it("el paso en castellano, no el código", async () => {
+    listCaptures.mockResolvedValue([fila({ step: "detect" })]);
+    render(<CaptureGallery patientId={4} />);
+    expect(await screen.findByText("Detección")).toBeInTheDocument();
+    expect(screen.queryByText("detect")).toBeNull();
+    expect(etiquetaPaso("detect")).toBe("Detección");
+    expect(etiquetaPaso("xyz")).toBe("xyz");
+  });
+
+  it("Descargar con icono de descarga y borrar con nombre y confirmación", async () => {
+    listCaptures.mockResolvedValue([fila({ label: "Vista 1" })]);
+    render(<CaptureGallery patientId={4} />);
+    const descargar = await screen.findByRole("button", { name: "Descargar" });
+    expect(ICON_NAMES).toContain("EXPORT");
+    expect(descargar.querySelector("path")!.getAttribute("d")).toBe(pathDe("EXPORT"));
+    expect(descargar.querySelector("path")!.getAttribute("d")).not.toBe(pathDe("STEP_EXPORT"));
+    const borrar = screen.getByRole("button", { name: "Borrar la captura «Vista 1»" });
+    expect(borrar).toHaveAttribute("data-variant", "destructive-ghost");
+    expect(borrar.textContent).not.toContain("✕");
+    fireEvent.click(borrar);
+    expect(screen.getByRole("alertdialog", { name: "¿Borrar la captura?" })).toBeInTheDocument();
+  });
+
+  it("la rejilla nunca desborda a 360 px", async () => {
+    simularPantalla(360);
+    const { container } = render(<CaptureGallery patientId={4} />);
+    await screen.findByText("Morfometría · plano de cuello");
+    const rejilla = Array.from(container.querySelectorAll<HTMLElement>("div"))
+      .find((d) => d.style.gridTemplateColumns !== "");
+    expect(rejilla!.style.gridTemplateColumns).toBe("repeat(auto-fill, minmax(min(190px, 100%), 1fr))");
   });
 });

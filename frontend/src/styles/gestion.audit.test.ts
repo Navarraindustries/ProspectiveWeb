@@ -14,6 +14,7 @@ const REVISADOS: string[] = [
   "pages/NuevoCaso.tsx", "components/PatientFormSheet.tsx", "pages/Studies.tsx",
   "components/ficha/Cascada.tsx", "components/ficha/ficha.css",
   "components/ficha/ColumnaCasos.tsx", "components/ficha/ColumnaEstudios.tsx", "components/ficha/VistaPrevia.tsx",
+  "components/CaptureGallery.tsx",
 ];
 
 const quitarComentarios = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/[^\n]*/g, "$1");

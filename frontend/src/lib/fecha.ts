@@ -76,3 +76,14 @@ export function fechaEpoch(seg: number | null | undefined, o?: OpcionesFecha & {
     ...(o?.timeZone ? { timeZone: o.timeZone } : {}),
   });
 }
+
+/** Sello para un nombre de fichero: «20261030-0905» en la zona de quien mira
+ *  (el servidor manda UTC sin zona). Si el texto no es una fecha → «sin-fecha». */
+export function selloArchivo(iso: string, o?: OpcionesFecha): string {
+  const d = desdeServidor(iso ?? "");
+  if (Number.isNaN(d.getTime())) return "sin-fecha";
+  const zona = o?.timeZone ? { timeZone: o.timeZone } : {};
+  // «sv-SE» da AAAA-MM-DD y HH:MM en 24 h; se quitan los separadores.
+  return d.toLocaleDateString("sv-SE", zona).replace(/-/g, "")
+    + "-" + d.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit", hour12: false, ...zona }).replace(/:/g, "");
+}

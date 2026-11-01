@@ -28,6 +28,7 @@ import { Button } from "../Button";
 import {
   CONSULTA_HERO_QUIETO, GROSOR_LOSA_MM, MANIFIESTO, fotogramaPara, precargarEnOrden, rutaFotograma, ultimoCargado,
 } from "./heroFrames";
+import { useIrASeccion } from "./desplazamiento";
 import { BalizasDeteccion, VentanaDeteccion } from "./VentanaDeteccion";
 
 const LEMA = "Planificación neurovascular con datos";
@@ -41,6 +42,7 @@ const pideAhorroDatos = (): boolean =>
 
 export function HeroCortes({ onEntrar, onCrearCuenta }: { onEntrar: () => void; onCrearCuenta: () => void }) {
   const reducido = useReducedMotion() ?? false;
+  const irA = useIrASeccion();
   const pequena = useMediaQuery(CONSULTA_HERO_QUIETO);
   const datosReducidos = useMediaQuery("(prefers-reduced-data: reduce)");
   const [ahorro] = useState(pideAhorroDatos);
@@ -107,7 +109,7 @@ export function HeroCortes({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
             <div className="hero-cortes__acciones">
               <Button size="lg" onClick={onEntrar}>Entrar</Button>
               <Button size="lg" variant="secondary" onClick={onCrearCuenta}>Crear cuenta</Button>
-              <a className="hero-cortes__ancla" href="#como-funciona">Ver cómo funciona ↓</a>
+              <a className="hero-cortes__ancla" href="#como-funciona" onClick={(e) => irA(e, "como-funciona")}>Ver cómo funciona ↓</a>
             </div>
             <div className="hero-cortes__notas">
               <span>Sin instalar nada</span>

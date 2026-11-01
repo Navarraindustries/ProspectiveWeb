@@ -58,3 +58,14 @@ export const lensCard = {
   whileHover: { scale: 1.02 },
   transition: { duration: DUR.estado, ease: EASE },
 };
+
+// Revelado de secciones al entrar en pantalla: sube 16 px fundiéndose.
+export const revelar: Variants = {
+  oculto: { opacity: 0, y: 16 },
+  visible: { opacity: 1, y: 0 },
+};
+export const revelarTransition = { duration: DUR.panel, ease: EASE };
+// Retardo entre hermanos que se revelan en cascada.
+export const ESCALONADO = 0.06;
+// Desplazamiento animado a una sección de la landing.
+export const DUR_DESPLAZAMIENTO = 0.6;

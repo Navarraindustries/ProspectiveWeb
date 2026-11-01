@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { reglas, tieneDeclaracion } from "../test/cssReglas";
+import { DESFASE_NAV } from "../components/landing/desplazamiento";
 
 const css = readFileSync(resolve(__dirname, "landing.css"), "utf8");
 
@@ -33,5 +34,11 @@ describe("landing.css, base responsive", () => {
       expect(r.cuerpo, r.selectores.join(", ")).toMatch(/text-transform:\s*uppercase/);
       expect(r.cuerpo, r.selectores.join(", ")).toMatch(/font-family:\s*var\(--font-mono\)/);
     }
+  });
+});
+
+describe("landing.css, anclas", () => {
+  it("las secciones con id dejan sitio a la nav al caer en un enlace profundo", () => {
+    expect(tieneDeclaracion(css, ".landing-stitch section[id]", `scroll-margin-top: ${DESFASE_NAV}px`)).toBe(true);
   });
 });

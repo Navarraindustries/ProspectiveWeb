@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import { HeroCortes } from "./HeroCortes";
 import { CONSULTA_HERO_QUIETO } from "./heroFrames";
@@ -9,6 +9,12 @@ const reducida = vi.hoisted(() => ({ valor: false }));
 vi.mock("../../motion", async (orig) => ({
   ...(await orig<typeof import("../../motion")>()),
   useReducedMotion: () => reducida.valor,
+}));
+
+const irA = vi.hoisted(() => vi.fn());
+vi.mock("./desplazamiento", async (orig) => ({
+  ...(await orig<typeof import("./desplazamiento")>()),
+  useIrASeccion: () => irA,
 }));
 
 const LEMA = "Planificación neurovascular con datos";
@@ -170,5 +176,17 @@ describe("HeroCortes", () => {
     const seccion = container.querySelector("section") as HTMLElement;
     expect(seccion).not.toHaveClass("hero-cortes--quieto");
     expect(seccion.style.height).toBe("300vh");
+  });
+});
+
+describe("HeroCortes, ancla", () => {
+  it("«Ver cómo funciona ↓» desplaza a la sección y conserva el href", () => {
+    simularPantalla(1280);
+    montar();
+    const a = screen.getByRole("link", { name: /Ver cómo funciona/ });
+    expect(a).toHaveAttribute("href", "#como-funciona");
+    fireEvent.click(a);
+    expect(irA).toHaveBeenCalledWith(expect.anything(), "como-funciona");
+    vi.unstubAllGlobals();
   });
 });

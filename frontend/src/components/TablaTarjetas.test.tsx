@@ -1,5 +1,6 @@
 /* TablaTarjetas: tabla de cristal en ≥ 641 px y lista de tarjetas en ≤ 640 px,
-   con filas pulsables por clic y teclado y un detalle desplegable. */
+   con filas pulsables (un <button> real en la celda que identifica la fila, y
+   clic de ratón en toda ella) y un detalle desplegable. */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
@@ -18,6 +19,11 @@ const cols: ColumnaTabla<F>[] = [
 ];
 const filas: F[] = [{ id: 1, nombre: "Ana Prueba", rol: "Médico" }, { id: 2, nombre: "Luis Prueba", rol: "Observador" }];
 
+/** Elementos alcanzables con Tab dentro de `raiz`, en orden de documento. */
+const tabulables = (raiz: Element) =>
+  [...raiz.querySelectorAll<HTMLElement>("button, a[href], input, select, textarea, [tabindex]")]
+    .filter((e) => !e.hasAttribute("disabled") && e.tabIndex >= 0);
+
 it("≥ 641: tabla de cristal con cabeceras y sin scroll horizontal", () => {
   simularPantalla(1280);
   const { container } = render(<TablaTarjetas rotulo="Usuarios" filas={filas} columnas={cols} clave={(f) => f.id} />);
@@ -26,6 +32,8 @@ it("≥ 641: tabla de cristal con cabeceras y sin scroll horizontal", () => {
   expect(screen.getByRole("table", { name: "Usuarios" })).toBeInTheDocument();
   expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Usuario", "Rol", "Interno", "Acciones"]);
   expect(screen.getAllByRole("columnheader").every((h) => h.getAttribute("scope") === "col")).toBe(true);
+  // La celda que identifica la fila es su cabecera de fila.
+  expect(screen.getAllByRole("rowheader").map((h) => h.textContent)).toEqual(["Ana Prueba", "Luis Prueba"]);
   expect(container.innerHTML).not.toMatch(/overflow-x/);
 });
 
@@ -52,24 +60,40 @@ it("≤ 640: tarjetas con título, datos rotulados, pie y sin la columna oculta"
   expect(items[0]).toHaveAttribute("data-glass");
 });
 
-it("fila pulsable: clic e Intro la abren; un botón de dentro no", () => {
+it("fila pulsable: el control es un botón en la cabecera de fila; el clic en la fila la abre y un botón de dentro no", () => {
   simularPantalla(1280);
   const onFila = vi.fn();
   render(<TablaTarjetas rotulo="U" filas={filas} columnas={cols} clave={(f) => f.id} onFila={onFila} />);
   fireEvent.click(screen.getByRole("button", { name: "Editar Ana Prueba" }));
   expect(onFila).not.toHaveBeenCalled();
+
   const fila = screen.getByText("Luis Prueba").closest("tr")!;
-  expect(fila).toHaveAttribute("tabindex", "0");
+  expect(fila).not.toHaveAttribute("tabindex");
+  expect(fila).not.toHaveAttribute("role");
   expect(fila).toHaveAttribute("data-pulsable");
-  fireEvent.keyDown(fila, { key: "Enter" });
+
+  // Botón nativo (Intro y Espacio lo activan) en la cabecera de fila, primero en el orden de Tab.
+  const boton = within(fila).getByRole("button", { name: "Luis Prueba" });
+  expect(boton.tagName).toBe("BUTTON");
+  expect(boton).toHaveAttribute("type", "button");
+  expect(boton.closest("th")).toHaveAttribute("scope", "row");
+  expect(tabulables(fila)[0]).toBe(boton);
+  boton.focus();
+  expect(boton).toHaveFocus();
+  fireEvent.click(boton); // lo que dispara el navegador al pulsar Intro o Espacio sobre él
+  expect(onFila).toHaveBeenCalledTimes(1);
   expect(onFila).toHaveBeenCalledWith(filas[1]);
-  fireEvent.click(screen.getByText("Ana Prueba"));
+  // Sin detalle, el botón no se anuncia como plegable.
+  expect(boton).not.toHaveAttribute("aria-expanded");
+
+  // Clic de ratón en otra celda de la fila.
+  fireEvent.click(screen.getByText("Médico"));
   expect(onFila).toHaveBeenLastCalledWith(filas[0]);
-  fireEvent.keyDown(fila, { key: " " });
-  expect(onFila).toHaveBeenCalledTimes(3);
-  // Intro sobre el botón de dentro no abre la fila.
-  fireEvent.keyDown(screen.getByRole("button", { name: "Editar Luis Prueba" }), { key: "Enter" });
-  expect(onFila).toHaveBeenCalledTimes(3);
+  expect(onFila).toHaveBeenCalledTimes(2);
+  // El teclado sobre la fila no hace nada: va por el botón.
+  fireEvent.keyDown(fila, { key: "Enter" });
+  expect(onFila).toHaveBeenCalledTimes(2);
+
   // Chevron final, fuera del árbol accesible.
   const ultima = fila.lastElementChild!;
   expect(ultima).toHaveAttribute("aria-hidden", "true");
@@ -82,28 +106,42 @@ it("sin onFila las filas no son pulsables", () => {
   const fila = screen.getByText("Luis Prueba").closest("tr")!;
   expect(fila).not.toHaveAttribute("tabindex");
   expect(fila).not.toHaveAttribute("data-pulsable");
+  expect(within(fila).queryByRole("button", { name: "Luis Prueba" })).toBeNull();
   expect(fila.children).toHaveLength(4);
 });
 
-it("tarjeta pulsable: el botón del pie tampoco la abre", () => {
+it("tarjeta pulsable: el título es el botón; el clic en la tarjeta la abre y el botón del pie no", () => {
   simularPantalla(390);
   const onFila = vi.fn();
   render(<TablaTarjetas rotulo="U" filas={filas} columnas={cols} clave={(f) => f.id} onFila={onFila} />);
   fireEvent.click(screen.getByRole("button", { name: "Editar Ana Prueba" }));
   expect(onFila).not.toHaveBeenCalled();
   const tarjeta = screen.getByText("Ana Prueba").closest("li")!;
-  expect(tarjeta).toHaveAttribute("tabindex", "0");
+  expect(tarjeta).not.toHaveAttribute("tabindex");
   expect(tarjeta).toHaveAttribute("data-pulsable");
-  fireEvent.keyDown(tarjeta, { key: "Enter" });
+  const boton = within(tarjeta).getByRole("button", { name: "Ana Prueba" });
+  expect(boton.closest(".tt-tarjeta-titulo")).not.toBeNull();
+  expect(tabulables(tarjeta)[0]).toBe(boton);
+  fireEvent.click(boton);
   expect(onFila).toHaveBeenCalledWith(filas[0]);
-  fireEvent.click(screen.getByText("Médico"));
+  expect(onFila).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getAllByText("Médico")[0]);
   expect(onFila).toHaveBeenCalledTimes(2);
+});
+
+it("tarjeta pulsable sin columna de título: la que identifica la fila hace de título", () => {
+  simularPantalla(390);
+  const sinTitulo = cols.map((c) => (c.id === "n" ? { ...c, enTarjeta: undefined } : c));
+  render(<TablaTarjetas rotulo="U" filas={filas} columnas={sinTitulo} clave={(f) => f.id} onFila={() => {}} />);
+  const tarjeta = screen.getByText("Ana Prueba").closest("li")!;
+  expect(within(tarjeta).getByRole("button", { name: "Ana Prueba" }).closest(".tt-tarjeta-titulo")).not.toBeNull();
+  expect(within(tarjeta).queryByText("Usuario")).toBeNull();
 });
 
 it("un texto larguísimo corta por palabra y no ensancha la celda", () => {
   simularPantalla(1280);
   render(<TablaTarjetas rotulo="U" filas={[{ id: 3, nombre: "x".repeat(80), rol: "Médico" }]} columnas={cols} clave={(f) => f.id} />);
-  expect(screen.getByText("x".repeat(80)).closest("td")).toHaveStyle({ overflowWrap: "anywhere" });
+  expect(screen.getByText("x".repeat(80)).closest("td, th")).toHaveStyle({ overflowWrap: "anywhere" });
   expect(screen.getAllByRole("cell").find((c) => c.textContent?.startsWith("Editar"))).toHaveStyle({ whiteSpace: "nowrap" });
 });
 
@@ -125,11 +163,14 @@ it("seleccionada, detalle y vacío", () => {
   expect(det.querySelector("td")!.colSpan).toBe(5);
   expect(within(det as HTMLElement).getByText("Hash")).toBeInTheDocument();
   expect(det).not.toHaveAttribute("data-pulsable");
-  // La fila que lo despliega lo anuncia.
-  const ana = screen.getByText("Ana Prueba").closest("tr")!;
+  // El botón de la fila lo anuncia; la fila no.
+  const ana = screen.getByRole("button", { name: "Ana Prueba" });
   expect(ana).toHaveAttribute("aria-expanded", "true");
   expect(ana.getAttribute("aria-controls")).toBe(det.id);
-  expect(screen.getByText("Luis Prueba").closest("tr")).toHaveAttribute("aria-expanded", "false");
+  expect(ana.closest("tr")).not.toHaveAttribute("aria-expanded");
+  const luis = screen.getByRole("button", { name: "Luis Prueba" });
+  expect(luis).toHaveAttribute("aria-expanded", "false");
+  expect(luis).not.toHaveAttribute("aria-controls");
   // Sin onFila no suma la columna del chevron.
   rerender(<TablaTarjetas rotulo="U" filas={filas} columnas={cols} clave={(f) => f.id} detalle={(f) => (f.id === 1 ? <p>Hash</p> : null)} />);
   expect(container.querySelector<HTMLTableCellElement>("tr.fila-detalle td")!.colSpan).toBe(4);
@@ -139,7 +180,7 @@ it("seleccionada, detalle y vacío", () => {
   expect(container.querySelector("table")).toBeNull();
 });
 
-it("tarjetas: detalle dentro de la tarjeta y seleccionada marcada", () => {
+it("tarjetas: detalle dentro de la tarjeta, anunciado por el botón del título, y seleccionada marcada", () => {
   simularPantalla(390);
   render(
     <TablaTarjetas
@@ -149,9 +190,14 @@ it("tarjetas: detalle dentro de la tarjeta y seleccionada marcada", () => {
     />,
   );
   const [ana, luis] = within(screen.getByRole("list", { name: "U" })).getAllByRole("listitem");
-  expect(within(ana).getByText("Hash")).toBeInTheDocument();
+  const hash = within(ana).getByText("Hash");
+  const boton = within(ana).getByRole("button", { name: "Ana Prueba" });
+  expect(boton).toHaveAttribute("aria-expanded", "true");
+  expect(document.getElementById(boton.getAttribute("aria-controls")!)).toContainElement(hash);
+  expect(ana).not.toHaveAttribute("aria-expanded");
   expect(luis).toHaveAttribute("data-seleccionada", "true");
   expect(within(luis).queryByText("Hash")).toBeNull();
+  expect(within(luis).getByRole("button", { name: "Luis Prueba" })).toHaveAttribute("aria-expanded", "false");
 });
 
 it("cambia de tabla a tarjetas en vivo", () => {
@@ -161,9 +207,11 @@ it("cambia de tabla a tarjetas en vivo", () => {
   expect(container.firstElementChild).toHaveAttribute("data-vista", "tarjetas");
 });
 
-it("CSS: hoja a dos columnas hasta 640 y fila pulsable con hover de cristal", () => {
+it("CSS: hoja a dos columnas hasta 640, fila pulsable con hover de cristal y tarjeta con hover de ratón", () => {
   const css = readFileSync(join(__dirname, "../styles/office.css"), "utf8").replace(/\r\n/g, "\n");
   expect(css).toMatch(/@media\s*\(\s*max-width:\s*640px\s*\)\s*\{\s*\.hoja-dos-columnas\s*\{\s*grid-template-columns:\s*1fr;/);
   expect(css).not.toMatch(/760px/);
   expect(css).toMatch(/\.tabla-oficina tbody tr\[data-pulsable\]:hover[^{]*\{[^}]*var\(--glass-hover\)/);
+  expect(css).toMatch(/@media\s*\(\s*hover:\s*hover\s*\)\s*\{\s*\.tt-tarjeta\[data-pulsable\]:hover\s*\{[^}]*var\(--primary\)/);
+  expect(css).toMatch(/\.tt-fila-boton\s*\{[^}]*background:\s*none/);
 });

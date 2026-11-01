@@ -20,12 +20,19 @@
 /* Sin puntero (táctil) no hay hover: las acciones de fila quedan a plena opacidad. */
 @media (hover: none) { .tabla-oficina tbody tr .fila-acciones { opacity: 1; } }
 
-/* TablaTarjetas: fila pulsable (cursor y hover de cristal; el anillo de foco
-   lo pone :focus-visible de base.css) y fila seleccionada (fondo de cristal y
-   filo izquierdo de 2 px en el color primario, como sombra interior). */
+/* TablaTarjetas: fila pulsable (cursor y hover de cristal; con el teclado se
+   enciende cuando su botón tiene el foco, y el anillo lo pone :focus-visible de
+   base.css) y fila seleccionada (fondo de cristal y filo izquierdo de 2 px en
+   el color primario, como sombra interior). */
 .tabla-oficina tbody tr[data-pulsable] { cursor: pointer; transition: background var(--dur-1) var(--ease-out); }
 .tabla-oficina tbody tr[data-pulsable]:hover,
-.tabla-oficina tbody tr[data-pulsable]:focus-visible { background: var(--glass-hover); }
+.tabla-oficina tbody tr[data-pulsable]:has(.tt-fila-boton:focus-visible) { background: var(--glass-hover); }
+/* El botón de la celda que identifica la fila se ve como su texto. */
+.tt-fila-boton {
+  appearance: none; background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; color: inherit; text-align: inherit; cursor: pointer;
+  overflow-wrap: anywhere; border-radius: 4px;
+}
 .tabla-oficina tbody tr[data-seleccionada="true"] { background: var(--glass-hover); }
 .tabla-oficina tbody tr[data-seleccionada="true"] > td:first-child { box-shadow: inset 2px 0 0 var(--primary); }
 @media (prefers-reduced-motion: reduce) { .tabla-oficina tbody tr[data-pulsable] { transition: none; } }
@@ -35,6 +42,11 @@
 .tt-tarjetas { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .tt-tarjeta { padding: 14px 16px; border-radius: var(--radius-card-lg); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .tt-tarjeta[data-pulsable] { cursor: pointer; }
+/* Hover de ratón: el cristal y su borde van en línea, así que el realce es un
+   contorno interior en el primario (sigue el radio de la tarjeta). */
+@media (hover: hover) {
+  .tt-tarjeta[data-pulsable]:hover { outline: 1px solid var(--primary); outline-offset: -1px; }
+}
 .tt-tarjeta-titulo { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
 .tt-tarjeta dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 13px; }
 .tt-tarjeta dt { color: var(--muted-foreground); }

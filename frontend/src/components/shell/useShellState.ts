@@ -1,5 +1,6 @@
-/* Estado de la barra lateral (shell C, F2): fijada a 240 px por defecto en
-   ventanas anchas (>= 1024 px) y plegada a 64 px en las estrechas; plegada se
+/* Estado de la barra lateral (shell C, F2): por encima de 1280 px arranca
+   fijada a 240 px salvo que el usuario la plegara; a 1280 px o menos arranca
+   plegada a 64 px (en móvil, ≤ 640, AppShell la cambia por el cajón). Plegada se
    expande al pasar el ratón, con Alt+B o dejándola fija con la chincheta.
 
    Solo lo fijo se recuerda (`localStorage`, clave `shell.sidebar`): el paso del
@@ -10,7 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SCREEN_PATH } from "../../store/nav";
-import { CONSULTA, PUNTOS_CORTE } from "../../styles/puntosCorte";
+import { CONSULTA } from "../../styles/puntosCorte";
 
 export const SIDEBAR_KEY = "shell.sidebar";
 /** Lo que tarda el ratón parado encima en expandirla: evita que un cruce
@@ -26,10 +27,9 @@ export interface ShellState {
   hoverOut: () => void;
 }
 
-/* Sin valor guardado manda el ancho de la ventana; lo que el usuario eligió
-   («pinned» o «collapsed») manda siempre. localStorage puede no existir o estar
-   vetado (modo privado, iframe): entonces también decide el ancho. */
-const WIDE_WINDOW_PX = PUNTOS_CORTE.tableta;
+/* Por encima de 1280 px manda lo que el usuario eligió («pinned» o
+   «collapsed»); sin valor guardado, o si localStorage no existe o está vetado
+   (modo privado, iframe), arranca fijada. */
 /** A 1280 px o menos la barra arranca plegada aunque la preferencia diga
     «fijada»: el contenido necesita el sitio. No se toca lo guardado. */
 const NARROW_QUERY = CONSULTA.estrecho;
@@ -50,14 +50,10 @@ export function resetSessionPinned(): void {
 function readPinned(): boolean {
   if (sessionPinned !== null) return sessionPinned;
   if (isNarrow()) return false;
-  const wide = typeof window !== "undefined" && window.innerWidth >= WIDE_WINDOW_PX;
   try {
-    const saved = localStorage.getItem(SIDEBAR_KEY);
-    if (saved === "pinned") return true;
-    if (saved === "collapsed") return false;
-    return wide;
+    return localStorage.getItem(SIDEBAR_KEY) !== "collapsed";
   } catch {
-    return wide;
+    return true;
   }
 }
 

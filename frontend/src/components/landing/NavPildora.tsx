@@ -92,10 +92,8 @@ export function NavPildora({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
         }}
       >
         {estrecho ? (
-          <span style={{ display: "inline-flex" }}>
-            <Logo variante="linea" size={26} compact />
-            <span className="landing-sr">Prospective</span>
-          </span>
+          // El icono compacto ya se anuncia «Prospective».
+          <Logo variante="linea" size={26} compact />
         ) : (
           <Logo variante="linea" size={26} />
         )}

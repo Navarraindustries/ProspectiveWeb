@@ -28,6 +28,14 @@ describe("Logo", () => {
     expect(container.querySelector("circle")!.getAttribute("r")).toBe("5");
     expect(container.querySelector("g")!.getAttribute("stroke-width")).toBe("4");
   });
+  it("el icono suelto es decorativo salvo que lleve etiqueta", () => {
+    const { container, rerender } = render(<LogoIcono size={32} />);
+    expect(container.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(container.querySelector("svg")).not.toHaveAttribute("role");
+    rerender(<LogoIcono size={32} etiqueta="Prospective" />);
+    expect(container.querySelector("svg")).not.toHaveAttribute("aria-hidden");
+    expect(container.querySelector("svg")).toHaveAttribute("role", "img");
+  });
   it("app de 16: trazo 5, punto 6 y escala 0.8125", () => {
     const { container } = render(<LogoIcono size={16} variante="app" />);
     expect(container.querySelector("g")!.getAttribute("transform")).toBe("translate(4.5 4.5) scale(0.8125)");
@@ -49,6 +57,7 @@ describe("Logo", () => {
     expect(nombre.style.letterSpacing).toBe("-0.02em");
     expect(nombre.style.fontSize).toBe("24px");
     expect(nombre.querySelector("sup")!.textContent).toBe("™");
+    expect(nombre.querySelector("sup")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByText("por SkullApp").style.fontSize).toBe("12px");
   });
   it("sin firma y compacto", () => {
@@ -56,6 +65,8 @@ describe("Logo", () => {
     expect(screen.queryByText("por SkullApp")).toBeNull();
     rerender(<Logo compact />);
     expect(container.textContent).toBe("");
+    // Sin texto visible, pero la barra plegada sigue diciendo la marca.
+    expect(screen.getByRole("img", { name: "Prospective" })).toBe(container.querySelector("svg"));
   });
   it("tono media: firma en --on-media-muted", () => {
     render(<Logo tono="media" />);

@@ -50,19 +50,6 @@
   scroll-margin-top: 96px;
 }
 
-/* Texto solo para lectores de pantalla. */
-.landing-stitch .landing-sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
-}
-
 /* ---- Navegación en pastilla (NavPildora.tsx) ---------------------------- */
 .landing-stitch .landing-nav__enlace {
   padding: 8px 12px;

@@ -1,7 +1,8 @@
 /* Logotipo de PROSPECTIVE: icono D «corte axial» (elipse con tres puntos, el mayor es la lesión)
    y «Prospective™» en Sora 600. El icono se simplifica por debajo de 33 px (lienzo de marca,
    tarjeta D). `data-logo` marca la raíz para que las auditorías de tamaño de texto apliquen
-   la excepción de la marca. El modo compacto (solo icono) es para la barra lateral plegada. */
+   la excepción de la marca. El modo compacto (solo icono) es para la barra lateral plegada:
+   el icono se anuncia «Prospective». El completo se lee «Prospective por SkullApp» (el ™ es mudo). */
 
 export type LogoVariante = "app" | "linea";
 
@@ -16,10 +17,13 @@ export function LogoIcono({
   size,
   variante = "app",
   tono = "normal",
+  etiqueta,
 }: {
   size: number;
   variante?: LogoVariante;
   tono?: "normal" | "media";
+  /** Nombre accesible del icono cuando va solo (role="img"); sin él es decorativo. */
+  etiqueta?: string;
 }) {
   const { trazo, punto, detalle } = trazoIcono(size);
   const app = variante === "app";
@@ -37,7 +41,9 @@ export function LogoIcono({
       width={size}
       height={size}
       viewBox="0 0 48 48"
-      aria-hidden="true"
+      role={etiqueta ? "img" : undefined}
+      aria-label={etiqueta}
+      aria-hidden={etiqueta ? undefined : "true"}
       focusable="false"
       style={{ flexShrink: 0 }}
     >
@@ -72,8 +78,8 @@ export interface LogoProps {
 }
 
 export function Logo({ compact = false, size = 28, variante = "app", firma = true, tono = "normal" }: LogoProps) {
+  if (compact) return <LogoIcono size={size} variante={variante} tono={tono} etiqueta="Prospective" />;
   const icono = <LogoIcono size={size} variante={variante} tono={tono} />;
-  if (compact) return icono;
   const media = tono === "media";
   const atenuado = media ? "var(--on-media-muted)" : "var(--muted-foreground)";
   const sombra = media ? "var(--on-media-shadow)" : undefined;
@@ -93,6 +99,7 @@ export function Logo({ compact = false, size = 28, variante = "app", firma = tru
         >
           Prospective
           <sup
+            aria-hidden="true"
             style={{
               fontWeight: 500,
               fontSize: Math.max(9, Math.round(size * 0.26)),

@@ -2,8 +2,9 @@
 /* El dock del pipeline flota sobre la esquina de abajo a la izquierda de la
    zona libre. Solo la celda que lo tiene debajo (data-dock-corner) sube sus
    lecturas de esa esquina la holgura que publica el contenedor del visor
-   (`--dock-holgura`: 96 px con el dock de escritorio, 72 con el compacto;
-   0 fuera del quirófano, donde no hay dock). */
+   (`--dock-holgura`: 96 px con el dock completo, 72 con el compacto de L5 y
+   80 con el táctil y el mini, que miden 8 px más; 0 fuera del quirófano,
+   donde no hay dock. Las cuentas, en Workspace). */
 .viewer-cell[data-dock-corner] { --hud-bl-extra: var(--dock-holgura, 0px); }
 .hud { position: absolute; inset: 0; pointer-events: none; font-family: var(--font-mono); color: var(--hud-text); }
 .hud * { box-sizing: border-box; }
@@ -32,6 +33,25 @@
 .hud-toggle button { background: none; border: none; padding: 2px 0; font: inherit; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-text-dim); cursor: pointer; }
 .hud-toggle button[aria-pressed="true"] { color: var(--hud-text); border-bottom: var(--hud-line) solid var(--hud-text); }
 .hud-toggle button:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
+/* Táctil en las celdas: grupos que envuelven y controles de 44 px (conmutadores,
+   cine y el desplegable de preajustes, cuya opción «Restablecer» es el
+   equivalente táctil del doble clic en W/L). Las LECTURAS (.hud-readout) no
+   cambian: excepción declarada. */
+[data-hud][data-tactil="true"] .hud-toggle { flex-wrap: wrap; row-gap: 4px; }
+[data-hud][data-tactil="true"] .hud-toggle button,
+[data-hud][data-tactil="true"] .hud-cine button,
+[data-hud][data-tactil="true"] select.hud-wl-presets { min-height: 44px; min-width: 44px; font-size: 13px; }
+/* El ⚠ del aviso de nivel en la banda: mismo foco que los conmutadores. */
+.hud-note-toggle:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
+/* Desplegables de la banda en el nivel iconos (vista principal, distribución):
+   se leen como los conmutadores, en mono y mayúsculas. El fondo del visor es
+   siempre oscuro: `color-scheme: dark` para que la lista nativa también lo sea. */
+.viewer-band-select { color-scheme: dark; font-family: inherit; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-text); background: var(--viewer-bg); border: 1px solid var(--hud-text-dim); height: 18px; padding: 0 4px; cursor: pointer; }
+.viewer-band-select:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
+/* Pantalla táctil (≤ 1024, `data-tactil` en la raíz de la banda): objetivos de
+   44 px para todo lo que se pulsa, el ⚠ incluido, y letra de 13 px. */
+.viewer-band[data-tactil="true"] { min-height: 44px; }
+.viewer-band[data-tactil="true"] button, .viewer-band[data-tactil="true"] select { min-height: 44px; min-width: 44px; font-size: 13px; }
 /* Cine de la celda: encima de la lectura de abajo a la izquierda. Sin
    `hud-decor`: es un control y se ve en esencial; en limpio, solo reproduciendo. */
 .hud-cine { position: absolute; left: 14px; bottom: calc(40px + var(--hud-bl-extra, 0px)); z-index: 6; display: inline-flex; align-items: center; gap: 8px; pointer-events: auto; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .04em; color: var(--hud-text-dim); white-space: nowrap; }

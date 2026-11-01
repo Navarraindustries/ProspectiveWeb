@@ -131,14 +131,14 @@ describe("la línea del candidato en el visor", async () => {
   const cand = { id: "cand-001", max_diameter_mm: 3.7, patch_kind: "curvature" } as never;
   it("tras medir, el título lleva 10,9 mm", () => {
     const m = { max_diameter_mm: 10.94, neck_source: "auto", candidate_id: "cand-001" } as never;
-    expect(hudCandidateLine(cand, m)).toBe("cand-001 · Ø 10,9 mm");
+    expect(hudCandidateLine(cand, m)).toBe("Candidato 1 · Ø 10,9 mm");
   });
   it("sin medida, la estimación lleva «est.»", () => {
-    expect(hudCandidateLine(cand, null)).toBe("cand-001 · Ø 3,7 mm est.");
+    expect(hudCandidateLine(cand, null)).toBe("Candidato 1 · Ø 3,7 mm est.");
   });
   it("la medida de otro candidato no se le atribuye", () => {
     const m = { max_diameter_mm: 10.9, neck_source: "auto", candidate_id: "cand-002" } as never;
-    expect(hudCandidateLine(cand, m)).toBe("cand-001 · Ø 3,7 mm est.");
+    expect(hudCandidateLine(cand, m)).toBe("Candidato 1 · Ø 3,7 mm est.");
   });
   it("tras medir con marcas, el rótulo dice «medida manual»", () => {
     expect(hudManualTag({ neck_source: "manual" } as never)).toBe("MEDIDA MANUAL");
@@ -147,7 +147,7 @@ describe("la línea del candidato en el visor", async () => {
   });
   it("el visor usa las dos", () => {
     const src = readFileSync(join(root, "vtk", "Viewer.tsx"), "utf8");
-    expect(src).toMatch(/hudCandidateLine\(candidate, morphometry\)/);
+    expect(src).toMatch(/hudCandidateLine\(candidate, morphometry, candidateNameAt\(/);
     expect(src).toMatch(/hudManualTag\(morphometry\)/);
   });
 });

@@ -97,7 +97,7 @@ beforeEach(() => {
 describe("DetectPanel", () => {
   it("muestra los aceptados con su puesto y un desplegable cerrado con los descartados", async () => {
     render(<Wrapped />);
-    expect(await screen.findByText("Puesto #1")).toBeInTheDocument();
+    expect(await screen.findByText("Candidato 1")).toBeInTheDocument();
     const toggle = screen.getByRole("button", { name: /Descartados \(2\)/ });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("Recorte de la malla")).not.toBeInTheDocument();
@@ -111,12 +111,12 @@ describe("DetectPanel", () => {
     render(<Wrapped />);
     fireEvent.click(await screen.findByRole("button", { name: /Descartados/ }));
     expect(screen.queryByText(/compruébalo en el 3D/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText("cand-002"));
+    fireEvent.click(screen.getByText("Descartado D3"));
     expect(screen.getByText(/compruébalo en el 3D/)).toBeInTheDocument();
     // La nota nombra el motivo de ESE descartado (spec §5).
     expect(screen.getByText("Descartado por «Resto de segmentación»: compruébalo en el 3D antes de medir.")).toBeInTheDocument();
     // Volver a un aceptado retira la advertencia.
-    fireEvent.click(screen.getByText("cand-000"));
+    fireEvent.click(screen.getByText("Candidato 1"));
     expect(screen.queryByText(/compruébalo en el 3D/)).not.toBeInTheDocument();
   });
 
@@ -126,15 +126,44 @@ describe("DetectPanel", () => {
     expect(await screen.findByText(/La morfometría se ha limpiado/)).toBeInTheDocument();
   });
 
+  it("el pie envuelve «Re-detectar» y «Analizar morfometría» en .ws-panel-actions sin flex en línea", async () => {
+    mockDetect({});
+    render(<Wrapped />);
+    for (const n of [/Re-detectar/, /Analizar morfometría/]) {
+      const b = await screen.findByRole("button", { name: n });
+      expect(b.closest(".ws-panel-actions")).not.toBeNull();
+      expect(b.style.flex).toBe("");
+    }
+  });
+
   it("re-detectar sin invalidación oculta el aviso", async () => {
     mockDetect({ morphometry_invalidated: true });
     render(<Wrapped />);
     await screen.findByText(/La morfometría se ha limpiado/);
     mockDetect({ morphometry_invalidated: false });
     fireEvent.click(screen.getByRole("button", { name: /Re-detectar/ }));
-    await screen.findByText("Puesto #1");
+    await screen.findByText("Candidato 1");
     await vi.waitFor(() =>
       expect(screen.queryByText(/La morfometría se ha limpiado/)).not.toBeInTheDocument());
+  });
+
+  /* A65: nunca el id interno delante de una persona. */
+  it("enseña «Candidato 1» y «Descartado D1», sin ids ni «Puesto #»", async () => {
+    mockDetect({ candidates: [cand("cand-009", 1)], rejected: [cand("cand-005", 1, { veto: { reason: "borde", label: "Recorte de la malla", detail: "" } })] });
+    const { container } = render(<Wrapped />);
+    expect(await screen.findByText("Candidato 1")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Descartados \(1\)/ }));
+    expect(screen.getByText("Descartado D1")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/cand-\d/);
+    expect(container.textContent).not.toMatch(/Puesto #/);
+  });
+
+  it("un aceptado sin rank (sesión antigua) se numera por su posición", async () => {
+    const sin = (id: string) => ({ ...cand(id, 1), rank: undefined }) as unknown as AneurysmCandidate;
+    mockDetect({ candidates: [sin("cand-007"), sin("cand-002")], rejected: [] });
+    const { container } = render(<Wrapped />);
+    expect(await screen.findByText("Candidato 2")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/cand-\d/);
   });
 
   /* Decisión nº 20 (F1-144): «Puesto #4» ya dice el orden; «Puesto bajo»
@@ -142,7 +171,7 @@ describe("DetectPanel", () => {
   it("el cuarto candidato no lleva «Puesto bajo»", async () => {
     mockDetect({ candidates: [cand("a", 1), cand("b", 2), cand("c", 3), cand("d", 4)] });
     render(<Wrapped />);
-    expect(await screen.findByText("Puesto #4")).toBeInTheDocument();
+    expect(await screen.findByText("Candidato 4")).toBeInTheDocument();
     expect(screen.queryByText("Puesto bajo")).not.toBeInTheDocument();
   });
 
@@ -162,6 +191,8 @@ describe("DetectPanel", () => {
     fireEvent.click(mas);
     expect(nota).toHaveTextContent(/La medida real la da Morfometría/);
     expect(nota).not.toHaveTextContent(/dos casos/);
+    const menos = screen.getByRole("button", { name: "Menos" });
+    expect(menos).toHaveAttribute("aria-expanded", "true");
   });
 
   /* F1-143: «Ø 3.7 mm est.» se leía como el diámetro del aneurisma. */
@@ -207,7 +238,7 @@ describe("DetectPanel", () => {
   it("sin invalidación la medida del elegido 0 se conserva", async () => {
     mockDetect({ morphometry_invalidated: false });
     render(<WithMeasure />);
-    await screen.findByText("Puesto #1");
+    await screen.findByText("Candidato 1");
     expect(screen.getByTestId("medida")).toHaveTextContent("con medida");
   });
 
@@ -220,12 +251,12 @@ describe("DetectPanel", () => {
     expect(screen.queryByText("Por qué no se encontró nada")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Analizar morfometría/ })).toBeEnabled();
     // El elegido (índice 0) es el descartado: su advertencia se ve con la lista plegada.
-    expect(screen.getByText(/cand-001: Descartado por «Recorte de la malla»/)).toBeInTheDocument();
+    expect(screen.getByText(/Descartado D2: Descartado por «Recorte de la malla»/)).toBeInTheDocument();
   });
 
   it("en StrictMode detecta una sola vez al montarse", async () => {
     render(<StrictMode><Wrapped /></StrictMode>);
-    await screen.findByText("Puesto #1");
+    await screen.findByText("Candidato 1");
     expect(detect).toHaveBeenCalledTimes(1);
   });
 
@@ -244,10 +275,10 @@ describe("DetectPanel", () => {
     rerender(<Toggle show />);
     await vi.waitFor(() => expect(detect).toHaveBeenCalledTimes(2));
     await act(async () => { resolveNew({ ...base, candidates: [cand("cand-nueva", 1)] }); });
-    expect(await screen.findByText("cand-nueva")).toBeInTheDocument();
-    await act(async () => { resolveOld({ ...base, candidates: [cand("cand-vieja", 1)] }); });
-    expect(screen.queryByText("cand-vieja")).not.toBeInTheDocument();
-    expect(screen.getByText("cand-nueva")).toBeInTheDocument();
+    expect(await screen.findByText("Candidato 1")).toBeInTheDocument();
+    await act(async () => { resolveOld({ ...base, candidates: [cand("cand-vieja", 2)] }); });
+    expect(screen.queryByText("Candidato 2")).not.toBeInTheDocument();
+    expect(screen.getByText("Candidato 1")).toBeInTheDocument();
   });
 });
 
@@ -294,12 +325,12 @@ function Toggle({ show }: { show: boolean }) {
 describe("«Limpiar candidatos y morfometría»", () => {
   it("abre la confirmación y no limpia hasta confirmar", async () => {
     render(<Wrapped />);
-    await screen.findByText("Puesto #1");
+    await screen.findByText("Candidato 1");
     fireEvent.click(screen.getByRole("button", { name: "Limpiar candidatos y morfometría" }));
     const dialogo = screen.getByRole("alertdialog", { name: "¿Limpiar candidatos y morfometría?" });
     expect(dialogo).toHaveTextContent("la medida, el cuello marcado y la recomendación");
     expect(clearDetection).not.toHaveBeenCalled();
-    expect(screen.getByText("Puesto #1")).toBeInTheDocument();
+    expect(screen.getByText("Candidato 1")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Limpiar" }));
     await vi.waitFor(() => expect(clearDetection).toHaveBeenCalledWith("s1"));

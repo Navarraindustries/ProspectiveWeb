@@ -568,6 +568,15 @@ describe("confirmar antes de llevarse el trabajo de la malla", () => {
     return visto;
   }
 
+  it("el pie envuelve «Re-segmentar» y «Continuar a detección» en .ws-panel-actions sin flex en línea", async () => {
+    conMalla(true);
+    for (const n of [/Re-segmentar/, /Continuar a detección/]) {
+      const b = await screen.findByRole("button", { name: n });
+      expect(b.closest(".ws-panel-actions")).not.toBeNull();
+      expect(b.style.flex).toBe("");
+    }
+  });
+
   it("con malla, «Re-segmentar» abre la confirmación y no segmenta", async () => {
     const { api } = await import("../../api/client");
     conMalla(true);

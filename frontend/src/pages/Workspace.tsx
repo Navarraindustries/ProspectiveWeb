@@ -9,10 +9,12 @@ import type { PatientSummary } from "../api/types";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
-import { NEEDS_MORPHOMETRY, STEPS } from "../pipeline/steps";
-import { CONSULTA_SOLO_ICONO, QuirofanoBar, rotuloAccion } from "../components/stepper/QuirofanoBar";
+import { STEPS } from "../pipeline/steps";
+import { stepAviso, stepDone, stepMissing } from "../pipeline/stepGate";
+import { CONSULTA_SOLO_ICONO, QuirofanoBar, estiloAccion, rotuloAccion } from "../components/stepper/QuirofanoBar";
 import { SaveStatus } from "../components/stepper/SaveStatus";
 import { BANDA_SUPERIOR, HOJA_ASOMAR, zonaLibre } from "../pipeline/zonaLibre";
+import { MQ_MOVIL, MQ_TACTIL } from "../pipeline/puntosCorte";
 import { StepDock } from "../components/stepper/StepDock";
 import { Z_SOBRE_HOJA, type AlturaHoja } from "../components/BottomSheet";
 import { useEstrecho, useMediaQuery } from "../hooks/useEstrecho";
@@ -37,10 +39,10 @@ import { ARCHIVAR_EN_CASO, sinCasoAviso } from "../lib/textos";
 import { PREF_PANEL_COLLAPSED, RightPanelColumn, useUnfoldForNote } from "../components/RightPanelColumn";
 import { useStoredFlag } from "../vtk/viewerPrefs";
 import { useRegisterCommands } from "../lib/commands";
+import { useThemeContext } from "../store/theme";
 import { usePlanning } from "../store/planning";
 import { useSessionLog } from "../pipeline/sessionLog";
 import { SessionLog } from "../components/planning/SessionLog";
-import { canAdvanceFromDetect } from "../components/planning/detectGate";
 
 
 /** No hace nada: en modo estrecho, el plegado del inspector no escribe la preferencia. */
@@ -48,26 +50,6 @@ const ignorar = () => {};
 /** Atajos que se ejecutan en el visor (ViewerWorkspace escucha `viewer:shortcut`). */
 const VIEWER_SHORTCUTS = new Set(["sync", "center-lesion", "hud-cycle", "center", "cine-toggle", "cine-faster", "cine-slower", "help",
   "anot-regla", "anot-angulo", "anot-region", "anot-marcador", "anot-borrar", "anot-deshacer-punto"]);
-
-/** What each step needs before it can say anything true, or null when it's ready.
- *
- *  The rail used to unlock a step just because it had been visited, so a resumed
- *  session whose detection replay failed landed on «Informe» fully unlocked and
- *  produced a PDF with no measurements in it. Gating on the actual results also
- *  turns the disabled state into an instruction instead of a dead end. */
-function missingFor(
-  i: number,
-  p: Pick<ReturnType<typeof usePlanning>, "series" | "segmentation" | "candidates" | "rejectedCandidates" | "morphometry">,
-): string | null {
-  switch (i) {
-    case 0: return null;
-    case 1: return p.series ? null : "Carga una serie DICOM primero";
-    case 2: return p.segmentation ? null : "Segmenta el vaso primero";
-    // Un descartado también se mide: con todo vetado el paso sigue abierto.
-    case 3: return canAdvanceFromDetect(p.candidates, p.rejectedCandidates) ? null : "Detecta un candidato primero";
-    default: return p.morphometry ? null : NEEDS_MORPHOMETRY;
-  }
-}
 
 export function Workspace({
   patient,
@@ -114,6 +96,13 @@ export function Workspace({
   const estrecho = useEstrecho();
   // Hasta 1366 px los botones de acción de la píldora derecha son solo icono.
   const soloIcono = useMediaQuery(CONSULTA_SOLO_ICONO);
+  const movil = useMediaQuery(MQ_MOVIL);
+  const tactil = useMediaQuery(MQ_TACTIL);
+  const modoBarra = movil ? "movil" : tactil ? "tactil" : "ancho";
+  const tamAccion = modoBarra === "ancho" ? "sm" : "md";
+  const estiloBoton = estiloAccion(tamAccion, soloIcono);
+  const { theme, toggle: alternarTema } = useThemeContext();
+  const modoDock = movil ? "mini" : tactil ? "tactil" : estrecho ? "compacto" : "completo";
   const [alturaHoja, setAlturaHoja] = useState<AlturaHoja>("media");
   const [estrechoVisto, setEstrechoVisto] = useState(estrecho);
   if (estrecho !== estrechoVisto) {
@@ -265,13 +254,23 @@ export function Workspace({
       id: `paso-${i}`,
       group: "pasos" as const,
       label: `${i + 1} · ${s.label}`,
-      disabled: i !== stepIdx && missingFor(i, planning) !== null,
+      disabled: i !== stepIdx && stepMissing(i, planning) !== null,
+      // En táctil no hay tooltip: el bloqueado dice por qué y el libre, su aviso.
+      hint: stepMissing(i, planning) ?? stepAviso(i, planning) ?? undefined,
       run: () => go(i),
     })),
     { id: "guardar", group: "acciones" as const, label: "Guardar progreso",
       disabled: !sessionId || saving === "saving", run: () => void saveProgress() },
     { id: "captura", group: "acciones" as const, label: "Captura",
       disabled: !captureCase || shot === "busy", run: () => void tomarCaptura() },
+    { id: "tema", group: "acciones" as const,
+      label: theme === "light" ? "Cambiar a tema oscuro" : "Cambiar a tema claro",
+      run: alternarTema },
+    ...(sessionId && !imagingStudyId ? [{
+      id: "archivar", group: "acciones" as const,
+      label: patient ? ARCHIVAR_EN_CASO : "Adjuntar a un caso",
+      run: () => setAttachOpen(true),
+    }] : []),
     { id: "plegar-panel", group: "acciones" as const,
       label: panelPlegado ? "Mostrar el panel del paso" : "Plegar el panel del paso",
       run: alternarPanel },
@@ -322,7 +321,7 @@ export function Workspace({
       }
       if (id.startsWith("step-")) {
         const i = Number(id.slice(5)) - 1;
-        if (i < STEPS.length && (i === stepIdx || !missingFor(i, planning))) { e.preventDefault(); go(i); }
+        if (i < STEPS.length && (i === stepIdx || !stepMissing(i, planning))) { e.preventDefault(); go(i); }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -415,6 +414,7 @@ export function Workspace({
       <div data-banda-superior
            style={{ position: "absolute", top: 0, left: 0, right: 0, height: 0, zIndex: estrecho ? Z_SOBRE_HOJA : 3 }}>
       <QuirofanoBar
+        modo={modoBarra}
         onBack={onBack}
         riskLabel={morphometry?.rupture_risk_label ?? null}
         crumbs={[
@@ -427,13 +427,14 @@ export function Workspace({
             detail: patient?.hospital_id?.trim() || undefined },
           ...(caseLabel ? [{ label: caseLabel, onClick: patient ? onOpenPatient : undefined }] : []),
         ]}
-        status={<SaveStatus state={saveState} savedAt={savedAt} />}
+        status={<SaveStatus state={saveState} savedAt={savedAt} compacta={modoBarra !== "ancho"} />}
         actions={<>
         {/* Sin estudio archivado la captura se descarga en vez de guardarse en
             el caso, como la grabación; el tooltip lo dice antes de pulsar. */}
         <Button
           variant="outline"
-          size="sm"
+          size={tamAccion}
+          style={estiloBoton}
           onClick={() => void tomarCaptura()}
           disabled={!captureCase || shot === "busy"}
           {...rotuloAccion(soloIcono,
@@ -447,13 +448,14 @@ export function Workspace({
                 : "Guarda una imagen de lo que se ve ahora, adjunta al caso")}
           leadingIcon={<Icon name={shot === "ok" ? "STATUS_OK" : "CAMERA"} />}
         />
-        <RecordButton step={step} onMessage={setRecMessage} soloIcono={soloIcono} />
+        {!movil && <RecordButton step={step} onMessage={setRecMessage} soloIcono={soloIcono} size={tamAccion} />}
         {/* Sin estudio archivado: la sesión aún no es de nadie. Con el
             paciente ya fijado, «Adjuntar a un caso» sonaba a elegir paciente
             otra vez; lo que falta es el caso donde archivar (F1-107). */}
-        {sessionId && !imagingStudyId && (
+        {sessionId && !imagingStudyId && !movil && (
           <Button
-            size="sm"
+            size={tamAccion}
+            style={estiloBoton}
             onClick={() => setAttachOpen(true)}
             leadingIcon={<Icon name="SAVE" />}
             {...rotuloAccion(soloIcono, patient ? ARCHIVAR_EN_CASO : "Adjuntar a un caso", patient
@@ -462,7 +464,8 @@ export function Workspace({
           />
         )}
         <Button
-          size="sm"
+          size={tamAccion}
+          style={estiloBoton}
           onClick={() => void saveProgress()}
           disabled={!sessionId || saving === "saving"}
           {...rotuloAccion(soloIcono, "Guardar progreso",
@@ -487,9 +490,11 @@ export function Workspace({
       {!(estrecho && alturaHoja === "completa") && <StepDock
         steps={STEPS}
         activeIndex={stepIdx}
-        missingFor={(i) => missingFor(i, planning)}
+        missingFor={(i) => stepMissing(i, planning)}
+        doneFor={(i) => stepDone(i, planning)}
+        avisoFor={(i) => stepAviso(i, planning)}
         onGo={go}
-        compacto={estrecho}
+        modo={modoDock}
         abajo={estrecho ? (alturaHoja === "asomar" ? HOJA_ASOMAR + 12 : "calc(50% + 12px)") : 20}
         zIndex={estrecho ? Z_SOBRE_HOJA : 3}
       />}
@@ -503,9 +508,13 @@ export function Workspace({
            style={{
              position: "absolute", display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0,
              isolation: "isolate",
-             // Ancho: el dock (76 px de alto a 20 del borde) tapa 96 px de la esquina.
-             // Estrecho: el dock compacto (52 px) va 12 px sobre la zona libre, que acaba en la hoja.
-             "--dock-holgura": estrecho ? "72px" : "96px",
+             // Alto del dock: botón + 2×8 de relleno + 2 de borde. La lectura de la
+             // esquina sube esta holgura sobre sus 22 px propios.
+             // Ancho: completo (activo de 60 → 78 px, a 20 del borde) llega a 98 → 96.
+             // Estrecho (≤ 1280), la zona libre acaba en la hoja y el dock va 12 px
+             // sobre ella: compacto (36 → 54 px) llega a 66 → 72; táctil y mini
+             // (44 → 62 px, ≤ 1024) llegan a 74 → 80, el mismo aire.
+             "--dock-holgura": !estrecho ? "96px" : tactil ? "80px" : "72px",
              top: libre.top, right: libre.right, bottom: libre.bottom, left: libre.left,
              transition: "right var(--dur-2) var(--ease-out), bottom var(--dur-2) var(--ease-out)",
            } as CSSProperties}>

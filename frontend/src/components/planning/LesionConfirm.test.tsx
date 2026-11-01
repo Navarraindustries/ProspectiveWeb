@@ -78,11 +78,11 @@ describe("confirmar", () => {
   it("confirma el candidato seleccionado con su id y el estudio", async () => {
     vi.mocked(api.confirmLesion).mockResolvedValue(confirmacion({}));
     montar({ study: 3, selected: 1 });
-    fireEvent.click(await screen.findByRole("button", { name: "Confirmar cand-002 como la lesión" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirmar «Candidato 2» como la lesión" }));
     await waitFor(() => expect(api.confirmLesion).toHaveBeenCalledWith({
       session_id: "s1", imaging_study_id: 3, source: "candidate", candidate_id: "cand-002",
     }));
-    expect(await screen.findByText(/La lesión es el candidato #2/)).toBeInTheDocument();
+    expect(await screen.findByText(/La lesión es «Candidato 2»/)).toBeInTheDocument();
   });
 
   it("manda el punto marcado a mano en mm", async () => {
@@ -112,8 +112,29 @@ describe("lo que enseña", () => {
   it("la confirmación vigente del estudio al abrir el paso", async () => {
     vi.mocked(api.currentLesion).mockResolvedValue(confirmacion({ candidate_rank: 1, source: "candidate" }));
     montar({ study: 3 });
-    expect(await screen.findByText(/La lesión es el candidato #1/)).toBeInTheDocument();
+    expect(await screen.findByText(/La lesión es «Candidato 1»/)).toBeInTheDocument();
     expect(api.currentLesion).toHaveBeenCalledWith("s1", 3);
+  });
+
+  /* Sesión antigua: candidatos sin rank y confirmación sin candidate_rank. Un
+     aceptado no se describe como descartado. */
+  it("un aceptado de una sesión antigua se nombra por su posición y no se dice descartado", async () => {
+    vi.mocked(api.currentLesion).mockResolvedValue(confirmacion({ candidate_rank: null, candidate_id: "cand-002", source: "candidate" }));
+    montar({ study: 3 });
+    expect(await screen.findByText(/La lesión es «Candidato 2»\./)).toBeInTheDocument();
+    expect(screen.queryByText(/descartó/)).toBeNull();
+  });
+
+  it("un descartado se nombra como en el panel y sí se dice descartado", async () => {
+    vi.mocked(api.currentLesion).mockResolvedValue(confirmacion({ candidate_rank: null, candidate_id: "cand-004", source: "candidate" }));
+    montar({ study: 3, rejected: [{ ...cand(4), id: "cand-004" } as unknown as AneurysmCandidate] });
+    expect(await screen.findByText(/La lesión es «Descartado D1», que el detector descartó\./)).toBeInTheDocument();
+  });
+
+  it("con puesto, el nombre sale del mismo sitio que en el panel", async () => {
+    vi.mocked(api.currentLesion).mockResolvedValue(confirmacion({ candidate_rank: 3, candidate_id: "cand-003", source: "candidate" }));
+    montar({ study: 3 });
+    expect(await screen.findByText(/La lesión es «Candidato 3»\./)).toBeInTheDocument();
   });
 
   /* F1-148: «no se podrá volver a pasar el detector» no decía qué se pierde. */
@@ -163,7 +184,7 @@ describe("«Confirmar cand-00N como la lesión»", () => {
     vi.mocked(api.confirmLesion).mockResolvedValue(
       confirmacion({ candidate_rank: null, candidate_id: "cand-004" }));
     montar({ study: 3, selected: 3, rejected: [descartado] });
-    fireEvent.click(await screen.findByRole("button", { name: "Confirmar cand-004 como la lesión" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirmar «Descartado D1» como la lesión" }));
     await waitFor(() => expect(api.confirmLesion).toHaveBeenCalledWith({
       session_id: "s1", imaging_study_id: 3, source: "candidate", candidate_id: "cand-004",
     }));
@@ -172,10 +193,10 @@ describe("«Confirmar cand-00N como la lesión»", () => {
   it("tras confirmar, el elegido queda como hecho y no se vuelve a ofrecer", async () => {
     vi.mocked(api.confirmLesion).mockResolvedValue(confirmacion({ candidate_rank: 2, candidate_id: "cand-002" }));
     montar({ study: 3, selected: 1 });
-    fireEvent.click(await screen.findByRole("button", { name: "Confirmar cand-002 como la lesión" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirmar «Candidato 2» como la lesión" }));
     const hecho = await screen.findByRole("button", { name: "Confirmada" });
     expect(hecho).toBeDisabled();
-    expect(screen.queryByRole("button", { name: /Confirmar cand-002/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Confirmar «Candidato 2»/ })).not.toBeInTheDocument();
   });
 });
 
@@ -216,7 +237,7 @@ describe("confirmar el punto marcado", () => {
     }));
     montar({ mark: [2, 0, 0] });
     fireEvent.click(await screen.findByText("Confirmar el punto marcado"));
-    await screen.findByText(/coincide con el candidato #2/);
+    await screen.findByText(/coincide con «Candidato 2»/);
     expect(screen.getByTestId("lista")).toHaveTextContent("cand-001:curvatura* cand-002:curvatura cand-003:curvatura");
   });
 });

@@ -56,6 +56,7 @@ import { ShortcutsSheet } from "./hud/ShortcutsSheet";
 import { useAnnotationDelete } from "../components/annotations/useAnnotationDelete";
 import { cameraMayMove, focusOnPointerDown, refocusAfterHide } from "./pointerFocus";
 import { hudCandidateLine, hudManualTag } from "./hudCandidate";
+import { candidateNameAt } from "../components/planning/detectCopy";
 // Cuello, ápice y borde: el panel de Morfometría pinta la misma muestra (F1-153).
 import { NECK_DOME_COLOR, NECK_ORIGIN_COLOR, NECK_RIM_COLOR } from "./markerColors";
 import { planeOutlines, polygonCentroid } from "./planeOutlines";
@@ -74,13 +75,15 @@ import { HudReadout, type HudLine } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
 import { ViewerHeader } from "./ViewerHeader";
 import { legendLines } from "./clipFieldLegend";
-import { HudHeadingTape } from "./hud/HudHeadingTape";
+import { HudHeadingSlot } from "./hud/HudHeadingSlot";
 import { OrientationSheet } from "./OrientationSheet";
 import { manualFromMeta, shouldSeed } from "./orientationSeed";
 import { windowPresets } from "./windowPresets";
 import { unitFor } from "./modality";
 import type { Vector3 } from "@kitware/vtk.js/types";
 import { cifra } from "../lib/numero";
+import { useMediaQuery } from "../hooks/useEstrecho";
+import { MQ_TACTIL } from "../pipeline/puntosCorte";
 
 // vtk.js (~1 MB) is only needed once a 3D mesh is shown, so load MeshView — and
 // with it the whole vtk.js runtime — lazily. The landing/login/MPR-only views
@@ -204,7 +207,7 @@ interface CameraFeed {
   listener: ((cam: { dir: Vec3; up: Vec3 }) => void) | null;
 }
 
-function SceneHeading({ feed, orientation }: { feed: RefObject<CameraFeed>; orientation: Orientation }) {
+function SceneHeading({ feed, orientation, tl, tr }: { feed: RefObject<CameraFeed>; orientation: Orientation; tl: string[]; tr: string[] }) {
   const [cam, setCam] = useState(feed.current.last);
   useEffect(() => {
     const f = feed.current;
@@ -214,12 +217,8 @@ function SceneHeading({ feed, orientation }: { feed: RefObject<CameraFeed>; orie
   }, [feed]);
   if (!cam) return null;
   const h = cameraHeading(cam.dir, cam.up, orientation);
-  // Una línea más abajo, como en el MIP: arriba del todo están el paso y el modo.
-  return (
-    <div style={{ position: "absolute", top: 18, left: 0, right: 0, height: 28, pointerEvents: "none" }}>
-      <HudHeadingTape azimuthDeg={h.azimuthDeg} elevationDeg={h.elevationDeg} known={h.known} />
-    </div>
-  );
+  // Va a la derecha de las lecturas de las esquinas, o no se pinta si no cabe.
+  return <HudHeadingSlot tl={tl} tr={tr} azimuthDeg={h.azimuthDeg} elevationDeg={h.elevationDeg} known={h.known} />;
 }
 
 /* Placeholder shown while the lazy vtk.js chunk is being fetched. */
@@ -262,6 +261,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // aplica hud.css. La ref la lee el estado del visor, que se publica una vez
   // y no puede depender del render.
   const [hudLevel, setHudLevel] = useStoredChoice(PREF_HUD_LEVEL, HUD_LEVELS, "completo", readHudLevel);
+  const tactil = useMediaQuery(MQ_TACTIL);
   const hudLevelRef = useRef(hudLevel);
   hudLevelRef.current = hudLevel;
   // Los planos de corte en el 3D van solo con PLANOS, en cualquier nivel del
@@ -415,10 +415,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
     cameraFeed.current.last = cam;
     cameraFeed.current.listener?.(cam);
   }, []);
+  // El aviso va una sola vez, en la banda: entero si cabe, si no un ⚠ que
+  // lo despliega (ViewerHeader). Ya no hay forma corta en la banda.
   const levelNote = levelNoteFor(clientVol.level, clientVol.stride, clientVol.error);
-  // En una celda compacta (estrecha) la nota larga se monta sobre el
-  // rótulo del plano; allí basta con la forma corta.
-  const levelNoteShort = levelNoteFor(clientVol.level, clientVol.stride, clientVol.error, true);
   const [nz, ny, nx] = meta?.shape ?? [1, 1, 1];
   // Al llegar un volumen nuevo: crosshair al centro y la ventana del estudio
   // (lo que hacía MprStrip, que ya no existe). Si la sesión se acaba de
@@ -1907,7 +1906,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const tl: string[] = [STEP_SCENE[step]?.toUpperCase() ?? ""];
     if (candidate && (step === "detect" || (isMesh && focusUrl))) {
       // F1-158: el Ø medido si lo hay; si no, la estimación del detector con «est.».
-      tl.push(hudCandidateLine(candidate, morphometry));
+      tl.push(hudCandidateLine(candidate, morphometry, candidateNameAt(candidates, rejectedCandidates, selectedCandidate)));
       // F1-156: dice que la medida salió de las marcas, no del saco automático.
       const manualTag = hudManualTag(morphometry);
       if (manualTag) tl.push(manualTag);
@@ -1960,7 +1959,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
             {!compact && bl.length > 0 && <HudReadout at="bl" lines={bl} />}
             {!compact && br.length > 0 && <HudReadout at="br" lines={br} />}
             {/* En la celda pequeña no cabe (el rumbo pisa las marcas): se lee al maximizar. */}
-            {!compact && isMesh && <SceneHeading feed={cameraFeed} orientation={orientation} />}
+            {!compact && isMesh && <SceneHeading feed={cameraFeed} orientation={orientation} tl={tl} tr={mode ? [mode] : []} />}
             {/* El maniquí gris no puede ser la única señal de que la orientación
                 es supuesta: una línea ámbar justo encima del recuadro, que sube
                 con él cuando hay leyenda abajo a la derecha. */}
@@ -1975,10 +1974,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
         )}
 
         {!compact && sessionId && meta && !pickMode && (
-          <div style={{ position: "absolute", top: togglesTop, left: 14, zIndex: 5, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, fontFamily: "var(--font-mono)" }}>
+          <div className="hud-controls-col" style={{ position: "absolute", top: togglesTop, left: 14, maxWidth: "calc(100% - 28px)", zIndex: 5, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, fontFamily: "var(--font-mono)" }}>
             {/* Cortes 3D solo con malla: sin ella la escena es el corte axial
                 y no hay escena en la que colocar los cortes. */}
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
               <HudToggleGroup
                 options={[
                   { key: "default", label: meshVisible ? "3D" : "MPR" },
@@ -2054,9 +2053,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
           y derecha, pero en un portátil de 1280 con DERECHA esa celda mide
           ~530 px y los dos grupos se pisaban entre sí y tapaban el rótulo de
           la vista (AXIAL, VOLUMEN…). Fuera de la celda no tapan nada y la
-          rejilla toma el resto del alto. En 1280 la banda mide ~740 px: con
-          CALOR encendido los grupos solo caben con los presets abreviados y
-          «PRINCIPAL» reducido a «▸» (headerLabels). Mismas teclas Alt+1/2/3/4
+          rejilla toma el resto del alto. La banda elige su nivel por lo que
+          mide (bandTier en mainOptions: ancho ≥ 1400, medio ≥ 1100, estrecho
+          ≥ 800, iconos por debajo o en táctil); a 1366 con el inspector mide
+          ~940 y va en estrecho («▸», DER ABA 4 SOLA, C E L, aviso ⚠). Y no se
+          pisa aunque una cifra falle: envuelve a otra línea. Mismas teclas Alt+1/2/3/4
           que la rejilla, para que el foco en un conmutador no las pierda.
           La banda vive en ViewerHeader, con su prueba. */}
       <ViewerHeader
@@ -2066,7 +2067,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         syncViews={syncViews} onSyncViewsChange={setSyncViews}
         hasClipField={!!clipField} showClipField={showClipField} clipRehearsal={!!clipRehearsal}
         onShowClipFieldChange={setShowClipField} onHelp={openSheet}
-        levelNote={levelNote} levelNoteShort={levelNoteShort} />
+        levelNote={levelNote} />
       <ShortcutsSheet open={sheetOpen} onClose={closeSheet} />
       {annotationDeleteDialog}
       {/* Alt+1/2/3 cambian la distribución mientras el foco está en el visor;
@@ -2074,7 +2075,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           del salto de paso de Workspace, que ignora Alt. */}
       {/* `data-hud` en la rejilla y no en la raíz: la banda de cabecera queda
           fuera, y sus botones (TEXTOS ▸ incluido) se ven en cualquier nivel. */}
-      <div ref={gridHostRef} data-hud={hudLevel} style={{ flex: "1 1 0", position: "relative", minHeight: 0, overflow: "hidden" }}
+      <div ref={gridHostRef} data-hud={hudLevel} data-tactil={tactil ? "true" : undefined} style={{ flex: "1 1 0", position: "relative", minHeight: 0, overflow: "hidden" }}
            tabIndex={0}
            // Los lienzos de vtk.js y los cortes anulan la acción por defecto del
            // puntero, y con ella el foco: sin esto, pinchar en el visor dejaba

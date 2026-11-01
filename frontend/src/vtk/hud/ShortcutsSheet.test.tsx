@@ -1,9 +1,47 @@
 // frontend/src/vtk/hud/ShortcutsSheet.test.tsx
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { MATRIZ_ALTOS, MATRIZ_ANCHOS, simularPantalla } from "../../test/pantalla";
 import { ShortcutsSheet } from "./ShortcutsSheet";
 
+afterEach(() => vi.unstubAllGlobals());
+
 describe("ShortcutsSheet", () => {
+  it.each(MATRIZ_ANCHOS)("a %i px la hoja toma su forma, a cualquier alto", (w) => {
+    for (const h of MATRIZ_ALTOS) {
+      simularPantalla(w, h);
+      const { unmount } = render(<ShortcutsSheet open onClose={() => {}} />);
+      const card = screen.getByRole("dialog", { name: "Atajos" });
+      expect(card.style.overflow).toBe("auto");
+      expect(card.style.maxHeight).toBe("100%");
+      if (w <= 640) {
+        expect(card).toHaveAttribute("data-movil", "true");
+        expect(card.style.height).toBe("100%");
+        expect(card.style.maxWidth).toBe("");
+      } else expect(card.style.maxWidth).toBe("920px");
+      expect(card.style.fontSize).toBe(w <= 1024 ? "13px" : "11px");
+      const cerrar = screen.getByRole("button", { name: "Cerrar" });
+      expect(cerrar.style.width).toBe(w <= 1024 ? "44px" : "24px");
+      expect(cerrar.style.height).toBe(w <= 1024 ? "44px" : "24px");
+      for (const h3 of card.querySelectorAll("h3")) expect((h3 as HTMLElement).style.fontSize).toBe(w <= 1024 ? "13px" : "10px");
+      unmount();
+    }
+  });
+
+  it("la columna de teclas tiene tope de 22ch y las teclas pueden partir por espacios", () => {
+    render(<ShortcutsSheet open onClose={() => {}} />);
+    const dl = document.querySelector("dl") as HTMLElement;
+    expect(dl.style.gridTemplateColumns).toBe("minmax(0, 22ch) minmax(0, 1fr)");
+    expect((dl.querySelector("dt") as HTMLElement).style.whiteSpace).not.toBe("nowrap");
+  });
+
+  it("«Cerrar» cierra", () => {
+    const onClose = vi.fn();
+    render(<ShortcutsSheet open onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("cerrada no pinta nada", () => {
     render(<ShortcutsSheet open={false} onClose={vi.fn()} />);
     expect(screen.queryByRole("dialog")).toBeNull();

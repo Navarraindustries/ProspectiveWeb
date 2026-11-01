@@ -52,6 +52,41 @@ describe("QuirofanoBar", () => {
     expect(parseFloat(izq.style.minWidth)).toBe(0);
     expect(der.style.flexShrink).toBe("0");
   });
+  const TRES = [{ label: "Pacientes" }, { label: "Ana Pérez Fernández de la Vega", detail: "HC-42" }, { label: "Aneurisma de la comunicante anterior" }];
+  it("móvil: solo la última miga, con title; fila a 12 px; sin riesgo, sin ⌘K ni tema; «Más acciones»", () => {
+    const { container } = render(<QuirofanoBar modo="movil" crumbs={TRES} onBack={vi.fn()} riskLabel="Alto" />);
+    const fila = container.firstElementChild as HTMLElement;
+    expect(fila.getAttribute("data-modo")).toBe("movil");
+    expect([fila.style.left, fila.style.right, fila.style.gap]).toEqual(["12px", "12px", "8px"]);
+    expect(screen.queryByText("Pacientes")).toBeNull();
+    expect(screen.queryByText(/Ana Pérez/)).toBeNull();
+    expect(screen.getByText("Aneurisma de la comunicante anterior").getAttribute("title")).toBe("Aneurisma de la comunicante anterior");
+    expect(screen.queryByText("Alto")).toBeNull();
+    expect(screen.getByRole("button", { name: "Más acciones" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Abrir la paleta de mandos (Ctrl+K)" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /tema/i })).toBeNull();
+    const volver = screen.getByRole("button", { name: "Volver a Pacientes" });
+    expect([volver.style.width, volver.style.height]).toEqual(["44px", "44px"]);
+  });
+  it("táctil: todas las migas y el riesgo, «Más acciones» de 44 px abre la paleta, sin tema", () => {
+    const fn = vi.fn();
+    window.addEventListener(OPEN_PALETTE_EVENT, fn);
+    render(<QuirofanoBar modo="tactil" crumbs={TRES} onBack={vi.fn()} riskLabel="Alto" />);
+    expect(screen.getByText("Alto")).toBeTruthy();
+    expect(screen.getByText("Pacientes")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /tema/i })).toBeNull();
+    const mas = screen.getByRole("button", { name: "Más acciones" });
+    expect([mas.style.width, mas.style.height, mas.getAttribute("title")]).toEqual(["44px", "44px", "Más acciones: paleta de mandos"]);
+    fireEvent.click(mas);
+    window.removeEventListener(OPEN_PALETTE_EVENT, fn);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+  it("ancho: ⌘K y tema siguen, sin «Más acciones»", () => {
+    render(<QuirofanoBar crumbs={TRES} onBack={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Abrir la paleta de mandos (Ctrl+K)" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Cambiar a tema claro/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Más acciones" })).toBeNull();
+  });
   it("lleva estado, acciones y el botón ⌘K que abre la paleta", () => {
     const fn = vi.fn();
     window.addEventListener(OPEN_PALETTE_EVENT, fn);

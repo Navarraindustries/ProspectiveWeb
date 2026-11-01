@@ -38,6 +38,9 @@ export const STEPS: PipelineStep[] = [
  *  diciendo cosas distintas. */
 export const NEEDS_MORPHOMETRY = "Calcula la morfometría primero";
 
+/** El paso Morfometría lanza el cálculo solo al abrirse; se avisa antes de pulsar. */
+export const MORPHO_AUTO_HINT = "Al abrirlo calcula la morfometría del candidato elegido";
+
 /** Etiquetas por índice, para las vistas que solo guardan el número. */
 export const STEP_LABELS: string[] = STEPS.map((s) => s.label);
 

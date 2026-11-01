@@ -32,7 +32,7 @@ describe("useSessionLog", () => {
     expect(result.current.map((e) => e.texto)).toEqual(["Detección · 3 candidatos"]);
     set({ selectedCandidate: 2 });
     rerender();
-    expect(result.current.map((e) => e.texto)).toEqual(["Detección · 3 candidatos", "Elegido c"]);
+    expect(result.current.map((e) => e.texto)).toEqual(["Detección · 3 candidatos", "Elegido Candidato 3"]);
   });
 
   it("volver a pintar con lo mismo no añade nada", () => {

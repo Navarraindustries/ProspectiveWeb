@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cifra } from "../lib/numero";
 import { usePlanning } from "../store/planning";
+import { candidateNameAt } from "../components/planning/detectCopy";
 
 export interface LogEntry {
   at: Date;
@@ -82,7 +83,7 @@ export function useSessionLog(paso: string, savedAt?: Date | null): LogEntry[] {
     // lista nueva (que reinicia el índice a 0).
     const mismaLista = listaPrev.current === lista;
     const cambio = mismaLista && indicePrev.current !== selectedCandidate;
-    const elegido = cambio ? (lista?.[selectedCandidate]?.id ?? null) : null;
+    const elegido = cambio ? candidateNameAt(candidates, lista.slice(candidates.length), selectedCandidate) : null;
     listaPrev.current = lista;
     indicePrev.current = selectedCandidate;
 

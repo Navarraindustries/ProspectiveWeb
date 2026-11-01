@@ -15,7 +15,7 @@ import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
-import { PanelFooter } from "../PanelFooter";
+import { PanelActions, PanelFooter } from "../PanelFooter";
 import { ProgressBar } from "../ProgressBar";
 import { Slider } from "../Slider";
 import { MeshEditTools } from "./MeshEditTools";
@@ -707,14 +707,13 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         </Button>
       )}
       <PanelFooter>
-        <div style={{ display: "flex", gap: 10 }}>
+        <PanelActions>
           <Button
             variant={segmentation ? "outline" : "default"}
             // La primera segmentación no pierde nada; re-segmentar sí.
             onClick={() => (segmentation ? setAsking("resegmentar") : void run())}
             disabled={busy || discarding || !sessionId}
             leadingIcon={<Icon name="GROWTH" />}
-            style={{ flex: 1 }}
           >
             {segmentation ? "Re-segmentar" : "Segmentar"}
           </Button>
@@ -724,7 +723,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
               Continuar a detección
             </Button>
           )}
-        </div>
+        </PanelActions>
       </PanelFooter>
       <ConfirmDialog
         open={asking === "resegmentar"}

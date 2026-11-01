@@ -47,9 +47,10 @@ vi.mock("../components/planning/ManufacturePanel", () => ({ ManufacturePanel: Na
 vi.mock("../components/planning/ReportPanel", () => ({ ReportPanel: Nada }));
 vi.mock("../components/annotations/AnnotationsPanel", () => ({ AnnotationsPanel: Nada }));
 vi.mock("../components/AttachCaseSheet", () => ({ AttachCaseSheet: Nada }));
-vi.mock("../components/RecordButton", () => ({ RecordButton: Nada }));
+vi.mock("../components/RecordButton", () => ({ RecordButton: () => <button type="button">Grabar</button> }));
 
 import { Workspace } from "./Workspace";
+import { MATRIZ_ALTOS, MATRIZ_ANCHOS, simularPantalla } from "../test/pantalla";
 import { getCommands } from "../lib/commands";
 import type { PatientSummary } from "../api/types";
 
@@ -292,6 +293,48 @@ describe("Registro de la sesión", () => {
   });
 });
 
+describe("dock por tamaño de pantalla", () => {
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin almacenamiento */ }
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+  const MODO: Record<number, string> = { 360: "mini", 390: "mini", 768: "tactil", 1024: "tactil", 1280: "compacto",
+    1366: "completo", 1440: "completo", 1707: "completo", 1920: "completo", 2560: "completo" };
+  it.each(MATRIZ_ANCHOS)("a %i px el dock va en su modo, a cualquier alto", (w) => {
+    for (const h of MATRIZ_ALTOS) {
+      simularPantalla(w, h);
+      const { unmount } = montar();
+      expect(screen.getByRole("navigation", { name: "Flujo de planificación" })).toHaveAttribute("data-modo", MODO[w]);
+      unmount();
+    }
+  });
+  /* La lectura de abajo a la izquierda sube lo que tapa el dock de esa pantalla. */
+  const HOLGURA: Record<string, string> = { mini: "80px", tactil: "80px", compacto: "72px", completo: "96px" };
+  it.each(MATRIZ_ANCHOS)("a %i px la holgura del dock sigue a su alto", (w) => {
+    simularPantalla(w);
+    montar();
+    const z = document.querySelector("[data-zona-libre]") as HTMLElement;
+    expect(z.style.getPropertyValue("--dock-holgura")).toBe(HOLGURA[MODO[w]]);
+  });
+});
+
+describe("dock: hechos por resultado y aviso del paso 4", () => {
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin persistencia */ }
+  });
+  it("con serie, segmentación y un candidato, el dock marca hechos 2 y 3 desde el paso 1 y el 4 avisa", () => {
+    estado.series = {};
+    estado.segmentation = {};
+    estado.candidates = [{ id: "cand-001", rank: 1 }];
+    montar();
+    expect(screen.getByRole("button", { name: /^Paso 2,/ })).toHaveAttribute("data-estado", "hecho");
+    expect(screen.getByRole("button", { name: /^Paso 3,/ })).toHaveAttribute("data-estado", "hecho");
+    expect(screen.getByRole("button", { name: /^Paso 4, Morfometría. Al abrirlo calcula/ })).toBeInTheDocument();
+  });
+});
+
 describe("Mandos del pipeline en la paleta", () => {
   beforeEach(() => {
     for (const k of Object.keys(estado)) delete estado[k];
@@ -309,6 +352,16 @@ describe("Mandos del pipeline en la paleta", () => {
     expect(deteccion?.disabled).toBe(true);
     expect(pasos.find((c) => c.label.startsWith("2 · "))?.disabled).toBe(false);
     expect(pasos.find((c) => c.label.startsWith("1 · "))?.disabled).toBe(false);
+  });
+
+  /* Táctil: sin tooltip, el paso bloqueado dice por qué en la propia paleta. */
+  it("un paso bloqueado lleva su motivo de pista; uno libre con aviso, el aviso", () => {
+    estado.series = {};
+    montar();
+    const pasos = getCommands().filter((c) => c.group === "pasos");
+    expect(pasos.find((c) => c.label === "3 · Detección")?.hint).toBe("Segmenta el vaso primero");
+    expect(pasos.find((c) => c.label.startsWith("4 · "))?.hint).toBe("Detecta un candidato primero");
+    expect(pasos.find((c) => c.label.startsWith("2 · "))?.hint).toBeUndefined();
   });
 
   it("«Guardar progreso» se deshabilita sin sesión", () => {
@@ -345,6 +398,34 @@ describe("Mandos del pipeline en la paleta", () => {
   });
 });
 
+describe("barra del quirófano por tamaño de pantalla", () => {
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin almacenamiento */ }
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+  it.each(MATRIZ_ANCHOS)("a %i px la barra va en su modo y sus acciones", (w) => {
+    simularPantalla(w);
+    montar();
+    const modo = w <= 640 ? "movil" : w <= 1024 ? "tactil" : "ancho";
+    expect(document.querySelector("[data-banda-superior] [data-modo]")).toHaveAttribute("data-modo", modo);
+    expect(!!screen.queryByRole("button", { name: /Grabar/ })).toBe(modo !== "movil");
+    expect(!!screen.queryByRole("button", { name: "Más acciones" })).toBe(modo !== "ancho");
+    if (modo !== "ancho") expect(screen.getByRole("button", { name: "Guardar progreso" }).style.height).toBe("var(--control-md)");
+  });
+  it("la paleta ofrece el tema y, sin estudio archivado, archivar", () => {
+    estado.imagingStudyId = null;
+    const { unmount } = render(<Workspace patient={PACIENTE} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    expect(getCommands().find((c) => c.label === "Cambiar a tema claro")?.group).toBe("acciones");
+    expect(getCommands().find((c) => c.label === "Archivar en un caso")?.group).toBe("acciones");
+    unmount();
+    estado.imagingStudyId = 9;
+    montar();
+    expect(getCommands().find((c) => c.label === "Cambiar a tema claro")).toBeTruthy();
+    expect(getCommands().find((c) => /Archivar|Adjuntar/.test(c.label))).toBeUndefined();
+  });
+});
+
 describe("acciones de la píldora derecha a ≤ 1366 px", () => {
   const original = window.matchMedia;
   beforeEach(() => {
@@ -377,16 +458,12 @@ describe("acciones de la píldora derecha a ≤ 1366 px", () => {
 });
 
 describe("hoja inferior a ≤ 1280 px", () => {
-  const original = window.matchMedia;
   beforeEach(() => {
     for (const k of Object.keys(estado)) delete estado[k];
     try { localStorage.clear(); } catch { /* sin almacenamiento */ }
-    window.matchMedia = ((q: string) => ({
-      matches: true, media: q, onchange: null, addEventListener: () => {}, removeEventListener: () => {},
-      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
-    })) as unknown as typeof window.matchMedia;
+    simularPantalla(1100); // L5: estrecho, sin táctil
   });
-  afterEach(() => { window.matchMedia = original; });
+  afterEach(() => { vi.unstubAllGlobals(); });
 
   const montar_ = () => render(
     <Workspace patient={null} initialStep={2} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,

@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
+import { DUR, EASE, motion } from "../../motion";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { PanelHead, ErrorNote } from "../PanelHead";
-import { PanelFooter } from "../PanelFooter";
+import { PanelActions, PanelFooter } from "../PanelFooter";
 import { ProgressBar } from "../ProgressBar";
 import { LesionConfirm } from "./LesionConfirm";
 import { SegmentProgress } from "../segmentation/SegmentProgress";
@@ -16,7 +17,7 @@ import { usePlanning } from "../../store/planning";
 import type { DetectionDiagnostics } from "../../api/types";
 import {
   ALL_REJECTED, DETECT_LINES, DETECT_MORE, MANUAL_BADGE, MORPHO_INVALIDATED, SMALL_SAC_CHANNEL,
-  channelLabel, channelTitle, isManual, rankLabel, rejectedSummary, thicknessLabel, vetoHint,
+  channelLabel, channelTitle, candidateName, isManual, rejectedSummary, thicknessLabel, vetoHint,
 } from "./detectCopy";
 import { canAdvanceFromDetect } from "./detectGate";
 import { cifraCorta } from "../../lib/numero";
@@ -200,24 +201,30 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
             {DETECT_LINES.map((t) => <li key={t}>{t}</li>)}
           </ul>
           {showMore && DETECT_MORE.map((t) => <p key={t} style={{ margin: "6px 0 0" }}>{t}</p>)}
-          <button
-            type="button"
+          <Button
+            variant="link"
+            size="sm"
             aria-expanded={showMore}
             onClick={() => setShowMore((v) => !v)}
-            style={{
-              background: "none", border: "none", padding: "4px 0 0", cursor: "pointer",
-              fontSize: 11, fontWeight: 700, color: "var(--muted-foreground)",
-            }}
+            trailingIcon={
+              <motion.span
+                aria-hidden
+                style={{ display: "inline-flex" }}
+                animate={{ rotate: showMore ? 90 : 0 }}
+                transition={{ duration: DUR.respuesta, ease: EASE }}
+              >
+                <Icon name="CHEVRON_RIGHT" size={12} />
+              </motion.span>
+            }
           >
             {showMore ? "Menos" : "Más"}
-          </button>
+          </Button>
         </div>
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {candidates.map((c, i) => {
           const on = selectedCandidate === i;
-          const rank = c.rank ?? i + 1;
           // Un punto marcado a mano no tiene grosor medido ni puesto del detector.
           const manual = isManual(c);
           return (
@@ -234,7 +241,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>{c.id}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", whiteSpace: "nowrap" }}>{candidateName(c, false, i)}</span>
                 {/* Qué criterio lo encontró. Que coincidan varios es
                     información para el clínico; el orden no lo es. */}
                 {manual
@@ -248,9 +255,9 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                       </Badge>
                     </span>
                   ))}
-                {/* Decisión nº 20 (F1-144): sin «Puesto bajo». «Puesto #4» ya
-                    dice el orden, y la marca juzgaba con un orden que no está
-                    validado. */}
+                {/* Decisión nº 20 (F1-144): sin «Puesto bajo». El nombre
+                    («Candidato 4») ya dice el orden, y la marca juzgaba con un
+                    orden que no está validado. */}
                 <div style={{ flex: 1 }} />
                 {on && <Icon name="STATUS_OK" size={15} color="var(--brand-deep)" />}
               </div>
@@ -268,16 +275,8 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                   </span>
                 )}
                 <span style={{ flex: 1 }} />
-                {/* Antes decía «Principal» y luego un porcentaje de confianza.
-                    Ese número afirmaba más de lo que el dato sostiene, y en el
-                    único caso con diagnóstico médico el primero era el
-                    equivocado. El puesto dice el orden sin prometer nada; la
-                    barra sigue dando la puntuación relativa. */}
-                {!manual && (
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--foreground)", whiteSpace: "nowrap" }}>
-                    {rankLabel(rank)}
-                  </span>
-                )}
+                {/* El puesto ya va en el nombre («Candidato 3»); la barra sigue
+                    dando la puntuación relativa. */}
               </div>
               {!manual && (
                 <div style={{ height: 4, borderRadius: 2, background: "var(--muted)", marginTop: 6, overflow: "hidden" }}>
@@ -337,7 +336,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}>{c.id}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>{candidateName(c, true, i)}</span>
                       <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
                         {thicknessLabel(c.max_diameter_mm)}
                       </span>
@@ -366,7 +365,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
           advertencia no puede quedarse escondida dentro. */}
       {selectedRejected && !showRejected && (
         <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 8 }}>
-          {selectedRejected.id}: {vetoHint(selectedRejected.veto?.label)}
+          {candidateName(selectedRejected, true, rejectedCandidates.indexOf(selectedRejected))}: {vetoHint(selectedRejected.veto?.label)}
         </div>
       )}
 
@@ -427,19 +426,18 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
         </Button>
       )}
       <PanelFooter>
-        <div style={{ display: "flex", gap: 10 }}>
+        <PanelActions>
           <Button variant="outline" onClick={() => void run()} disabled={busy || clearing || !sessionId} leadingIcon={<Icon name="REFRESH" />}>
             Re-detectar
           </Button>
           <Button
-            style={{ flex: 1 }}
             onClick={onNext}
             disabled={!canAdvanceFromDetect(candidates, rejectedCandidates)}
             trailingIcon={<Icon name="STEP_MORPHO" />}
           >
             Analizar morfometría
           </Button>
-        </div>
+        </PanelActions>
       </PanelFooter>
       {/* F1-12: limpiar se llevaba la medida, el cuello marcado a mano y la
           recomendación al primer clic, sin forma de recuperarlos. */}

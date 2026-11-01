@@ -16,3 +16,9 @@ export function PanelFooter({ children, note }: { children: ReactNode; note?: Re
     </div>
   );
 }
+
+/** Los botones del pie: no se parten y, si no caben en una fila, bajan de fila
+    y ocupan todo el ancho (reglas en responsive.css). */
+export function PanelActions({ children }: { children: ReactNode }) {
+  return <div className="ws-panel-actions">{children}</div>;
+}

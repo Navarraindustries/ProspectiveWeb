@@ -13,6 +13,7 @@ import { QuirofanoBar } from "../components/stepper/QuirofanoBar";
 import { SaveStatus } from "../components/stepper/SaveStatus";
 import { BANDA_SUPERIOR, zonaLibre } from "../pipeline/zonaLibre";
 import { StepDock } from "../components/stepper/StepDock";
+import { ToastStack, type ToastItem } from "../components/ToastStack";
 import { Collapsible } from "../components/PanelHead";
 import { UploadPanel } from "../components/upload/UploadPanel";
 import { SegmentPanel } from "../components/segmentation/SegmentPanel";
@@ -66,6 +67,7 @@ export function Workspace({
   onBack,
   onOpenPatient,
   onFinish,
+  aviso = null,
 }: {
   patient: PatientSummary | null;
   initialStep?: number;
@@ -73,6 +75,8 @@ export function Workspace({
   /** Open this patient's sheet — their cases and archived studies. */
   onOpenPatient: () => void;
   onFinish: () => void;
+  /** Aviso global de App, que en el pipeline se pinta como un toast más del apilado. */
+  aviso?: { texto: string; retry?: () => void; onClose: () => void } | null;
 }) {
   const planning = usePlanning();
   const {
@@ -301,6 +305,49 @@ export function Workspace({
     estrecho: false, plegado: columnCollapsed, ancho: step === "treatment" || step === "report",
   });
 
+  // Un solo apilado: aquí van los avisos del pipeline y el global de App.
+  const avisos: ToastItem[] = [];
+  if (aviso) {
+    avisos.push({
+      id: "app",
+      tono: aviso.retry ? "error" : "info",
+      role: aviso.retry ? "alert" : "status",
+      onClose: aviso.onClose,
+      texto: (
+        <>
+          {aviso.texto}
+          {aviso.retry && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); aviso.retry?.(); }}
+              style={{ marginLeft: 14, background: "transparent", color: "inherit", border: "1px solid currentColor", borderRadius: "var(--radius-sm)", padding: "3px 10px", font: "inherit", cursor: "pointer" }}
+            >
+              Reintentar
+            </button>
+          )}
+        </>
+      ),
+    });
+  }
+  if (attachNote) avisos.push({ id: "adjunto", tono: "ok", role: "status", texto: attachNote, onClose: () => setAttachNote(null) });
+  if (saveError) {
+    avisos.push({ id: "guardado", tono: "error", role: "alert", onClose: () => setSaveError(null),
+      texto: `No se pudo guardar el progreso: ${saveError}` });
+  }
+  // Por qué no se guardó la captura: un botón que vuelve solo a «Captura» a
+  // los cuatro segundos deja creer que la imagen está guardada.
+  if (shotError) {
+    avisos.push({ id: "captura", tono: "error", role: "alert", onClose: () => setShotError(null),
+      texto: `No se pudo guardar la captura: ${shotError}` });
+  }
+  // Cómo terminó la grabación: el vídeo se descarga siempre y esto dice si
+  // además quedó en el caso. «info»: descargar sin caso es lo esperado.
+  if (recMessage) {
+    avisos.push({ id: "grabacion", tono: recMessage.tone === "err" ? "error" : recMessage.tone,
+      role: recMessage.tone === "err" ? "alert" : "status", onClose: () => setRecMessage(null),
+      texto: recMessage.text });
+  }
+
   return (
     // `data-panel-collapsed`: el visor lo lee para su `estadoVisor` sin que
     // el estado del panel tenga que pasar por el store.
@@ -374,80 +421,8 @@ export function Workspace({
         <AttachCaseSheet open={attachOpen} onClose={() => setAttachOpen(false)}
                          sessionId={sessionId} onAttached={(r) => void onAttached(r)} />
       )}
-      {/* Avisos y barra compacta: bajo las pastillas, sobre el visor, hasta la tarea 5. */}
-      <div style={{ position: "absolute", top: BANDA_SUPERIOR, left: 0, right: 0 }}>
-      {attachNote && (
-        <div role="status" style={{ padding: "8px 16px", fontSize: 12.5, background: "var(--brand-subtle)", color: "var(--foreground)" }}>
-          {attachNote}
-        </div>
-      )}
-      {saveError && (
-        <div
-          role="alert"
-          onClick={() => setSaveError(null)}
-          style={{
-            display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-            padding: "8px 18px", fontSize: 12, fontWeight: 600,
-            background: "color-mix(in srgb, var(--destructive) 12%, transparent)",
-            color: "var(--destructive)",
-            borderBottom: "1px solid color-mix(in srgb, var(--destructive) 35%, transparent)",
-          }}
-        >
-          <Icon name="STATUS_WARN" size={14} color="var(--destructive)" />
-          <span style={{ flex: 1, minWidth: 0 }}>No se pudo guardar el progreso: {saveError}</span>
-          <span style={{ opacity: 0.7 }}>✕</span>
-        </div>
-      )}
-
-      {/* Por qué no se guardó la captura, con el mismo aviso: un botón que
-          vuelve solo a «Captura» a los cuatro segundos deja al profesional
-          creyendo que la imagen está guardada. */}
-      {shotError && (
-        <div
-          role="alert"
-          onClick={() => setShotError(null)}
-          style={{
-            display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-            padding: "8px 18px", fontSize: 12, fontWeight: 600,
-            background: "color-mix(in srgb, var(--destructive) 12%, transparent)",
-            color: "var(--destructive)",
-            borderBottom: "1px solid color-mix(in srgb, var(--destructive) 35%, transparent)",
-          }}
-        >
-          <Icon name="STATUS_WARN" size={14} color="var(--destructive)" />
-          <span style={{ flex: 1, minWidth: 0 }}>No se pudo guardar la captura: {shotError}</span>
-          <span style={{ opacity: 0.7 }}>✕</span>
-        </div>
-      )}
-
-      {/* Cómo terminó la grabación: el vídeo se descarga siempre, y esto dice
-          si además quedó en el caso. Un «solo descargado» callado haría creer
-          que está en el historial. */}
-      {recMessage && (
-        <div
-          role={recMessage.tone === "err" ? "alert" : "status"}
-          onClick={() => setRecMessage(null)}
-          style={{
-            display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-            padding: "8px 18px", fontSize: 12, fontWeight: 600,
-            // «info»: descargar sin caso es lo esperado, no un fallo; ni rojo ni verde.
-            background: recMessage.tone === "err"
-              ? "color-mix(in srgb, var(--destructive) 12%, transparent)"
-              : recMessage.tone === "info"
-                ? "color-mix(in srgb, var(--foreground) 6%, transparent)"
-                : "color-mix(in srgb, var(--success, #2f7d5b) 12%, transparent)",
-            color: recMessage.tone === "err" ? "var(--destructive)"
-              : recMessage.tone === "info" ? "var(--muted-foreground)" : "var(--success, #2f7d5b)",
-            borderBottom: "1px solid var(--border)",
-          }}
-        >
-          <Icon name={recMessage.tone === "err" ? "STATUS_WARN" : recMessage.tone === "info" ? "INFO" : "STATUS_OK"} size={14} />
-          <span style={{ flex: 1, minWidth: 0 }}>{recMessage.text}</span>
-          <span style={{ opacity: 0.7 }}>✕</span>
-        </div>
-      )}
-
-      </div>
+      {/* Los avisos del pipeline (y el global de App) son un solo apilado de cristal. */}
+      <ToastStack items={avisos} top={BANDA_SUPERIOR + 12} right={libre.right} />
 
       </div>
 

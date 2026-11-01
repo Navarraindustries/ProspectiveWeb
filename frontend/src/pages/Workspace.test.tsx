@@ -227,3 +227,28 @@ describe("zona libre del visor", () => {
     expect(z.style.top).toBe("72px");
   });
 });
+
+describe("avisos del pipeline como toasts", () => {
+  it("el aviso global de App entra en el apilado y se cierra al pulsarlo", () => {
+    const onClose = vi.fn();
+    render(<Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}}
+                      aviso={{ texto: "Restaurando sesión…", onClose }} />);
+    fireEvent.click(screen.getByText("Restaurando sesión…"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("error de guardado y aviso global se apilan sin taparse; cada uno se cierra solo", async () => {
+    estado.dirty = true;
+    saveSession.mockRejectedValue(new Error("caído"));
+    const onClose = vi.fn();
+    render(<Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}}
+                      aviso={{ texto: "Restaurando sesión…", retry: () => {}, onClose }} />);
+    fireEvent.click(screen.getByRole("button", { name: /Guardar progreso/ }));
+    await screen.findByText(/No se pudo guardar el progreso: caído/);
+    expect(screen.getAllByRole("alert")).toHaveLength(2);
+    fireEvent.click(screen.getByText(/No se pudo guardar el progreso/));
+    expect(screen.queryByText(/No se pudo guardar el progreso/)).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText("Restaurando sesión…")).toBeTruthy();
+  });
+});

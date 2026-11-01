@@ -318,6 +318,11 @@ function Router() {
         onBack={() => setScreen("patients")}
         onOpenPatient={() => navigate(patient ? patientPath(patient.id) : SCREEN_PATH.patients)}
         onFinish={finish}
+        aviso={toast ? {
+          texto: toast,
+          retry: retryHere ? () => { setToastRetry(null); retryHere(); } : undefined,
+          onClose: () => { setToastRetry(null); setToast(null); },
+        } : null}
       />
     );
 
@@ -348,9 +353,9 @@ function Router() {
         saveNow={planning.saveNow}
       />
       <ServerDownBanner />
-      {toast && (
+      {toast && effective !== "workspace" && (
         // Contenedor fijo que centra (o alinea) el aviso: así el transform del glide no pelea con el centrado.
-        // En el pipeline va arriba al centro para no tapar el pie del panel derecho.
+        // En el pipeline no se pinta aquí: va como un toast más del apilado de Workspace.
         <div
           style={{
             position: "fixed",
@@ -359,9 +364,9 @@ function Router() {
             display: "flex",
             left: 0,
             right: 0,
-            ...(effective === "workspace"
-              ? { top: 72, justifyContent: "center" }
-              : { bottom: 24, paddingRight: 24, justifyContent: "flex-end" }),
+            bottom: 24,
+            paddingRight: 24,
+            justifyContent: "flex-end",
           }}
         >
         <motion.div

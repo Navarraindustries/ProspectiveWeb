@@ -21,7 +21,8 @@ describe("AuthBrand", () => {
 
   it("lleva el logotipo y el lema único, sin librerías, en blanco sobre el vídeo", () => {
     const { container } = montar();
-    expect(screen.getByText("PROSPECTIVE")).toBeInTheDocument();
+    expect(screen.getByText("Prospective")).toBeInTheDocument();
+    expect(container.querySelector("button svg rect")).toBeNull();
     const lema = screen.getByText("Planificación neurovascular con datos");
     expect(lema.style.color).toBe("var(--on-media)");
     expect(container.textContent).not.toMatch(/VTK|SimpleITK|SKULLAPP/);

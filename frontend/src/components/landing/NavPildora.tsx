@@ -93,11 +93,11 @@ export function NavPildora({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
       >
         {estrecho ? (
           <span style={{ display: "inline-flex" }}>
-            <Logo size={26} compact />
-            <span className="landing-sr">PROSPECTIVE</span>
+            <Logo variante="linea" size={26} compact />
+            <span className="landing-sr">Prospective</span>
           </span>
         ) : (
-          <Logo size={26} />
+          <Logo variante="linea" size={26} />
         )}
         {!estrecho && <div style={{ display: "flex", gap: 2, margin: "0 8px" }}>{enlaces}</div>}
         <Button variant="secondary" size="sm" onClick={onEntrar}>Entrar</Button>

@@ -149,7 +149,7 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
             </div>
           </div>
           <div style={{ textAlign: "center", paddingBottom: 24, fontSize: 11, color: "var(--muted-foreground)" }}>
-            PROSPECTIVE™ Web — Laboratorio de Imagen Médica
+            Prospective™ Web — Laboratorio de Imagen Médica
           </div>
         </div>
       </div>

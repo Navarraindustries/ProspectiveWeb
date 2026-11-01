@@ -3,17 +3,18 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { simularPantalla } from "../test/pantalla";
 import { FADE_MS, LoadingScreen, SHOW_MS } from "./LoadingScreen";
 
 beforeEach(() => { vi.useFakeTimers(); });
-afterEach(() => { vi.useRealTimers(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("LoadingScreen", () => {
   it("muestra el vídeo de carga, el logotipo y el texto, y llama a onDone al acabar el fundido", () => {
     const onDone = vi.fn();
     const { container } = render(<LoadingScreen onDone={onDone} />);
     expect(container.querySelector('video[src="/media/loading.mp4"]')).not.toBeNull();
-    expect(screen.getByText("PROSPECTIVE")).toBeInTheDocument();
+    expect(screen.getByText("Prospective")).toBeInTheDocument();
     expect(screen.getByText("Preparando el espacio de trabajo…")).toBeInTheDocument();
 
     act(() => { vi.advanceTimersByTime(SHOW_MS - 1); });
@@ -69,6 +70,14 @@ describe("LoadingScreen", () => {
     render(<LoadingScreen onDone={() => {}} />);
     const pastilla = screen.getByText("Preparando el espacio de trabajo…").closest("[data-glass]");
     expect(pastilla).not.toBeNull();
-    expect(pastilla).toContainElement(screen.getByText("PROSPECTIVE"));
+    expect(pastilla).toContainElement(screen.getByText("Prospective"));
+  });
+
+  it("en móvil la marca y la pastilla se compactan", () => {
+    const s = simularPantalla({ ancho: 390 });
+    const { container } = render(<LoadingScreen onDone={() => {}} />);
+    expect(container.querySelector("[data-glass] svg")!.getAttribute("width")).toBe("28");
+    expect(container.querySelector<HTMLElement>("[data-glass]")!.style.padding).toBe("24px 28px");
+    s.restaurar();
   });
 });

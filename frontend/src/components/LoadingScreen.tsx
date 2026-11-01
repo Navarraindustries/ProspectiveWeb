@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from "react";
 import { Logo } from "./shell/Logo";
+import { useMovil } from "../hooks/useEstrecho";
 import { glass } from "../styles/glass";
 
 export const SHOW_MS = 2200;
@@ -22,6 +23,7 @@ export function LoadingScreen({ onDone, onFading, label = "Preparando el espacio
   label?: string;
 }) {
   const [fading, setFading] = useState(false);
+  const movil = useMovil();
 
   useEffect(() => {
     const t1 = window.setTimeout(() => { setFading(true); onFading?.(); }, SHOW_MS);
@@ -70,17 +72,13 @@ export function LoadingScreen({ onDone, onFading, label = "Preparando el espacio
           flexDirection: "column",
           alignItems: "center",
           gap: 20,
-          padding: "32px 44px",
+          padding: movil ? "24px 28px" : "32px 44px",
+          maxWidth: "calc(100vw - 32px)",
           borderRadius: "var(--radius-xl)",
           color: "var(--on-media)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Logo compact size={34} />
-          <span style={{ fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 26, letterSpacing: "0.04em", textShadow: "var(--on-media-shadow)" }}>
-            PROSPECTIVE
-          </span>
-        </div>
+        <Logo variante="linea" tono="media" firma={false} size={movil ? 28 : 34} />
 
         {/* Barra indeterminada: barre con el azul de identidad. */}
         <div style={{ position: "relative", width: 220, height: 4, borderRadius: "var(--radius-full)", background: "var(--media-track)", overflow: "hidden" }}>

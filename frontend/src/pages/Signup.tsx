@@ -142,7 +142,7 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
           </div>
 
           <div style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "24px 0 40px" }}>
-            <AuthWindow titulo="Crear cuenta" subtitulo="Regístrate para acceder a PROSPECTIVE.">
+            <AuthWindow titulo="Crear cuenta" subtitulo="Regístrate para acceder a Prospective.">
               <form onSubmit={submit}>
                 <div style={GROUP_LABEL}>Tus datos</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -191,7 +191,7 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
               </form>
 
               <div style={{ textAlign: "center", marginTop: 20, fontSize: 11, color: "var(--muted-foreground)" }}>
-                PROSPECTIVE™ Web — Laboratorio de Imagen Médica
+                Prospective™ Web — Laboratorio de Imagen Médica
               </div>
             </AuthWindow>
           </div>

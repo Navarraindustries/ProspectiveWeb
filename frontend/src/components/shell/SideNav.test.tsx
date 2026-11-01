@@ -1,7 +1,7 @@
 /* La barra lateral (F2, shell C): la sección activa se marca para el lector de
    pantalla, se expande al pasar el ratón 150 ms y la chincheta la deja fija
    entre sesiones. */
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const auth = { user: { id: 1, username: "admin", full_name: "Administrador", role: "admin", institution: "" } as { role: string; [k: string]: unknown } | null };
@@ -43,6 +43,18 @@ afterEach(() => {
 });
 
 describe("SideNav", () => {
+  it("la cabecera lleva el icono de marca de 32 px y, expandida, el nombre", () => {
+    const { container } = render(<Host />);
+    const svg = container.querySelector(".shell-nav-head svg")!;
+    expect(svg.getAttribute("width")).toBe("32");
+    expect(svg.querySelector('rect[fill="var(--primary)"]')).not.toBeNull();
+    expect(screen.queryByText("Prospective")).toBeNull();
+    cleanup();
+    localStorage.setItem("shell.sidebar", "pinned");
+    render(<Host />);
+    expect(screen.getByText("Prospective")).toBeInTheDocument();
+  });
+
   it("la sección activa lleva aria-current=page y las demás no", () => {
     render(<Host />);
     expect(screen.getByRole("link", { name: /Estudios/ }).getAttribute("aria-current")).toBe("page");

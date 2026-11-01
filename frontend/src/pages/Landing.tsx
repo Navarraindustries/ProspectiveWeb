@@ -264,7 +264,7 @@ function Contacto({ onEntrar, onCrearCuenta }: { onEntrar: () => void; onCrearCu
 function Pie() {
   return (
     <footer className="pie">
-      <Logo />
+      <Logo variante="linea" size={32} />
       <div className="pie__aviso">
         <div>SkullApp · Laboratorio de Imagen Médica</div>
         <div>Herramienta de apoyo a la decisión clínica. No sustituye el criterio del cirujano.</div>

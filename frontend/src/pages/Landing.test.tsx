@@ -193,6 +193,13 @@ describe("F2 (5): portada", () => {
 });
 
 describe("Landing D: secciones del tablero", () => {
+  it("el pie lleva la marca nueva con la firma «por SkullApp»", () => {
+    const { container } = show();
+    const pie = within(container.querySelector("footer")!);
+    expect(pie.getByText("Prospective")).toBeInTheDocument();
+    expect(pie.getByText("por SkullApp")).toBeInTheDocument();
+  });
+
   it("el pie lleva el aviso clínico exacto", () => {
     expect(text()).toContain("Herramienta de apoyo a la decisión clínica. No sustituye el criterio del cirujano.");
   });

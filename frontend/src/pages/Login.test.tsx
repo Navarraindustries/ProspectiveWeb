@@ -163,7 +163,7 @@ describe("identidad nueva de «Entrar» (F2-10, F2-11, F2-12)", () => {
   it("el panel de marca lleva el logotipo y el lema único, sin nombres de librerías (F2-10)", () => {
     const { container } = montar();
     expect(screen.getByText("Planificación neurovascular con datos")).toBeInTheDocument();
-    expect(screen.getByText("PROSPECTIVE")).toBeInTheDocument();
+    expect(screen.getByText("Prospective")).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/VTK|SimpleITK/);
     expect(container.textContent).not.toMatch(/SKULLAPP/);
   });

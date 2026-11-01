@@ -120,7 +120,7 @@ export function SideNav({ state }: { state: ShellState }) {
       onMouseLeave={hoverOut}
     >
       <div className="shell-nav-head">
-        <Logo compact={!expanded} size={24} />
+        <Logo compact={!expanded} size={32} />
         {/* La chincheta solo se ve expandida (shell.css); plegada no hay sitio
             y el gesto para llegar a ella es expandir. */}
         <button

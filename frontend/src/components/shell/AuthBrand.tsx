@@ -27,7 +27,8 @@ export function AuthBrand({ flex }: { flex: string }) {
   const navigate = useNavigate();
   return (
     <div
-      // `login-media` es el gancho de responsive.css: cede espacio y se oculta en pantallas estrechas.
+      // `login-media` solo marca el panel (lo buscan los tests): su parte del ancho la
+      // fija la página con `flex` según el tramo, y en tableta y móvil ni se pinta.
       className="login-media"
       style={{
         flex,

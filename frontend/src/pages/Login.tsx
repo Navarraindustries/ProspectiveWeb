@@ -90,7 +90,7 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
             <Button variant="ghost" size={tableta ? "md" : "sm"} leadingIcon={<Icon name="BACK" />} onClick={() => navigate("/")}>
               Página principal
             </Button>
-            <ThemeToggle />
+            <ThemeToggle size={tableta ? "lg" : "md"} />
           </div>
           {tableta && (
             <div style={{ display: "flex", justifyContent: "center", paddingTop: 16 }}>

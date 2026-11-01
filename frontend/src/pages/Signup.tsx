@@ -140,7 +140,7 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
             <Button variant="ghost" size={tableta ? "md" : "sm"} leadingIcon={<Icon name="BACK" />} onClick={onBack}>
               Volver a Entrar
             </Button>
-            <ThemeToggle />
+            <ThemeToggle size={tableta ? "lg" : "md"} />
           </div>
           {tableta && (
             <div style={{ display: "flex", justifyContent: "center", paddingTop: 16 }}>

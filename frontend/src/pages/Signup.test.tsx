@@ -20,7 +20,7 @@ const { signup, ApiError } = vi.hoisted(() => {
 });
 
 vi.mock("../api/client", () => ({ api: { signup: (...a: unknown[]) => signup(...a) }, ApiError }));
-vi.mock("../components/ThemeToggle", () => ({ ThemeToggle: () => null }));
+vi.mock("../components/ThemeToggle", () => ({ ThemeToggle: ({ size = "md" }: { size?: string }) => <span data-testid="tema" data-size={size} /> }));
 const tema = vi.hoisted(() => ({ actual: "light" as "light" | "dark" }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: tema.actual }) }));
 
@@ -184,7 +184,7 @@ describe("la ventana de cristal de «Crear cuenta»", () => {
     try {
       const { container } = render(<MemoryRouter><Signup onBack={() => {}} onDone={() => {}} /></MemoryRouter>);
       expect(container.querySelector("[data-ambiente]")).not.toBeNull();
-    expect(container.querySelector("img[aria-hidden]")).toBeNull();
+      expect(container.querySelector("img[aria-hidden]")).toBeNull();
     } finally {
       tema.actual = "light";
     }
@@ -228,6 +228,18 @@ describe("tramos de pantalla (fase 8, tarea 12)", () => {
     simularPantalla({ ancho: 768 });
     montar();
     expect(screen.getByRole("button", { name: /Volver a Entrar/ })).toHaveAttribute("data-size", "md");
+  });
+
+  it.each([1024, 768, 390])("a %i px el conmutador de tema mide 44 px (lg)", (ancho) => {
+    simularPantalla({ ancho });
+    montar();
+    expect(screen.getByTestId("tema")).toHaveAttribute("data-size", "lg");
+  });
+
+  it("a 1707 el conmutador de tema vuelve a md", () => {
+    simularPantalla({ ancho: 1707 });
+    montar();
+    expect(screen.getByTestId("tema")).toHaveAttribute("data-size", "md");
   });
 
   it("ningún texto de la pantalla baja de 13 px (salvo rótulos mono y la marca)", () => {

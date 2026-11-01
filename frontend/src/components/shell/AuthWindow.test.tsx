@@ -17,4 +17,11 @@ describe("AuthWindow", () => {
     render(<AuthWindow titulo="Crear cuenta" pie={<a href="/entrar">Ya tengo cuenta</a>}>x</AuthWindow>);
     expect(screen.getByText("Ya tengo cuenta")).toBeInTheDocument();
   });
+
+  it("es fluida: ocupa el ancho de su zona hasta 440 px", () => {
+    render(<AuthWindow titulo="Entrar">x</AuthWindow>);
+    const seccion = screen.getByRole("region", { name: "Entrar" });
+    expect(seccion.style.width).toBe("100%");
+    expect(seccion.style.maxWidth).toBe("440px");
+  });
 });

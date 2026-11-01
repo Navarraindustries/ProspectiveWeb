@@ -126,7 +126,7 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
 
   return (
     <Entorno>
-      <div style={{ display: "flex", minHeight: "100dvh", background: "var(--canvas)" }}>
+      <div style={{ display: "flex", minHeight: "100dvh" }}>
         <AuthBrand flex="1 1 56%" />
 
         {/* Zona del formulario: ventana de cristal sobre el Entorno; el formulario es largo y la zona hace scroll. */}

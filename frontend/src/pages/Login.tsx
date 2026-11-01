@@ -77,7 +77,7 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
 
   return (
     <Entorno>
-      <div style={{ display: "flex", minHeight: "100dvh", background: "var(--canvas)" }}>
+      <div style={{ display: "flex", minHeight: "100dvh" }}>
         <AuthBrand flex="1 1 62%" />
 
         {/* Zona del formulario: la ventana de cristal, centrada sobre el Entorno. */}
@@ -92,7 +92,7 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
             <ThemeToggle />
           </div>
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 0" }}>
-            <div className={shake ? "shake" : undefined}>
+            <div className={shake ? "shake" : undefined} style={{ width: "100%", maxWidth: 440 }}>
               <AuthWindow titulo="Iniciar sesión" subtitulo="Accede con tu cuenta de Prospective.">
                 {notice && (
                   <div style={{ marginBottom: 18, padding: "10px 14px", borderRadius: "var(--radius-md)", background: "var(--success-bg)", border: "1px solid color-mix(in srgb, var(--success) 40%, transparent)", color: "var(--success)", fontSize: 12 }}>

@@ -28,6 +28,13 @@ vi.mock("../components/ThemeToggle", () => ({ ThemeToggle: () => null }));
 
 import { Login } from "./Login";
 
+/** Ningún contenedor de la ventana pinta un fondo opaco: la imagen del Entorno debe verse. */
+function sinFondoOpaco(ventana: HTMLElement) {
+  for (let el = ventana.parentElement; el && el !== document.body; el = el.parentElement) {
+    expect(el.style.background).toBe("");
+  }
+}
+
 // F1-41: el aviso de conexión ya no habla de «backend».
 const CONNECTIVITY = "El servidor no responde. Avisa al responsable de la instalación.";
 
@@ -195,5 +202,10 @@ describe("identidad nueva de «Entrar» (F2-10, F2-11, F2-12)", () => {
     expect(ventana).toContainElement(screen.getByLabelText("Usuario"));
     expect(ventana).toContainElement(screen.getByRole("button", { name: "Entrar" }));
     expect(screen.getByText("Accede con tu cuenta de Prospective.")).toBeInTheDocument();
+  });
+
+  it("los contenedores de la ventana no tapan la imagen del Entorno", () => {
+    montar();
+    sinFondoOpaco(screen.getByRole("region", { name: "Iniciar sesión" }));
   });
 });

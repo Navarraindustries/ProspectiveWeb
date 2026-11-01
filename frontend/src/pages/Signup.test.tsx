@@ -25,6 +25,13 @@ vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }
 
 import { Signup } from "./Signup";
 
+/** Ningún contenedor de la ventana pinta un fondo opaco: la imagen del Entorno debe verse. */
+function sinFondoOpaco(ventana: HTMLElement) {
+  for (let el = ventana.parentElement; el && el !== document.body; el = el.parentElement) {
+    expect(el.style.background).toBe("");
+  }
+}
+
 const CONNECTIVITY = "El servidor no responde. Avisa al responsable de la instalación.";
 
 async function enviar(failure: unknown) {
@@ -168,5 +175,10 @@ describe("la ventana de cristal de «Crear cuenta»", () => {
     const ventana = screen.getByRole("region", { name: "Crear cuenta" });
     expect(ventana).toHaveAttribute("data-glass");
     expect(ventana).toContainElement(screen.getByLabelText("Usuario * (mín. 3)"));
+  });
+
+  it("los contenedores de la ventana no tapan la imagen del Entorno", () => {
+    render(<MemoryRouter><Signup onBack={() => {}} onDone={() => {}} /></MemoryRouter>);
+    sinFondoOpaco(screen.getByRole("region", { name: "Crear cuenta" }));
   });
 });

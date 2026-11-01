@@ -32,8 +32,8 @@ export function AuthWindow({ titulo, subtitulo, children, pie }: AuthWindowProps
       transition={reduced ? { duration: 0.15 } : glideTransition}
       style={{
         ...glass("dense"),
-        width: 440,
-        maxWidth: "calc(100vw - 32px)",
+        width: "100%",
+        maxWidth: 440,
         boxSizing: "border-box",
         borderRadius: "var(--radius-xl)",
         padding: 40,

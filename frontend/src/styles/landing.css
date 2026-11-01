@@ -771,3 +771,9 @@
 .landing-stitch[data-tramo="grande"] .franja-casos__texto {
   left: max(24px, calc((100% - 1360px) / 2));
 }
+
+/* El foco lo pone el programa al llegar por el desplazamiento, no el teclado:
+   sin anillo sobre toda la sección. */
+.landing-stitch section[tabindex="-1"]:focus {
+  outline: none;
+}

@@ -7,14 +7,13 @@
    `styles/landing.css` bajo `.landing-stitch`. Es dark-only: la página fija
    `data-theme="dark"` y no ofrece conmutador de tema. */
 
-import { useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/Button";
 import { FranjaCasos } from "../components/landing/FranjaCasos";
 import { HeroCortes } from "../components/landing/HeroCortes";
 import { ListaConReglas } from "../components/landing/ListaConReglas";
 import { NavPildora } from "../components/landing/NavPildora";
-import { useVisible } from "../components/patients/useVisible";
+import { Revelar, Seccion } from "../components/landing/Seccion";
 import { Logo } from "../components/shell/Logo";
 import { useTramo } from "../hooks/useEstrecho";
 import { CONTACTO_ADMIN } from "../lib/contacto";
@@ -24,39 +23,8 @@ import { cifra } from "../lib/numero";
 import {
   AR_HIGH, BF_WIDE, DNR_HIGH, EI_MOD, SR_HIGH, UI_HIGH,
 } from "../components/morphometry/thresholds";
-import { DUR, EASE, motion, useReducedMotion } from "../motion";
 import { STEPS } from "../pipeline/steps";
 /* El lema único del producto vive en el titular de HeroCortes: una sola vez. */
-
-/* Cada sección entra una vez, con opacidad al aparecer y sin desplazamiento.
-   Con movimiento reducido se pinta ya entera. */
-function Seccion({ id, rotulo, titulo, children }: {
-  id?: string;
-  rotulo: string;
-  titulo: string;
-  children: React.ReactNode;
-}) {
-  const reducido = useReducedMotion() ?? false;
-  const cuerpo = useRef<HTMLDivElement>(null);
-  const visible = useVisible(cuerpo, "0px");
-  return (
-    <section id={id} aria-label={rotulo} className="sec">
-      <motion.div
-        ref={cuerpo}
-        className="sec__cuerpo"
-        initial={reducido ? false : { opacity: 0 }}
-        animate={{ opacity: visible || reducido ? 1 : 0 }}
-        transition={{ duration: DUR.panel, ease: EASE }}
-      >
-        <header className="sec__cabecera">
-          <div className="sec__rotulo">{rotulo}</div>
-          <h2 className="sec__titulo">{titulo}</h2>
-        </header>
-        {children}
-      </motion.div>
-    </section>
-  );
-}
 
 /* ── Qué es ─────────────────────────────────────────────────────────────── */
 function QueEs() {
@@ -242,8 +210,8 @@ function Proximamente() {
 /* ── Contacto y pie ─────────────────────────────────────────────────────── */
 function Contacto({ onEntrar, onCrearCuenta }: { onEntrar: () => void; onCrearCuenta: () => void }) {
   return (
-    <section id="contacto" aria-label="Contacto" className="sec">
-      <div className="sec__cuerpo">
+    <section id="contacto" aria-label="Contacto" tabIndex={-1} className="sec">
+      <Revelar className="sec__cuerpo">
         <div className="contacto" data-glass>
           <div>
             <h2 className="sec__titulo sec__titulo--contacto">Hablemos de tu servicio</h2>
@@ -257,7 +225,7 @@ function Contacto({ onEntrar, onCrearCuenta }: { onEntrar: () => void; onCrearCu
             <Button size="lg" onClick={onEntrar}>Entrar</Button>
           </div>
         </div>
-      </div>
+      </Revelar>
     </section>
   );
 }

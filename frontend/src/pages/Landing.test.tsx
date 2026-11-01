@@ -275,3 +275,20 @@ describe("responsive", () => {
     }
   });
 });
+
+describe("la landing no escribe colores a mano", () => {
+  const ficheros = [
+    ...Object.entries(import.meta.glob("../components/landing/*.tsx", { query: "?raw", import: "default", eager: true }))
+      .filter(([ruta]) => !ruta.includes(".test.")),
+    ...Object.entries(import.meta.glob("./Landing.tsx", { query: "?raw", import: "default", eager: true })),
+  ] as [string, string][];
+
+  it("encuentra los ficheros", () => {
+    expect(ficheros.length).toBeGreaterThan(5);
+  });
+
+  it.each(ficheros)("%s usa solo tokens", (_ruta, fuente) => {
+    const sinComentarios = fuente.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+    expect(sinComentarios).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(/i);
+  });
+});

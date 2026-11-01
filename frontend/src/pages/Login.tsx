@@ -7,6 +7,8 @@ import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Icon } from "../components/Icon";
 import { AuthBrand } from "../components/shell/AuthBrand";
+import { AuthWindow } from "../components/shell/AuthWindow";
+import { Entorno } from "../components/Entorno";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { useAuth } from "../store/auth";
 import { ApiError } from "../api/client";
@@ -74,86 +76,83 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
   };
 
   return (
-    <div style={{ display: "flex", height: "100%", background: "var(--canvas)" }}>
-      <AuthBrand flex="1 1 62%" />
+    <Entorno>
+      <div style={{ display: "flex", minHeight: "100dvh", background: "var(--canvas)" }}>
+        <AuthBrand flex="1 1 62%" />
 
-      {/* Form panel */}
-      <div className="login-form" style={{ flex: "1 1 38%", display: "flex", flexDirection: "column", padding: "0 clamp(24px, 4vw, 72px)", minWidth: 320 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 24 }}>
-          <button
-            onClick={() => navigate("/")}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: "var(--muted-foreground)", fontSize: 13, fontWeight: 600, fontFamily: "var(--font-sans)", padding: 0 }}
-          >
-            ← Página principal
-          </button>
-          <ThemeToggle />
-        </div>
-        <div
-          className={shake ? "shake" : undefined}
-          style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", maxWidth: 380, width: "100%", margin: "0 auto" }}
-        >
-          <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: "var(--tracking-title)", color: "var(--foreground)" }}>
-            Iniciar sesión
-          </div>
-          <div style={{ fontSize: 14, color: "var(--muted-foreground)", marginTop: 6, marginBottom: 28 }}>
-            Introduce tus credenciales para acceder a la plataforma.
-          </div>
-          {notice && (
-            <div style={{ marginBottom: 18, padding: "10px 14px", borderRadius: "var(--radius-md)", background: "var(--success-bg)", border: "1px solid color-mix(in srgb, var(--success) 40%, transparent)", color: "var(--success)", fontSize: 12 }}>
-              {notice}
-            </div>
-          )}
-          <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <Input
-              label="Usuario"
-              icon={<Icon name="USER" />}
-              value={user}
-              onChange={(e) => setUser(e.target.value)}
-              placeholder="tu usuario"
-              autoComplete="username"
-              invalid={!!error}
-            />
-            <Input
-              label="Contraseña"
-              icon={<Icon name="LOCK" />}
-              type="password"
-              value={pass}
-              onChange={(e) => setPass(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="current-password"
-              invalid={!!error}
-              hint={error ?? undefined}
-            />
-            <Button type="submit" size="lg" style={{ marginTop: 6 }} disabled={busy || !user || !pass}>
-              {busy ? "Verificando…" : "Entrar"}
-            </Button>
-          </form>
-          {/* F1-1: no hay recuperación automática de contraseña; sin esta línea
-              quien la olvida no sabe que existe un camino ni cuál. */}
-          <p style={{ marginTop: 16, marginBottom: 0, textAlign: "center", fontSize: 12, color: "var(--muted-foreground)" }}>
-            ¿Olvidaste la contraseña? Un administrador puede restablecerla: escribe a{" "}
-            <a href={`mailto:${CONTACTO_ADMIN}`} style={{ color: "var(--brand-deep)", fontWeight: 600 }}>{CONTACTO_ADMIN}</a>
-          </p>
-          {/* F2-11: la misma frase, literal, en «Entrar» y tras «Crear cuenta»; el
-              servidor no envía notificaciones, así que se dice con claridad. */}
-          <p style={{ marginTop: 16, marginBottom: 0, textAlign: "center", fontSize: 12, color: "var(--muted-foreground)" }}>
-            Si tu cuenta aún no está aprobada, no recibirás ningún aviso: vuelve a intentar entrar más tarde.
-          </p>
-          <div style={{ marginTop: 20, textAlign: "center", fontSize: 13, color: "var(--muted-foreground)" }}>
-            ¿No tienes cuenta?{" "}
+        {/* Zona del formulario: la ventana de cristal, centrada sobre el Entorno. */}
+        <div className="login-form" style={{ flex: "1 1 38%", display: "flex", flexDirection: "column", padding: "0 16px", minWidth: 320 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 24 }}>
             <button
-              type="button"
-              onClick={onSignup}
-              style={{ background: "transparent", border: "none", color: "var(--brand-deep)", fontWeight: 700, cursor: "pointer", fontSize: 13, padding: 0 }}
+              onClick={() => navigate("/")}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: "var(--muted-foreground)", fontSize: 13, fontWeight: 600, fontFamily: "var(--font-sans)", padding: 0 }}
             >
-              Crear cuenta
+              ← Página principal
             </button>
+            <ThemeToggle />
           </div>
-        </div>
-        <div style={{ textAlign: "center", paddingBottom: 24, fontSize: 11, color: "var(--muted-foreground)" }}>
-          PROSPECTIVE™ Web — Laboratorio de Imagen Médica
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 0" }}>
+            <div className={shake ? "shake" : undefined}>
+              <AuthWindow titulo="Iniciar sesión" subtitulo="Accede con tu cuenta de Prospective.">
+                {notice && (
+                  <div style={{ marginBottom: 18, padding: "10px 14px", borderRadius: "var(--radius-md)", background: "var(--success-bg)", border: "1px solid color-mix(in srgb, var(--success) 40%, transparent)", color: "var(--success)", fontSize: 12 }}>
+                    {notice}
+                  </div>
+                )}
+                <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  <Input
+                    label="Usuario"
+                    icon={<Icon name="USER" />}
+                    value={user}
+                    onChange={(e) => setUser(e.target.value)}
+                    placeholder="tu usuario"
+                    autoComplete="username"
+                    invalid={!!error}
+                  />
+                  <Input
+                    label="Contraseña"
+                    icon={<Icon name="LOCK" />}
+                    type="password"
+                    value={pass}
+                    onChange={(e) => setPass(e.target.value)}
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                    invalid={!!error}
+                    hint={error ?? undefined}
+                  />
+                  <Button type="submit" style={{ marginTop: 6, width: "100%", height: "var(--control-md)" }} disabled={busy || !user || !pass}>
+                    {busy ? "Verificando…" : "Entrar"}
+                  </Button>
+                </form>
+                {/* F1-1: no hay recuperación automática de contraseña; sin esta línea
+                    quien la olvida no sabe que existe un camino ni cuál. */}
+                <p style={{ marginTop: 16, marginBottom: 0, textAlign: "center", fontSize: 12, color: "var(--muted-foreground)" }}>
+                  ¿Olvidaste la contraseña? Un administrador puede restablecerla: escribe a{" "}
+                  <a href={`mailto:${CONTACTO_ADMIN}`} style={{ color: "var(--brand-deep)", fontWeight: 600 }}>{CONTACTO_ADMIN}</a>
+                </p>
+                {/* F2-11: la misma frase, literal, en «Entrar» y tras «Crear cuenta»; el
+                    servidor no envía notificaciones, así que se dice con claridad. */}
+                <p style={{ marginTop: 16, marginBottom: 0, textAlign: "center", fontSize: 12, color: "var(--muted-foreground)" }}>
+                  Si tu cuenta aún no está aprobada, no recibirás ningún aviso: vuelve a intentar entrar más tarde.
+                </p>
+                <div style={{ marginTop: 20, textAlign: "center", fontSize: 13, color: "var(--muted-foreground)" }}>
+                  ¿No tienes cuenta?{" "}
+                  <button
+                    type="button"
+                    onClick={onSignup}
+                    style={{ background: "transparent", border: "none", color: "var(--brand-deep)", fontWeight: 700, cursor: "pointer", fontSize: 13, padding: 0 }}
+                  >
+                    Crear cuenta
+                  </button>
+                </div>
+              </AuthWindow>
+            </div>
+          </div>
+          <div style={{ textAlign: "center", paddingBottom: 24, fontSize: 11, color: "var(--muted-foreground)" }}>
+            PROSPECTIVE™ Web — Laboratorio de Imagen Médica
+          </div>
         </div>
       </div>
-    </div>
+    </Entorno>
   );
 }

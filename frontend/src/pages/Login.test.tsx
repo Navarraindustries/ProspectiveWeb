@@ -187,4 +187,13 @@ describe("identidad nueva de «Entrar» (F2-10, F2-11, F2-12)", () => {
     await screen.findByText("Credenciales incorrectas");
     expect(screen.getByLabelText("Contraseña")).toHaveAttribute("aria-invalid", "true");
   });
+
+  it("el formulario vive en una ventana de cristal «Iniciar sesión»", () => {
+    montar();
+    const ventana = screen.getByRole("region", { name: "Iniciar sesión" });
+    expect(ventana).toHaveAttribute("data-glass");
+    expect(ventana).toContainElement(screen.getByLabelText("Usuario"));
+    expect(ventana).toContainElement(screen.getByRole("button", { name: "Entrar" }));
+    expect(screen.getByText("Accede con tu cuenta de Prospective.")).toBeInTheDocument();
+  });
 });

@@ -157,3 +157,16 @@ describe("tras la solicitud (F2-11)", () => {
     await screen.findByRole("button", { name: "Enviar solicitud de registro" });
   });
 });
+
+describe("la ventana de cristal de «Crear cuenta»", () => {
+  it("el formulario está dentro de una región con data-glass", () => {
+    render(
+      <MemoryRouter>
+        <Signup onBack={() => {}} onDone={() => {}} />
+      </MemoryRouter>,
+    );
+    const ventana = screen.getByRole("region", { name: "Crear cuenta" });
+    expect(ventana).toHaveAttribute("data-glass");
+    expect(ventana).toContainElement(screen.getByLabelText("Usuario * (mín. 3)"));
+  });
+});

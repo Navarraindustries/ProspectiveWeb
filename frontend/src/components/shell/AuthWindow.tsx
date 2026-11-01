@@ -1,6 +1,7 @@
 /* Ventana de cristal de las pantallas públicas (Entrar, Crear cuenta, cambio de
-   contraseña): 440 px de ancho con 16 px de margen en pantallas estrechas, cristal
-   denso, título de ventana y entrada «glide» (solo opacidad con movimiento reducido). */
+   contraseña): fluida (ancho 100 %, máximo 440 px); el margen de 16 px lo pone la
+   zona que la contiene, no la ventana. Cristal denso, título de ventana y entrada
+   «glide» (solo opacidad con movimiento reducido). */
 
 import { useId, type ReactNode } from "react";
 import { glass } from "../../styles/glass";

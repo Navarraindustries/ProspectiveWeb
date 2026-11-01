@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from services.numero import cifra, cifra_corta
+from services.numero import cifra
 
 SRC_RULE = (
     "Brain Sci 2021;11(7):901 (Ansari et al.) — anchura del aneurisma más 1–2 mm "
@@ -163,7 +163,9 @@ def _candidates(shape: str, catalogue, W: float, H: float, volume: float) -> lis
         out.append(WebOption(shape=shape, width_mm=float(w), height_mm=float(h),
                              added_mm=round(add, 2), target_height_mm=round(target, 2),
                              dav=_dav(shape, w, h, volume),
-                             label=f"WEB {shape} {cifra_corta(w)}" + (f"×{cifra_corta(h)}" if shape == "SL" else ""),
+                             # Designación del fabricante («WEB SL 4.5×3»): se
+                             # escribe como la escribe él, con punto.
+                             label=f"WEB {shape} {w:g}" + (f"×{h:g}" if shape == "SL" else ""),
                              note=(f"Solo {cifra(add)} mm más ancho que el aneurisma: por debajo "
                                    f"del +1 de la regla." if add < MIN_ADD_MM - 1e-6 else "")))
     # Primero las que cumplen la regla entera; luego la altura que más se acerca

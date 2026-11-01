@@ -3,7 +3,17 @@ from __future__ import annotations
 
 import math
 
-from services.numero import cifra, cifra_corta, coordenadas
+from services.numero import cifra, cifra_corta, coordenadas, punto_decimal
+
+
+def test_punto_decimal_es_la_forma_de_maquina_de_un_rotulo():
+    assert punto_decimal("NAVARRO™ T1 Recto 7,0 mm") == "NAVARRO™ T1 Recto 7.0 mm"
+    assert punto_decimal("NAVARRO™ T1 Recto 7.0 mm") == "NAVARRO™ T1 Recto 7.0 mm"
+    assert punto_decimal("Yasargil Recto, 7mm") == "Yasargil Recto, 7mm"
+    assert punto_decimal("serie T1,2") == "serie T1,2"
+    assert punto_decimal("1,2,3") == "1,2,3"
+    assert punto_decimal("de 7,5 a 9,25 mm") == "de 7.5 a 9.25 mm"
+    assert punto_decimal("") == ""
 
 
 def test_cifra_corta_sin_ceros_de_relleno():
@@ -64,7 +74,25 @@ def test_acepta_enteros_y_tipos_numpy():
     assert cifra(np.float64("nan")) == "—"
 
 
-def test_espejo_del_frontend_redondeo_por_coma_flotante():
-    # Mismo criterio que `Number.prototype.toFixed`: el redondeo del binario.
-    assert cifra(1.005, 2) == f"{1.005:.2f}".replace(".", ",")
-    assert cifra(2.675, 2) == f"{2.675:.2f}".replace(".", ",")
+def test_redondea_como_tofixed_del_frontend():
+    # Los mismos casos están en frontend/src/lib/numero.test.ts. Un empate
+    # exacto en binario se aleja del cero (el `format` de Python lo llevaba al
+    # par: 0.125 → «0,12», 2.5 → «2»); lo que no es empate en binario se queda
+    # en su lado (1.005 es 1.00499… y 2.675 es 2.67499…).
+    assert cifra(0.125, 2) == "0,13"
+    assert cifra(2.5, 0) == "3"
+    assert cifra(-2.5, 0) == "-3"
+    assert cifra(0.5, 0) == "1"
+    assert cifra(1.005, 2) == "1,00"
+    assert cifra(2.675, 2) == "2,67"
+    assert cifra(-0.125, 2) == "-0,13"
+
+
+def test_cifra_corta_nunca_en_notacion_cientifica():
+    # La misma regla que `cifraCorta`: 6 decimales como toFixed(6), sin ceros.
+    assert cifra_corta(1234567) == "1234567"
+    assert cifra_corta(1e-5) == "0,00001"
+    assert cifra_corta(-1e-9) == "0"
+    assert cifra_corta(123.4567891) == "123,456789"
+    assert cifra_corta(1e21) == "1000000000000000000000"
+    assert cifra_corta(2.5) == "2,5"

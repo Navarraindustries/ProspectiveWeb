@@ -19,19 +19,28 @@ export function cifra(v: number | null | undefined, decimales = 1, opciones?: Op
 
 /** Sin ceros de relleno, con coma: `2` → «2», `2.5` → «2,5», `0.05` → «0,05».
  *  Para tallas de catálogo y umbrales que se citan tal como están definidos.
- *  Espejo de `cifra_corta` en `backend/services/numero.py`. */
+ *  Espejo de `cifra_corta` en `backend/services/numero.py`, con la misma regla:
+ *  `toFixed(6)` sin los ceros finales. Nunca notación científica
+ *  (1234567 → «1234567», 1e-5 → «0,00001», −1e-9 → «0»). */
 export function cifraCorta(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
-  const r = Math.round(v * 1e6) / 1e6;
-  return (Object.is(r, -0) ? "0" : String(r)).replace(".", ",");
+  // `toFixed` pasa a exponente desde 1e21; ahí no hay decimales que escribir.
+  let txt = Math.abs(v) >= 1e21
+    ? v.toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 0 })
+    : v.toFixed(6);
+  if (txt.includes(".")) txt = txt.replace(/0+$/, "").replace(/\.$/, "");
+  if (txt === "-0") txt = "0";
+  return txt.replace(".", ",");
 }
 
 /** Lo que una persona va a leer FUERA de la pantalla (portapapeles, correo)
  *  y llega mezclado con textos del backend: las cifras con punto pasan a
- *  coma. Solo toca un punto entre dígitos, así que «v2.0» de un número de
- *  versión también cambiaría: no usar sobre identificadores. */
+ *  coma. Solo un número suelto: no precedido de letra, dígito ni «dígito.», y
+ *  no seguido de otro «.dígito». Así «T1.2», «v1.2.3», «1.2.3» o una fecha
+ *  «2024.10.31» quedan como están. Una designación como `0.014"` sí cambiaría:
+ *  no usar sobre identificadores ni referencias de producto. */
 export function comaDecimal(texto: string): string {
-  return texto.replace(/(\d)\.(\d)/g, "$1,$2");
+  return texto.replace(/(?<![\p{L}\d]|\d\.)(\d+)\.(\d+)(?!\d|\.\d)/gu, "$1,$2");
 }
 
 /** `11` → «11,0 mm»; sin valor → «—» (sin unidad). */

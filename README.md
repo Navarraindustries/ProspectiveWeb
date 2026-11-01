@@ -343,6 +343,9 @@ accent) and one shell around every screen after sign-in.
   - «Lo que lee una persona lleva coma decimal; lo que lee una máquina lleva
     punto.» Screen, PDF, clipboard and labels: «7,5 mm». JSON numbers, params,
     filenames, IDs, exports, logs and `<input type=number>`: dot or raw number.
+    Vendor designations keep the vendor's spelling («WEB SL 4.5×3»).
+  - Decisions, orders and labels saved before the comma rule keep their dotted
+    text (no migration); only the old AR source text is translated on read.
   - Visible figures go through `lib/numero.ts` (`cifra`, `mm`, `coordenadas`);
     human strings built by the backend use `backend/services/numero.py`.
   - `styles/cristal.audit.test.ts` checks glass, contrast and accessible names.

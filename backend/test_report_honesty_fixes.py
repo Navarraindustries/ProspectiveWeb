@@ -269,7 +269,13 @@ class TestClipsDelPlan:
         celdas = _celdas(_tabla(self._elems(self._sesion())))
         assert "Giro · acimut · elevación (°)" in celdas
         assert "20 · 35 · -10" in celdas
-        assert "(0.0, 0.0, 0.0)" not in celdas and "(0.0, 0.0, 20.0)" not in celdas
+        # La orientación cruda [0, 0, 20] no sale como terna en ninguna de sus
+        # dos escrituras (la de antes con punto y la de ahora con coma); la
+        # posición sí sale como terna, y con coma.
+        from services.numero import coordenadas
+        assert coordenadas([0.0, 0.0, 20.0]) not in celdas and "(0.0, 0.0, 20.0)" not in celdas
+        assert coordenadas([60.0, 64.0, 67.6]) in celdas
+        assert not any("20,0" in c or "20.0" in c for c in celdas)
 
     def test_sin_evaluar_lo_dice(self):
         textos = " ".join(getattr(f, "text", "") for f in self._elems(self._sesion()))

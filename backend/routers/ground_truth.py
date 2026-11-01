@@ -115,7 +115,19 @@ def _seg_params(session_id: str) -> dict:
     for k in ("threshold_lower", "threshold_upper", "method", "downsample_factor",
               "n_vertices", "strategy"):
         params.setdefault(k, read_state(session_id, f"seg.{k}", ""))
-    params["preprocess_ops"] = read_state(session_id, "preprocess.ops", "")
+    # Máquina: los números crudos y su texto con punto. `preprocess.ops` es el
+    # rótulo de pantalla (coma decimal) y no entra en lo que se exporta; las
+    # sesiones de antes de `preprocess.params` lo conservan tal cual.
+    from services.preprocess import ops_text
+    try:
+        pre = json.loads(read_state(session_id, "preprocess.params", "") or "null")
+    except ValueError:
+        pre = None
+    if isinstance(pre, dict):
+        params["preprocess"] = pre
+        params["preprocess_ops"] = ops_text(pre, persona=False)
+    else:
+        params["preprocess_ops"] = read_state(session_id, "preprocess.ops", "")
     # Recortes y borrados después de segmentar: la detección corrió sobre la
     # malla editada, que no sale de rehacer la segmentación sin más.
     params["mesh_edits"] = mesh_backup.depth(session_id)

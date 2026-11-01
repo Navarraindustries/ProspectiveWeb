@@ -16,6 +16,8 @@ from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
 from pydicom.sequence import Sequence
 from pydicom.uid import generate_uid
 
+from services.numero import punto_decimal
+
 logger = logging.getLogger(__name__)
 
 _SR_COMPREHENSIVE = "1.2.840.10008.5.1.4.1.1.88.33"
@@ -309,7 +311,9 @@ class DicomSRGenerator:
         for c in self._clips:
             pos = c.get("position_mm", (0, 0, 0))
             clip_items.append(_container("CLIP", [
-                _text_item("CLIP_MODEL", c.get("name", "—")),
+                # Exportación DICOM = máquina: el nombre con punto decimal, como
+                # TRAJ_*. El rótulo de pantalla lleva coma («… 7,0 mm»).
+                _text_item("CLIP_MODEL", punto_decimal(str(c.get("name", "—")))),
                 # F1-238: el tipo real; un NAVARRO es pieza a medida, no catálogo.
                 _text_item("CLIP_TYPE", c.get("clip_type")
                            or _clip_type(str(c.get("clip_id", "")), bool(c.get("is_custom")))),

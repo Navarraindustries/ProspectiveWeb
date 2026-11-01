@@ -96,3 +96,17 @@ def test_el_pdf_dice_distancia_entrada_diana():
     rotulos = [str(row[0]) for row in tables[0]._cellvalues]
     assert "Distancia entrada–diana" in rotulos
     assert not any("Profundidad" in r for r in rotulos)
+
+
+def test_el_diametro_del_corredor_sale_con_glifo_imprimible():
+    # «⌀» (U+2300) no tiene glifo en Helvetica ni en Symbol: reportlab caía en
+    # ZapfDingbats y el informe imprimía un cuadrado negro. En el PDF va «Ø».
+    sid = _session(("1", "0", "0"))
+    write_state(sid, "trajectory.verdict", "no_viable")
+    write_state(sid, "trajectory.verdict_reason", "el mayor mide ⌀ 3,0 mm, a 19 mm")
+    write_state(sid, "trajectory.findings", "Vaso de ⌀ 2,1 mm a 12 mm | otro")
+    gen = ReportGenerator(build_report_data_from_session(sid))
+    textos = [e.text for e in gen._section_trajectory() if hasattr(e, "text")]
+    junto = " ".join(textos)
+    assert "⌀" not in junto
+    assert "Ø 3,0 mm" in junto and "Ø 2,1 mm" in junto

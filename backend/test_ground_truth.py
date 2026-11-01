@@ -153,6 +153,25 @@ class TestResumenYExport:
         assert [c["rank"] for c in fila["candidates"]] == [1, 2, 3]
         assert "NombreQueNoDebeSalir" not in r.text
 
+    def test_el_export_no_lleva_coma_decimal_en_el_preprocesado(self):
+        # «Lo que lee una máquina lleva punto»: el rótulo de pantalla del
+        # preprocesado lleva coma, la procedencia que se exporta no.
+        import re
+
+        from services.preprocess import ops_params, ops_text
+        _pid, _caso, img = _estudio("Preprocesado")
+        sid = _sesion_con_candidatos()
+        pre = ops_params(True, True, 0.5, True, 1.5)
+        write_states(sid, {"preprocess.ops": ops_text(pre, persona=True),
+                           "preprocess.params": json.dumps(pre)})
+        _confirmar(session_id=sid, imaging_study_id=img, source="candidate", candidate_id="cand-001")
+        fila = next(x for x in client.get("/api/ground-truth/export").json()
+                    if x["imaging_study_id"] == img)
+        seg = fila["seg_params"]
+        assert seg["preprocess"] == {"hu_clip": True, "target_spacing_mm": 0.5, "smooth_sigma": 1.5}
+        assert seg["preprocess_ops"] == "recorte HU; remuestreo isotrópico 0.5 mm; suavizado σ=1.5"
+        assert not re.search(r"\d,\d", json.dumps(seg, ensure_ascii=False))
+
     def test_el_export_es_solo_para_administradores(self):
         assert anonymous_client(app).get("/api/ground-truth/export").status_code == 401
 

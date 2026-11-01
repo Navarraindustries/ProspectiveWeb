@@ -71,6 +71,19 @@ def _minuscula(texto: str) -> str:
     return texto[:1].lower() + texto[1:] if texto else texto
 
 
+#: Caracteres sin glifo en las fuentes del PDF, y su equivalente que sí lo tiene.
+_PDF_GLIFOS = {"⌀": "Ø"}
+
+
+def texto_pdf(text):
+    """El texto tal como puede imprimirlo el PDF: «⌀» (U+2300) → «Ø»."""
+    if not isinstance(text, str):
+        return text
+    for raro, bueno in _PDF_GLIFOS.items():
+        text = text.replace(raro, bueno)
+    return text
+
+
 # ── reportlab imports ─────────────────────────────────────────────────────── #
 try:
     from reportlab.lib import colors
@@ -89,6 +102,16 @@ try:
         TableStyle,
     )
     _REPORTLAB_OK = True
+
+    _RLParagraph = Paragraph
+
+    class Paragraph(_RLParagraph):  # type: ignore[no-redef]
+        """El Paragraph de reportlab con el texto pasado por `texto_pdf`: las
+        frases del backend llevan «⌀», que no tiene glifo en Helvetica ni en
+        Symbol y salía como un cuadrado negro (ZapfDingbats)."""
+
+        def __init__(self, text, *args, **kwargs):
+            super().__init__(texto_pdf(text), *args, **kwargs)
 except ImportError:
     _REPORTLAB_OK = False
     logger.warning("reportlab not installed — PDF reports disabled. Run: pip install reportlab")

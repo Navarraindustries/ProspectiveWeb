@@ -60,7 +60,7 @@ from services.clips import (
 )
 from services.numero import cifra
 
-Verdict =Literal["ok", "warn", "fail"]
+Verdict = Literal["ok", "warn", "fail"]
 
 # ── Geometric limits ──────────────────────────────────────────────────────── #
 

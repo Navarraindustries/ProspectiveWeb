@@ -1,23 +1,28 @@
 /* heroFrames — la aritmética del hero de cortes, sin React.
 
    El manifiesto vive en `public/media/landing/hero.json` (lo escribe
-   `backend/scripts/landing_hero_assets.py`). Vite no deja importar desde
-   `public/`, así que aquí va su copia y `heroFrames.test.ts` la compara con el
-   fichero de disco: si se regeneran los assets, el test avisa. */
+   `backend/scripts/landing_case3/hero_slices_case3.py`). Vite no deja importar
+   desde `public/`, así que aquí va su copia y `heroFrames.test.ts` la compara
+   con el fichero de disco: si se regeneran los assets, el test avisa. */
 
 export const MANIFIESTO = {
   count: 60,
-  total: 594,
+  total: 384,
   lesionFrame: 59,
-  window: { w: 600, l: 60 },
-  /* Número de corte (de `total`) que enseña cada fotograma. */
+  window: { w: 3000, l: 1800 },
+  /* Número de corte (de `total`) que enseña cada fotograma: axial contado desde
+     el extremo superior del volumen 3DRA. */
   sliceOf: [
-    60, 63, 65, 68, 71, 73, 76, 79, 82, 84, 87, 90, 92, 95, 98,
-    100, 103, 106, 109, 111, 114, 117, 119, 122, 125, 127, 130, 133, 135, 138,
-    141, 144, 146, 149, 152, 154, 157, 160, 162, 165, 168, 170, 173, 176, 179,
-    181, 184, 187, 189, 192, 195, 197, 200, 203, 206, 208, 211, 214, 216, 219,
+    95, 97, 98, 100, 101, 103, 104, 106, 107, 109, 110, 112, 113, 115, 116,
+    118, 119, 121, 122, 124, 125, 127, 128, 130, 131, 133, 134, 136, 137, 139,
+    140, 142, 143, 145, 146, 148, 149, 151, 152, 154, 155, 157, 158, 160, 161,
+    163, 164, 166, 167, 169, 170, 172, 173, 175, 176, 178, 179, 181, 182, 184,
   ],
 } as const;
+
+/* Cada fotograma es una losa MIP de 13 cortes (±6, unos 4,2 mm), no un corte de
+   0,32 mm: en una 3DRA un corte único solo deja puntos sueltos. */
+export const GROSOR_LOSA_MM = 4.2;
 
 export type CanalDeteccion = "calibre" | "cociente" | "curvatura" | "saco";
 
@@ -26,21 +31,25 @@ export interface CandidatoDetectado {
   canales: readonly CanalDeteccion[];
   /** Diámetro del candidato redondeado a un decimal. */
   diametroMm: number;
-  /** El candidato coincide con la lesión anotada del caso. */
+  /** El candidato coincide con la lesión confirmada del caso. */
   lesion: boolean;
 }
 
-/* Lo que devolvió el detector de Prospective para el caso Zenodo 036, el de
-   los cortes y el render del hero. Fuente: `backend/data/zenodo_eval_saco/036.json`
-   del checkout principal (fuera de git), lista `candidates`. Diámetros en bruto:
-   11,64 · 8,83 · 4,80 · 4,72 · 6,85 mm. El 1.º está a 0,3 mm de la lesión anotada
-   (`an_036.stl`, Ø 13,3 mm, puesto 1 en los tres canales). */
-export const DETECCION_036: readonly CandidatoDetectado[] = [
-  { puesto: 1, canales: ["calibre", "cociente", "curvatura"], diametroMm: 11.6, lesion: true },
-  { puesto: 2, canales: ["curvatura"], diametroMm: 8.8, lesion: false },
-  { puesto: 3, canales: ["cociente"], diametroMm: 4.8, lesion: false },
-  { puesto: 4, canales: ["curvatura"], diametroMm: 4.7, lesion: false },
-  { puesto: 5, canales: ["curvatura", "saco"], diametroMm: 6.9, lesion: false },
+/* Lo que devolvió el detector de Prospective para Case 3 (3DRA XA 384³, Philips),
+   por el mismo camino que la app: `segment_tubular` (umbral automático 1 471,
+   estrategia xa_band_pass, sin techo, suavizado nivel 3, resolución nativa) +
+   «solo el árbol» (`keep_main_tree`, 107 186 → 103 996 vértices), después
+   `_detect_hits(top=30)` + vetos + tope de 5, como `_run_detection_sync`.
+   Diámetros en bruto: 3,745 · 5,367 · 5,777 · 5,122 · 2,653 mm. El 1.º está a
+   4,8 mm de la lesión confirmada del tronco basilar (GT (62, 64, 63) mm de malla,
+   `test_detector_case3.GT_BASILAR`, tolerancia 10 mm). Lo encuentra solo la
+   curvatura. Dos sitios más quedaron vetados por bifurcación (a 36 y 29 mm). */
+export const DETECCION_CASE3: readonly CandidatoDetectado[] = [
+  { puesto: 1, canales: ["curvatura"], diametroMm: 3.7, lesion: true },
+  { puesto: 2, canales: ["calibre", "cociente"], diametroMm: 5.4, lesion: false },
+  { puesto: 3, canales: ["calibre", "cociente", "curvatura"], diametroMm: 5.8, lesion: false },
+  { puesto: 4, canales: ["calibre"], diametroMm: 5.1, lesion: false },
+  { puesto: 5, canales: ["cociente"], diametroMm: 2.7, lesion: false },
 ];
 
 export const rutaFotograma =(i: number): string =>

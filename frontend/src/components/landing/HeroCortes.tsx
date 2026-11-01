@@ -1,4 +1,4 @@
-/* HeroCortes — la portada: los cortes axiales reales del caso Zenodo 036
+/* HeroCortes — la portada: los cortes axiales reales de Case 3 (3DRA)
    atados al scroll, que al llegar al corte del aneurisma se funden en el render
    3D de su malla con la ventana de detección encima.
 
@@ -21,11 +21,12 @@
    que no recorre el scroll la oye igual. */
 
 import { useEffect, useRef, useState } from "react";
+import { cifra } from "../../lib/numero";
 import { useMediaQuery } from "../../hooks/useEstrecho";
 import { useMotionValueEvent, useReducedMotion, useScroll } from "../../motion";
 import { Button } from "../Button";
 import {
-  CONSULTA_HERO_QUIETO, MANIFIESTO, fotogramaPara, precargarEnOrden, rutaFotograma, ultimoCargado,
+  CONSULTA_HERO_QUIETO, GROSOR_LOSA_MM, MANIFIESTO, fotogramaPara, precargarEnOrden, rutaFotograma, ultimoCargado,
 } from "./heroFrames";
 import { BalizasDeteccion, VentanaDeteccion } from "./VentanaDeteccion";
 
@@ -82,7 +83,7 @@ export function HeroCortes({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
 
         <div className="hero-cortes__render" style={{ opacity: verFinal ? 1 : 0 }}>
           <div className="hero-cortes__lienzo">
-            <img src="/media/landing/hero-3d.webp" alt="Malla 3D del árbol vascular con la lesión marcada en rojo" />
+            <img src="/media/landing/hero-3d.webp" alt="Malla 3D del árbol vascular de Case 3 (3DRA) con la lesión del tronco basilar marcada en rojo" />
           </div>
         </div>
 
@@ -124,7 +125,7 @@ export function HeroCortes({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
 
         {!quieto && (
           <div className="hero-cortes__rotulo" style={{ opacity: verFinal ? 0 : 1 }}>
-            W {MANIFIESTO.window.w} · L {MANIFIESTO.window.l} · corte {MANIFIESTO.sliceOf[mostrado] ?? mostrado + 1}/{MANIFIESTO.total}
+            W {MANIFIESTO.window.w} · L {MANIFIESTO.window.l} · MIP {cifra(GROSOR_LOSA_MM, 1)} mm · corte {MANIFIESTO.sliceOf[mostrado] ?? mostrado + 1}/{MANIFIESTO.total}
           </div>
         )}
       </div>

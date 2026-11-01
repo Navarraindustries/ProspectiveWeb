@@ -1,527 +1,156 @@
-/* Landing — public marketing/onboarding page for PROSPECTIVE.
-   One long scroll: hero → what/why → vídeo del flujo → features → use cases →
-   how it works → technology → security → team → disclaimer → CTA.
-   "Entrar" routes to the app (/app).
+/* Landing — portada pública de PROSPECTIVE (cristal D).
+   Un solo scroll: hero de cortes → qué es → cómo funciona → funcionalidades →
+   casos reales → índices → dispositivos NAVARRO™ → próximamente → contacto.
+   «Entrar» lleva a la aplicación (/app).
 
-   Desde F2 usa la identidad de la aplicación (grafito y azul eléctrico, Inter):
-   solo tokens, sin colores escritos a mano; la maquetación y los efectos siguen
-   en `styles/landing.css` bajo `.landing-stitch`. Es dark-only: la página fija
+   Solo tokens, sin colores escritos a mano; la maquetación vive en
+   `styles/landing.css` bajo `.landing-stitch`. Es dark-only: la página fija
    `data-theme="dark"` y no ofrece conmutador de tema. */
 
-import { STEP_LABELS } from "../pipeline/steps";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { BorderBeam } from "border-beam";
-import { Icon } from "../components/Icon";
-import type { IconName } from "../components/Icon";
+import { Button } from "../components/Button";
+import { FranjaCasos } from "../components/landing/FranjaCasos";
+import { HeroCortes } from "../components/landing/HeroCortes";
+import { ListaConReglas } from "../components/landing/ListaConReglas";
+import { NavPildora } from "../components/landing/NavPildora";
+import { useVisible } from "../components/patients/useVisible";
 import { Logo } from "../components/shell/Logo";
 import { CONTACTO_ADMIN } from "../lib/contacto";
-/* Los cortes de las tarjetas de índices se importan, no se copian: la portada
-   no puede volver a decir un umbral distinto del que aplica la aplicación. */
+/* Los cortes de los índices se importan, no se copian: la portada no puede
+   volver a decir un umbral distinto del que aplica la aplicación. */
 import {
   AR_HIGH, BF_WIDE, DNR_HIGH, EI_MOD, SR_HIGH, UI_HIGH,
 } from "../components/morphometry/thresholds";
-/* Las dos escenas WebGL del hero van en carga diferida y a propósito: Three.js
-   pesa medio megabyte y esta es la primera página que abre un desconocido. Así
-   el titular y el botón pintan de inmediato con el resto del bundle, y el 3D
-   —que es decoración, marcada `aria-hidden`— entra después en su propio chunk,
-   sin que /app pague por él. Sin `fallback`: el hueco ya lo llena el degradado. */
-const NeuralShader = lazy(() =>
-  import("../components/landing/NeuralShader").then((m) => ({ default: m.NeuralShader })));
+import { DUR, EASE, motion, useReducedMotion } from "../motion";
+import { STEPS } from "../pipeline/steps";
+/* El lema único del producto vive en el titular de HeroCortes: una sola vez. */
 
-/* Las siete escenas Three.js repartidas por la página, cada una en su sección.
-   Se cargan en diferido desde un único módulo (todo three.js va en ese chunk) y
-   cada una se monta sola al entrar en pantalla y se desmonta al salir, así que
-   nunca hay más de un par de contextos WebGL vivos a la vez. */
-const scenes = () => import("../components/landing/scenes");
-const VascularTree = lazy(() => scenes().then((m) => ({ default: m.VascularTree })));
-const VoxelCloud = lazy(() => scenes().then((m) => ({ default: m.VoxelCloud })));
-const Morphometry = lazy(() => scenes().then((m) => ({ default: m.Morphometry })));
-const ClipKinematics = lazy(() => scenes().then((m) => ({ default: m.ClipKinematics })));
-const Endovascular = lazy(() => scenes().then((m) => ({ default: m.Endovascular })));
-const SkullCloud = lazy(() => scenes().then((m) => ({ default: m.SkullCloud })));
-const MixedReality = lazy(() => scenes().then((m) => ({ default: m.MixedReality })));
-const DataVault = lazy(() => scenes().then((m) => ({ default: m.DataVault })));
-const Perforators = lazy(() => scenes().then((m) => ({ default: m.Perforators })));
-const StlPrinting = lazy(() => scenes().then((m) => ({ default: m.StlPrinting })));
-
-const MAXW = 1320;
-/* El lema único del producto (F2-2): el mismo texto en toda la aplicación. */
-const LEMA = "Planificación neurovascular con datos";
-
-/* Section content reveals with a fade + rise as it scrolls into view. Driven by
-   the CSS `.reveal` class (scroll-driven animation, gated behind @supports) so
-   it is bulletproof: tied directly to scroll position, it never sticks invisible
-   on nav-anchor jumps or reloads, and degrades to always-visible where the CSS
-   feature is unsupported. See `.reveal` in styles/base.css. */
-function Section({ id, children, style }: { id?: string; children: React.ReactNode; style?: React.CSSProperties }) {
+/* Cada sección entra una vez, con opacidad al aparecer y sin desplazamiento.
+   Con movimiento reducido se pinta ya entera. */
+function Seccion({ id, rotulo, titulo, children }: {
+  id?: string;
+  rotulo: string;
+  titulo: string;
+  children: React.ReactNode;
+}) {
+  const reducido = useReducedMotion() ?? false;
+  const cuerpo = useRef<HTMLDivElement>(null);
+  const visible = useVisible(cuerpo, "0px");
   return (
-    <section id={id} style={{ padding: "88px 24px", ...style }}>
-      <div className="reveal" style={{ maxWidth: MAXW, margin: "0 auto" }}>{children}</div>
+    <section id={id} aria-label={rotulo} className="sec">
+      <motion.div
+        ref={cuerpo}
+        className="sec__cuerpo"
+        initial={reducido ? false : { opacity: 0 }}
+        animate={{ opacity: visible || reducido ? 1 : 0 }}
+        transition={{ duration: DUR.panel, ease: EASE }}
+      >
+        <header className="sec__cabecera">
+          <div className="sec__rotulo">{rotulo}</div>
+          <h2 className="sec__titulo">{titulo}</h2>
+        </header>
+        {children}
+      </motion.div>
     </section>
   );
 }
 
-/* El rótulo sobre cada titular es el «label» monoespaciado de la identidad: caja
-   alta, tracking ancho y una barra cian corta que lo ancla a la retícula. */
-function Kicker({ children }: { children: React.ReactNode }) {
+/* ── Qué es ─────────────────────────────────────────────────────────────── */
+function QueEs() {
   return (
-    <div className="stitch-label" style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11, color: "var(--brand-slate)", marginBottom: 14 }}>
-      <span style={{ width: 22, height: 1, background: "var(--primary)", boxShadow: "0 0 6px var(--primary)" }} />
-      {children}
-    </div>
-  );
-}
-
-function H2({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(26px, 3.4vw, 38px)", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--foreground)", lineHeight: 1.12, margin: 0 }}>
-      {children}
-    </h2>
-  );
-}
-
-/* Figura 3D de sección: panel de vidrio, la escena dentro y un pie monoespaciado
-   que dice qué se está viendo. Cada una lleva su propio `Suspense` para que el
-   chunk de Three.js, mientras llega, solo deje en blanco su panel y no la página;
-   la altura la fija `.landing-figure`, así que tampoco hay saltos de layout. */
-function Figure({ children, caption, dashed }: { children: React.ReactNode; caption: string; dashed?: boolean }) {
-  return (
-    <div
-      className="stitch-glass landing-figure"
-      style={dashed ? { borderStyle: "dashed", borderColor: "color-mix(in srgb, var(--primary) 28%, transparent)" } : undefined}
-    >
-      <Suspense fallback={null}>{children}</Suspense>
-      <div className="stitch-label" style={{ position: "absolute", left: 16, bottom: 14, fontSize: 10, color: "var(--brand-slate)", zIndex: 1 }}>
-        {caption}
-      </div>
-    </div>
-  );
-}
-
-/* ── Sticky nav ─────────────────────────────────────────────────────────── */
-function Nav({ onEnter }: { onEnter: () => void }) {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-  const links = [
-    ["Qué es", "que-es"],
-    ["Cómo funciona", "como-funciona"],
-    ["Funcionalidades", "funcionalidades"],
-    ["Índices", "indices"],
-    ["Tecnología", "tecnologia"],
-    ["Contacto", "contacto"],
-  ] as const;
-  return (
-    <div
-      className="stitch-shell"
-      style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 100,
-        height: 68,
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "0 24px",
-        // Fondo sólido SIEMPRE: así el contenido nunca se transparenta a través
-        // del navbar (el bug del "remontado"). Al scrollear se opaca un poco más.
-        background: `color-mix(in srgb, var(--background) ${scrolled ? 97 : 90}%, transparent)`,
-        borderBottom: `1px solid color-mix(in srgb, ${scrolled ? "var(--primary) 22%" : "var(--border) 45%"}, transparent)`,
-        boxShadow: scrolled ? "var(--shadow-sm)" : "none",
-        transition: "background .2s, border-color .2s, box-shadow .2s",
-      }}
-    >
-      <div style={{ maxWidth: MAXW, margin: "0 auto", width: "100%", display: "flex", alignItems: "center", gap: 14 }}>
-        <Logo />
-        <div style={{ flex: 1 }} />
-        <nav className="landing-nav-links" style={{ display: "flex", gap: 20, marginRight: 8 }}>
-          {links.map(([label, id]) => (
-            <a key={id} href={`#${id}`} className="stitch-label" style={{ fontSize: 11, color: "var(--muted-foreground)", textDecoration: "none" }}>
-              {label}
-            </a>
-          ))}
-        </nav>
-        <BorderBeam size="sm" colorVariant="ocean" theme="dark" style={{ display: "inline-flex" }}>
-          <button
-            onClick={onEnter}
-            className="stitch-cta"
-            style={{ height: 38, padding: "0 18px", borderRadius: "var(--radius-md)", border: "none", background: "var(--primary)", color: "var(--primary-foreground)", fontSize: 12.5, textTransform: "uppercase", cursor: "pointer" }}
-          >
-            Entrar
-          </button>
-        </BorderBeam>
-      </div>
-    </div>
-  );
-}
-
-/* ── Hero ───────────────────────────────────────────────────────────────── */
-function Hero({ onEnter, onSignup }: { onEnter: () => void; onSignup: () => void }) {
-  return (
-    <div className="stitch-grid" style={{ position: "relative", overflow: "hidden", minHeight: "calc(100vh - 68px)", display: "flex", alignItems: "center", background: "var(--canvas)" }}>
-      {/* Fondo del hero, en tres capas: el shader de flujo neural pinta el telón,
-          el modelo vascular ocupa el flanco derecho y el velo hunde el lado del
-          texto para que el titular conserve contraste. */}
-      <Suspense fallback={null}>
-        <NeuralShader style={{ position: "absolute", inset: 0, opacity: 0.85 }} />
-        <VascularTree className="landing-hero-model" />
-      </Suspense>
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(95deg, color-mix(in srgb, var(--canvas) 95%, transparent) 0%, color-mix(in srgb, var(--canvas) 88%, transparent) 30%, color-mix(in srgb, var(--canvas) 55%, transparent) 50%, color-mix(in srgb, var(--canvas) 15%, transparent) 74%, color-mix(in srgb, var(--canvas) 5%, transparent) 100%)" }} />
-      <div style={{ position: "relative", zIndex: 1, maxWidth: MAXW, margin: "0 auto", padding: "0 24px", width: "100%" }}>
-        {/* Columna estrecha: el modelo ocupa el hero entero por detrás, así que
-            el texto se repliega a la izquierda y le deja el centro-derecha. */}
-        <div style={{ maxWidth: 700 }}>
-          <div className="stitch-label" style={{ display: "inline-flex", alignItems: "center", gap: 9, padding: "7px 14px", borderRadius: "var(--radius-md)", border: "1px solid color-mix(in srgb, var(--primary) 30%, transparent)", background: "color-mix(in srgb, var(--background) 60%, transparent)", color: "var(--brand-slate)", fontSize: 11, marginBottom: 26 }}>
-            <span className="stitch-pip" />
-            {LEMA}
-          </div>
-          <h1 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(38px, 6vw, 68px)", fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.04, color: "var(--foreground)", margin: 0 }}>
-            Planificar la cirugía de un aneurisma cerebral, con datos y en 3D
-          </h1>
-          <p style={{ fontSize: "clamp(16px, 2vw, 20px)", color: "color-mix(in srgb, var(--foreground) 74%, transparent)", lineHeight: 1.55, marginTop: 22, maxWidth: 640 }}>
-            A partir de la tomografía o angiografía del paciente, PROSPECTIVE reconstruye la arteria
-            en 3D, localiza y mide el aneurisma, estima su riesgo de rotura y ayuda al médico a elegir
-            el mejor tratamiento. Todo en el navegador.
-          </p>
-          <div style={{ display: "flex", gap: 14, marginTop: 34, flexWrap: "wrap" }}>
-            <BorderBeam size="sm" colorVariant="ocean" theme="dark" style={{ display: "inline-flex" }}>
-              <button
-                onClick={onEnter}
-                className="stitch-cta"
-                style={{ height: 50, padding: "0 28px", borderRadius: "var(--radius-md)", border: "none", background: "var(--primary)", color: "var(--primary-foreground)", fontSize: 15, cursor: "pointer" }}
-              >
-                Entrar
-              </button>
-            </BorderBeam>
-            <button
-              onClick={onSignup}
-              className="stitch-ghost"
-              style={{ height: 50, padding: "0 24px", borderRadius: "var(--radius-md)", fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15, cursor: "pointer" }}
-            >
-              Crear cuenta
-            </button>
-            <a
-              href="#como-funciona"
-              className="stitch-ghost"
-              style={{ height: 50, display: "inline-flex", alignItems: "center", padding: "0 24px", borderRadius: "var(--radius-md)", fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15, textDecoration: "none" }}
-            >
-              Ver cómo funciona ↓
-            </a>
-          </div>
-          <div className="stitch-label" style={{ display: "flex", gap: 22, marginTop: 40, color: "var(--muted-foreground)", fontSize: 11, flexWrap: "wrap" }}>
-            <span>Sin instalar nada</span><span style={{ color: "var(--primary)", opacity: 0.55 }}>·</span>
-            <span>Modelo 3D en el navegador</span><span style={{ color: "var(--primary)", opacity: 0.55 }}>·</span>
-            <span>Medidas objetivas en milímetros</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── What / Why ─────────────────────────────────────────────────────────── */
-function What() {
-  return (
-    <Section id="que-es" style={{ background: "var(--canvas)" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 48, alignItems: "center" }}>
+    <Seccion id="que-es" rotulo="Qué es" titulo="Una mesa de quirófano hecha de imagen">
+      <div className="sec__dos">
         <div>
-          <Kicker>Qué es</Kicker>
-          <H2>Decisiones quirúrgicas con datos, no solo a ojo</H2>
-          <p style={{ fontSize: 16, color: "var(--muted-foreground)", lineHeight: 1.7, marginTop: 18 }}>
-            El estudio de imagen se convierte en un{" "}
-            <b style={{ color: "var(--foreground)" }}>modelo 3D que se puede medir</b>: el aneurisma
-            se localiza, se mide y se compara con los umbrales publicados, con precisión milimétrica.
-          </p>
-          <p style={{ fontSize: 16, color: "var(--muted-foreground)", lineHeight: 1.7, marginTop: 14 }}>
-            La elección entre clipaje y tratamiento endovascular se apoya hoy sobre todo en mirar las
-            imágenes. PROSPECTIVE calcula indicadores objetivos de riesgo y sugiere el tratamiento,
-            para que el equipo decida con datos y de forma reproducible.
+          <h3 className="sec__subtitulo">Del DICOM a la decisión</h3>
+          <p className="sec__texto">
+            Prospective convierte la angiografía del paciente en un modelo 3D medible y propone la vía
+            de tratamiento con criterios explícitos.
           </p>
         </div>
-        {/* La reconstrucción, al lado del párrafo que habla justo de eso: el
-            estudio convertido en un modelo que se puede medir. */}
-        <Figure caption="Reconstrucción volumétrica del estudio"><VoxelCloud /></Figure>
+        <div>
+          <h3 className="sec__subtitulo">Pensada para el servicio</h3>
+          <p className="sec__texto">
+            Pacientes, casos, estudios y sesiones reanudables: el trabajo del neurocirujano continúa
+            donde lo dejó. Puedes registrar al paciente con iniciales o un código.
+          </p>
+        </div>
       </div>
-
-      {/* Las cuatro cualidades pasan a una fila propia a todo el ancho: antes
-          ocupaban la columna que ahora es la figura, y apretadas en dos por dos
-          competían con el texto. */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 16, marginTop: 44 }}>
-        {([
-          ["TARGET", "Objetivo", "Medidas en milímetros, reproducibles — no estimaciones a ojo."],
-          ["STEP_MORPHO", "Con respaldo", "Indicadores de forma y riesgo respaldados por estudios clínicos."],
-          ["STEP_PLAN", "Accionable", "Sugiere el tratamiento y el dispositivo, y verifica su colocación."],
-          ["DOC", "Trazable", "Informe en PDF y seguimiento del aneurisma en el tiempo."],
-        ] as [IconName, string, string][]).map(([icon, t, d]) => (
-          <div key={t} className="stitch-glass" style={{ padding: "18px 18px" }}>
-            <div style={{ width: 40, height: 40, borderRadius: "var(--radius-md)", background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Icon name={icon} size={19} />
-            </div>
-            <div style={{ fontSize: 14.5, fontWeight: 700, color: "var(--foreground)", marginTop: 10 }}>{t}</div>
-            <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>{d}</div>
-          </div>
-        ))}
-      </div>
-    </Section>
+    </Seccion>
   );
 }
 
-/* ── Pipeline video ─────────────────────────────────────────────────────────
-   Explicativo del flujo completo, compuesto con HyperFrames (HTML + GSAP). */
-
-/** Reproductor con autoplay garantizado: React solo pone el *atributo* muted,
-    así que fijamos la propiedad y llamamos a play() en cuanto puede arrancar. */
-function PipelinePlayer({ src, label = "", note = "" }: { src: string; label?: string; note?: string }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.muted = true;
-    const tryPlay = () => v.play().catch(() => {});
-    tryPlay();
-    v.addEventListener("canplay", tryPlay);
-    return () => v.removeEventListener("canplay", tryPlay);
-  }, []);
-
-  return (
-    <figure style={{ margin: 0, maxWidth: 980, marginLeft: "auto", marginRight: "auto" }}>
-      {(label || note) && (
-        <figcaption style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
-          {label && (
-            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--brand-slate)" }}>
-              {label}
-            </span>
-          )}
-          {note && <span style={{ fontSize: 13, color: "var(--muted-foreground)" }}>{note}</span>}
-        </figcaption>
-      )}
-      <div style={{ position: "relative", borderRadius: "var(--radius-xl)", overflow: "hidden", border: "1px solid var(--border)", boxShadow: "var(--shadow-lg)", background: "var(--canvas)", aspectRatio: "16 / 9" }}>
-        <video
-          ref={videoRef}
-          src={src}
-          autoPlay
-          muted
-          loop
-          playsInline
-          controls
-          preload="auto"
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-        />
-      </div>
-    </figure>
-  );
-}
-
-/* La portada decía «siete pasos» debajo de una lista que ya tenía ocho, porque
-   los rótulos se derivan de `STEPS` y el número estaba escrito a mano. Se
-   deletrea desde la misma lista: la frase no puede volver a contradecir a las
-   fichas que tiene justo debajo. */
+/* ── Cómo funciona ──────────────────────────────────────────────────────── */
+/* La portada decía «siete pasos» sobre una lista que ya tenía ocho: los
+   rótulos salen de `STEPS` y el número se deletrea desde la misma lista. */
 const NUM_WORD = ["cero", "uno", "dos", "tres", "cuatro", "cinco",
                   "seis", "siete", "ocho", "nueve", "diez", "once", "doce"];
 const spell = (n: number): string => NUM_WORD[n] ?? String(n);
 
-function Pipeline() {
-  const steps = STEP_LABELS;
+const LINEA_PASO: Record<string, string> = {
+  upload: "Estudio del paciente",
+  segment: "Árbol vascular 3D",
+  detect: "Candidatos numerados",
+  morpho: "Cuello, domo, Ø máximo",
+  treatment: "Clip o endovascular",
+  devices: "Clips, coils, stents",
+  manufacture: "Clip a medida",
+  report: "Documento clínico",
+};
+
+function ComoFunciona() {
   return (
-    <Section id="como-funciona" style={{ background: "var(--background)" }}>
-      <div style={{ textAlign: "center", maxWidth: 720, margin: "0 auto 40px" }}>
-        <Kicker>El proceso</Kicker>
-        <H2>Del estudio de imagen al plan quirúrgico, en {spell(steps.length)} pasos</H2>
-        <p style={{ fontSize: 16, color: "var(--muted-foreground)", lineHeight: 1.7, marginTop: 16 }}>
-          Un recorrido animado por el flujo completo de PROSPECTIVE, desde que se cargan las imágenes
-          del paciente hasta el informe final.
-        </p>
-      </div>
-
-      <PipelinePlayer src="/media/pipeline-hf.mp4" />
-
-      <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 32, flexWrap: "wrap" }}>
-        {steps.map((s, i) => (
-          <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--muted-foreground)" }}>
-            <span style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>{i + 1}</span>
-            {s}
-            {i < steps.length - 1 && <span style={{ color: "var(--border)", marginLeft: 4 }}>→</span>}
-          </span>
+    <Seccion
+      id="como-funciona"
+      rotulo="Cómo funciona"
+      titulo={`Del estudio al plan, en ${spell(STEPS.length)} pasos y en el orden de la cirugía`}
+    >
+      <ol className="pasos">
+        {STEPS.map((s, i) => (
+          <li key={s.key} className="pasos__paso" data-glass>
+            <div className="pasos__num">{String(i + 1).padStart(2, "0")}</div>
+            <div className="pasos__nombre">{s.label}</div>
+            <div className="pasos__linea">{LINEA_PASO[s.key] ?? ""}</div>
+          </li>
         ))}
-      </div>
-    </Section>
+      </ol>
+    </Seccion>
   );
 }
 
-/* ── Features ───────────────────────────────────────────────────────────── */
-const FEATURES: [IconName, string, string][] = [
-  ["STEP_SEGMENT", "Reconstrucción 3D de las arterias", "Convierte la imagen médica en un modelo 3D de la red arterial. Compatible con TC, resonancia y angiografía rotacional."],
-  ["STEP_DETECT", "Detección del aneurisma", "Localiza el aneurisma sobre el modelo y aísla su forma para poder medirla con exactitud."],
-  ["STEP_MORPHO", "Medidas e índices de riesgo", "Mide cuello, domo y volumen, y calcula los índices de forma y riesgo usados en la literatura clínica."],
-  ["MARK_PERF", "Aviso de ramas cercanas", "Mide el calibre de la vasculatura y marca dónde nace un vaso fino junto al aneurisma, con su distancia al cuello. Las perforantes finas no se ven en la imagen: esto señala las ramas que sí."],
-  ["STEP_PLAN", "Ayuda a la decisión", "Compara cirugía abierta y tratamiento endovascular, y muestra el porqué de cada factor. En un aneurisma roto añade un modelo publicado que estima aparte cómo iría cada vía."],
-  ["CLIPS", "Planificación del dispositivo", "Catálogos reales de clips, coils y stents; sugiere el dispositivo adecuado y comprueba su colocación en 3D."],
-  ["SETTINGS", "Clip a medida y pedido al taller", "Cuando ninguna talla dibujada encaja, genera la pieza a la medida del cuello y el expediente que el taller necesita para fabricarla, con su número de pedido y su seguimiento."],
-  ["STEP_EXPORT", "Informe y modelo para imprimir", "Genera un informe en PDF del plan quirúrgico y exporta el modelo 3D para impresión."],
-  ["GROWTH", "Seguimiento en el tiempo", "Compara estudios del mismo paciente entre controles y avisa automáticamente si el aneurisma crece."],
+/* ── Funcionalidades ────────────────────────────────────────────────────── */
+const FUNCIONALIDADES = [
+  "Segmentación 3D automática",
+  "Detección por calibre, cociente y curvatura",
+  "Morfometría del saco y del cuello",
+  "Motor de decisión: PHASES, JSDB y geometría",
+  "Prueba de clips, coils y stents",
+  "Clip a medida para fabricar",
+  "Informe clínico",
+  "Sesiones guardadas",
+  "Pacientes, casos y estudios",
 ];
-function Features() {
+
+function Funcionalidades() {
   return (
-    <Section id="funcionalidades" style={{ background: "var(--canvas)" }}>
-      <div style={{ textAlign: "center", maxWidth: 680, margin: "0 auto 40px" }}>
-        <Kicker>Funcionalidades</Kicker>
-        <H2>Todo el flujo neurovascular en una sola plataforma</H2>
-      </div>
-      {/* Las perforantes, que es lo que la tarjeta «Aviso de ramas cercanas»
-          describe: las ramas finas que nacen junto al cuello y no se ven en la
-          imagen. En carmesí las que pasan demasiado cerca. */}
-      <div style={{ marginBottom: 18 }}>
-        <Figure caption="Ramas finas junto al cuello · en rojo, las que pasan demasiado cerca"><Perforators /></Figure>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18 }}>
-        {FEATURES.map(([icon, title, desc]) => (
-          <div key={title} className="stitch-glass" style={{ padding: "22px 20px" }}>
-            <div style={{ width: 42, height: 42, borderRadius: "var(--radius-md)", background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
-              <Icon name={icon} size={20} />
-            </div>
-            <div style={{ fontSize: 15.5, fontWeight: 700, color: "var(--foreground)" }}>{title}</div>
-            <div style={{ fontSize: 13.5, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.6 }}>{desc}</div>
-          </div>
-        ))}
-      </div>
-    </Section>
+    <Seccion id="funcionalidades" rotulo="Funcionalidades" titulo="Lo que hay dentro">
+      <ListaConReglas columnas={2} items={FUNCIONALIDADES.map((titulo) => ({ titulo }))} />
+      <p className="sec__nota">
+        Cada resultado dice de dónde viene y cuánto se puede confiar en él. La herramienta propone; el
+        cirujano decide.
+      </p>
+    </Seccion>
   );
 }
 
-/* ── Use cases ──────────────────────────────────────────────────────────── */
-function UseCases() {
-  const cases: [IconName, string, string][] = [
-    ["STEP_PLAN", "Planificación preoperatoria", "Elige abordaje y dispositivo con medidas objetivas antes de entrar a quirófano."],
-    ["USERS", "Comité multidisciplinar (MDT)", "Un lenguaje común de métricas para discutir casos entre neurocirugía y neurorradiología."],
-    ["BRAIN", "Docencia y formación", "Los residentes exploran morfología y decisiones sobre casos reales de forma guiada."],
-    ["DOC", "Investigación", "Métricas reproducibles y export de mallas para estudios morfológicos y hemodinámicos."],
-    ["GROWTH", "Vigilancia de no rotos", "Seguimiento de aneurismas no tratados con alerta de crecimiento entre controles."],
-  ];
-  return (
-    <Section style={{ background: "var(--background)" }}>
-      <div style={{ maxWidth: 680, margin: "0 auto 44px", textAlign: "center" }}>
-        <Kicker>Para qué sirve</Kicker>
-        <H2>De la consulta al quirófano, y del aula al laboratorio</H2>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18 }}>
-        {cases.map(([icon, t, d]) => (
-          <div key={t} style={{ display: "flex", gap: 14, padding: "18px 4px" }}>
-            <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: "var(--radius-md)", background: "var(--accent)", color: "var(--accent-foreground)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Icon name={icon} size={19} />
-            </div>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--foreground)" }}>{t}</div>
-              <div style={{ fontSize: 13.5, color: "var(--muted-foreground)", marginTop: 5, lineHeight: 1.6 }}>{d}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
-}
-
-/* ── How it works (3 steps) ─────────────────────────────────────────────── */
-function HowItWorks() {
-  const steps: [string, string, string][] = [
-    ["01", "Sube el estudio", "Arrastra la carpeta con las imágenes del paciente (tomografía, resonancia o angiografía). El sistema las prepara automáticamente."],
-    ["02", "El sistema analiza", "Reconstruye las arterias en 3D, detecta y mide el aneurisma, y evalúa su riesgo de rotura y las arterias sensibles alrededor."],
-    ["03", "Recibes el plan", "Tratamiento recomendado, dispositivo sugerido con su cobertura, informe en PDF y modelo 3D para imprimir. Si la pieza hay que fabricarla, también el pedido y el expediente para el taller."],
-  ];
-  return (
-    <Section style={{ background: "var(--canvas)" }}>
-      <div style={{ maxWidth: 680, margin: "0 auto 44px", textAlign: "center" }}>
-        <Kicker>Cómo funciona</Kicker>
-        <H2>Tres pasos</H2>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
-        {steps.map(([n, t, d]) => (
-          <div key={n} className="stitch-glass" style={{ padding: "24px 22px" }}>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 32, fontWeight: 800, color: "var(--brand-mist)" }}>{n}</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--foreground)", marginTop: 10 }}>{t}</div>
-            <div style={{ fontSize: 13.5, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.6 }}>{d}</div>
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
-}
-
-/* ── Technology ─────────────────────────────────────────────────────────── */
-function Technology() {
-  const stats: [string, string][] = [
-    ["Web", "Funciona en el navegador"],
-    ["Servidor", "El cálculo pesado corre en el servidor, no en tu equipo"],
-    ["3D", "El modelo se explora en 3D en la propia página"],
-    ["Seguro", "Acceso con inicio de sesión y cuentas aprobadas"],
-  ];
-  return (
-    <Section id="tecnologia" style={{ background: "var(--background)" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 44, alignItems: "center" }}>
-        <div>
-          <Kicker>Tecnología</Kicker>
-          <H2>La potencia de una estación de trabajo, en una página web</H2>
-          <p style={{ fontSize: 16, color: "var(--muted-foreground)", lineHeight: 1.7, marginTop: 16 }}>
-            El análisis pesado se hace en el servidor con las mismas herramientas de imagen médica que
-            un programa de escritorio profesional; tu navegador solo muestra el resultado en 3D.
-          </p>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          {stats.map(([v, l]) => (
-            <div key={l} className="stitch-glass" style={{ padding: "20px 18px" }}>
-              <div style={{ fontSize: 21, fontWeight: 800, color: "var(--brand-slate)" }}>{v}</div>
-              <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>{l}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </Section>
-  );
-}
-
-/* ── Security + Team + Disclaimer + CTA ──────────────────────────────────── */
-function Security() {
-  const items: [IconName, string, string][] = [
-    ["LOCK", "Acceso seguro", "Cada persona entra con su usuario y contraseña; la sesión queda protegida."],
-    ["USER", "Cuentas verificadas", "El registro de un profesional queda pendiente hasta que un administrador lo aprueba."],
-    ["FOLDER", "Identificación mínima", "Puedes registrar al paciente con iniciales o un código."],
-    ["SAVE", "Cada caso, por separado", "El estudio de cada paciente vive en su propio espacio y no se mezcla con otros."],
-  ];
-  return (
-    <Section style={{ background: "var(--canvas)" }}>
-      <div style={{ maxWidth: 680, margin: "0 auto 40px", textAlign: "center" }}>
-        <Kicker>Seguridad y datos</Kicker>
-        <H2>Pensado para un entorno clínico</H2>
-      </div>
-      {/* Era la única sección de contenido sin ningún apoyo visual. */}
-      <div style={{ marginBottom: 18 }}>
-        <Figure caption="El estudio viaja protegido"><DataVault /></Figure>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 18 }}>
-        {items.map(([icon, t, d]) => (
-          <div key={t} className="stitch-glass" style={{ padding: "20px 18px" }}>
-            <Icon name={icon} size={20} color="var(--brand-slate)" />
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--foreground)", marginTop: 10 }}>{t}</div>
-            <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 5, lineHeight: 1.55 }}>{d}</div>
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
-}
-
-/* ── Clinical indices / rigor ───────────────────────────────────────────── */
+/* ── Índices morfométricos ──────────────────────────────────────────────── */
 /** Un número con coma decimal y los decimales del corte (2,0 y no 2). */
 const es = (n: number, d: number): string => n.toFixed(d).replace(".", ",");
 
 function Indices() {
-  // Los cortes salen de morphometry/thresholds.ts, con coma decimal. El texto
-  // del BF estaba invertido (F1-162): un BF alto es un cuello relativamente
-  // estrecho, nunca lo contrario. El NSI no tiene corte y la tarjeta lo dice.
-  const metrics: [string, string, string][] = [
+  // El texto del BF estaba invertido (F1-162): un BF alto es un cuello
+  // relativamente estrecho, nunca lo contrario. El NSI no tiene corte.
+  const metricas: [string, string, string][] = [
     ["DNR", "Relación domo-cuello (DNR)", `Ø máx / cuello · riesgo ↑ si ≥ ${es(DNR_HIGH, 1)}`],
     ["AR", "Relación de aspecto (AR)", `altura de domo / cuello · riesgo ↑ si ≥ ${es(AR_HIGH, 1)}`],
     ["BF", "Factor de cuello (BF)", `Ø domo / cuello · cuello estrecho si > ${es(BF_WIDE, 1)}`],
@@ -529,265 +158,143 @@ function Indices() {
     ["EI", "Índice de elipticidad (EI)", `desviación elíptica · alto si ≥ ${es(EI_MOD, 2)}`],
     ["NSI", "Índice de no esfericidad (NSI)", "1 − esfericidad de Wadell · sin corte"],
     ["SR", "Relación de tamaño (SR)", `Ø máx / arteria madre · alto si ≥ ${es(SR_HIGH, 1)}`],
-    ["PHASES", "Riesgo a 5 años", "escala de Greving et al., Lancet Neurology 2014"],
+    ["PHASES", "Riesgo en aneurismas no rotos", "escala de Greving et al., Lancet Neurology 2014"],
   ];
   return (
-    <Section id="indices" style={{ background: "var(--background)" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 44, alignItems: "start" }}>
-        <div style={{ position: "sticky", top: 96 }}>
-          <Kicker>Rigor clínico</Kicker>
-          <H2>Indicadores objetivos, respaldados por la literatura</H2>
-          <p style={{ fontSize: 16, color: "var(--muted-foreground)", lineHeight: 1.7, marginTop: 16 }}>
-            PROSPECTIVE no da una opinión: calcula medidas estándar a partir de la geometría real del
-            aneurisma y las compara con los umbrales de riesgo publicados.
-          </p>
-          <p style={{ fontSize: 15, color: "var(--muted-foreground)", lineHeight: 1.7, marginTop: 12 }}>
-            <b style={{ color: "var(--foreground)" }}>No hace falta conocer estas siglas:</b> el sistema
-            las traduce a un nivel de riesgo (bajo · moderado · alto). Se muestran aquí, con su umbral,
-            para el especialista que quiera el detalle.
-          </p>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 20, fontSize: 13, color: "var(--muted-foreground)" }}>
-            <Icon name="BOOK" size={17} color="var(--brand-slate)" />
-            Referencias: Greving 2014 · Dhar 2008 · Raghavan 2005 · Wadell
-          </div>
-          {/* El saco aislado con sus calibres: la imagen de lo que miden las
-              siglas de al lado. */}
-          <div style={{ marginTop: 24 }}>
-            <Figure caption="Cuello, altura máxima y forma del saco"><Morphometry /></Figure>
-          </div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {metrics.map(([abbr, title, desc]) => (
-            <div key={abbr} className="stitch-glass" style={{ padding: "16px 16px" }}>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 800, color: "var(--brand-slate)" }}>{abbr}</div>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--foreground)", marginTop: 6 }}>{title}</div>
-              <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5, fontFamily: "var(--font-mono)" }}>{desc}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </Section>
+    <Seccion id="indices" rotulo="Índices morfométricos" titulo="Ocho números que describen el saco">
+      <ListaConReglas
+        items={metricas.map(([abbr, titulo, detalle]) => ({ titulo, detalle, cifra: abbr }))}
+      />
+      <p className="sec__nota">
+        Cuello, altura máxima y forma del saco. El sistema traduce las siglas a un nivel de riesgo
+        (bajo · moderado · alto). Referencias: Greving 2014 · Dhar 2008 · Raghavan 2005 · Wadell.
+      </p>
+    </Seccion>
   );
 }
 
-/* ── Device catalogs ────────────────────────────────────────────────────── */
-function Devices() {
-  const groups: [IconName, string, string, string[]][] = [
-    // Los clips de otras marcas dejaron de ofrecerse: el centro planifica con
-    // su propia familia, que ya cubre las cuatro formas. La portada seguía
-    // anunciando un catálogo que la aplicación no sirve y que este centro no
-    // puede conseguir.
-    ["CLIPS", "Clips quirúrgicos NAVARRO™",
-     "66 diseños propios en cuatro series, fabricados bajo pedido para cada caso; la mordaza puede hacerse a la medida exacta del cuello",
-     ["T1 recta", "T2 curva", "T3 angulada 15–90°", "T4 fenestrada 3 · 5 · 7 mm"]],
-    ["COIL", "Coils (rellenos)", "39 modelos que rellenan el aneurisma desde dentro de la arteria", ["Target 360", "GDC", "Axium Prime"]],
-    ["STENT", "Stents y desviadores de flujo", "Mallas que se colocan en la arteria para apoyar o desviar el flujo", ["Pipeline (Medtronic)", "Surpass (Stryker)", "FRED · Enterprise 2 · Leo+"]],
-  ];
+/* ── Dispositivos NAVARRO™ ──────────────────────────────────────────────── */
+const trazo = {
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2.5,
+  strokeLinecap: "round",
+} as const;
+
+const SERIES: { nombre: string; detalle?: string; dibujo: React.ReactNode }[] = [
+  { nombre: "T1 recta", dibujo: <path d="M12 58L58 12M18 64L64 18" /> },
+  { nombre: "T2 curva", dibujo: <path d="M10 60C14 30 40 14 62 14M18 64C22 38 44 24 64 22" /> },
+  { nombre: "T3 angulada", detalle: "15–90°", dibujo: <path d="M10 62L36 34L62 34M18 66L40 44L64 44" /> },
+  {
+    nombre: "T4 fenestrada",
+    detalle: "3 · 5 · 7 mm",
+    dibujo: (
+      <>
+        <path d="M12 58L58 12M18 64L64 18" />
+        <circle cx="38" cy="38" r="6" />
+      </>
+    ),
+  },
+];
+
+function Dispositivos() {
   return (
-    <Section id="dispositivos" style={{ background: "var(--canvas)" }}>
-      <div style={{ maxWidth: 680, margin: "0 auto 40px", textAlign: "center" }}>
-        <Kicker>Dispositivos</Kicker>
-        <H2>Catálogos reales de dispositivos neurovasculares</H2>
-      </div>
-      {/* Las dos vías de tratamiento, una escena cada una: el clip propio del
-          centro y el material endovascular. */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 18, marginBottom: 18 }}>
-        <Figure caption="Clipaje · cierre de la mordaza sobre el cuello"><ClipKinematics /></Figure>
-        <Figure caption="Endovascular · stent y coil en la arteria"><Endovascular /></Figure>
-        {/* El paso de fabricación: los clips NAVARRO se hacen bajo pedido. */}
-        <Figure caption="Fabricación · la pieza se imprime en el taller"><StlPrinting /></Figure>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 18 }}>
-        {groups.map(([icon, title, sub, brands]) => (
-          <div key={title} className="stitch-glass" style={{ padding: "24px 22px" }}>
-            <div style={{ width: 46, height: 46, borderRadius: "var(--radius-md)", background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
-              <Icon name={icon} size={22} />
-            </div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--foreground)" }}>{title}</div>
-            <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 5, lineHeight: 1.55 }}>{sub}</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 14 }}>
-              {brands.map((b) => (
-                <span key={b} style={{ padding: "4px 10px", borderRadius: "var(--radius-full)", background: "var(--muted)", color: "var(--muted-foreground)", fontSize: 11.5, fontWeight: 600 }}>{b}</span>
-              ))}
-            </div>
+    <Seccion id="dispositivos" rotulo="Dispositivos NAVARRO™" titulo="Cuatro series, fabricadas bajo pedido">
+      <p className="sec__texto sec__texto--ancho">
+        Se fabrican en taller a partir del pedido. Prospective elige la serie y ajusta la mordaza al
+        cuello medido.
+      </p>
+      <div className="series">
+        {SERIES.map((s) => (
+          <div key={s.nombre} className="series__ficha" data-glass>
+            <svg width="70" height="70" viewBox="0 0 70 70" aria-hidden="true" {...trazo}>
+              {s.dibujo}
+            </svg>
+            <div className="series__nombre">{s.nombre}</div>
+            {s.detalle && <div className="series__detalle">{s.detalle}</div>}
           </div>
         ))}
       </div>
-    </Section>
+    </Seccion>
   );
 }
 
-/* ── Roadmap / coming soon ──────────────────────────────────────────────── */
-function Roadmap() {
-  const items: [IconName, string, string][] = [
-    ["CLOUD", "SkullCloud", "Almacenamiento y colaboración de casos en la nube entre centros."],
-    ["VRAR", "AR / VR", "Exploración inmersiva de la anatomía vascular y el plan quirúrgico."],
-    ["CHART", "Analítica", "Estadísticas agregadas de casos, dispositivos y resultados."],
+/* ── Próximamente ───────────────────────────────────────────────────────── */
+function Proximamente() {
+  const items = [
+    ["SkullCloud", "Almacenamiento y colaboración de casos en la nube entre centros."],
+    ["AR / VR", "Exploración inmersiva de la anatomía vascular y el plan quirúrgico."],
+    ["Analítica", "Estadísticas agregadas de casos, dispositivos y resultados."],
   ];
   return (
-    <Section id="proximamente" style={{ background: "var(--background)" }}>
-      <div style={{ maxWidth: 680, margin: "0 auto 44px", textAlign: "center" }}>
-        <Kicker>Próximamente</Kicker>
-        <H2>Hacia dónde va PROSPECTIVE</H2>
-      </div>
-      {/* Dos de las tres líneas del roadmap tienen escena propia. Van sobre las
-          tarjetas, en panel de trazo discontinuo como ellas: es lo que marca que
-          esto está ANUNCIADO y no desplegado, y el borde lo repite. */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 18, marginBottom: 18 }}>
-        <Figure dashed caption="SkullCloud · casos compartidos entre centros"><SkullCloud /></Figure>
-        <Figure dashed caption="AR / VR · plan proyectado sobre el campo"><MixedReality /></Figure>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18 }}>
-        {items.map(([icon, t, d]) => (
-          <div key={t} className="stitch-glass" style={{ position: "relative", borderStyle: "dashed", borderColor: "color-mix(in srgb, var(--primary) 28%, transparent)", padding: "24px 22px" }}>
-            <span style={{ position: "absolute", top: 16, right: 16, display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700, color: "var(--brand-slate)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              <Icon name="SPARKLE" size={12} /> Próximamente
-            </span>
-            <div style={{ width: 44, height: 44, borderRadius: "var(--radius-md)", background: "var(--accent)", color: "var(--accent-foreground)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
-              <Icon name={icon} size={21} />
-            </div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--foreground)" }}>{t}</div>
-            <div style={{ fontSize: 13.5, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.6 }}>{d}</div>
-          </div>
-        ))}
-      </div>
-    </Section>
+    <Seccion id="proximamente" rotulo="Próximamente" titulo="Lo que viene">
+      <ListaConReglas
+        items={items.map(([titulo, detalle]) => ({
+          titulo,
+          detalle,
+          cifra: <span className="stitch-label">Próximamente</span>,
+        }))}
+      />
+    </Seccion>
   );
 }
 
-/* ── Contact ────────────────────────────────────────────────────────────── */
-function Contact() {
-  const rows: [IconName, string, string, string | null][] = [
-    ["MAIL", "Correo", CONTACTO_ADMIN, `mailto:${CONTACTO_ADMIN}`],
-    ["PIN", "Institución", "SkullApp", null],
-    ["BRAIN", "Laboratorio", "Laboratorio de Imagen Médica", null],
-  ];
+/* ── Contacto y pie ─────────────────────────────────────────────────────── */
+function Contacto({ onEntrar, onCrearCuenta }: { onEntrar: () => void; onCrearCuenta: () => void }) {
   return (
-    <Section id="contacto" style={{ background: "var(--canvas)" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 44, alignItems: "center" }}>
-        <div>
-          <Kicker>Contacto</Kicker>
-          <H2>¿Interesado en PROSPECTIVE?</H2>
-          <p style={{ fontSize: 16, color: "var(--muted-foreground)", lineHeight: 1.7, marginTop: 16 }}>
-            Para acceso, colaboración clínica o de investigación, o cualquier consulta sobre la
-            plataforma, escríbenos. El registro profesional lo aprueba el administrador.
-          </p>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {rows.map(([icon, label, value, href]) => {
-            const inner = (
-              <div className="stitch-glass" style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px" }}>
-                <div style={{ width: 42, height: 42, flexShrink: 0, borderRadius: "var(--radius-md)", background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Icon name={icon} size={20} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--muted-foreground)" }}>{label}</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: "var(--foreground)", marginTop: 2 }}>{value}</div>
-                </div>
-                {href && <div style={{ flex: 1, textAlign: "right", color: "var(--brand-deep)" }}><Icon name="ARROW_UP_RIGHT" size={16} /></div>}
-              </div>
-            );
-            return href ? (
-              <a key={label} href={href} style={{ textDecoration: "none" }}>{inner}</a>
-            ) : (
-              <div key={label}>{inner}</div>
-            );
-          })}
-        </div>
-      </div>
-    </Section>
-  );
-}
-
-function CTA({ onEnter, onSignup }: { onEnter: () => void; onSignup: () => void }) {
-  return (
-    <Section style={{ background: "var(--background)" }}>
-      <div
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          borderRadius: "var(--radius-xl)",
-          padding: "64px 32px",
-          textAlign: "center",
-          background: "radial-gradient(120% 140% at 50% 0%, var(--card), var(--canvas) 70%)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <div style={{ position: "relative", zIndex: 1, maxWidth: 640, margin: "0 auto" }}>
-          <Logo size={48} />
-          <h2 style={{ fontSize: "clamp(26px, 3.6vw, 40px)", fontWeight: 800, letterSpacing: "-0.02em", color: "var(--foreground)", margin: "18px 0 0", lineHeight: 1.12 }}>
-            Empieza a planificar con PROSPECTIVE
-          </h2>
-          <p style={{ fontSize: 16, color: "var(--muted-foreground)", marginTop: 14, lineHeight: 1.6 }}>
-            Accede con tu cuenta o solicita el registro profesional. La aprobación la gestiona el administrador.
-          </p>
-          <div style={{ display: "flex", justifyContent: "center", gap: 14, marginTop: 28, flexWrap: "wrap" }}>
-            <BorderBeam size="sm" colorVariant="ocean" theme="dark" style={{ display: "inline-flex" }}>
-              <button
-                onClick={onEnter}
-                className="stitch-cta"
-                style={{ height: 50, padding: "0 32px", borderRadius: "var(--radius-md)", border: "none", background: "var(--primary)", color: "var(--primary-foreground)", fontSize: 15, cursor: "pointer" }}
-              >
-                Entrar
-              </button>
-            </BorderBeam>
-            <button
-              onClick={onSignup}
-              className="stitch-ghost"
-              style={{ height: 50, padding: "0 28px", borderRadius: "var(--radius-md)", fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15, cursor: "pointer" }}
-            >
-              Crear cuenta
-            </button>
+    <section id="contacto" aria-label="Contacto" className="sec">
+      <div className="sec__cuerpo">
+        <div className="contacto" data-glass>
+          <div>
+            <h2 className="sec__titulo sec__titulo--contacto">Hablemos de tu servicio</h2>
+            <p className="sec__texto">
+              Escríbenos para una demostración con tus propios estudios:{" "}
+              <a href={`mailto:${CONTACTO_ADMIN}`}>{CONTACTO_ADMIN}</a>
+            </p>
+          </div>
+          <div className="contacto__acciones">
+            <Button size="lg" variant="secondary" onClick={onCrearCuenta}>Crear cuenta</Button>
+            <Button size="lg" onClick={onEntrar}>Entrar</Button>
           </div>
         </div>
       </div>
-    </Section>
+    </section>
   );
 }
 
-function Footer() {
+function Pie() {
   return (
-    <footer style={{ borderTop: "1px solid var(--border)", background: "var(--canvas)" }}>
-      <div style={{ maxWidth: MAXW, margin: "0 auto", padding: "36px 24px", display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
-        <Logo />
-        <div style={{ flex: 1 }} />
-        <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", textAlign: "right" }}>
-          <div>SkullApp · Laboratorio de Imagen Médica</div>
-          <div style={{ marginTop: 4 }}>
-            PROSPECTIVE™ es una herramienta de apoyo a la planificación. No sustituye el juicio clínico.
-          </div>
-        </div>
+    <footer className="pie">
+      <Logo />
+      <div className="pie__aviso">
+        <div>SkullApp · Laboratorio de Imagen Médica</div>
+        <div>Herramienta de apoyo a la decisión clínica. No sustituye el criterio del cirujano.</div>
       </div>
     </footer>
   );
 }
 
-/* ── Page ───────────────────────────────────────────────────────────────── */
+/* ── Página ─────────────────────────────────────────────────────────────── */
 export function Landing() {
   const navigate = useNavigate();
-  // Sin vídeo de marca al entrar (F2-1): para quien vuelve cada día era solo espera.
-  const enter = () => navigate("/app");
-  const signup = () => navigate("/app/registro");
+  const entrar = () => navigate("/app");
+  const crearCuenta = () => navigate("/app/registro");
   return (
-    /* `landing-stitch` trae la identidad de Stitch (styles/landing.css) y
-       `data-theme="dark"` la ancla en oscuro: la paleta es dark-only por diseño
-       y la landing no debe seguir el tema que el usuario eligió para /app. */
+    /* `landing-stitch` trae la maquetación (styles/landing.css) y
+       `data-theme="dark"` la ancla en oscuro: la landing no debe seguir el tema
+       que el usuario eligió para /app. */
     <div className="landing-stitch" data-theme="dark" style={{ background: "var(--canvas)", minHeight: "100%" }}>
-      <Nav onEnter={enter} />
-      <Hero onEnter={enter} onSignup={signup} />
-      <What />
-      <Pipeline />
-      <Features />
+      <NavPildora onEntrar={entrar} onCrearCuenta={crearCuenta} />
+      <HeroCortes onEntrar={entrar} onCrearCuenta={crearCuenta} />
+      <QueEs />
+      <ComoFunciona />
+      <Funcionalidades />
+      <FranjaCasos />
       <Indices />
-      <Devices />
-      <UseCases />
-      <HowItWorks />
-      <Technology />
-      <Security />
-      <Roadmap />
-      <Contact />
-      <CTA onEnter={enter} onSignup={signup} />
-      <Footer />
+      <Dispositivos />
+      <Proximamente />
+      <Contacto onEntrar={entrar} onCrearCuenta={crearCuenta} />
+      <Pie />
     </div>
   );
 }

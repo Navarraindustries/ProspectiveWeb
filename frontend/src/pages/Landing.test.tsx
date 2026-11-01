@@ -191,3 +191,47 @@ describe("F2 (5): portada", () => {
     expect(src.match(/#[0-9a-f]{3,8}\b|rgba?\(/i)).toBeNull();
   });
 });
+
+describe("Landing D: secciones del tablero", () => {
+  it("el pie lleva el aviso clínico exacto", () => {
+    expect(text()).toContain("Herramienta de apoyo a la decisión clínica. No sustituye el criterio del cirujano.");
+  });
+
+  it("«Próximamente» nombra SkullCloud, AR / VR y Analítica", () => {
+    show();
+    for (const n of ["SkullCloud", "AR / VR", "Analítica"]) {
+      expect(screen.getAllByText(n).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("los ocho índices se rotulan DNR, AR, BF, UI, EI, NSI, SR y PHASES", () => {
+    show();
+    for (const n of ["DNR", "AR", "BF", "UI", "EI", "NSI", "SR", "PHASES"]) {
+      expect(screen.getAllByText(n).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("«Casos reales» va entre «Funcionalidades» e «Índices morfométricos» y su figura es la real", () => {
+    const { container } = show();
+    const antes = screen.getByRole("region", { name: "Funcionalidades" });
+    const casos = screen.getByRole("region", { name: "Casos reales" });
+    const despues = screen.getByRole("region", { name: "Índices morfométricos" });
+    expect(antes.compareDocumentPosition(casos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(casos.compareDocumentPosition(despues) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const img = casos.querySelector("img");
+    expect(img).toHaveAttribute("src", "/media/landing/aneurismas.webp");
+    expect(img).toHaveAttribute("alt", "Modelos 3D de aneurismas intracraneales: sacos en rojo sobre sus vasos");
+    expect(img).toHaveAttribute("loading", "lazy");
+    expect(container.querySelector('source[srcset="/media/landing/aneurismas-movil.webp"]'))
+      .not.toBeNull();
+    expect(casos.textContent).toContain("Cada pieza es un aneurisma real: el saco en rojo, el vaso que lo lleva en gris.");
+    expect(casos.textContent).toContain("Figura: [fuente de la figura]");
+  });
+
+  it("las anclas de la navegación existen", () => {
+    const { container } = show();
+    for (const id of ["que-es", "como-funciona", "indices", "dispositivos"]) {
+      expect(container.querySelector(`#${id}`), id).not.toBeNull();
+    }
+  });
+});

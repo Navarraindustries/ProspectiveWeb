@@ -15,15 +15,8 @@
 }
 
 /* La paleta, las fuentes, los radios y las sombras ya no son propios de la
-   landing (F2): vienen de tokens/*.css, igual que el resto de la aplicación. Aquí
-   solo quedan los dos resplandores, que no existen como token global, derivados
-   del acento y del color de peligro para que sigan al tema. */
+   landing (F2): vienen de tokens/*.css, igual que el resto de la aplicación. */
 .landing-stitch {
-  --glow-primary: 0 0 20px -2px color-mix(in srgb, var(--primary) 35%, transparent),
-                  inset 0 0 12px 0 color-mix(in srgb, var(--primary) 10%, transparent);
-  --glow-alert:   0 0 24px -2px color-mix(in srgb, var(--destructive) 45%, transparent),
-                  inset 0 0 14px 0 color-mix(in srgb, var(--destructive) 12%, transparent);
-
   background: var(--canvas);
   color: var(--foreground);
   font-family: var(--font-sans);
@@ -51,9 +44,46 @@
   color: var(--foreground);
 }
 
-/* ---- Rótulos y métricas monoespaciadas ----------------------------------
-   La identidad exige que toda etiqueta de estado y toda métrica caiga en
-   JetBrains Mono con caja alta: es lo que da la lectura de instrumental. */
+/* Al saltar a un ancla, el rótulo de la sección queda por debajo de la
+   pastilla fija de la nav (unos 70 px con su margen). */
+.landing-stitch section[id] {
+  scroll-margin-top: 96px;
+}
+
+/* Texto solo para lectores de pantalla. */
+.landing-stitch .landing-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- Navegación en pastilla (NavPildora.tsx) ---------------------------- */
+.landing-stitch .landing-nav__enlace {
+  padding: 8px 12px;
+  border-radius: var(--radius-full);
+  font-size: 14px;
+  color: var(--muted-foreground);
+  text-decoration: none;
+  transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
+}
+.landing-stitch .landing-nav__enlace:hover,
+.landing-stitch .landing-nav__enlace:focus-visible {
+  color: var(--foreground);
+  background: var(--glass-hover);
+}
+/* Panel plegado (≤ 760 px): blancos de 44 px de alto. */
+.landing-stitch .landing-nav__panel .landing-nav__enlace {
+  padding: 12px;
+}
+
+/* ---- Rótulo monoespaciado -----------------------------------------------
+   Etiqueta de estado en JetBrains Mono con caja alta (Próximamente). */
 .landing-stitch .stitch-label {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -62,147 +92,660 @@
   text-transform: uppercase;
 }
 
-.landing-stitch .stitch-metric {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
+/* ---- Hero de cortes (HeroCortes.tsx) ------------------------------------
+   Sección de 300 vh con el escenario pegado arriba; capas, de abajo arriba:
+   corte axial → render 3D → velo → texto y ventana → rótulo de la ventana. */
+.landing-stitch .hero-cortes {
+  position: relative;
+  background: var(--canvas);
+}
+.landing-stitch .hero-cortes--quieto {
+  min-height: 100vh;
+}
+.landing-stitch .hero-cortes__escenario {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
+}
+/* Disposición quieta (movimiento reducido, pantalla estrecha o baja, ahorro de
+   datos): sin scroll que consumir, el escenario fluye en el documento y crece
+   con su contenido, sin recortar nada. El render se recorta en su propia capa
+   (`.hero-cortes__render`). El @media repite la clase que pone HeroCortes con
+   `CONSULTA_HERO_QUIETO` (heroFrames.ts): deben coincidir. */
+.landing-stitch .hero-cortes--quieto .hero-cortes__escenario {
+  position: relative;
+  height: auto;
+  min-height: 100vh;
+  overflow: visible;
+}
+@media (max-width: 760px), (max-height: 600px) {
+  .landing-stitch .hero-cortes__escenario {
+    position: relative;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+  .landing-stitch .hero-cortes__contenido {
+    min-height: 100vh;
+  }
 }
 
-/* ---- Panel de instrumental (elevación 2) --------------------------------
-   Vidrio translúcido sobre el fondo, borde azul tenue, desenfoque detrás. */
-.landing-stitch .stitch-glass {
-  background: color-mix(in srgb, var(--card) 65%, transparent);
-  border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
-  border-radius: var(--radius-lg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  box-shadow: var(--shadow-md);
-  transition: border-color var(--dur-base) var(--ease-out),
-              box-shadow var(--dur-base) var(--ease-out),
-              transform var(--dur-base) var(--ease-out);
+.landing-stitch .hero-cortes__corte,
+.landing-stitch .hero-cortes__render,
+.landing-stitch .hero-cortes__ventana,
+.landing-stitch .hero-cortes__rotulo {
+  transition: opacity var(--dur-4) var(--ease-out);
 }
-.landing-stitch .stitch-glass:hover {
-  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
-  box-shadow: var(--shadow-md), var(--glow-primary);
-  transform: translateY(-2px);
-}
-
-/* Carcasa estructural acoplada (elevación 1): navbar y pies de sección. */
-.landing-stitch .stitch-shell {
-  background: color-mix(in srgb, var(--background) 90%, transparent);
-  border-color: color-mix(in srgb, var(--border) 45%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-/* ---- Modelo 3D del hero --------------------------------------------------
-   A sangre y centrado, como en el diseño de Stitch: es la pieza que cuenta de
-   qué va la aplicación, así que manda en el hero y el texto se le superpone.
-   El contraste del titular lo resuelve el velo, no el encogimiento del modelo.
-   En estrecho se atenúa para que quede como textura y el texto siga mandando. */
-.landing-stitch .landing-hero-model {
+.landing-stitch .hero-cortes__corte {
   position: absolute;
   inset: 0;
   width: 100%;
-  pointer-events: none;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 40%;
 }
-@media (max-width: 1100px) {
-  .landing-stitch .landing-hero-model {
-    opacity: 0.45;
-  }
-}
-
-/* ---- Figura 3D de sección ------------------------------------------------
-   Las escenas repartidas por la página se presentan como figuras: un panel de
-   vidrio con la escena dentro y altura fija, para que la sección no dé saltos
-   mientras el chunk de Three.js todavía está cargando. Sin `pointer-events`:
-   son ilustrativas, el 3D que se manipula está dentro de la aplicación. */
-.landing-stitch .landing-figure {
-  position: relative;
-  height: 340px;
-  overflow: hidden;
-  pointer-events: none;
-  /* Halo azul tenue desde el centro: asienta la escena sobre el panel. */
-  background:
-    radial-gradient(60% 70% at 50% 50%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 70%),
-    color-mix(in srgb, var(--card) 55%, transparent);
-}
-@media (max-width: 760px) {
-  .landing-stitch .landing-figure { height: 240px; }
-}
-/* Solo el contenedor de la escena se estira: el pie es un hermano posicionado y
-   con `> div` a secas también se estiraba a toda la altura, empujando su texto
-   fuera de la vista. */
-.landing-stitch .landing-figure > div:not(.stitch-label) { width: 100%; height: 100%; }
-
-/* El pie se lee sobre la escena, así que lleva su propio fondo. */
-.landing-stitch .landing-figure > .stitch-label {
+/* El render se escala como `cover` pero dentro de una caja con su proporción
+   (1400 × 1000), para que las balizas en % caigan sobre lo que señalan. */
+.landing-stitch .hero-cortes__render {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 1;
-  padding: 10px 16px;
-  color: var(--brand-slate);
-  background: linear-gradient(transparent, color-mix(in srgb, var(--canvas) 85%, transparent) 55%);
+  inset: 0;
+  overflow: hidden;
+  container-type: size;
 }
-
-/* ---- Rejilla de calibración ---------------------------------------------
-   Retícula espacial muy tenue; da la sensación de viewport calibrado sin
-   competir con el contenido. Decorativa: siempre detrás y sin eventos. */
-.landing-stitch .stitch-grid::before {
-  content: "";
+.landing-stitch .hero-cortes__lienzo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100cqw, 140cqh);
+  aspect-ratio: 1400 / 1000;
+  transform: translate(-50%, -50%);
+}
+.landing-stitch .hero-cortes__lienzo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.landing-stitch .hero-cortes__velo {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 0;
-  background-image:
-    linear-gradient(color-mix(in srgb, var(--primary) 4%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--primary) 4%, transparent) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, #000 30%, transparent 75%);
-  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, #000 30%, transparent 75%);
+  background: linear-gradient(90deg, var(--veil-dense) 0%, var(--veil) 42%, transparent 72%);
 }
 
-/* ---- CTA primaria: azul sólido con resplandor especular ---------------- */
-.landing-stitch .stitch-cta {
-  font-family: var(--font-display);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  transition: box-shadow var(--dur-base) var(--ease-out),
-              background var(--dur-base) var(--ease-out);
+.landing-stitch .hero-cortes__contenido {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  max-width: 1320px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 96px 24px 64px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 400px);
+  gap: 48px;
+  align-items: center;
 }
-.landing-stitch .stitch-cta:hover {
-  box-shadow: 0 0 16px color-mix(in srgb, var(--primary) 60%, transparent);
+.landing-stitch .hero-cortes--quieto .hero-cortes__contenido {
+  min-height: 100vh;
+}
+.landing-stitch .hero-cortes__texto {
+  max-width: 620px;
+}
+.landing-stitch .hero-cortes__antetitulo {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  margin-bottom: 22px;
+}
+.landing-stitch .hero-cortes__titulo {
+  margin: 0;
+  font-size: clamp(40px, 6.4vw, 76px);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: var(--tracking-display);
+  color: var(--foreground);
+}
+.landing-stitch .hero-cortes__subtitulo {
+  margin: 26px 0 0;
+  max-width: 520px;
+  font-size: clamp(16px, 1.6vw, 19px);
+  line-height: 1.55;
+  color: var(--muted-foreground);
+}
+.landing-stitch .hero-cortes__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 34px;
+}
+.landing-stitch .hero-cortes__ancla {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-lg);
+  padding: 0 10px;
+  font-size: 15px;
+  color: var(--muted-foreground);
+  text-decoration: none;
+}
+.landing-stitch .hero-cortes__ancla:hover {
+  color: var(--foreground);
+}
+.landing-stitch .hero-cortes__notas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 32px;
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.landing-stitch .hero-cortes__rotulo {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
 }
 
-/* Secundaria / fantasma: relleno de vidrio y filo azul. */
-.landing-stitch .stitch-ghost {
-  background: color-mix(in srgb, var(--card) 60%, transparent);
-  border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
-  color: var(--primary);
-  transition: background var(--dur-base) var(--ease-out);
+/* Ventana «Detección · 5 candidatos» (VentanaDeteccion.tsx). */
+.landing-stitch .hero-ventana {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 14px 16px 8px;
 }
-.landing-stitch .stitch-ghost:hover {
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
+.landing-stitch .hero-ventana__cabecera {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--muted-foreground);
+  padding: 2px 2px 10px;
 }
-
-/* ---- Pip de estado: late para indicar sistema vivo --------------------- */
-.landing-stitch .stitch-pip {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
+.landing-stitch .hero-ventana__filas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.landing-stitch .hero-ventana__fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 2px;
+  border-top: 1px solid var(--border);
+  font-size: var(--text-body);
+  color: var(--foreground);
+}
+.landing-stitch .hero-ventana__num {
+  flex: none;
+  width: 26px;
+  height: 26px;
   border-radius: 9999px;
-  background: var(--primary);
-  box-shadow: 0 0 8px var(--primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  background: color-mix(in srgb, var(--canvas) 85%, transparent);
+  border: 1.5px solid var(--foreground);
 }
-@media (prefers-reduced-motion: no-preference) {
-  .landing-stitch .stitch-pip {
-    animation: stitch-pulse 2.4s var(--ease-in-out) infinite;
+.landing-stitch .hero-ventana__num--lesion {
+  background: var(--destructive);
+  border-color: var(--destructive);
+}
+.landing-stitch .hero-ventana__insignia {
+  padding: 1px 8px;
+  border-radius: 9999px;
+  font-size: var(--text-micro);
+  color: var(--muted-foreground);
+  border: 1px solid var(--glass-border);
+}
+.landing-stitch .hero-ventana__nota {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+/* La nota de la lesión es larga: va en su propia línea, alineada con los canales
+   (número de 26 px + hueco de 12). */
+.landing-stitch .hero-ventana__nota--lesion {
+  flex-basis: 100%;
+  margin-left: 0;
+  padding-left: 38px;
+  color: color-mix(in srgb, var(--destructive) 70%, var(--foreground));
+}
+.landing-stitch .hero-ventana__credito {
+  margin-top: 8px;
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--muted-foreground);
+}
+.landing-stitch .hero-ventana__matiz {
+  margin: 4px 0 0;
+  padding: 0 4px;
+  font-size: var(--text-micro);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+/* Balizas sobre el render: las del visor (elegida 44 px en rojo con halo
+   doble; el resto 36 px con borde blanco de 2 px; número en mono). */
+.landing-stitch .hero-balizas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.landing-stitch .hero-baliza {
+  position: absolute;
+  box-sizing: border-box;
+  width: 36px;
+  height: 36px;
+  transform: translate(-50%, -50%);
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--canvas) 85%, transparent);
+  border: 2px solid var(--foreground);
+}
+.landing-stitch .hero-baliza--lesion {
+  width: 44px;
+  height: 44px;
+  font-size: 15px;
+  background: var(--destructive);
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--destructive) 35%, transparent),
+              0 0 0 14px color-mix(in srgb, var(--destructive) 14%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-stitch .hero-cortes__corte,
+  .landing-stitch .hero-cortes__render,
+  .landing-stitch .hero-cortes__ventana,
+  .landing-stitch .hero-cortes__rotulo {
+    transition: none;
   }
 }
-@keyframes stitch-pulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--primary); }
-  50%      { opacity: 0.45; box-shadow: 0 0 2px var(--primary); }
+
+/* Estrecho: una columna, la ventana bajo el texto y el velo de arriba abajo.
+   Todo más apretado para que texto y ventana quepan en 100 vh de un móvil. */
+@media (max-width: 760px) {
+  .landing-stitch .hero-cortes__contenido {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: space-between;
+    gap: 16px;
+    padding: 104px 16px 20px;
+  }
+  .landing-stitch .hero-cortes__velo {
+    background: linear-gradient(180deg, var(--veil-dense) 0%, var(--veil) 55%, var(--veil-dense) 100%);
+  }
+  .landing-stitch .hero-cortes__antetitulo {
+    margin-bottom: 14px;
+  }
+  .landing-stitch .hero-cortes__subtitulo {
+    margin-top: 16px;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .landing-stitch .hero-cortes__acciones {
+    margin-top: 20px;
+    gap: 8px;
+  }
+  .landing-stitch .hero-cortes__ancla {
+    height: var(--control-sm);
+  }
+  .landing-stitch .hero-cortes__notas {
+    margin-top: 14px;
+  }
+  /* El saco (centro del render) baja hacia el borde entre el texto y la ventana. */
+  .landing-stitch .hero-cortes__lienzo {
+    top: 68%;
+  }
+  .landing-stitch .hero-ventana {
+    padding: 10px 12px 4px;
+  }
+  .landing-stitch .hero-ventana__cabecera {
+    padding-bottom: 6px;
+  }
+  .landing-stitch .hero-ventana__fila {
+    gap: 8px;
+    padding: 4px 2px;
+    font-size: var(--text-micro);
+  }
+  /* En estrecho no hay hueco libre para el saco: la ventana lo taparía y la
+     baliza quedaría a medias. La lista ya dice que el 1.º es la lesión. */
+  .landing-stitch .hero-balizas {
+    display: none;
+  }
+  .landing-stitch .hero-ventana__num {
+    width: 22px;
+    height: 22px;
+  }
+  .landing-stitch .hero-ventana__nota--lesion {
+    padding-left: 30px;
+  }
+  .landing-stitch .hero-cortes__rotulo {
+    right: 16px;
+    bottom: 16px;
+  }
+}
+
+/* ============================================================================
+   Secciones del tablero D (después del hero): listas con reglas, no tarjetas.
+   ============================================================================ */
+.landing-stitch .sec {
+  padding: 112px 24px;
+}
+.landing-stitch .sec__cuerpo {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+.landing-stitch .sec__cabecera {
+  margin-bottom: 40px;
+}
+.landing-stitch .sec__rotulo {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.landing-stitch .sec__titulo {
+  margin: 14px 0 0;
+  max-width: 760px;
+  font-size: var(--text-display);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: var(--tracking-display);
+  color: var(--foreground);
+}
+.landing-stitch .sec__titulo--contacto {
+  margin-top: 0;
+  font-size: 28px;
+}
+.landing-stitch .sec__dos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 48px;
+}
+.landing-stitch .sec__subtitulo {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.landing-stitch .sec__texto {
+  margin: 12px 0 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+.landing-stitch .sec__texto--ancho {
+  max-width: 640px;
+  margin: 0 0 32px;
+}
+.landing-stitch .sec__nota {
+  margin: 28px 0 0;
+  max-width: 720px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+
+/* Lista con reglas */
+.landing-stitch .lista-reglas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.landing-stitch .lista-reglas--dos {
+  columns: 2;
+  column-gap: 48px;
+}
+.landing-stitch .lista-reglas__fila {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+  break-inside: avoid;
+}
+.landing-stitch .lista-reglas__fila:last-child {
+  border-bottom: 1px solid var(--border);
+}
+.landing-stitch .lista-reglas--dos .lista-reglas__fila:nth-last-child(2) {
+  border-bottom: 1px solid var(--border);
+}
+.landing-stitch .lista-reglas__titulo {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.landing-stitch .lista-reglas__detalle {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+.landing-stitch .lista-reglas__cifra {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+/* Los ocho pasos */
+.landing-stitch .pasos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.landing-stitch .pasos__paso {
+  padding: 20px 18px;
+  border-radius: var(--radius-card-lg);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-highlight);
+}
+.landing-stitch .pasos__num {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.landing-stitch .pasos__nombre {
+  margin-top: 14px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.landing-stitch .pasos__linea {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+
+/* Las cuatro series NAVARRO */
+.landing-stitch .series {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.landing-stitch .series__ficha {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 22px 18px;
+  border-radius: var(--radius-card-lg);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-highlight);
+  color: var(--foreground);
+}
+.landing-stitch .series__nombre {
+  margin-top: 6px;
+  font-size: 17px;
+  font-weight: 600;
+}
+.landing-stitch .series__detalle {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+/* Franja de casos reales */
+.landing-stitch .franja-casos {
+  position: relative;
+  overflow: hidden;
+  height: clamp(380px, 46vw, 620px);
+}
+.landing-stitch .franja-casos__lienzo {
+  position: absolute;
+  inset: -12px 0;
+}
+.landing-stitch .franja-casos__lienzo picture,
+.landing-stitch .franja-casos__lienzo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.landing-stitch .franja-casos__lienzo img {
+  object-fit: cover;
+}
+.landing-stitch .franja-casos__velo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--veil-dense) 0%, var(--veil) 45%, transparent 75%);
+}
+.landing-stitch .franja-casos__texto {
+  position: absolute;
+  left: max(24px, calc((100% - 1120px) / 2));
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 420px;
+}
+.landing-stitch .franja-casos__rotulo {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  color: var(--muted-foreground);
+}
+.landing-stitch .franja-casos__frase {
+  margin: 14px 0 0;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+.landing-stitch .franja-casos__credito {
+  position: absolute;
+  right: 24px;
+  bottom: 14px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+/* Contacto y pie */
+.landing-stitch .contacto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  padding: 36px 40px;
+  border-radius: var(--radius-xl);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-highlight);
+}
+.landing-stitch .contacto__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.landing-stitch .pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 28px 24px 40px;
+  border-top: 1px solid var(--border);
+}
+.landing-stitch .pie__aviso {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  text-align: right;
+}
+
+@media (max-width: 760px) {
+  .landing-stitch .sec {
+    padding: 72px 16px;
+  }
+  .landing-stitch .sec__titulo {
+    font-size: 30px;
+  }
+  .landing-stitch .sec__dos,
+  .landing-stitch .pasos,
+  .landing-stitch .series {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .landing-stitch .pasos,
+  .landing-stitch .series {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .landing-stitch .lista-reglas--dos {
+    columns: 1;
+  }
+  .landing-stitch .lista-reglas--dos .lista-reglas__fila:nth-last-child(2) {
+    border-bottom: 0;
+  }
+  .landing-stitch .lista-reglas__fila {
+    flex-wrap: wrap;
+  }
+  .landing-stitch .franja-casos {
+    height: 520px;
+  }
+  .landing-stitch .franja-casos__velo {
+    background: linear-gradient(180deg, var(--veil-dense) 0%, var(--veil) 55%, transparent 100%);
+  }
+  .landing-stitch .franja-casos__texto {
+    left: 16px;
+    right: 16px;
+    top: 28px;
+    transform: none;
+  }
+  .landing-stitch .franja-casos__frase {
+    font-size: 22px;
+  }
+  .landing-stitch .contacto {
+    padding: 24px 20px;
+  }
+  .landing-stitch .pie__aviso {
+    text-align: left;
+  }
 }

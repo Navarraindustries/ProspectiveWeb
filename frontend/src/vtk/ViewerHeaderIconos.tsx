@@ -51,7 +51,7 @@ export function ViewerHeaderIconos({
       <div data-banda="izq" style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", flex: "0 1 auto", minWidth: 0 }}>
         <select aria-label="Vista principal" className="viewer-band-select" style={{ maxWidth: "100%" }}
                 value={layout.main} onChange={(e) => onLayoutChange(promote(layout, e.target.value as PaneId))}>
-          {mainOptions().map((o) => <option key={o.key} value={o.key} title={o.title}>{o.label}</option>)}
+          {mainOptions(true).map((o) => <option key={o.key} value={o.key} title={o.title}>{o.label}</option>)}
         </select>
         <select aria-label="Distribución" className="viewer-band-select" style={{ maxWidth: "100%" }}
                 value={layout.preset} onChange={(e) => onLayoutChange(setPreset(layout, e.target.value as ViewerLayout["preset"]))}>

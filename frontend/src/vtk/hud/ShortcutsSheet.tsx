@@ -8,7 +8,7 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "../../components/Icon";
 import { useMediaQuery } from "../../hooks/useEstrecho";
-import { MQ_MOVIL, MQ_TACTIL } from "../../pipeline/puntosCorte";
+import { MQ_MOVIL, MQ_TACTIL, OBJETIVO_TACTIL_PX } from "../../pipeline/puntosCorte";
 import { shortcutsByScope, type Shortcut, type ShortcutScope } from "../shortcuts";
 
 const HEADINGS: [ShortcutScope, string][] = [["visor", "Visor"], ["celda", "Celda"], ["flujo", "Flujo"], ["raton", "Ratón"]];
@@ -68,14 +68,14 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
           <span style={{ letterSpacing: ".08em" }}>ATAJOS</span>
           <span style={{ color: "var(--hud-text-dim)", flex: 1, textAlign: "right" }}>{tactil ? "" : "ESC · ? · CLIC FUERA PARA CERRAR"}</span>
           <button type="button" aria-label="Cerrar" onClick={onClose}
-                  style={{ width: tactil ? 44 : 24, height: tactil ? 44 : 24, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, background: "transparent", border: "1px solid var(--hud-text-dim)", color: "var(--hud-text)", cursor: "pointer", flexShrink: 0 }}>
+                  style={{ width: tactil ? OBJETIVO_TACTIL_PX : 24, height: tactil ? OBJETIVO_TACTIL_PX : 24, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, background: "transparent", border: "1px solid var(--hud-text-dim)", color: "var(--hud-text)", cursor: "pointer", flexShrink: 0 }}>
             <Icon name="CLOSE" size={tactil ? 18 : 12} />
           </button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))", gap: "12px 24px" }}>
           {HEADINGS.map(([scope, title]) => (
             <section key={scope}>
-              <h3 style={{ margin: "0 0 6px", fontSize: 10, fontWeight: 400, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--hud-text-dim)", borderBottom: "1px solid var(--hud-text-dim)", paddingBottom: 3 }}>{title}</h3>
+              <h3 style={{ margin: "0 0 6px", fontSize: tactil ? 13 : 10, fontWeight: 400, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--hud-text-dim)", borderBottom: "1px solid var(--hud-text-dim)", paddingBottom: 3 }}>{title}</h3>
               <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "minmax(0, 22ch) minmax(0, 1fr)", gap: "4px 12px" }}>
                 {rows(groups[scope]).map((r) => (
                   <div key={r.keys} style={{ display: "contents" }}>

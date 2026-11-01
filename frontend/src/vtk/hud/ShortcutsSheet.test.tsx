@@ -23,6 +23,7 @@ describe("ShortcutsSheet", () => {
       const cerrar = screen.getByRole("button", { name: "Cerrar" });
       expect(cerrar.style.width).toBe(w <= 1024 ? "44px" : "24px");
       expect(cerrar.style.height).toBe(w <= 1024 ? "44px" : "24px");
+      for (const h3 of card.querySelectorAll("h3")) expect((h3 as HTMLElement).style.fontSize).toBe(w <= 1024 ? "13px" : "10px");
       unmount();
     }
   });

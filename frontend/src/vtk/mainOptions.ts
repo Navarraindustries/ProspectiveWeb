@@ -9,7 +9,11 @@ const TITLES: Record<PaneId, string> = {
   scene: "Hacer principal la escena 3D", axial: "Hacer principal el corte axial", coronal: "Hacer principal el corte coronal",
   sagital: "Hacer principal el corte sagital", mip: "Hacer principal la vista de volumen (MIP / compuesto)",
 };
-export function mainOptions() { return ORDER.map((key) => ({ key, label: MAIN_LABELS[key], title: TITLES[key] })); }
+/** Nombres enteros para el desplegable del nivel iconos, que sí tiene sitio. */
+export const MAIN_NAMES: Record<PaneId, string> = { scene: "3D", axial: "AXIAL", coronal: "CORONAL", sagital: "SAGITAL", mip: "VOLUMEN" };
+export function mainOptions(entero = false) {
+  return ORDER.map((key) => ({ key, label: (entero ? MAIN_NAMES : MAIN_LABELS)[key], title: TITLES[key] }));
+}
 
 /* Niveles de la banda de cabecera según lo que mide la banda (no la ventana).
    Cifras estimadas a 11 px mono con `.08em` (≈ 7,5 px por carácter), con

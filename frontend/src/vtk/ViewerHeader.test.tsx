@@ -270,7 +270,7 @@ describe("ViewerHeader — modo iconos (táctil ≤ 1024, móvil ≤ 640)", () =
     setup();
     const opciones = (name: string) =>
       [...screen.getByRole("combobox", { name }).querySelectorAll("option")].map((o) => o.textContent);
-    expect(opciones("Vista principal")).toEqual(["3D", "AX", "COR", "SAG", "VOLUMEN"]);
+    expect(opciones("Vista principal")).toEqual(["3D", "AXIAL", "CORONAL", "SAGITAL", "VOLUMEN"]);
     expect(opciones("Distribución")).toEqual(["DERECHA", "ABAJO", "CUATRO", "SOLA"]);
   });
 

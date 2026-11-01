@@ -54,3 +54,16 @@ describe("texto del HUD", () => {
     expect(dockCornerSlot(gridFor(L("cuatro"), false).areas)).toBe(gridFor(L("cuatro"), false).slotOf.sagital);
   });
 });
+
+describe("controles de las celdas en táctil", () => {
+  it("conmutadores, cine y preajustes miden 44 px y van a 13 px", () => {
+    const regla = /([^{}]+)\{([^}]*)\}/g;
+    const tactiles = [...css.matchAll(regla)].filter(([, sel]) => sel.includes('[data-hud][data-tactil="true"]'));
+    const de = (s: string) => tactiles.find(([, sel]) => sel.split(",").some((x) => x.trim().endsWith(s)))?.[2] ?? "";
+    for (const s of [".hud-toggle button", ".hud-cine button", "select.hud-wl-presets"]) {
+      expect(de(s), s).toMatch(/min-height:\s*44px/);
+      expect(de(s), s).toMatch(/min-width:\s*44px/);
+      expect(de(s), s).toMatch(/font-size:\s*13px/);
+    }
+  });
+});

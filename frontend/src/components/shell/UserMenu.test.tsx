@@ -2,7 +2,8 @@
    (F1-106, F1-251), y solo lleva lo propio de la cuenta: las secciones viven
    en la barra lateral. */
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { simularPantalla } from "../../test/pantalla";
 
 const logout = vi.fn();
 const go = vi.fn();
@@ -22,6 +23,8 @@ function abrir() {
   render(<UserMenu />);
   fireEvent.click(screen.getByRole("button", { name: "Menú de usuario" }));
 }
+
+afterEach(() => vi.unstubAllGlobals());
 
 beforeEach(() => {
   user = { ...base, role: "admin", institution: "Hospital Universitario" };
@@ -79,5 +82,18 @@ describe("UserMenu", () => {
     abrir();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+  it("R31: en tableta la inicial del avatar de la barra va a 13 px; en ancho, a 11", () => {
+    const p = simularPantalla({ ancho: 1024 });
+    const { unmount } = render(<UserMenu />);
+    const av = screen.getByRole("button", { name: "Menú de usuario" }).querySelector(".shell-avatar") as HTMLElement;
+    expect(av.style.fontSize).toBe("13px");
+    expect(av.style.width).toBe("34px");
+    unmount();
+    p.cambiar({ ancho: 1280 });
+    render(<UserMenu />);
+    const ancho = screen.getByRole("button", { name: "Menú de usuario" }).querySelector(".shell-avatar") as HTMLElement;
+    expect(ancho.style.fontSize).toBe("11px");
+    p.restaurar();
   });
 });

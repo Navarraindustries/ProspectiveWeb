@@ -14,6 +14,7 @@ import { api } from "../../api/client";
 import { useAuth } from "../../store/auth";
 import { useNav } from "../../store/nav";
 import { ROLE_LABEL, ROLE_PERMITE } from "../../lib/roles";
+import { useTableta } from "../../hooks/useEstrecho";
 
 /** Avatar redondo: la foto subida (blob autenticado) o las iniciales. */
 function Avatar({ url, initials, size }: { url: string | null; initials: string; size: number }) {
@@ -40,6 +41,8 @@ export function UserMenu() {
   const [pwOpen, setPwOpen] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  // En tableta el botón mide 44: el avatar sube a 34 y la inicial a 13 px (R31).
+  const tableta = useTableta();
 
   // La foto propia llega como blob autenticado → URL de objeto, que se libera
   // al desmontar o si la respuesta llega tarde.
@@ -87,7 +90,7 @@ export function UserMenu() {
         title={user.full_name || user.username}
         onClick={() => setOpen((o) => !o)}
       >
-        <Avatar url={photoUrl} initials={user.avatar_initials ?? ""} size={28} />
+        <Avatar url={photoUrl} initials={user.avatar_initials ?? ""} size={tableta ? 34 : 28} />
       </button>
 
       {open && (

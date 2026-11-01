@@ -1,7 +1,8 @@
 /* Barra superior del shell (F2): 56 px en vidrio con la miga de pan y el
    subtítulo a la izquierda y, a la derecha, el estado, las acciones que declara
    la pantalla, el tema y el avatar-menú. «Cerrar sesión» vive en la barra lateral y también
-   en el menú del avatar.
+   en el menú del avatar. En tableta no hay subtítulo; en móvil el tema va al «⋯» y el
+   control propio (`extra`) baja a una fila entera.
 
    La miga solo lleva destinos reales («Pacientes / segura, Juan», «Usuarios»):
    «Administración» no es una pantalla y no aparece; ese rótulo vive en el grupo
@@ -16,6 +17,7 @@ import { MenuMas } from "../MenuMas";
 import type { ItemMenu } from "../MenuMas";
 import { useTramo } from "../../hooks/useEstrecho";
 import { ThemeToggle } from "../ThemeToggle";
+import { useThemeContext } from "../../store/theme";
 import { UserMenu } from "./UserMenu";
 import { glass } from "../../styles/glass";
 import { openCommandPalette } from "../../lib/commands";
@@ -105,14 +107,21 @@ export function TopBar({ crumbs, subtitle, status, acciones, extra, onAbrirSecci
   const tam = tableta ? "md" : "sm";
   const lista = acciones ?? [];
   const secundarias = lista.filter((a) => !a.principal);
+  const { theme, toggle } = useThemeContext();
+  // En móvil el tema también va al «⋯» (R4): cuatro botones no caben en 347 px.
   const itemsMenu: ItemMenu[] = movil
     ? [
         ...secundarias.map((a): ItemMenu => ({ id: a.id, label: a.label, icon: a.icon, href: a.href, onSelect: a.onClick, disabled: a.disabled, abreDialogo: a.abreDialogo })),
         { id: "paleta", label: "Paleta de mandos", icon: "SEARCH", onSelect: openCommandPalette, separadoAntes: secundarias.length > 0 },
+        theme === "light"
+          ? { id: "tema", label: "Cambiar a tema oscuro", icon: "THEME_DARK", onSelect: toggle }
+          : { id: "tema", label: "Cambiar a tema claro", icon: "THEME_LIGHT", onSelect: toggle },
       ]
     : [];
-  // En móvil solo se pinta el último segmento de la miga y no hay subtítulo.
+  // En móvil solo se pinta el último segmento de la miga. El subtítulo solo
+  // por encima de 1024: en tableta le quitaba el sitio al título (R2).
   const migas = crumbs && movil ? crumbs.slice(-1) : crumbs;
+  const extraNodo = extra ? <div className="shell-extra">{extra}</div> : null;
   return (
     <header className="shell-top" style={{ ...glass("normal"), borderWidth: "0 0 1px", boxShadow: "var(--glass-highlight)" }} data-glass>
       {onAbrirSecciones && (
@@ -155,10 +164,10 @@ export function TopBar({ crumbs, subtitle, status, acciones, extra, onAbrirSecci
           </ol>
         </nav>
       )}
-      {subtitle && !movil && <span className="shell-subtitle" title={typeof subtitle === "string" ? subtitle : undefined}>{subtitle}</span>}
+      {subtitle && !tableta && <span className="shell-subtitle" title={typeof subtitle === "string" ? subtitle : undefined}>{subtitle}</span>}
       <div className="shell-actions">
         {status}
-        {extra && <div className="shell-extra">{extra}</div>}
+        {!movil && extraNodo}
         {lista.filter((a) => !movil || a.principal).map((a) => (
           <Accion key={a.id} a={a} soloIcono={movil || (estrecho && !a.principal)} tam={tam} />
         ))}
@@ -175,9 +184,11 @@ export function TopBar({ crumbs, subtitle, status, acciones, extra, onAbrirSecci
             {atajoPaleta()}
           </button>
         )}
-        <ThemeToggle size={tableta ? "lg" : "sm"} />
+        {!movil && <ThemeToggle size={tableta ? "lg" : "sm"} />}
         <UserMenu />
       </div>
+      {/* Móvil: el buscador va en su propia fila, a todo el ancho (R3). */}
+      {movil && extraNodo}
     </header>
   );
 }

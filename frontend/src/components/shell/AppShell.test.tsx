@@ -111,6 +111,23 @@ describe("AppShell", () => {
       window.matchMedia = original;
     }
   });
+  it("R1: la fila de la rejilla no crece con el contenido; desplaza .shell-main, no el documento", () => {
+    const { container } = renderShell({ crumbs: [{ label: "Pacientes" }] });
+    // La barra y el contenido van dentro de .shell-body; el contenido, en el main desplazable.
+    expect(container.querySelector(".shell > .shell-body > header.shell-top")).not.toBeNull();
+    expect(container.querySelector(".shell > .shell-body > main.shell-main")).not.toBeNull();
+    const css = cssShell();
+    const shell = /\n\.shell \{([^}]*)\}/.exec(css)![1];
+    expect(shell).toMatch(/height: 100dvh/);
+    expect(shell).toMatch(/grid-template-rows: minmax\(0, 1fr\)/);
+    const body = /\n\.shell-body \{([^}]*)\}/.exec(css)![1];
+    expect(body).toMatch(/min-height: 0/);
+    const main = /\n\.shell-main \{([^}]*)\}/.exec(css)![1];
+    expect(main).toMatch(/min-height: 0/);
+    expect(main).toMatch(/overflow: auto/);
+    // Ningún tramo vuelve a soltar la altura de la fila (ni el de móvil).
+    expect(css).not.toMatch(/grid-template-rows:\s*(auto|none)/);
+  });
   it("la altura de la barra sale del CSS: la clase es shell-top y mide 56 px", () => {
     renderShell({ crumbs: [{ label: "Pacientes" }] });
     expect(screen.getByRole("banner")).toHaveClass("shell-top");

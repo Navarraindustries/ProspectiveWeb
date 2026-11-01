@@ -13,11 +13,6 @@ describe("AuthWindow", () => {
     expect(screen.getByLabelText("correo")).toBeInTheDocument();
   });
 
-  it("pinta el pie cuando se da", () => {
-    render(<AuthWindow titulo="Crear cuenta" pie={<a href="/entrar">Ya tengo cuenta</a>}>x</AuthWindow>);
-    expect(screen.getByText("Ya tengo cuenta")).toBeInTheDocument();
-  });
-
   it("es fluida: ocupa el ancho de su zona hasta 440 px", () => {
     render(<AuthWindow titulo="Entrar">x</AuthWindow>);
     const seccion = screen.getByRole("region", { name: "Entrar" });

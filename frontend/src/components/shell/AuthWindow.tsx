@@ -10,17 +10,15 @@ import { glide, glideTransition, motion, useReducedMotion } from "../../motion";
 const SOLO_OPACIDAD = {
   initial: { opacity: 0 },
   animate: { opacity: 1 },
-  exit: { opacity: 0 },
 };
 
 export interface AuthWindowProps {
   titulo: string;
   subtitulo?: string;
   children: ReactNode;
-  pie?: ReactNode;
 }
 
-export function AuthWindow({ titulo, subtitulo, children, pie }: AuthWindowProps) {
+export function AuthWindow({ titulo, subtitulo, children }: AuthWindowProps) {
   const reduced = useReducedMotion();
   const tituloId = useId();
   return (
@@ -48,7 +46,6 @@ export function AuthWindow({ titulo, subtitulo, children, pie }: AuthWindowProps
         <p style={{ margin: "8px 0 0", fontSize: 14, color: "var(--muted-foreground)" }}>{subtitulo}</p>
       )}
       <div style={{ marginTop: 28 }}>{children}</div>
-      {pie && <div style={{ marginTop: 24, fontSize: 13, color: "var(--muted-foreground)" }}>{pie}</div>}
     </motion.section>
   );
 }

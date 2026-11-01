@@ -4,7 +4,7 @@
    clases cubren lo que clamp()/flex no puede resolver: ocultar o reordenar
    bloques por debajo de un ancho. Breakpoints:
      ≤1180px  portátiles pequeños / ventana partida
-     ≤900px   tablets
+     ≤900px   tablets (el panel de vídeo del login se oculta a ≤820px)
      ≤680px   móvil */
 
 /* ── Nunca desbordar horizontalmente ────────────────────────────────────── */

@@ -59,14 +59,18 @@ function estiloCelda<T>(c: ColumnaTabla<T>): CSSProperties {
 }
 
 /** Clic de ratón en cualquier punto de una fila o tarjeta pulsable (el
-    teclado va por el botón de la celda que la identifica). */
+    teclado va por el botón de la celda que la identifica). Un clic o toque
+    dentro del detalle desplegado de una tarjeta no la pliega: se lee o se
+    selecciona su texto. */
 function pulsable<T>(fila: T, onFila: ((fila: T) => void) | undefined) {
   if (!onFila) return {};
   return {
     "data-pulsable": "",
     onClick: (e: MouseEvent<HTMLElement>) => {
-      const control = (e.target as Element).closest(INTERACTIVOS);
+      const objetivo = e.target as Element;
+      const control = objetivo.closest(INTERACTIVOS);
       if (control && control !== e.currentTarget) return;
+      if (objetivo.closest(".tt-tarjeta-detalle")) return;
       onFila(fila);
     },
   };
@@ -187,7 +191,12 @@ export function TablaTarjetas<T>(p: TablaTarjetasProps<T>) {
                       <td key={c.id} style={estiloCelda(c)}>{c.celda(fila)}</td>
                     ))}
                     {onFila && (
-                      <td aria-hidden="true" style={{ ...CELDA, width: "1%", color: "var(--muted-foreground)" }}>
+                      <td
+                        aria-hidden="true"
+                        className="tt-chevron"
+                        data-abierto={detalle ? String(desplegado !== null) : undefined}
+                        style={{ ...CELDA, width: "1%", color: "var(--muted-foreground)" }}
+                      >
                         <Icon name="CHEVRON_RIGHT" size={14} />
                       </td>
                     )}

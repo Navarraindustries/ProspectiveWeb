@@ -9,10 +9,12 @@
   color: var(--muted-foreground); text-align: left; white-space: nowrap;
 }
 .tabla-oficina tbody tr { background: transparent; }
-.tabla-oficina tbody td { border-top: 1px solid var(--border); }
+/* La celda que identifica la fila es un <th scope="row">: las reglas de celda
+   casan td y th por igual. */
+.tabla-oficina tbody :is(td, th) { border-top: 1px solid var(--border); }
 /* El detalle desplegado de una fila (Auditoría) es parte de ella: sin línea
    que lo separe y sobre un fondo apagado que lo distingue. */
-.tabla-oficina tbody tr.fila-detalle td { border-top: 0; background: var(--muted); }
+.tabla-oficina tbody tr.fila-detalle :is(td, th) { border-top: 0; background: var(--muted); }
 
 .tabla-oficina tbody tr .fila-acciones { opacity: .6; transition: opacity var(--dur-1) var(--ease-out); }
 .tabla-oficina tbody tr:hover .fila-acciones,
@@ -34,8 +36,11 @@
   overflow-wrap: anywhere; border-radius: 4px;
 }
 .tabla-oficina tbody tr[data-seleccionada="true"] { background: var(--glass-hover); }
-.tabla-oficina tbody tr[data-seleccionada="true"] > td:first-child { box-shadow: inset 2px 0 0 var(--primary); }
-@media (prefers-reduced-motion: reduce) { .tabla-oficina tbody tr[data-pulsable] { transition: none; } }
+.tabla-oficina tbody tr[data-seleccionada="true"] > :first-child { box-shadow: inset 2px 0 0 var(--primary); }
+/* El chevron final gira cuando la fila tiene el detalle desplegado. */
+.tt-chevron svg { transition: transform var(--dur-1) var(--ease-out); }
+.tt-chevron[data-abierto="true"] svg { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .tabla-oficina tbody tr[data-pulsable], .tt-chevron svg { transition: none; } }
 
 /* TablaTarjetas en ≤ 640 px: lista de tarjetas de cristal (el cristal y la
    marca de seleccionada van en línea). */

@@ -215,3 +215,47 @@ it("CSS: hoja a dos columnas hasta 640, fila pulsable con hover de cristal y tar
   expect(css).toMatch(/@media\s*\(\s*hover:\s*hover\s*\)\s*\{\s*\.tt-tarjeta\[data-pulsable\]:hover\s*\{[^}]*var\(--primary\)/);
   expect(css).toMatch(/\.tt-fila-boton\s*\{[^}]*background:\s*none/);
 });
+
+it("CSS: las reglas de celda casan td y th (separador, detalle y filo de la seleccionada)", () => {
+  const css = readFileSync(join(__dirname, "../styles/office.css"), "utf8").replace(/\r\n/g, "\n");
+  expect(css).toMatch(/\.tabla-oficina\s+tbody\s+:is\(\s*td\s*,\s*th\s*\)\s*\{[^}]*border-top:\s*1px solid/);
+  expect(css).toMatch(/\.tabla-oficina\s+tbody\s+tr\.fila-detalle\s+:is\(\s*td\s*,\s*th\s*\)\s*\{[^}]*border-top:\s*0/);
+  expect(css).toMatch(/tr\[data-seleccionada="true"\]\s*>\s*:first-child\s*\{[^}]*inset 2px 0 0 var\(--primary\)/);
+  // Ninguna regla de celda se queda solo en td.
+  expect(css).not.toMatch(/\.tabla-oficina\s+tbody\s+(tr[^{]*\s)?td\s*[{:]/);
+  expect(css).not.toMatch(/>\s*td:first-child/);
+});
+
+it("tarjeta: un clic dentro del detalle desplegado no la pliega", () => {
+  simularPantalla(390);
+  const onFila = vi.fn();
+  render(
+    <TablaTarjetas
+      rotulo="U" filas={filas} columnas={cols} clave={(f) => f.id} onFila={onFila}
+      detalle={(f) => (f.id === 1 ? <p>Hash completo</p> : null)}
+    />,
+  );
+  fireEvent.click(screen.getByText("Hash completo"));
+  expect(onFila).not.toHaveBeenCalled();
+  // Fuera del detalle, la tarjeta sigue respondiendo.
+  fireEvent.click(screen.getAllByText("Médico")[0]);
+  expect(onFila).toHaveBeenCalledTimes(1);
+});
+
+it("chevron: gira con el detalle desplegado y no lleva marca si la tabla no tiene detalle", () => {
+  simularPantalla(1280);
+  const { container, rerender } = render(
+    <TablaTarjetas
+      rotulo="U" filas={filas} columnas={cols} clave={(f) => f.id} onFila={() => {}}
+      detalle={(f) => (f.id === 1 ? <p>Hash</p> : null)}
+    />,
+  );
+  const chevrons = [...container.querySelectorAll("td.tt-chevron")];
+  expect(chevrons).toHaveLength(2);
+  expect(chevrons[0]).toHaveAttribute("data-abierto", "true");
+  expect(chevrons[1]).toHaveAttribute("data-abierto", "false");
+  rerender(<TablaTarjetas rotulo="U" filas={filas} columnas={cols} clave={(f) => f.id} onFila={() => {}} />);
+  expect(container.querySelector("td.tt-chevron")).not.toHaveAttribute("data-abierto");
+  const css = readFileSync(join(__dirname, "../styles/office.css"), "utf8");
+  expect(css).toMatch(/\.tt-chevron\[data-abierto="true"\]\s+svg\s*\{[^}]*rotate\(90deg\)/);
+});

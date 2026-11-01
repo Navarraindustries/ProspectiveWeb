@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { desdeServidor, fecha, fechaHora, hora, hoyLocal } from "./fecha";
+import { desdeServidor, fecha, fechaDia, fechaEpoch, fechaHora, hora, hoyLocal } from "./fecha";
 
 const BOGOTA = { timeZone: "America/Bogota" }; // UTC−5 todo el año
 
@@ -45,5 +45,21 @@ describe("hora", () => {
     const d = new Date("2026-10-11T14:05:09Z");
     expect(hora(d, { timeZone: "UTC" })).toBe("14:05");
     expect(hora(d, { timeZone: "America/Bogota" })).toBe("09:05");
+  });
+});
+
+describe("fechas de solo día y epoch", () => {
+  it("fechaDia no desplaza un día sin hora en UTC−5", () => {
+    expect(fechaDia("2026-10-30", BOGOTA)).toBe("30/10/26");
+    expect(fechaDia("20261030", BOGOTA)).toBe("30/10/26");
+    expect(fechaDia("2026-10-11T03:28:00", BOGOTA)).toBe("10/10/26");
+    expect(fechaDia("", BOGOTA)).toBe("—");
+    expect(fechaDia(null)).toBe("—");
+    expect(fechaDia("antes del viernes")).toBe("antes del viernes");
+  });
+  it("fechaEpoch en la zona pedida", () => {
+    expect(fechaEpoch(1730000000, BOGOTA)).toBe("26/10/24");
+    expect(fechaEpoch(1730000000, { ...BOGOTA, conHora: true })).toBe("26/10/24, 22:33");
+    expect(fechaEpoch(0)).toBe("—");
   });
 });

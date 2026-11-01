@@ -49,3 +49,30 @@ export function hoyLocal(ahora: Date = new Date(), o?: OpcionesFecha): string {
 export function hora(d: Date = new Date(), o?: OpcionesFecha): string {
   return d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", ...(o?.timeZone ? { timeZone: o.timeZone } : {}) });
 }
+
+/** Un día sin hora («2026-10-30» o el DICOM «20261030») → «30/10/26», SIN cambio de zona:
+ *  el día escrito es el día (`fecha("2026-10-30")` en UTC−5 daría el 29). Con hora (ISO con
+ *  «T») delega en `fecha()`. Vacío → «—». Texto libre que no es fecha → tal cual. */
+export function fechaDia(valor: string | null | undefined, o?: OpcionesFecha): string {
+  if (!valor || !valor.trim()) return SIN_DATO;
+  const t = valor.trim();
+  const m = /^(\d{4})-?(\d{2})-?(\d{2})$/.exec(t);
+  if (m) {
+    const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+    if (!Number.isNaN(d.getTime())) return d.toLocaleDateString("es-ES", { dateStyle: "short", timeZone: "UTC" });
+  }
+  const f = fecha(t, o);
+  return f === SIN_DATO ? t : f;
+}
+
+/** Segundos Unix (talleres y pedidos) → «26/10/24» o, con `conHora`, «26/10/24, 22:33». 0/null → «—». */
+export function fechaEpoch(seg: number | null | undefined, o?: OpcionesFecha & { conHora?: boolean }): string {
+  if (!seg) return SIN_DATO;
+  const d = new Date(seg * 1000);
+  if (Number.isNaN(d.getTime())) return SIN_DATO;
+  return d.toLocaleString("es-ES", {
+    dateStyle: "short",
+    ...(o?.conHora ? { timeStyle: "short" as const } : {}),
+    ...(o?.timeZone ? { timeZone: o.timeZone } : {}),
+  });
+}

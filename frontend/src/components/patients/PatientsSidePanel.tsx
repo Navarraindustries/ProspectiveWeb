@@ -15,7 +15,7 @@ import { Button } from "../Button";
 import { Icon, type IconName } from "../Icon";
 import { SectionLabel } from "../PanelHead";
 import { glass } from "../../styles/glass";
-import { useEstrecho } from "./useEstrecho";
+import { useEstrecho } from "../../hooks/useEstrecho";
 import "./patients.css";
 
 interface Props {

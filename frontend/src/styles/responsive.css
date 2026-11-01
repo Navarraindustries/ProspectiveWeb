@@ -35,7 +35,8 @@ html, body, #root {
 }
 
 /* ── Workspace: panel del paso plegado a una tira (tecla P) ───────────── */
-/* La tira se queda con 28 px y el visor con el resto. El texto va en vertical
+/* La tira se queda con 36 px (ANCHO_TIRA en pipeline/zonaLibre.ts) y el visor
+   con el resto. El texto va en vertical
    para que el nombre del paso quepa sin ensanchar la tira. */
 .ws-panel-strip {
   position: absolute;

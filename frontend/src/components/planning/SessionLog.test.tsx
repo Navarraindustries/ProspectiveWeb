@@ -12,4 +12,10 @@ describe("SessionLog", () => {
     render(<SessionLog entries={[]} />);
     expect(screen.getByText("Aún no ha pasado nada en esta sesión")).toBeInTheDocument();
   });
+  it("pinta con el token atenuado que existe (--muted-foreground)", () => {
+    const { rerender } = render(<SessionLog entries={[]} />);
+    expect(screen.getByText("Aún no ha pasado nada en esta sesión").style.color).toBe("var(--muted-foreground)");
+    rerender(<SessionLog entries={[{ at: new Date(2026, 9, 31, 9, 5, 7), paso: "Detección", texto: "Detección" }]} />);
+    expect(screen.getByText(/09:05:07/).style.color).toBe("var(--muted-foreground)");
+  });
 });

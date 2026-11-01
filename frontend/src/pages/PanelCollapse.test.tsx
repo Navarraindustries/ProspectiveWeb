@@ -8,7 +8,7 @@ import { PlanningProvider, usePlanning } from "../store/planning";
 import type { Annotation } from "../vtk/annotations";
 import { useStoredFlag } from "../vtk/viewerPrefs";
 import { matchShortcut } from "../vtk/shortcuts";
-import { useEstrecho } from "../components/patients/useEstrecho";
+import { useEstrecho } from "../hooks/useEstrecho";
 
 /* El mismo cableado que Workspace: la tabla de atajos decide, el manejador alterna. */
 function Harness() {

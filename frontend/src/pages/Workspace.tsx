@@ -1,4 +1,5 @@
-/* Sesión de planificación — rail de flujo (7 pasos) · visor 3D + MPR · panel del paso. */
+/* Sesión de planificación (quirófano) — visor 3D + MPR en la zona libre, pastillas
+   arriba, dock de los 8 pasos e inspector del paso (hoja inferior a ≤ 1280 px). */
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { AttachCaseSheet } from "../components/AttachCaseSheet";
@@ -14,7 +15,7 @@ import { SaveStatus } from "../components/stepper/SaveStatus";
 import { BANDA_SUPERIOR, HOJA_ASOMAR, zonaLibre } from "../pipeline/zonaLibre";
 import { StepDock } from "../components/stepper/StepDock";
 import { Z_SOBRE_HOJA, type AlturaHoja } from "../components/BottomSheet";
-import { useEstrecho } from "../components/patients/useEstrecho";
+import { useEstrecho } from "../hooks/useEstrecho";
 import { ToastStack, type ToastItem } from "../components/ToastStack";
 import { Collapsible } from "../components/PanelHead";
 import { UploadPanel } from "../components/upload/UploadPanel";
@@ -42,8 +43,9 @@ import { SessionLog } from "../components/planning/SessionLog";
 import { canAdvanceFromDetect } from "../components/planning/detectGate";
 
 
-/** Atajos que se ejecutan en el visor (ViewerWorkspace escucha `viewer:shortcut`). */
+/** No hace nada: en modo estrecho, el plegado del inspector no escribe la preferencia. */
 const ignorar = () => {};
+/** Atajos que se ejecutan en el visor (ViewerWorkspace escucha `viewer:shortcut`). */
 const VIEWER_SHORTCUTS = new Set(["sync", "center-lesion", "hud-cycle", "center", "cine-toggle", "cine-faster", "cine-slower", "help",
   "anot-regla", "anot-angulo", "anot-region", "anot-marcador", "anot-borrar", "anot-deshacer-punto"]);
 

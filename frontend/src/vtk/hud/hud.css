@@ -2,7 +2,8 @@
 /* El dock del pipeline flota sobre la esquina de abajo a la izquierda de la
    zona libre. Solo la celda que lo tiene debajo (data-dock-corner) sube sus
    lecturas de esa esquina la holgura que publica el contenedor del visor
-   (`--dock-holgura`, 0 si el dock es compacto o no hay). */
+   (`--dock-holgura`: 96 px con el dock de escritorio, 72 con el compacto;
+   0 fuera del quirófano, donde no hay dock). */
 .viewer-cell[data-dock-corner] { --hud-bl-extra: var(--dock-holgura, 0px); }
 .hud { position: absolute; inset: 0; pointer-events: none; font-family: var(--font-mono); color: var(--hud-text); }
 .hud * { box-sizing: border-box; }

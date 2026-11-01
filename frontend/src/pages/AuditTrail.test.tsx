@@ -3,7 +3,7 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const auditBlocks = vi.fn();
@@ -23,12 +23,16 @@ vi.mock("../store/auth", () => ({ useAuth: () => ({ user: { id: 1, role: "admin"
 
 import { AuditTrail } from "./AuditTrail";
 import { fechaHora } from "../lib/fecha";
+import { simularPantalla } from "../test/pantalla";
 
 const bloque = (o: Record<string, unknown> = {}) => ({
   id: 1, iso_ts: "2026-10-11T03:01:00Z", username: "admin", action: "LOGIN",
   patient_hash: "", payload_json: "{}", block_hash: "abcdef0123456789abcdef", prev_hash: "0011223344",
+  patient_id: null, patient_name: "",
   ...o,
 });
+
+afterEach(() => { vi.unstubAllGlobals(); });
 
 beforeEach(() => {
   auditBlocks.mockReset();
@@ -50,7 +54,7 @@ describe("«Auditoría» con el API fallando", () => {
 
     auditBlocks.mockResolvedValueOnce([bloque({ id: 0, username: "", action: "GENESIS" })]);
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
-    expect(await screen.findByText("Inicio de la cadena")).toBeTruthy();
+    expect(await screen.findByText("Inicio de la cadena", { selector: "span" })).toBeTruthy();
     expect(auditBlocks).toHaveBeenCalledTimes(2);
   });
 
@@ -77,7 +81,7 @@ describe("F2 (16)", () => {
     auditBlocks.mockResolvedValueOnce([bloque()]);
     const { container } = render(<AuditTrail onBack={() => {}} />);
     // El título es la miga de la barra; la descripción, su subtítulo.
-    await screen.findByText("Inicio de sesión");
+    await screen.findByText("Inicio de sesión", { selector: "span" });
     expect(within(screen.getByRole("banner")).getByText("Cadena de bloques con firma; alterar un bloque invalida todos los siguientes.")).toBeTruthy();
     expect(container.textContent).not.toMatch(/SkullChain|SHA-256/);
     const link = screen.getByRole("link", { name: /Exportar/ });
@@ -86,9 +90,9 @@ describe("F2 (16)", () => {
   });
 
   it("el filtro «Paciente» llama al cliente con el id y muestra su nombre", async () => {
-    auditBlocks.mockResolvedValue([bloque({ patient_hash: "deadbeef" })]);
+    auditBlocks.mockResolvedValue([bloque({ patient_hash: "deadbeef", patient_id: 7, patient_name: "Ana Pérez" })]);
     render(<AuditTrail onBack={() => {}} />);
-    await screen.findByText("Inicio de sesión");
+    await screen.findByText("Inicio de sesión", { selector: "span" });
     const sel = await screen.findByLabelText("Paciente");
     await screen.findByRole("option", { name: "Ana Pérez · H-7" });
     fireEvent.change(sel, { target: { value: "7" } });
@@ -99,11 +103,11 @@ describe("F2 (16)", () => {
   it("con el filtro activo, un bloque sin huella muestra «—» y no el nombre", async () => {
     auditBlocks.mockResolvedValue([bloque({ patient_hash: "" })]);
     render(<AuditTrail onBack={() => {}} />);
-    await screen.findByText("Inicio de sesión");
+    await screen.findByText("Inicio de sesión", { selector: "span" });
     await screen.findByRole("option", { name: "Ana Pérez · H-7" });
     fireEvent.change(screen.getByLabelText("Paciente"), { target: { value: "7" } });
     await waitFor(() => expect(auditBlocks).toHaveBeenLastCalledWith({ patientId: 7 }));
-    await screen.findByText("Inicio de sesión");
+    await screen.findByText("Inicio de sesión", { selector: "span" });
     expect(screen.queryByText("Ana Pérez")).toBeNull();
     expect(screen.getByText("—", { selector: "td" })).toBeTruthy();
   });
@@ -111,7 +115,7 @@ describe("F2 (16)", () => {
   it("un 404 del servidor muestra su detalle", async () => {
     auditBlocks.mockResolvedValueOnce([bloque()]);
     render(<AuditTrail onBack={() => {}} />);
-    await screen.findByText("Inicio de sesión");
+    await screen.findByText("Inicio de sesión", { selector: "span" });
     await screen.findByRole("option", { name: "Luis Gil · H-8" });
     auditBlocks.mockRejectedValueOnce(Object.assign(new Error("Paciente no encontrado."), { status: 404, fromServer: true }));
     fireEvent.change(screen.getByLabelText("Paciente"), { target: { value: "8" } });
@@ -129,7 +133,7 @@ describe("F2 (16)", () => {
     expect(screen.queryByText("abcdef0123456789abcdef")).toBeNull();
     fireEvent.click(fila);
     expect(fila.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByText("decision")).toBeTruthy();
+    expect(screen.getByText("Decision")).toBeTruthy();
     expect(screen.getByText("clipaje")).toBeTruthy();
     expect(screen.getByText("1, 2")).toBeTruthy();
     expect(screen.getByText("Hash anterior")).toBeTruthy();
@@ -137,11 +141,79 @@ describe("F2 (16)", () => {
     expect(screen.getByText("0011223344")).toBeTruthy();
   });
 
-  it("muestra el rótulo en castellano y conserva el código", async () => {
-    auditBlocks.mockResolvedValueOnce([bloque({ action: "password_change" })]);
+  it("la acción a la vista en castellano; el código solo en tooltip y en el detalle (A58)", async () => {
+    auditBlocks.mockResolvedValueOnce([bloque()]);
     render(<AuditTrail onBack={() => {}} />);
-    expect(await screen.findByText("Cambio de contraseña")).toBeTruthy();
-    expect(screen.getByText("password_change")).toBeTruthy();
+    const rotulo = await screen.findByText("Inicio de sesión", { selector: "span" });
+    expect(rotulo.getAttribute("title")).toBe("LOGIN");
+    expect(screen.queryByText("LOGIN")).toBeNull();
+    expect(screen.queryByText(/· LOGIN/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Inicio de sesión/ }));
+    const dt = screen.getByText("Código", { selector: "dt" });
+    const dd = dt.nextElementSibling as HTMLElement;
+    expect(dd.textContent).toBe("LOGIN");
+    expect(dd.getAttribute("style")).toContain("--font-mono");
+    // el desplegable de acciones solo en castellano
+    const opciones = screen.getAllByRole("option").map((o) => o.textContent);
+    expect(opciones).toContain("Inicio de sesión");
+    expect(opciones.some((o) => o?.includes("LOGIN"))).toBe(false);
+  });
+
+  it("claves del detalle traducidas", async () => {
+    auditBlocks.mockResolvedValueOnce([bloque({ action: "CAPTURE_SAVED", payload_json: '{"capture": 3, "ok": true}' })]);
+    render(<AuditTrail onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Captura guardada/ }));
+    expect(screen.getByText("Captura", { selector: "dt" })).toBeTruthy();
+    expect(screen.getByText("Sí", { selector: "dd" })).toBeTruthy();
+  });
+
+  it("Paciente: el nombre, o «Paciente borrado o editado» (A59)", async () => {
+    auditBlocks.mockResolvedValueOnce([
+      bloque({ id: 1, patient_hash: "h1", patient_id: 7, patient_name: "Ana Prueba" }),
+      bloque({ id: 2, patient_hash: "h2", patient_name: "" }),
+      bloque({ id: 3, patient_hash: "" }),
+    ]);
+    render(<AuditTrail onBack={() => {}} />);
+    expect(await screen.findByText("Ana Prueba")).toBeTruthy();
+    const borrado = screen.getByText("Paciente borrado o editado");
+    expect(borrado.getAttribute("title")).toMatch(/huella del paciente/);
+    expect(screen.getAllByText("—", { selector: "td, th" }).length).toBeGreaterThan(0);
+  });
+
+  it("a 390 tarjetas con la acción de título y el resto a la vista (A60)", async () => {
+    simularPantalla(390);
+    auditBlocks.mockResolvedValueOnce([bloque({ patient_hash: "h1", patient_name: "Ana Prueba" })]);
+    const { container } = render(<AuditTrail onBack={() => {}} />);
+    await screen.findByText("Ana Prueba");
+    expect(container.querySelector("[data-vista='tarjetas']")).not.toBeNull();
+    expect(container.querySelector(".tt-tarjeta-titulo")!.textContent).toContain("Inicio de sesión");
+    const dts = Array.from(container.querySelectorAll("dt")).map((d) => d.textContent);
+    expect(dts).toEqual(expect.arrayContaining(["Fecha y hora", "Usuario", "Paciente"]));
+  });
+
+  it("a 1024 la tabla cabe sin minWidth ni scroll horizontal", async () => {
+    simularPantalla(1024);
+    auditBlocks.mockResolvedValueOnce([bloque()]);
+    const { container } = render(<AuditTrail onBack={() => {}} />);
+    await screen.findByText("Inicio de sesión", { selector: "span" });
+    expect(screen.getByRole("table").getAttribute("style") ?? "").not.toMatch(/min-width/i);
+    expect(container.innerHTML).not.toMatch(/overflow-x|table-scroll/);
+  });
+
+  it("verificación con plural escrito", async () => {
+    auditBlocks.mockResolvedValue([bloque()]);
+    const verif = vi.fn();
+    const { api } = await import("../api/client");
+    (api as unknown as { auditVerify: () => unknown }).auditVerify = verif;
+    verif.mockResolvedValueOnce({ ok: false, total_blocks: 5, broken: [{ id: 2, action: "LOGIN", reason: "hash" }] });
+    render(<AuditTrail onBack={() => {}} />);
+    await screen.findByText("Inicio de sesión", { selector: "span" });
+    fireEvent.click(screen.getByRole("button", { name: "Verificar integridad" }));
+    expect(await screen.findByText("¡1 bloque corrupto!")).toBeTruthy();
+    expect(screen.getByText(/Bloque #2 \(Inicio de sesión\)/)).toBeTruthy();
+    verif.mockResolvedValueOnce({ ok: false, total_blocks: 5, broken: [{ id: 2, action: "LOGIN", reason: "a" }, { id: 3, action: "LOGIN", reason: "b" }] });
+    fireEvent.click(screen.getByRole("button", { name: "Verificar integridad" }));
+    expect(await screen.findByText("¡2 bloques corruptos!")).toBeTruthy();
   });
 });
 
@@ -149,7 +221,7 @@ describe("la cabecera de «Auditoría» en la oficina", () => {
   it("el título está en la miga y el subtítulo en la barra", async () => {
     auditBlocks.mockResolvedValueOnce([bloque()]);
     render(<AuditTrail onBack={() => {}} />);
-    await screen.findByText("Inicio de sesión");
+    await screen.findByText("Inicio de sesión", { selector: "span" });
     const barra = within(screen.getByRole("banner"));
     expect(barra.getByText("Cadena de bloques con firma; alterar un bloque invalida todos los siguientes.")).toBeInTheDocument();
     // Las dos acciones principales viven en la barra.

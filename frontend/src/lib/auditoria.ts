@@ -52,24 +52,42 @@ export function etiquetaAccion(code: string): string {
   return ACCIONES[code] ?? code;
 }
 
+const CLAVES: Record<string, string> = {
+  target: "Cuenta", session_id: "Sesión", part_no: "Nº de pieza", role: "Rol", workshop: "Taller",
+  username: "Usuario", user_ids: "Usuarios", status: "Estado", reason: "Motivo",
+  patient_id: "Paciente", patient: "Paciente", pages: "Páginas", ok: "Correcto", broken: "Bloques rotos",
+  label: "Nombre", kind: "Tipo", case: "Caso", capture: "Captura", step: "Paso", study: "Estudio",
+  detalle: "Detalle",
+};
+
+/** La clave del detalle en castellano; una desconocida pierde los «_» y toma mayúscula inicial. */
+export function etiquetaClave(clave: string): string {
+  const conocida = CLAVES[clave];
+  if (conocida) return conocida;
+  const texto = clave.replace(/_/g, " ");
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
 function valor(v: unknown): string {
   if (v === null || v === undefined || v === "") return "—";
+  if (v === true) return "Sí";
+  if (v === false) return "No";
   if (Array.isArray(v)) return v.map((x) => (typeof x === "object" && x !== null ? JSON.stringify(x) : String(x))).join(", ");
   if (typeof v === "object") return JSON.stringify(v);
   return String(v);
 }
 
-/** El `payload_json` como pares clave · valor; lo que no es un objeto JSON se
- *  muestra entero para no ocultar nada a quien audita. */
+/** El `payload_json` como pares clave · valor, con las claves ya en castellano;
+ *  lo que no es un objeto JSON se muestra entero para no ocultar nada a quien audita. */
 export function detalleDelBloque(payloadJson: string): [string, string][] {
   if (!payloadJson) return [];
   try {
     const p: unknown = JSON.parse(payloadJson);
     if (p && typeof p === "object" && !Array.isArray(p)) {
-      return Object.entries(p as Record<string, unknown>).map(([k, v]) => [k, valor(v)]);
+      return Object.entries(p as Record<string, unknown>).map(([k, v]) => [etiquetaClave(k), valor(v)]);
     }
-    return [["detalle", valor(p)]];
+    return [[etiquetaClave("detalle"), valor(p)]];
   } catch {
-    return [["detalle", payloadJson]];
+    return [[etiquetaClave("detalle"), payloadJson]];
   }
 }

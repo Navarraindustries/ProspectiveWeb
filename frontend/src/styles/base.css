@@ -82,12 +82,6 @@ code, kbd, samp, .mono {
   font-family: var(--font-mono);
 }
 
-/* Logo mark (black on transparent) is tinted per theme */
-:root:not([data-theme="light"]) .logo-mark,
-[data-theme="dark"] .logo-mark {
-  filter: invert(1) brightness(1.7);
-}
-
 /* Form error shake — ±8px, from IDENTIDAD_VISUAL motion spec */
 @keyframes shake {
   0%, 100% { transform: translateX(0); }

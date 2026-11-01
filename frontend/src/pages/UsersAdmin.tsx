@@ -492,6 +492,7 @@ function UsersAdminPage() {
 
           <TablaTarjetas<UserAdminInfo>
             rotulo="Usuarios"
+            tarjetasHasta="tableta"
             filas={loadError ? [] : rows}
             columnas={columnas}
             clave={(u) => u.id}

@@ -208,7 +208,7 @@ describe("TopBar", () => {
     const bloque = css.slice(i, css.indexOf("\n}", i));
     expect(bloque).toMatch(/\.shell-top \{[^}]*height: auto;[^}]*flex-wrap: wrap/);
     expect(bloque).toMatch(/\.shell-actions \{[^}]*min-width: 0;[^}]*flex-wrap: wrap/);
-    expect(css).toMatch(/\.page-body \{[^}]*overflow-x: clip/);
+    expect(css).not.toMatch(/\.page-body \{[^}]*overflow-x/);
   });
   it("R4: a 360 el tema no está en la barra y va al menú «⋯»", () => {
     const p = simularPantalla({ ancho: 360 });

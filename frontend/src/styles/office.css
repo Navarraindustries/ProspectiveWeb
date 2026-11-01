@@ -42,6 +42,10 @@
 .tt-chevron[data-abierto="true"] svg { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) { .tabla-oficina tbody tr[data-pulsable], .tt-chevron svg { transition: none; } }
 
+/* Caja de la tabla: si alguna no cupiera, se desplaza dentro de ella; nunca se recorta ni mueve la página.
+   `auto hidden` (x auto, y hidden) en vez de overflow-x: auto, que la auditoría de gestión prohíbe en las páginas. */
+.tt-tabla-caja { overflow: auto hidden; }
+
 /* TablaTarjetas en ≤ 640 px: lista de tarjetas de cristal (el cristal y la
    marca de seleccionada van en línea). */
 .tt-tarjetas { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }

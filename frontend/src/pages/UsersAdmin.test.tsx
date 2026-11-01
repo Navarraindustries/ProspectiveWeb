@@ -313,17 +313,28 @@ describe("Usuarios responsivo (A51–A55)", () => {
     expect(celda.style.whiteSpace).toBe("nowrap");
   });
 
-  it("≤ 1024: acciones en «⋯» táctil y sin la columna de especialidad", async () => {
-    simularPantalla(1024);
+  it.each([642, 768, 1024])("%i: tarjetas con las acciones en «⋯» táctil, nada recortado", async (ancho) => {
+    simularPantalla(ancho);
     listUsers.mockResolvedValue([cuenta({ full_name: "María Prueba" })]);
-    render(<UsersAdmin onBack={() => {}} />);
+    const { container } = render(<UsersAdmin onBack={() => {}} />);
     const mas = await screen.findByRole("button", { name: "Acciones de María Prueba" });
+    expect(container.querySelector('[data-vista="tarjetas"]')).not.toBeNull();
+    expect(container.querySelector("table")).toBeNull();
     expect(mas.style.height).toBe("44px");
-    expect(screen.queryByRole("columnheader", { name: "Especialidad / Hospital" })).toBeNull();
-    expect(screen.getByRole("columnheader", { name: "Usuario" })).toBeInTheDocument();
     fireEvent.click(mas);
     fireEvent.click(await screen.findByRole("menuitem", { name: "Editar" }));
     expect(await screen.findByText("Editar usuario")).toBeInTheDocument();
+  });
+
+  it.each([1280, 1707])("%i: tabla con sus cabeceras y la caja con desplazamiento propio", async (ancho) => {
+    simularPantalla(ancho);
+    listUsers.mockResolvedValue([cuenta({ full_name: "María Prueba" })]);
+    const { container } = render(<UsersAdmin onBack={() => {}} />);
+    await screen.findByRole("button", { name: "Editar a María Prueba" });
+    expect(container.querySelector('[data-vista="tabla"]')).not.toBeNull();
+    expect(screen.getByRole("columnheader", { name: "Usuario" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Acciones" })).toBeInTheDocument();
+    expect(container.querySelector('[data-vista="tabla"]')).toHaveClass("tt-tabla-caja");
   });
 
   it("≤ 640: tarjetas con el usuario de título", async () => {

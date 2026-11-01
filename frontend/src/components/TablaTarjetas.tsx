@@ -1,15 +1,16 @@
 /* Tabla de la oficina reutilizable (Pedidos, Usuarios, Cuentas pendientes,
    Auditoría). En ≥ 641 px es una tabla de cristal de verdad (<table>, <th
    scope="col">, la celda que identifica la fila en <th scope="row">) a todo el
-   ancho y sin scroll horizontal: las celdas cortan el texto largo por cualquier
-   punto y solo las marcadas `sinPartir` no se parten. En ≤ 640 px pasa a una
+   ancho y sin scroll de la página: las celdas cortan el texto largo por cualquier
+   punto y solo las marcadas `sinPartir` no se parten. Red de seguridad: si aun
+   así no cupiera, la tabla se desplaza dentro de su caja (`.tt-tabla-caja`). En ≤ 640 px pasa a una
    lista de tarjetas: un título, los datos rotulados en <dl> y un pie con las
    acciones. Si la fila es pulsable, su control accesible es un <button> real en
    la celda que la identifica (o en el título de la tarjeta), con aria-expanded y
    aria-controls si hay detalle; la fila entera responde además al clic del
    ratón, sin robárselo a los controles que lleve dentro. */
 import { Fragment, useId, type CSSProperties, type MouseEvent, type ReactNode } from "react";
-import { useMovil } from "../hooks/useEstrecho";
+import { useMovil, useTableta } from "../hooks/useEstrecho";
 import { glass } from "../styles/glass";
 import "../styles/office.css";
 import { Icon } from "./Icon";
@@ -42,6 +43,8 @@ export interface TablaTarjetasProps<T> {
   detalle?: (fila: T) => ReactNode | null;
   /** Sustituye al cuerpo cuando no hay filas (vacío, error, carga). */
   vacio?: ReactNode;
+  /** Hasta qué ancho se muestran tarjetas: "movil" (≤ 640, por defecto) o "tableta" (≤ 1024, para tablas con demasiadas columnas). */
+  tarjetasHasta?: "movil" | "tableta";
 }
 
 /** Controles que tienen su propia acción: un clic en ellos no abre la fila. */
@@ -85,8 +88,10 @@ function columnaIdentidad<T>(columnas: readonly ColumnaTabla<T>[]): ColumnaTabla
 }
 
 export function TablaTarjetas<T>(p: TablaTarjetasProps<T>) {
-  const { filas, columnas, clave, rotulo, onFila, seleccionada, claseFila, detalle, vacio } = p;
-  const movil = useMovil();
+  const { filas, columnas, clave, rotulo, onFila, seleccionada, claseFila, detalle, vacio, tarjetasHasta = "movil" } = p;
+  const esMovil = useMovil();
+  const esTableta = useTableta();
+  const movil = tarjetasHasta === "tableta" ? esTableta : esMovil;
   const base = useId();
   const idDetalle = (fila: T) => `${base}-detalle-${clave(fila)}`;
   const identidad = columnaIdentidad(columnas);
@@ -154,7 +159,7 @@ export function TablaTarjetas<T>(p: TablaTarjetasProps<T>) {
 
   const nCols = columnas.length + (onFila ? 1 : 0);
   return (
-    <div data-vista="tabla" data-glass style={{ ...glass("dense"), borderRadius: "var(--radius-card-lg)" }}>
+    <div data-vista="tabla" data-glass className="tt-tabla-caja" style={{ ...glass("dense"), borderRadius: "var(--radius-card-lg)" }}>
       {filas.length === 0 && vacio !== undefined ? vacio : (
         <table className="tabla-oficina" aria-label={rotulo} style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>

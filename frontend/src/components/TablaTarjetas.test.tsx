@@ -35,6 +35,23 @@ it("≥ 641: tabla de cristal con cabeceras y sin scroll horizontal", () => {
   // La celda que identifica la fila es su cabecera de fila.
   expect(screen.getAllByRole("rowheader").map((h) => h.textContent)).toEqual(["Ana Prueba", "Luis Prueba"]);
   expect(container.innerHTML).not.toMatch(/overflow-x/);
+  // Red de seguridad: la caja se desplaza por dentro (x auto, y hidden), no la página.
+  expect(container.firstElementChild).toHaveClass("tt-tabla-caja");
+  expect(readFileSync(join(__dirname, "../styles/office.css"), "utf8")).toMatch(/\.tt-tabla-caja\s*\{\s*overflow:\s*auto hidden;?\s*\}/);
+});
+
+it.each([642, 768, 1024])("tarjetasHasta=\"tableta\": a %i son tarjetas; por defecto, tabla", (ancho) => {
+  simularPantalla(ancho);
+  const { container, rerender } = render(<TablaTarjetas rotulo="U" filas={filas} columnas={cols} clave={(f) => f.id} tarjetasHasta="tableta" />);
+  expect(container.firstElementChild).toHaveAttribute("data-vista", "tarjetas");
+  rerender(<TablaTarjetas rotulo="U" filas={filas} columnas={cols} clave={(f) => f.id} />);
+  expect(container.firstElementChild).toHaveAttribute("data-vista", "tabla");
+});
+
+it("tarjetasHasta=\"tableta\": a 1280 sigue siendo tabla", () => {
+  simularPantalla(1280);
+  const { container } = render(<TablaTarjetas rotulo="U" filas={filas} columnas={cols} clave={(f) => f.id} tarjetasHasta="tableta" />);
+  expect(container.firstElementChild).toHaveAttribute("data-vista", "tabla");
 });
 
 it("la celda identificadora no parte por letras y tiene ancho mínimo; las demás sí parten", () => {

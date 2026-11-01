@@ -154,3 +154,303 @@
   0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--primary); }
   50%      { opacity: 0.45; box-shadow: 0 0 2px var(--primary); }
 }
+
+/* ---- Hero de cortes (HeroCortes.tsx) ------------------------------------
+   Sección de 300 vh con el escenario pegado arriba; capas, de abajo arriba:
+   corte axial → render 3D → velo → texto y ventana → rótulo de la ventana. */
+.landing-stitch .hero-cortes {
+  position: relative;
+  background: var(--canvas);
+}
+.landing-stitch .hero-cortes--quieto {
+  min-height: 100vh;
+}
+.landing-stitch .hero-cortes__escenario {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
+}
+/* Movimiento reducido: sin scroll que consumir, el escenario fluye y crece si
+   el texto no cabe (en un móvil bajo). */
+.landing-stitch .hero-cortes--quieto .hero-cortes__escenario {
+  position: relative;
+  height: auto;
+  min-height: 100vh;
+}
+
+.landing-stitch .hero-cortes__corte,
+.landing-stitch .hero-cortes__render,
+.landing-stitch .hero-cortes__ventana,
+.landing-stitch .hero-cortes__rotulo {
+  transition: opacity var(--dur-4) var(--ease-out);
+}
+.landing-stitch .hero-cortes__corte {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 40%;
+}
+/* El render se escala como `cover` pero dentro de una caja con su proporción
+   (1400 × 1000), para que las balizas en % caigan sobre lo que señalan. */
+.landing-stitch .hero-cortes__render {
+  position: absolute;
+  inset: 0;
+  container-type: size;
+}
+.landing-stitch .hero-cortes__lienzo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100cqw, 140cqh);
+  aspect-ratio: 1400 / 1000;
+  transform: translate(-50%, -50%);
+}
+.landing-stitch .hero-cortes__lienzo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.landing-stitch .hero-cortes__velo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--veil-dense) 0%, var(--veil) 42%, transparent 72%);
+}
+
+.landing-stitch .hero-cortes__contenido {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  max-width: 1320px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 96px 24px 64px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 400px);
+  gap: 48px;
+  align-items: center;
+}
+.landing-stitch .hero-cortes--quieto .hero-cortes__contenido {
+  min-height: 100vh;
+}
+.landing-stitch .hero-cortes__texto {
+  max-width: 620px;
+}
+.landing-stitch .hero-cortes__antetitulo {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  margin-bottom: 22px;
+}
+.landing-stitch .hero-cortes__titulo {
+  margin: 0;
+  font-size: clamp(40px, 6.4vw, 76px);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: var(--tracking-display);
+  color: var(--foreground);
+}
+.landing-stitch .hero-cortes__subtitulo {
+  margin: 26px 0 0;
+  max-width: 520px;
+  font-size: clamp(16px, 1.6vw, 19px);
+  line-height: 1.55;
+  color: var(--muted-foreground);
+}
+.landing-stitch .hero-cortes__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 34px;
+}
+.landing-stitch .hero-cortes__ancla {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-lg);
+  padding: 0 10px;
+  font-size: 15px;
+  color: var(--muted-foreground);
+  text-decoration: none;
+}
+.landing-stitch .hero-cortes__ancla:hover {
+  color: var(--foreground);
+}
+.landing-stitch .hero-cortes__notas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 32px;
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.landing-stitch .hero-cortes__rotulo {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ventana «Detección · 5 candidatos» (VentanaDeteccion.tsx). */
+.landing-stitch .hero-ventana {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 14px 16px 8px;
+}
+.landing-stitch .hero-ventana__cabecera {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--muted-foreground);
+  padding: 2px 2px 10px;
+}
+.landing-stitch .hero-ventana__filas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.landing-stitch .hero-ventana__fila {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 2px;
+  border-top: 1px solid var(--border);
+  font-size: var(--text-body);
+  color: var(--foreground);
+}
+.landing-stitch .hero-ventana__num {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  background: color-mix(in srgb, var(--canvas) 85%, transparent);
+  border: 1.5px solid var(--foreground);
+}
+.landing-stitch .hero-ventana__num--lesion {
+  background: var(--destructive);
+  border-color: var(--destructive);
+}
+.landing-stitch .hero-ventana__nota {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: color-mix(in srgb, var(--destructive) 70%, var(--foreground));
+}
+
+/* Balizas sobre el render: las del visor (elegida 44 px en rojo con halo
+   doble; el resto 36 px con borde blanco de 2 px; número en mono). */
+.landing-stitch .hero-balizas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.landing-stitch .hero-baliza {
+  position: absolute;
+  box-sizing: border-box;
+  width: 36px;
+  height: 36px;
+  transform: translate(-50%, -50%);
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--canvas) 85%, transparent);
+  border: 2px solid var(--foreground);
+}
+.landing-stitch .hero-baliza--lesion {
+  width: 44px;
+  height: 44px;
+  font-size: 15px;
+  background: var(--destructive);
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--destructive) 35%, transparent),
+              0 0 0 14px color-mix(in srgb, var(--destructive) 14%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-stitch .hero-cortes__corte,
+  .landing-stitch .hero-cortes__render,
+  .landing-stitch .hero-cortes__ventana,
+  .landing-stitch .hero-cortes__rotulo {
+    transition: none;
+  }
+}
+
+/* Estrecho: una columna, la ventana bajo el texto y el velo de arriba abajo.
+   Todo más apretado para que texto y ventana quepan en 100 vh de un móvil; las
+   balizas se quitan porque caerían sobre el texto (la ventana ya las lista). */
+@media (max-width: 760px) {
+  .landing-stitch .hero-cortes__contenido {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: space-between;
+    gap: 16px;
+    padding: 104px 16px 20px;
+  }
+  .landing-stitch .hero-cortes__velo {
+    background: linear-gradient(180deg, var(--veil-dense) 0%, var(--veil) 55%, var(--veil-dense) 100%);
+  }
+  .landing-stitch .hero-cortes__antetitulo {
+    margin-bottom: 14px;
+  }
+  .landing-stitch .hero-cortes__subtitulo {
+    margin-top: 16px;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .landing-stitch .hero-cortes__acciones {
+    margin-top: 20px;
+    gap: 8px;
+  }
+  .landing-stitch .hero-cortes__ancla {
+    height: var(--control-sm);
+  }
+  .landing-stitch .hero-cortes__notas {
+    margin-top: 14px;
+  }
+  .landing-stitch .hero-balizas {
+    display: none;
+  }
+  /* El saco (centro del render) baja al hueco entre el texto y la ventana. */
+  .landing-stitch .hero-cortes__lienzo {
+    top: 68%;
+  }
+  .landing-stitch .hero-ventana {
+    padding: 10px 12px 4px;
+  }
+  .landing-stitch .hero-ventana__cabecera {
+    padding-bottom: 6px;
+  }
+  .landing-stitch .hero-ventana__fila {
+    padding: 4px 2px;
+    font-size: var(--text-desc);
+  }
+  .landing-stitch .hero-ventana__num {
+    width: 22px;
+    height: 22px;
+  }
+  .landing-stitch .hero-cortes__rotulo {
+    right: 16px;
+    bottom: 16px;
+  }
+}

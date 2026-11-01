@@ -14,6 +14,7 @@ import { useNavigate } from "react-router-dom";
 import { BorderBeam } from "border-beam";
 import { Icon } from "../components/Icon";
 import type { IconName } from "../components/Icon";
+import { HeroCortes } from "../components/landing/HeroCortes";
 import { NavPildora } from "../components/landing/NavPildora";
 import { Logo } from "../components/shell/Logo";
 import { CONTACTO_ADMIN } from "../lib/contacto";
@@ -23,8 +24,7 @@ import {
   AR_HIGH, BF_WIDE, DNR_HIGH, EI_MOD, SR_HIGH, UI_HIGH,
 } from "../components/morphometry/thresholds";
 const MAXW = 1320;
-/* El lema único del producto (F2-2): el mismo texto en toda la aplicación. */
-const LEMA = "Planificación neurovascular con datos";
+/* El lema único del producto (F2-2) vive en el titular de HeroCortes: una sola vez. */
 
 /* Section content reveals with a fade + rise as it scrolls into view. Driven by
    the CSS `.reveal` class (scroll-driven animation, gated behind @supports) so
@@ -55,63 +55,6 @@ function H2({ children }: { children: React.ReactNode }) {
     <h2 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(26px, 3.4vw, 38px)", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--foreground)", lineHeight: 1.12, margin: 0 }}>
       {children}
     </h2>
-  );
-}
-
-/* ── Hero ───────────────────────────────────────────────────────────────── */
-function Hero({ onEnter, onSignup }: { onEnter: () => void; onSignup: () => void }) {
-  return (
-    <div className="stitch-grid" style={{ position: "relative", overflow: "hidden", minHeight: "100vh", paddingTop: 84, display: "flex", alignItems: "center", background: "var(--canvas)" }}>
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(95deg, color-mix(in srgb, var(--canvas) 95%, transparent) 0%, color-mix(in srgb, var(--canvas) 88%, transparent) 30%, color-mix(in srgb, var(--canvas) 55%, transparent) 50%, color-mix(in srgb, var(--canvas) 15%, transparent) 74%, color-mix(in srgb, var(--canvas) 5%, transparent) 100%)" }} />
-      <div style={{ position: "relative", zIndex: 1, maxWidth: MAXW, margin: "0 auto", padding: "0 24px", width: "100%" }}>
-        {/* Columna estrecha: el modelo ocupa el hero entero por detrás, así que
-            el texto se repliega a la izquierda y le deja el centro-derecha. */}
-        <div style={{ maxWidth: 700 }}>
-          <div className="stitch-label" style={{ display: "inline-flex", alignItems: "center", gap: 9, padding: "7px 14px", borderRadius: "var(--radius-md)", border: "1px solid color-mix(in srgb, var(--primary) 30%, transparent)", background: "color-mix(in srgb, var(--background) 60%, transparent)", color: "var(--brand-slate)", fontSize: 11, marginBottom: 26 }}>
-            <span className="stitch-pip" />
-            {LEMA}
-          </div>
-          <h1 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(38px, 6vw, 68px)", fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.04, color: "var(--foreground)", margin: 0 }}>
-            Planificar la cirugía de un aneurisma cerebral, con datos y en 3D
-          </h1>
-          <p style={{ fontSize: "clamp(16px, 2vw, 20px)", color: "color-mix(in srgb, var(--foreground) 74%, transparent)", lineHeight: 1.55, marginTop: 22, maxWidth: 640 }}>
-            A partir de la tomografía o angiografía del paciente, PROSPECTIVE reconstruye la arteria
-            en 3D, localiza y mide el aneurisma, estima su riesgo de rotura y ayuda al médico a elegir
-            el mejor tratamiento. Todo en el navegador.
-          </p>
-          <div style={{ display: "flex", gap: 14, marginTop: 34, flexWrap: "wrap" }}>
-            <BorderBeam size="sm" colorVariant="ocean" theme="dark" style={{ display: "inline-flex" }}>
-              <button
-                onClick={onEnter}
-                className="stitch-cta"
-                style={{ height: 50, padding: "0 28px", borderRadius: "var(--radius-md)", border: "none", background: "var(--primary)", color: "var(--primary-foreground)", fontSize: 15, cursor: "pointer" }}
-              >
-                Entrar
-              </button>
-            </BorderBeam>
-            <button
-              onClick={onSignup}
-              className="stitch-ghost"
-              style={{ height: 50, padding: "0 24px", borderRadius: "var(--radius-md)", fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15, cursor: "pointer" }}
-            >
-              Crear cuenta
-            </button>
-            <a
-              href="#como-funciona"
-              className="stitch-ghost"
-              style={{ height: 50, display: "inline-flex", alignItems: "center", padding: "0 24px", borderRadius: "var(--radius-md)", fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15, textDecoration: "none" }}
-            >
-              Ver cómo funciona ↓
-            </a>
-          </div>
-          <div className="stitch-label" style={{ display: "flex", gap: 22, marginTop: 40, color: "var(--muted-foreground)", fontSize: 11, flexWrap: "wrap" }}>
-            <span>Sin instalar nada</span><span style={{ color: "var(--primary)", opacity: 0.55 }}>·</span>
-            <span>Modelo 3D en el navegador</span><span style={{ color: "var(--primary)", opacity: 0.55 }}>·</span>
-            <span>Medidas objetivas en milímetros</span>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -637,7 +580,7 @@ export function Landing() {
        y la landing no debe seguir el tema que el usuario eligió para /app. */
     <div className="landing-stitch" data-theme="dark" style={{ background: "var(--canvas)", minHeight: "100%" }}>
       <NavPildora onEntrar={enter} onCrearCuenta={signup} />
-      <Hero onEnter={enter} onSignup={signup} />
+      <HeroCortes onEntrar={enter} onCrearCuenta={signup} />
       <What />
       <Pipeline />
       <Features />

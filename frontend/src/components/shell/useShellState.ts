@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SCREEN_PATH } from "../../store/nav";
+import { CONSULTA, PUNTOS_CORTE } from "../../styles/puntosCorte";
 
 export const SIDEBAR_KEY = "shell.sidebar";
 /** Lo que tarda el ratón parado encima en expandirla: evita que un cruce
@@ -28,10 +29,10 @@ export interface ShellState {
 /* Sin valor guardado manda el ancho de la ventana; lo que el usuario eligió
    («pinned» o «collapsed») manda siempre. localStorage puede no existir o estar
    vetado (modo privado, iframe): entonces también decide el ancho. */
-const WIDE_WINDOW_PX = 1024;
+const WIDE_WINDOW_PX = PUNTOS_CORTE.tableta;
 /** A 1280 px o menos la barra arranca plegada aunque la preferencia diga
     «fijada»: el contenido necesita el sitio. No se toca lo guardado. */
-const NARROW_QUERY = "(max-width: 1280px)";
+const NARROW_QUERY = CONSULTA.estrecho;
 function isNarrow(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
   return window.matchMedia(NARROW_QUERY)?.matches === true;

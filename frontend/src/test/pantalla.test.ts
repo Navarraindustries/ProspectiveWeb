@@ -27,3 +27,36 @@ describe("pantalla", () => {
     expect(anchoBanda(1366, { ancho520: true })).toBe(798);
   });
 });
+
+describe("pantalla: forma objeto, listas y preferencias", () => {
+  it("max-width incluye el borde", () => {
+    expect(cumpleConsulta("(max-width: 640px)", { ancho: 640 })).toBe(true);
+    expect(cumpleConsulta("(max-width: 640px)", { ancho: 641 })).toBe(false);
+  });
+  it("min-width, alto, O y Y", () => {
+    expect(cumpleConsulta("(min-width: 1920px)", { ancho: 1920 })).toBe(true);
+    expect(cumpleConsulta("(min-width: 1920px)", { ancho: 1919 })).toBe(false);
+    expect(cumpleConsulta("(max-width: 760px), (max-height: 600px)", { ancho: 1707, alto: 600 })).toBe(true);
+    expect(cumpleConsulta("(min-width: 641px) and (max-width: 1024px)", { ancho: 800 })).toBe(true);
+  });
+  it("preferencias y características desconocidas", () => {
+    expect(cumpleConsulta("(prefers-reduced-transparency: reduce)", { ancho: 1000, transparenciaReducida: true })).toBe(true);
+    expect(cumpleConsulta("(prefers-reduced-motion: reduce)", { ancho: 1000 })).toBe(false);
+    expect(cumpleConsulta("(prefers-reduced-motion: reduce)", { ancho: 1000, movimientoReducido: true })).toBe(true);
+    expect(cumpleConsulta("(hover: hover)", { ancho: 1000 })).toBe(false);
+  });
+  it("simularPantalla avisa a los oyentes al cambiar y restaura", () => {
+    const s = simularPantalla({ ancho: 1707 });
+    const mq = window.matchMedia("(max-width: 640px)");
+    const oyente = vi.fn();
+    mq.addEventListener("change", oyente);
+    expect(window.innerWidth).toBe(1707);
+    s.cambiar({ ancho: 390 });
+    expect(mq.matches).toBe(true);
+    expect(oyente).toHaveBeenCalledTimes(1);
+    s.cambiar({ ancho: 400 });
+    expect(oyente).toHaveBeenCalledTimes(1);
+    s.restaurar();
+    expect(window.matchMedia("(max-width: 640px)").matches).toBe(false);
+  });
+});

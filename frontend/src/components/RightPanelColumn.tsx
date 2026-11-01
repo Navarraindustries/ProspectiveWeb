@@ -4,10 +4,9 @@
    desplegable abierto o el scroll del panel siguen donde estaban al volver;
    desmontarla los perdería sin aviso. */
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, type ReactNode } from "react";
 import { Icon } from "./Icon";
-import { BottomSheet, type AlturaHoja } from "./BottomSheet";
+import { Tirador, useHojaInferior, type AlturaHoja } from "./BottomSheet";
 import { AnimatePresence, motion, panelSwap, panelTransition } from "../motion";
 import { glass } from "../styles/glass";
 import { BANDA_SUPERIOR, MARGEN_INSPECTOR } from "../pipeline/zonaLibre";
@@ -63,101 +62,75 @@ export function RightPanelColumn({
   onAltura?: (a: AlturaHoja) => void;
   children: ReactNode;
 }) {
-  /* El cuerpo se pinta una sola vez, en un nodo propio (`host`) que se mueve entre
-     el panel flotante y la hoja. Dos copias, o un cambio de tipo de contenedor,
-     desmontarían los campos y perderían lo escrito y el scroll. */
-  const [host] = useState(() => {
-    const d = document.createElement("div");
-    d.style.cssText = "flex:1;min-height:0;min-width:0;display:flex;flex-direction:column";
-    return d;
-  });
-  const [ranuraPanel, setRanuraPanel] = useState<HTMLElement | null>(null);
-  const [ranuraHoja, setRanuraHoja] = useState<HTMLElement | null>(null);
-  // El scroll se pierde al desprender el nodo: se anota en cada render, antes de mover nada.
-  const scrollAnotado = useRef(0);
-  if (host.isConnected) scrollAnotado.current = host.querySelector<HTMLElement>(".ws-panel-body")?.scrollTop ?? 0;
-  const destino = estrecho ? ranuraHoja : ranuraPanel;
-  useLayoutEffect(() => {
-    if (!destino || host.parentElement === destino) return;
-    destino.appendChild(host);
-    const cuerpo = host.querySelector<HTMLElement>(".ws-panel-body");
-    if (cuerpo) cuerpo.scrollTop = scrollAnotado.current;
-  }, [destino, host]);
-
-  const ranura = (ref: (el: HTMLDivElement | null) => void) => (
-    <div ref={ref} style={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", flexDirection: "column" }} />
-  );
-
-  const cuerpo = createPortal(
-    <>
-      <div
-        style={{
-          flex: "none", padding: "14px 18px 0", fontFamily: "var(--font-mono)",
-          fontSize: "var(--text-eyebrow)", letterSpacing: "var(--tracking-eyebrow)",
-          color: "var(--muted-foreground)",
-        }}
-      >
-        {`Paso ${stepIndex + 1} · ${stepLabel}`.toLocaleUpperCase("es")}
-      </div>
-      {/* Cruce en fundido entre pasos; el primer pintado no anima. */}
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={stepKey}
-          className="ws-panel-body"
-          variants={panelSwap}
-          initial="initial"
-          animate="animate"
-          exit="exit"
-          transition={panelTransition}
-        >
-          {children}
-        </motion.div>
-      </AnimatePresence>
-    </>,
-    host,
-  );
-
-  if (estrecho) {
-    return (
-      <>
-        <BottomSheet altura={altura} onAltura={onAltura} titulo="Panel del paso">
-          {ranura(setRanuraHoja)}
-        </BottomSheet>
-        {cuerpo}
-      </>
-    );
-  }
+  /* Un solo contenedor en los dos modos, siempre en el mismo sitio del árbol:
+     solo cambia su estilo (panel flotante a la derecha o hoja inferior). El
+     cuerpo no se desmonta ni se mueve, así que cruzar 1280 px conserva el
+     foco, el scroll y lo escrito. El tirador y la pestaña de borde son
+     hermanos condicionales delante del cuerpo y no lo desplazan. */
+  const hoja = useHojaInferior({ activa: estrecho, altura, onAltura });
+  const plegada = collapsed && !estrecho;
 
   return (
     <>
-      <div
+      <section
+        ref={hoja.ref}
         data-panel-column
         data-panel-wide={wide ? "true" : "false"}
-        style={{
-          display: collapsed ? "none" : "flex",
+        {...(estrecho
+          ? { "data-glass": true, "aria-label": "Panel del paso", role: "region", tabIndex: -1 }
+          : {})}
+        style={estrecho ? hoja.style : {
+          display: plegada ? "none" : "flex",
           position: "absolute", top: BANDA_SUPERIOR, right: MARGEN_INSPECTOR, bottom: MARGEN_INSPECTOR,
           width: wide ? 520 : 380, zIndex: 2,
           transition: "width var(--dur-2) var(--ease-out)",
         }}
       >
-        {/* Pestaña pegada al borde izquierdo del panel: pliega sin buscar la tecla P. */}
-        <button type="button" className="ws-panel-fold" onClick={onToggle}
-                aria-label="Plegar el panel del paso (P)" title="Plegar el panel del paso (P)">
-          <Icon name="CHEVRON_RIGHT" size={14} />
-        </button>
+        {estrecho ? (
+          <Tirador props={hoja.tirador} />
+        ) : (
+          /* Pestaña pegada al borde izquierdo del panel: pliega sin buscar la tecla P. */
+          <button type="button" className="ws-panel-fold" onClick={onToggle}
+                  aria-label="Plegar el panel del paso (P)" title="Plegar el panel del paso (P)">
+            <Icon name="CHEVRON_RIGHT" size={14} />
+          </button>
+        )}
         <div
-          data-glass
-          style={{
-            ...glass("dense"),
-            flex: 1, minWidth: 0, borderRadius: "var(--radius-xl)", overflow: "hidden", minHeight: 0,
-            display: "flex", flexDirection: "column",
-          }}
+          {...(estrecho ? {} : { "data-glass": true })}
+          style={estrecho
+            ? { flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }
+            : {
+              ...glass("dense"),
+              flex: 1, minWidth: 0, borderRadius: "var(--radius-xl)", overflow: "hidden", minHeight: 0,
+              display: "flex", flexDirection: "column",
+            }}
         >
-          {ranura(setRanuraPanel)}
+          <div
+            style={{
+              flex: "none", padding: "14px 18px 0", fontFamily: "var(--font-mono)",
+              fontSize: "var(--text-eyebrow)", letterSpacing: "var(--tracking-eyebrow)",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            {`Paso ${stepIndex + 1} · ${stepLabel}`.toLocaleUpperCase("es")}
+          </div>
+          {/* Cruce en fundido entre pasos; el primer pintado no anima. */}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={stepKey}
+              className="ws-panel-body"
+              variants={panelSwap}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={panelTransition}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
         </div>
-      </div>
-      {cuerpo}
-      {collapsed && (
+      </section>
+      {plegada && (
         <aside className="ws-panel-strip" aria-label="Panel del paso plegado" data-glass
                style={{ ...glass("dense"), top: BANDA_SUPERIOR, right: MARGEN_INSPECTOR }}>
           <button

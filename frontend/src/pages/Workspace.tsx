@@ -11,10 +11,9 @@ import { Icon } from "../components/Icon";
 import { NEEDS_MORPHOMETRY, STEPS } from "../pipeline/steps";
 import { QuirofanoBar } from "../components/stepper/QuirofanoBar";
 import { SaveStatus } from "../components/stepper/SaveStatus";
-import { BANDA_SUPERIOR, zonaLibre } from "../pipeline/zonaLibre";
+import { BANDA_SUPERIOR, HOJA_ASOMAR, zonaLibre } from "../pipeline/zonaLibre";
 import { StepDock } from "../components/stepper/StepDock";
-import type { AlturaHoja } from "../components/BottomSheet";
-import { HOJA_ASOMAR } from "../pipeline/zonaLibre";
+import { Z_SOBRE_HOJA, type AlturaHoja } from "../components/BottomSheet";
 import { useEstrecho } from "../components/patients/useEstrecho";
 import { ToastStack, type ToastItem } from "../components/ToastStack";
 import { Collapsible } from "../components/PanelHead";
@@ -44,6 +43,7 @@ import { canAdvanceFromDetect } from "../components/planning/detectGate";
 
 
 /** Atajos que se ejecutan en el visor (ViewerWorkspace escucha `viewer:shortcut`). */
+const ignorar = () => {};
 const VIEWER_SHORTCUTS = new Set(["sync", "center-lesion", "hud-cycle", "center", "cine-toggle", "cine-faster", "cine-slower", "help",
   "anot-regla", "anot-angulo", "anot-region", "anot-marcador", "anot-borrar", "anot-deshacer-punto"]);
 
@@ -106,16 +106,21 @@ export function Workspace({
   const [panelCollapsed, setPanelCollapsed] = useStoredFlag(PREF_PANEL_COLLAPSED);
   // Una nota de marcador pendiente despliega la columna (si no, su campo no
   // puede tener el foco y lo tecleado dispararía atajos).
-  const columnCollapsed = useUnfoldForNote(panelCollapsed, setPanelCollapsed, noteFocusRequest);
   // A ≤ 1280 px el panel baja a una hoja inferior (asomar / media / completa).
-  // Al entrar en modo estrecho arranca a media altura.
+  // Al entrar en modo estrecho arranca a media altura (se deriva en el propio
+  // render: así el primer pintado ya la enseña a media).
   const estrecho = useEstrecho();
   const [alturaHoja, setAlturaHoja] = useState<AlturaHoja>("media");
-  const estrechoPrevio = useRef(estrecho);
-  useEffect(() => {
-    if (estrecho && !estrechoPrevio.current) setAlturaHoja("media");
-    estrechoPrevio.current = estrecho;
-  }, [estrecho]);
+  const [estrechoVisto, setEstrechoVisto] = useState(estrecho);
+  if (estrecho !== estrechoVisto) {
+    setEstrechoVisto(estrecho);
+    if (estrecho) setAlturaHoja("media");
+  }
+  // La preferencia de plegado es del modo ancho: en estrecho ni se lee ni se escribe.
+  const plegadoAncho = useUnfoldForNote(
+    panelCollapsed, estrecho ? ignorar : setPanelCollapsed, estrecho ? null : noteFocusRequest,
+  );
+  const columnCollapsed = estrecho ? false : plegadoAncho;
   // Una nota que espera el foco necesita el campo a la vista: la hoja asomada lo esconde.
   useEffect(() => {
     if (estrecho && noteFocusRequest !== null) setAlturaHoja((a) => (a === "asomar" ? "media" : a));
@@ -286,6 +291,8 @@ export function Workspace({
         // espacio lo arranca con el foco en cualquier sitio y Escape tiene que
         // pararlo igual. Con la hoja de atajos abierta no llega aquí: la hoja
         // se queda la tecla (fase de captura) y solo se cierra ella.
+        // Salvo si la hoja inferior ya se quedó la tecla (la bajó a «asomar»).
+        if (e.defaultPrevented) return;
         setPickMode(null);
         window.dispatchEvent(new CustomEvent("viewer:shortcut", { detail: "escape" }));
         return;
@@ -400,7 +407,8 @@ export function Workspace({
     <div data-panel-collapsed={columnCollapsed ? "true" : "false"}
          style={{ position: "relative", height: "100%", background: "var(--viewer-bg)", overflow: "hidden" }}>
       {/* Pastillas y avisos flotan sobre el lienzo; el visor deja libre su banda. */}
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 0, zIndex: 3 }}>
+      <div data-banda-superior
+           style={{ position: "absolute", top: 0, left: 0, right: 0, height: 0, zIndex: estrecho ? Z_SOBRE_HOJA : 3 }}>
       <QuirofanoBar
         onBack={onBack}
         riskLabel={morphometry?.rupture_risk_label ?? null}
@@ -480,6 +488,7 @@ export function Workspace({
         onGo={go}
         compacto={estrecho}
         abajo={estrecho ? (alturaHoja === "asomar" ? HOJA_ASOMAR + 12 : "calc(50% + 12px)") : 20}
+        zIndex={estrecho ? Z_SOBRE_HOJA : 3}
       />
 
       {/* Visor: ocupa la zona libre (ni bajo el inspector ni bajo las pastillas). */}

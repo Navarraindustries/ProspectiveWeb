@@ -40,25 +40,43 @@ describe("RightPanelColumn", () => {
     expect((document.querySelector("[data-panel-column]") as HTMLElement).style.display).toBe("none");
   });
 
-  it("en modo estrecho el panel va en una hoja y lo escrito sobrevive al cambio", () => {
+  describe("al cruzar 1280 px", () => {
     const props = { collapsed: false, onToggle: () => {}, stepLabel: "Detección", stepIndex: 2, stepKey: "detect", wide: false } as const;
-    const { rerender } = render(<RightPanelColumn {...props}><input aria-label="nota" /></RightPanelColumn>);
-    const campo = screen.getByLabelText("nota") as HTMLInputElement;
-    fireEvent.change(campo, { target: { value: "a medias" } });
-    expect(screen.queryByRole("region", { name: "Panel del paso" })).toBeNull();
+    const cuerpo = <input aria-label="nota" />;
 
-    rerender(<RightPanelColumn {...props} estrecho altura="media" onAltura={() => {}}><input aria-label="nota" /></RightPanelColumn>);
-    const hoja = screen.getByRole("region", { name: "Panel del paso" });
-    expect(screen.getByRole("button", { name: "Cambiar la altura del panel" })).toBeTruthy();
-    expect(hoja.contains(screen.getByLabelText("nota"))).toBe(true);
-    // El mismo nodo, no una copia: conserva lo escrito.
-    expect(screen.getByLabelText("nota")).toBe(campo);
-    expect(campo.value).toBe("a medias");
-    expect(document.querySelectorAll('input[aria-label="nota"]').length).toBe(1);
-    expect(document.querySelector("[data-panel-column]")).toBeNull();
+    it("el campo es el mismo nodo, conserva lo escrito, el foco y el scroll", () => {
+      const { rerender } = render(<RightPanelColumn {...props}>{cuerpo}</RightPanelColumn>);
+      const campo = screen.getByLabelText("nota") as HTMLInputElement;
+      fireEvent.change(campo, { target: { value: "a medias" } });
+      campo.focus();
+      const cuerpoPanel = document.querySelector(".ws-panel-body") as HTMLElement;
+      cuerpoPanel.scrollTop = 123;
+      expect(screen.queryByRole("region", { name: "Panel del paso" })).toBeNull();
 
-    rerender(<RightPanelColumn {...props}><input aria-label="nota" /></RightPanelColumn>);
-    expect(screen.getByLabelText("nota")).toBe(campo);
-    expect(campo.value).toBe("a medias");
+      rerender(<RightPanelColumn {...props} estrecho altura="media" onAltura={() => {}}>{cuerpo}</RightPanelColumn>);
+      expect(screen.getByRole("region", { name: "Panel del paso" }).contains(campo)).toBe(true);
+      expect(screen.getByRole("button", { name: "Cambiar la altura del panel" })).toBeTruthy();
+      expect(screen.getByLabelText("nota")).toBe(campo);
+      expect(document.querySelectorAll('input[aria-label="nota"]').length).toBe(1);
+      expect(campo.value).toBe("a medias");
+      expect(document.activeElement).toBe(campo);
+      expect(document.querySelector(".ws-panel-body")).toBe(cuerpoPanel);
+      expect(cuerpoPanel.scrollTop).toBe(123);
+
+      rerender(<RightPanelColumn {...props}>{cuerpo}</RightPanelColumn>);
+      expect(screen.getByLabelText("nota")).toBe(campo);
+      expect(campo.value).toBe("a medias");
+      expect(document.activeElement).toBe(campo);
+      expect(cuerpoPanel.scrollTop).toBe(123);
+    });
+
+    it("la pestaña de borde solo existe en ancho y el tirador solo en estrecho", () => {
+      const { rerender } = render(<RightPanelColumn {...props}>{cuerpo}</RightPanelColumn>);
+      expect(screen.queryByRole("button", { name: /Plegar el panel del paso/ })).not.toBeNull();
+      expect(screen.queryByRole("button", { name: "Cambiar la altura del panel" })).toBeNull();
+      rerender(<RightPanelColumn {...props} estrecho>{cuerpo}</RightPanelColumn>);
+      expect(screen.queryByRole("button", { name: /Plegar el panel del paso/ })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Cambiar la altura del panel" })).not.toBeNull();
+    });
   });
 });

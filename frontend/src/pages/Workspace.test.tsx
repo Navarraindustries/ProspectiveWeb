@@ -4,7 +4,7 @@
    igual a «Sesiones guardadas». El botón pide guardar sobre la de origen y dice
    qué guarda. El visor y los paneles de cada paso no pintan nada aquí: se
    sustituyen por cajas vacías para montar solo la barra superior. */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const { saveSession, markSaved, captureCase, registerSaver, estado, Nada } = vi.hoisted(() => ({
@@ -327,5 +327,65 @@ describe("Mandos del pipeline en la paleta", () => {
     expect(mios().length).toBeGreaterThan(0);
     unmount();
     expect(mios()).toHaveLength(0);
+  });
+});
+
+describe("hoja inferior a ≤ 1280 px", () => {
+  const original = window.matchMedia;
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin almacenamiento */ }
+    window.matchMedia = ((q: string) => ({
+      matches: true, media: q, onchange: null, addEventListener: () => {}, removeEventListener: () => {},
+      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+  });
+  afterEach(() => { window.matchMedia = original; });
+
+  const montar_ = () => render(
+    <Workspace patient={null} initialStep={2} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,
+  );
+  const hoja = () => screen.getByRole("region", { name: "Panel del paso" });
+  const dock = () => screen.getByRole("navigation", { name: "Flujo de planificación" });
+  const pulsarP = () => fireEvent.keyDown(window, { key: "p", code: "KeyP" });
+
+  it("arranca a media altura, sin escribir la preferencia de plegado y sin plegar", () => {
+    montar_();
+    expect(hoja().style.height).toBe("50%");
+    expect(localStorage.getItem("ws.panelCollapsed")).toBeNull();
+    expect((document.querySelector("[data-panel-collapsed]") as HTMLElement).dataset.panelCollapsed).toBe("false");
+    expect((document.querySelector("[data-zona-libre]") as HTMLElement).style.bottom).toBe("96px");
+  });
+
+  it("P alterna asomar ↔ media y Esc en completa vuelve a asomar", () => {
+    montar_();
+    pulsarP();
+    expect(hoja().style.height).toBe("96px");
+    pulsarP();
+    expect(hoja().style.height).toBe("50%");
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar la altura del panel" })); // completa
+    expect(hoja().style.height).toBe("calc(100% - 72px)");
+    fireEvent.keyDown(screen.getByRole("button", { name: "Cambiar la altura del panel" }), { key: "Escape" });
+    expect(hoja().style.height).toBe("96px");
+  });
+
+  it("el dock compacto sube con la hoja y queda sobre ella, igual que la banda de avisos", () => {
+    montar_();
+    expect(dock().style.bottom).toBe("calc(50% + 12px)");
+    pulsarP();
+    expect(dock().style.bottom).toBe("108px");
+    const zHoja = Number(hoja().style.zIndex);
+    expect(Number(dock().style.zIndex)).toBeGreaterThan(zHoja);
+    expect(Number((document.querySelector("[data-banda-superior]") as HTMLElement).style.zIndex)).toBeGreaterThan(zHoja);
+  });
+
+  it("una nota que espera el foco levanta la hoja asomada a media", () => {
+    const { rerender } = montar_();
+    pulsarP();
+    expect(hoja().style.height).toBe("96px");
+    estado.noteFocusRequest = "marcador-1";
+    rerender(<Workspace patient={null} initialStep={2} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    expect(hoja().style.height).toBe("50%");
+    expect(localStorage.getItem("ws.panelCollapsed")).toBeNull();
   });
 });

@@ -16,7 +16,7 @@ import { usePlanning } from "../../store/planning";
 import type { DetectionDiagnostics } from "../../api/types";
 import {
   ALL_REJECTED, DETECT_LINES, DETECT_MORE, MANUAL_BADGE, MORPHO_INVALIDATED, SMALL_SAC_CHANNEL,
-  channelLabel, channelTitle, isManual, rankLabel, rejectedSummary, thicknessLabel, vetoHint,
+  channelLabel, channelTitle, candidateName, isManual, rejectedSummary, thicknessLabel, vetoHint,
 } from "./detectCopy";
 import { canAdvanceFromDetect } from "./detectGate";
 import { cifraCorta } from "../../lib/numero";
@@ -234,7 +234,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>{c.id}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", whiteSpace: "nowrap" }}>{candidateName({ ...c, rank })}</span>
                 {/* Qué criterio lo encontró. Que coincidan varios es
                     información para el clínico; el orden no lo es. */}
                 {manual
@@ -268,16 +268,8 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                   </span>
                 )}
                 <span style={{ flex: 1 }} />
-                {/* Antes decía «Principal» y luego un porcentaje de confianza.
-                    Ese número afirmaba más de lo que el dato sostiene, y en el
-                    único caso con diagnóstico médico el primero era el
-                    equivocado. El puesto dice el orden sin prometer nada; la
-                    barra sigue dando la puntuación relativa. */}
-                {!manual && (
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--foreground)", whiteSpace: "nowrap" }}>
-                    {rankLabel(rank)}
-                  </span>
-                )}
+                {/* El puesto ya va en el nombre («Candidato 3»); la barra sigue
+                    dando la puntuación relativa. */}
               </div>
               {!manual && (
                 <div style={{ height: 4, borderRadius: 2, background: "var(--muted)", marginTop: 6, overflow: "hidden" }}>
@@ -337,7 +329,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}>{c.id}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>{candidateName(c, true)}</span>
                       <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
                         {thicknessLabel(c.max_diameter_mm)}
                       </span>
@@ -366,7 +358,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
           advertencia no puede quedarse escondida dentro. */}
       {selectedRejected && !showRejected && (
         <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 8 }}>
-          {selectedRejected.id}: {vetoHint(selectedRejected.veto?.label)}
+          {candidateName(selectedRejected, true)}: {vetoHint(selectedRejected.veto?.label)}
         </div>
       )}
 

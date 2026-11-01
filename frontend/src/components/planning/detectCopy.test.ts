@@ -1,7 +1,7 @@
 /* La insignia del canal de la cuota (30-10): en la API se llama «saco», delante
    del clínico «saco pequeño», y lleva explicación porque no es un voto más. */
 import { describe, expect, it } from "vitest";
-import { DETECT_MORE, SMALL_SAC_CHANNEL, channelLabel, channelTitle } from "./detectCopy";
+import { DETECT_MORE, SMALL_SAC_CHANNEL, candidateName, channelLabel, channelTitle } from "./detectCopy";
 
 describe("canal de saco pequeño", () => {
   it("se enseña como «saco pequeño» y explica la cuota al pasar el ratón", () => {
@@ -19,5 +19,17 @@ describe("canal de saco pequeño", () => {
 
   it("el desplegable «Más» cuenta que es una cuota, no un cuarto voto", () => {
     expect(DETECT_MORE.some((t) => t.includes("Saco pequeño") && t.includes("cuota"))).toBe(true);
+  });
+});
+
+describe("candidateName (A65)", () => {
+  it("nunca enseña el id interno", () => {
+    expect(candidateName({ id: "cand-003", rank: 3 })).toBe("Candidato 3");
+    expect(candidateName({ id: "cand-007", rank: 2 }, true)).toBe("Descartado D2");
+    expect(candidateName({ id: "cand-009", rank: 0, patch_kind: "manual" })).toBe("Marcado a mano");
+    expect(candidateName({ id: "cand-004" })).toBe("Candidato 4");
+    expect(candidateName({ id: "cand-004" }, true)).toBe("Candidato descartado");
+    expect(candidateName({ id: "cand-004", rank: null }, true)).toBe("Candidato descartado");
+    expect(candidateName({ id: "otro" })).toBe("Candidato");
   });
 });

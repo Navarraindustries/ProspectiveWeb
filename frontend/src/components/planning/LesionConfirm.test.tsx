@@ -78,7 +78,7 @@ describe("confirmar", () => {
   it("confirma el candidato seleccionado con su id y el estudio", async () => {
     vi.mocked(api.confirmLesion).mockResolvedValue(confirmacion({}));
     montar({ study: 3, selected: 1 });
-    fireEvent.click(await screen.findByRole("button", { name: "Confirmar cand-002 como la lesión" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirmar «Candidato 2» como la lesión" }));
     await waitFor(() => expect(api.confirmLesion).toHaveBeenCalledWith({
       session_id: "s1", imaging_study_id: 3, source: "candidate", candidate_id: "cand-002",
     }));
@@ -163,7 +163,7 @@ describe("«Confirmar cand-00N como la lesión»", () => {
     vi.mocked(api.confirmLesion).mockResolvedValue(
       confirmacion({ candidate_rank: null, candidate_id: "cand-004" }));
     montar({ study: 3, selected: 3, rejected: [descartado] });
-    fireEvent.click(await screen.findByRole("button", { name: "Confirmar cand-004 como la lesión" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirmar «Candidato descartado» como la lesión" }));
     await waitFor(() => expect(api.confirmLesion).toHaveBeenCalledWith({
       session_id: "s1", imaging_study_id: 3, source: "candidate", candidate_id: "cand-004",
     }));
@@ -172,10 +172,10 @@ describe("«Confirmar cand-00N como la lesión»", () => {
   it("tras confirmar, el elegido queda como hecho y no se vuelve a ofrecer", async () => {
     vi.mocked(api.confirmLesion).mockResolvedValue(confirmacion({ candidate_rank: 2, candidate_id: "cand-002" }));
     montar({ study: 3, selected: 1 });
-    fireEvent.click(await screen.findByRole("button", { name: "Confirmar cand-002 como la lesión" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirmar «Candidato 2» como la lesión" }));
     const hecho = await screen.findByRole("button", { name: "Confirmada" });
     expect(hecho).toBeDisabled();
-    expect(screen.queryByRole("button", { name: /Confirmar cand-002/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Confirmar «Candidato 2»/ })).not.toBeInTheDocument();
   });
 });
 

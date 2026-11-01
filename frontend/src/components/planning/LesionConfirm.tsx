@@ -13,7 +13,7 @@ import type {
 import { Button } from "../Button";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { usePlanning } from "../../store/planning";
-import { MANUAL_CHANNEL, MANUAL_HINT, UNARCHIVED_NOTE, isManual } from "./detectCopy";
+import { MANUAL_CHANNEL, MANUAL_HINT, UNARCHIVED_NOTE, candidateName, isManual } from "./detectCopy";
 
 /** *cands*: la lista entera del panel, para nombrar lo que no tiene puesto
  *  (un descartado o un marcado a mano, F1-145/F1-146). */
@@ -22,12 +22,13 @@ function describe(c: LesionConfirmation, cands: readonly AneurysmCandidate[]): s
   const cand = c.candidate_id ? cands.find((x) => x.id === c.candidate_id) : undefined;
   if (c.source === "candidate") {
     if (c.candidate_rank != null) return `La lesión es el candidato #${c.candidate_rank}.`;
-    if (cand && isManual(cand)) return `La lesión es ${cand.id}, marcado a mano.`;
-    if (c.candidate_id) return `La lesión es ${c.candidate_id}, que el detector descartó.`;
+    if (cand && isManual(cand)) return "La lesión es un punto marcado a mano.";
+    if (cand) return `La lesión es «${candidateName(cand, true)}», que el detector descartó.`;
+    if (c.candidate_id) return "La lesión es un candidato que el detector descartó.";
     return "La lesión es un candidato de una detección anterior.";
   }
   if (c.candidate_rank != null) return `Marcada a mano; coincide con el candidato #${c.candidate_rank}.`;
-  if (cand && !isManual(cand)) return `Marcada a mano; coincide con ${cand.id}, que el detector descartó.`;
+  if (cand && !isManual(cand)) return `Marcada a mano; coincide con «${candidateName(cand, true)}», que el detector descartó.`;
   return `Marcada a mano; no estaba entre los ${c.n_candidates} candidatos.`;
 }
 
@@ -41,7 +42,7 @@ export function summaryText(s: LesionSummary): string | null {
 
 export function LesionConfirm() {
   const {
-    sessionId, imagingStudyId, candidates, allCandidates, selectedCandidate,
+    sessionId, imagingStudyId, candidates, rejectedCandidates, allCandidates, selectedCandidate,
     setCandidates, setSelectedCandidate, clearMorphometry,
     pickMode, setPickMode, lesionMark, setLesionMark,
   } = usePlanning();
@@ -159,7 +160,7 @@ export function LesionConfirm() {
           : (
             <Button size="sm" disabled={busy}
                     onClick={() => void send({ source: "candidate", candidate_id: cand.id })}>
-              {`Confirmar ${cand.id} como la lesión`}
+              {`Confirmar «${candidateName(cand, rejectedCandidates.some((x) => x.id === cand.id))}» como la lesión`}
             </Button>
           ))}
         <Button size="sm" variant="outline" disabled={busy}

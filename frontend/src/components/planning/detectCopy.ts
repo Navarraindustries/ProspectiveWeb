@@ -17,9 +17,19 @@ export const ALL_REJECTED = "Todos los sitios encontrados se descartaron: revís
 /** Aviso cuando el backend limpió la morfometría porque el elegido cambió. */
 export const MORPHO_INVALIDATED = "La morfometría se ha limpiado: el candidato elegido cambió al re-detectar.";
 
-/** Puesto de un aceptado en la lista: «Puesto #3». */
-export function rankLabel(rank: number): string {
-  return `Puesto #${rank}`;
+/** Nombre que lee una persona: nunca el id interno («cand-001»). Sigue la
+ *  numeración de las etiquetas del 3D (`candidateLabel`): «Candidato 1» y, si
+ *  está descartado, «Descartado D1». Sin `rank` (sesiones antiguas) se deduce
+ *  del id; un descartado sin puesto no tiene número fiable y no lo lleva. */
+export function candidateName(
+  c: { id: string; rank?: number | null; patch_kind?: string | null; channels?: readonly string[] | null },
+  rejected = false,
+): string {
+  if (isManual(c)) return "Marcado a mano";
+  if (c.rank != null && c.rank > 0) return rejected ? `Descartado D${c.rank}` : `Candidato ${c.rank}`;
+  const m = /^cand-(\d+)$/.exec(c.id);
+  if (!m) return "Candidato";
+  return rejected ? "Candidato descartado" : `Candidato ${Number(m[1])}`;
 }
 
 /** Título del desplegable de descartados: «Descartados (3)». */

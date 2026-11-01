@@ -11,10 +11,11 @@
    para probarlo. */
 import type { AneurysmCandidate, MorphometryResult } from "../api/types";
 import { cifra } from "../lib/numero";
+import { candidateName, isManual } from "../components/planning/detectCopy";
 
 const es1 = (x: number) => cifra(x, 1);
 
-type Cand = Pick<AneurysmCandidate, "id" | "max_diameter_mm" | "patch_kind">;
+type Cand = Pick<AneurysmCandidate, "id" | "max_diameter_mm" | "patch_kind" | "rank" | "channels">;
 type Morph = Pick<MorphometryResult, "max_diameter_mm" | "neck_source" | "candidate_id">;
 
 /** La medida es de este candidato: sin `candidate_id` (sesiones antiguas) se
@@ -23,12 +24,14 @@ function measures(candidate: Cand, m: Morph | null | undefined): m is Morph {
   return !!m && m.max_diameter_mm > 0 && (!m.candidate_id || m.candidate_id === candidate.id);
 }
 
-/** «cand-001 · Ø 10,9 mm» con medida; «cand-001 · Ø 3,7 mm est.» sin ella. */
-export function hudCandidateLine(candidate: Cand, morphometry: Morph | null | undefined): string {
-  if (measures(candidate, morphometry)) return `${candidate.id} · Ø ${es1(morphometry.max_diameter_mm)} mm`;
+/** «Candidato 1 · Ø 10,9 mm» con medida; «Candidato 1 · Ø 3,7 mm est.» sin ella;
+ *  «Marcado a mano» (A65: nunca el id interno). */
+export function hudCandidateLine(candidate: Cand, morphometry: Morph | null | undefined, rejected = false): string {
+  const name = candidateName(candidate, rejected);
+  if (measures(candidate, morphometry)) return `${name} · Ø ${es1(morphometry.max_diameter_mm)} mm`;
   // Un candidato marcado a mano (F1-146) no tiene grosor estimado: «Ø 0,0 mm» mentiría.
-  if (candidate.patch_kind === "manual") return `${candidate.id} · marcado a mano`;
-  return `${candidate.id} · Ø ${es1(candidate.max_diameter_mm)} mm est.`;
+  if (isManual(candidate)) return name;
+  return `${name} · Ø ${es1(candidate.max_diameter_mm)} mm est.`;
 }
 
 /** «MEDIDA MANUAL» cuando el saco se midió alrededor de las marcas; null si no. */

@@ -58,13 +58,26 @@
   color: var(--muted-foreground);
   text-decoration: none;
   transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
+  position: relative;
+  isolation: isolate;
+}
+/* Píldora deslizante de la sección activa (layoutId), detrás del texto. */
+.landing-stitch .landing-nav__activa {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--glass-hover);
+  border-radius: var(--radius-full);
+}
+.landing-stitch .landing-nav__enlace--activo {
+  color: var(--foreground);
 }
 .landing-stitch .landing-nav__enlace:hover,
 .landing-stitch .landing-nav__enlace:focus-visible {
   color: var(--foreground);
   background: var(--glass-hover);
 }
-/* Panel plegado (≤ 900 px): blancos de 44 px de alto. */
+/* Panel plegado (≤ 1024 px): blancos de 44 px de alto. */
 .landing-stitch .landing-nav__panel .landing-nav__enlace {
   padding: 12px;
 }

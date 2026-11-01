@@ -1,4 +1,10 @@
 /* Capa HUD del visor. Trazo fino, mono, sin rellenos; nada toca la imagen. */
+/* El dock del pipeline flota sobre la esquina de abajo a la izquierda de la
+   zona libre. Solo la celda que lo tiene debajo (data-dock-corner) sube sus
+   lecturas de esa esquina la holgura que publica el contenedor del visor
+   (`--dock-holgura`: 96 px con el dock de escritorio, 72 con el compacto;
+   0 fuera del quirófano, donde no hay dock). */
+.viewer-cell[data-dock-corner] { --hud-bl-extra: var(--dock-holgura, 0px); }
 .hud { position: absolute; inset: 0; pointer-events: none; font-family: var(--font-mono); color: var(--hud-text); }
 .hud * { box-sizing: border-box; }
 .hud-corner { position: absolute; width: 12px; height: 12px; border-color: var(--hud-text-dim); border-style: solid; border-width: 0; }
@@ -13,7 +19,7 @@
 .hud-label[data-plane="sagital"] { color: var(--plane-sagital); }
 .hud-readout { position: absolute; font-size: 10.5px; line-height: 1.5; letter-spacing: .04em; white-space: pre; }
 .hud-readout.tl { top: 22px; left: 14px; } .hud-readout.tr { top: 22px; right: 14px; text-align: right; }
-.hud-readout.bl { bottom: 22px; left: 14px; } .hud-readout.br { bottom: 22px; right: 14px; text-align: right; }
+.hud-readout.bl { bottom: calc(22px + var(--hud-bl-extra, 0px)); left: 14px; } .hud-readout.br { bottom: 22px; right: 14px; text-align: right; }
 /* Lectura W/L: botón (doble clic restablece) que se ve como las demás
    lecturas; los niveles del HUD la tratan como `.hud-readout`. */
 .hud-wl { pointer-events: auto; background: none; border: none; padding: 0; margin: 0; font: inherit; font-size: 10.5px; color: inherit; cursor: pointer; }
@@ -28,7 +34,7 @@
 .hud-toggle button:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
 /* Cine de la celda: encima de la lectura de abajo a la izquierda. Sin
    `hud-decor`: es un control y se ve en esencial; en limpio, solo reproduciendo. */
-.hud-cine { position: absolute; left: 14px; bottom: 40px; z-index: 6; display: inline-flex; align-items: center; gap: 8px; pointer-events: auto; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .04em; color: var(--hud-text-dim); white-space: nowrap; }
+.hud-cine { position: absolute; left: 14px; bottom: calc(40px + var(--hud-bl-extra, 0px)); z-index: 6; display: inline-flex; align-items: center; gap: 8px; pointer-events: auto; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .04em; color: var(--hud-text-dim); white-space: nowrap; }
 .hud-cine button { background: none; border: none; padding: 1px 2px; font: inherit; font-size: 11px; color: var(--hud-text-dim); cursor: pointer; }
 .hud-cine button:hover:not(:disabled), .hud-cine .hud-cine-play { color: var(--hud-text); }
 .hud-cine button:disabled { opacity: .4; cursor: default; }

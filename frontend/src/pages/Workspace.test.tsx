@@ -4,7 +4,7 @@
    igual a «Sesiones guardadas». El botón pide guardar sobre la de origen y dice
    qué guarda. El visor y los paneles de cada paso no pintan nada aquí: se
    sustituyen por cajas vacías para montar solo la barra superior. */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const { saveSession, markSaved, captureCase, registerSaver, estado, Nada } = vi.hoisted(() => ({
@@ -50,6 +50,7 @@ vi.mock("../components/AttachCaseSheet", () => ({ AttachCaseSheet: Nada }));
 vi.mock("../components/RecordButton", () => ({ RecordButton: Nada }));
 
 import { Workspace } from "./Workspace";
+import { getCommands } from "../lib/commands";
 import type { PatientSummary } from "../api/types";
 
 const montar = () => render(
@@ -199,5 +200,278 @@ describe("pestaña de plegado del panel", () => {
     expect(col.style.display).not.toBe("none");
     fireEvent.click(screen.getByRole("button", { name: "Plegar el panel del paso (P)" }));
     expect((document.querySelector("[data-panel-column]") as HTMLElement).style.display).toBe("none");
+  });
+});
+
+describe("zona libre del visor", () => {
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin almacenamiento */ }
+  });
+  const render_ = (paso: number) => render(
+    <Workspace patient={null} initialStep={paso} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,
+  );
+
+  it("en Detección deja 428 px a la derecha; en Decisión, 568", () => {
+    const { unmount } = render_(2);
+    expect((document.querySelector("[data-zona-libre]") as HTMLElement).style.right).toBe("428px");
+    unmount();
+    render_(4);
+    expect((document.querySelector("[data-zona-libre]") as HTMLElement).style.right).toBe("568px");
+  });
+
+  it("aísla sus capas: los z-index internos del visor no compiten con avisos, hoja ni dock", () => {
+    render_(2);
+    expect((document.querySelector("[data-zona-libre]") as HTMLElement).style.isolation).toBe("isolate");
+  });
+
+  it("plegado el panel, el visor llega hasta la tira (36 px y sus márgenes)", () => {
+    localStorage.setItem("ws.panelCollapsed", "1");
+    render_(2);
+    const z = document.querySelector("[data-zona-libre]") as HTMLElement;
+    expect(z.style.right).toBe("84px");
+    expect(z.style.top).toBe("72px");
+  });
+});
+
+describe("avisos del pipeline como toasts", () => {
+  it("el aviso global de App entra en el apilado y se cierra al pulsarlo", () => {
+    const onClose = vi.fn();
+    render(<Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}}
+                      aviso={{ texto: "Restaurando sesión…", onClose }} />);
+    fireEvent.click(screen.getByText("Restaurando sesión…"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("«Reintentar» del aviso global llama a retry y no cierra el aviso", () => {
+    const onClose = vi.fn();
+    const retry = vi.fn();
+    render(<Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}}
+                      aviso={{ texto: "No se pudo restaurar la sesión", retry, onClose }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("error de guardado y aviso global se apilan sin taparse; cada uno se cierra solo", async () => {
+    estado.dirty = true;
+    saveSession.mockRejectedValue(new Error("caído"));
+    const onClose = vi.fn();
+    render(<Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}}
+                      aviso={{ texto: "Restaurando sesión…", retry: () => {}, onClose }} />);
+    fireEvent.click(screen.getByRole("button", { name: /Guardar progreso/ }));
+    await screen.findByText(/No se pudo guardar el progreso: caído/);
+    expect(screen.getAllByRole("alert")).toHaveLength(2);
+    fireEvent.click(screen.getByText(/No se pudo guardar el progreso/));
+    expect(screen.queryByText(/No se pudo guardar el progreso/)).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText("Restaurando sesión…")).toBeTruthy();
+  });
+});
+
+describe("Registro de la sesión", () => {
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin persistencia */ }
+  });
+
+  it("va bajo «Anotaciones», plegado, con sesión", () => {
+    montar();
+    const titulos = screen.getAllByRole("button").map((b) => b.textContent ?? "");
+    const a = titulos.findIndex((t) => t.includes("Anotaciones"));
+    const r = titulos.findIndex((t) => t.includes("Registro"));
+    expect(a).toBeGreaterThanOrEqual(0);
+    expect(r).toBeGreaterThan(a);
+    expect(screen.queryByText("Aún no ha pasado nada en esta sesión")).toBeNull();
+  });
+
+  it("sin sesión no aparece", () => {
+    estado.sessionId = null;
+    montar();
+    expect(screen.queryByText("Registro")).toBeNull();
+  });
+});
+
+describe("Mandos del pipeline en la paleta", () => {
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin persistencia */ }
+  });
+  const mios = () => getCommands().filter((c) => ["pasos", "acciones"].includes(c.group));
+
+  it("los 8 pasos van en «pasos» y los bloqueados, deshabilitados", () => {
+    estado.series = {};
+    montar();
+    const pasos = getCommands().filter((c) => c.group === "pasos");
+    expect(pasos).toHaveLength(8);
+    expect(pasos[0].label).toMatch(/^1 · /);
+    const deteccion = pasos.find((c) => c.label === "3 · Detección");
+    expect(deteccion?.disabled).toBe(true);
+    expect(pasos.find((c) => c.label.startsWith("2 · "))?.disabled).toBe(false);
+    expect(pasos.find((c) => c.label.startsWith("1 · "))?.disabled).toBe(false);
+  });
+
+  it("«Guardar progreso» se deshabilita sin sesión", () => {
+    estado.sessionId = null;
+    montar();
+    expect(getCommands().find((c) => c.label === "Guardar progreso")?.disabled).toBe(true);
+  });
+
+  it("con sesión, «Guardar progreso» guarda y «Captura» sigue el botón", async () => {
+    estado.captureCase = null;
+    saveSession.mockReset().mockResolvedValue({});
+    montar();
+    const g = getCommands().find((c) => c.label === "Guardar progreso");
+    expect(g?.group).toBe("acciones");
+    expect(g?.disabled).toBeFalsy();
+    expect(getCommands().find((c) => c.label === "Captura")?.disabled).toBe(true);
+    act(() => g!.run());
+    await waitFor(() => expect(saveSession).toHaveBeenCalledTimes(1));
+  });
+
+  it("el mando de plegar cambia de rótulo y hace lo de la tecla P", () => {
+    montar();
+    expect(getCommands().find((c) => c.label === "Plegar el panel del paso")).toBeTruthy();
+    act(() => getCommands().find((c) => c.label === "Plegar el panel del paso")!.run());
+    expect(getCommands().find((c) => c.label === "Mostrar el panel del paso")).toBeTruthy();
+    expect(getCommands().find((c) => c.label === "Plegar el panel del paso")).toBeUndefined();
+  });
+
+  it("al desmontar no queda ningún mando del pipeline", () => {
+    const { unmount } = montar();
+    expect(mios().length).toBeGreaterThan(0);
+    unmount();
+    expect(mios()).toHaveLength(0);
+  });
+});
+
+describe("acciones de la píldora derecha a ≤ 1366 px", () => {
+  const original = window.matchMedia;
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin almacenamiento */ }
+    // Portátil: cumple la consulta de 1366, no la del modo estrecho.
+    window.matchMedia = ((q: string) => ({
+      matches: q === "(max-width: 1366px)", media: q, onchange: null, addEventListener: () => {}, removeEventListener: () => {},
+      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+  });
+  afterEach(() => { window.matchMedia = original; });
+
+  it("solo el icono: «Guardar progreso» conserva su nombre accesible y su title, sin texto visible", () => {
+    estado.imagingStudyId = null;
+    render(<Workspace patient={PACIENTE} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    // Nombre accesible = el texto del modo ancho; title = la explicación.
+    for (const nombre of ["Guardar progreso", "Captura", "Archivar en un caso"]) {
+      const b = screen.getByRole("button", { name: nombre });
+      expect(b.textContent, nombre).toBe("");
+      expect(b.getAttribute("title"), nombre).not.toBe(nombre);
+      expect(b.getAttribute("title"), nombre).toBeTruthy();
+    }
+    expect(screen.getByRole("button", { name: "Guardar progreso" }).getAttribute("title")).toMatch(/^Guarda el estudio/);
+    // Captura conserva su explicación (aquí, sin visor o sin estudio archivado).
+    expect(screen.getByRole("button", { name: "Captura" }).getAttribute("title")).toMatch(/visor|imagen/);
+    // Sigue siendo el modo ancho: el inspector no baja a hoja.
+    expect(screen.queryByRole("region", { name: "Panel del paso" })).toBeNull();
+  });
+});
+
+describe("hoja inferior a ≤ 1280 px", () => {
+  const original = window.matchMedia;
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin almacenamiento */ }
+    window.matchMedia = ((q: string) => ({
+      matches: true, media: q, onchange: null, addEventListener: () => {}, removeEventListener: () => {},
+      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+  });
+  afterEach(() => { window.matchMedia = original; });
+
+  const montar_ = () => render(
+    <Workspace patient={null} initialStep={2} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,
+  );
+  const hoja = () => screen.getByRole("region", { name: "Panel del paso" });
+  const dock = () => screen.getByRole("navigation", { name: "Flujo de planificación" });
+  const pulsarP = () => fireEvent.keyDown(window, { key: "p", code: "KeyP" });
+
+  it("arranca a media altura, sin escribir la preferencia de plegado y sin plegar", () => {
+    montar_();
+    expect(hoja().style.height).toBe("50%");
+    expect(localStorage.getItem("ws.panelCollapsed")).toBeNull();
+    expect((document.querySelector("[data-panel-collapsed]") as HTMLElement).dataset.panelCollapsed).toBe("false");
+    expect((document.querySelector("[data-zona-libre]") as HTMLElement).style.bottom).toBe("96px");
+  });
+
+  it("P alterna asomar ↔ media y Esc en completa vuelve a asomar", () => {
+    montar_();
+    pulsarP();
+    expect(hoja().style.height).toBe("96px");
+    pulsarP();
+    expect(hoja().style.height).toBe("50%");
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar la altura del panel" })); // completa
+    expect(hoja().style.height).toBe("calc(100% - 72px)");
+    fireEvent.keyDown(screen.getByRole("button", { name: "Cambiar la altura del panel" }), { key: "Escape" });
+    expect(hoja().style.height).toBe("96px");
+  });
+
+  it("P desde «completa» baja a «asomar»", () => {
+    montar_();
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar la altura del panel" })); // completa
+    expect(hoja().style.height).toBe("calc(100% - 72px)");
+    pulsarP();
+    expect(hoja().style.height).toBe("96px");
+  });
+
+  it("un Esc con el foco en la hoja la baja y para el cine, pero no cancela el marcado", () => {
+    const setPickMode = vi.fn();
+    estado.setPickMode = setPickMode;
+    montar_();
+    const alCine = vi.fn();
+    const oyente = (e: Event) => { if ((e as CustomEvent).detail === "escape") alCine(); };
+    window.addEventListener("viewer:shortcut", oyente);
+    try {
+      screen.getByRole("button", { name: "Cambiar la altura del panel" }).focus();
+      fireEvent.keyDown(document.activeElement as Element, { key: "Escape" });
+      expect(hoja().style.height).toBe("96px");
+      expect(alCine).toHaveBeenCalledTimes(1);
+      expect(setPickMode).not.toHaveBeenCalled();
+      // Ya asomada, el siguiente Esc sí cancela el marcado.
+      fireEvent.keyDown(document.activeElement as Element, { key: "Escape" });
+      expect(setPickMode).toHaveBeenCalledWith(null);
+    } finally { window.removeEventListener("viewer:shortcut", oyente); }
+  });
+
+  it("a «completa» el dock no se muestra; los atajos de paso siguen", () => {
+    estado.series = {};
+    montar_();
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar la altura del panel" })); // completa
+    expect(hoja().style.height).toBe("calc(100% - 72px)");
+    expect(screen.queryByRole("navigation", { name: "Flujo de planificación" })).toBeNull();
+    // El 2 salta a Segmentación aunque el dock no esté.
+    fireEvent.keyDown(window, { key: "2", code: "Digit2" });
+    expect(hoja().textContent).toContain("PASO 2 · SEGMENTACIÓN");
+    pulsarP(); // asomar
+    expect(dock()).toBeTruthy();
+  });
+
+  it("el dock compacto sube con la hoja y queda sobre ella, igual que la banda de avisos", () => {
+    montar_();
+    expect(dock().style.bottom).toBe("calc(50% + 12px)");
+    pulsarP();
+    expect(dock().style.bottom).toBe("108px");
+    const zHoja = Number(hoja().style.zIndex);
+    expect(Number(dock().style.zIndex)).toBeGreaterThan(zHoja);
+    expect(Number((document.querySelector("[data-banda-superior]") as HTMLElement).style.zIndex)).toBeGreaterThan(zHoja);
+  });
+
+  it("una nota que espera el foco levanta la hoja asomada a media", () => {
+    const { rerender } = montar_();
+    pulsarP();
+    expect(hoja().style.height).toBe("96px");
+    estado.noteFocusRequest = "marcador-1";
+    rerender(<Workspace patient={null} initialStep={2} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    expect(hoja().style.height).toBe("50%");
+    expect(localStorage.getItem("ws.panelCollapsed")).toBeNull();
   });
 });

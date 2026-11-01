@@ -68,6 +68,15 @@ function cuatroFor(l: ViewerLayout): GridSpec {
   };
 }
 
+/** El hueco de la rejilla que queda en la esquina de abajo a la izquierda: la
+ *  única celda que el dock flotante puede tapar. Sale de `areas` (primera
+ *  palabra de la última fila) y vale para las cuatro distribuciones. */
+export function dockCornerSlot(areas: string): Slot {
+  const rows = areas.match(/"[^"]*"/g) ?? [];
+  const last = rows[rows.length - 1]?.replace(/"/g, "").trim().split(" ")[0];
+  return (last || "main") as Slot;
+}
+
 export function gridFor(l: ViewerLayout, portrait: boolean): GridSpec {
   const preset = effectivePreset(l, portrait);
   if (preset === "cuatro") return cuatroFor(l);

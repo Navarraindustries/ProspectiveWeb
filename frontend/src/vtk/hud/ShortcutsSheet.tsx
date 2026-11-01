@@ -5,6 +5,7 @@
    así que no puede quedarse desfasada. Sustituye a la pista efímera que «?»
    volvía a mostrar: aquella solo enseñaba los gestos de la celda principal. */
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { shortcutsByScope, type Shortcut, type ShortcutScope } from "../shortcuts";
 
 const HEADINGS: [ShortcutScope, string][] = [["visor", "Visor"], ["celda", "Celda"], ["flujo", "Flujo"], ["raton", "Ratón"]];
@@ -50,24 +51,27 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
   }, [open]);
   if (!open) return null;
   const groups = shortcutsByScope();
-  return (
+  // En un portal a <body>: el visor vive en la zona libre del quirófano, que
+  // aísla sus capas (isolation: isolate); dentro de ella su z 50 no pasaría de
+  // la zona y la hoja quedaría bajo las pastillas, el dock y el inspector.
+  return createPortal(
     <div data-testid="shortcuts-backdrop" onClick={onClose}
          style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div ref={cardRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Atajos" onClick={(e) => e.stopPropagation()}
-           style={{ background: "#000", border: "1px solid var(--hud-dim)", color: "var(--hud)", fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: ".04em", padding: "14px 18px 16px", maxWidth: 920, width: "100%", maxHeight: "100%", overflow: "auto", outline: "none" }}>
+           style={{ background: "#000", border: "1px solid var(--hud-text-dim)", color: "var(--hud-text)", fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: ".04em", padding: "14px 18px 16px", maxWidth: 920, width: "100%", maxHeight: "100%", overflow: "auto", outline: "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
           <span style={{ letterSpacing: ".08em" }}>ATAJOS</span>
-          <span style={{ color: "var(--hud-dim)" }}>ESC · ? · CLIC FUERA PARA CERRAR</span>
+          <span style={{ color: "var(--hud-text-dim)" }}>ESC · ? · CLIC FUERA PARA CERRAR</span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px 24px" }}>
           {HEADINGS.map(([scope, title]) => (
             <section key={scope}>
-              <h3 style={{ margin: "0 0 6px", fontSize: 10, fontWeight: 400, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--hud-dim)", borderBottom: "1px solid var(--hud-dim)", paddingBottom: 3 }}>{title}</h3>
+              <h3 style={{ margin: "0 0 6px", fontSize: 10, fontWeight: 400, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--hud-text-dim)", borderBottom: "1px solid var(--hud-text-dim)", paddingBottom: 3 }}>{title}</h3>
               <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px" }}>
                 {rows(groups[scope]).map((r) => (
                   <div key={r.keys} style={{ display: "contents" }}>
-                    <dt style={{ color: "var(--hud)", whiteSpace: "nowrap" }}>{r.keys}</dt>
-                    <dd style={{ margin: 0, color: "var(--hud-dim)" }}>{r.action}</dd>
+                    <dt style={{ color: "var(--hud-text)", whiteSpace: "nowrap" }}>{r.keys}</dt>
+                    <dd style={{ margin: 0, color: "var(--hud-text-dim)" }}>{r.action}</dd>
                   </div>
                 ))}
               </dl>
@@ -75,6 +79,7 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

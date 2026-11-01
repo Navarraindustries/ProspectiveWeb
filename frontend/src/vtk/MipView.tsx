@@ -686,7 +686,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
           // llegaban hasta ACUMULADO y ENCUADRAR. El ancho máximo deja libre la
           // escalera de cortes; la columna no recibe el puntero (sus hijos sí),
           // para no tapar el arrastre fuera de los nombres.
-          <div className="hud-stack" style={{ position: "absolute", bottom: volumeMode === "compuesto" ? 100 : 84, left: 14, maxWidth: "calc(100% - 72px)", display: "flex", flexDirection: "column-reverse", alignItems: "flex-start", gap: 6, pointerEvents: "none" }}>
+          <div className="hud-stack" style={{ position: "absolute", bottom: `calc(${volumeMode === "compuesto" ? 100 : 84}px + var(--hud-bl-extra, 0px))`, left: 14, maxWidth: "calc(100% - 72px)", display: "flex", flexDirection: "column-reverse", alignItems: "flex-start", gap: 6, pointerEvents: "none" }}>
             {/* RESTABLECER va al final de la fila y salta con ella si no cabe;
                 en MIP la fila es solo él, porque la rampa también tiene ventana. */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center", pointerEvents: "auto" }}>
@@ -710,7 +710,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
                   value={reverse ? "final" : "inicio"} onChange={(k) => setReverse(k === "final")} />
               // `.hud-toggle`: el deslizador es un control como los botones y
               // se oculta con ellos en esencial y limpio.
-              : <span className="hud-toggle"><input type="range" min={2} max={40} value={mipSlabMm} onChange={(e) => setMipSlabMm(Number(e.target.value))} style={{ width: 90, accentColor: "var(--hud)" }} title="Grosor de la lámina" /></span>}
+              : <span className="hud-toggle"><input type="range" min={2} max={40} value={mipSlabMm} onChange={(e) => setMipSlabMm(Number(e.target.value))} style={{ width: 90, accentColor: "var(--hud-text)" }} title="Grosor de la lámina" /></span>}
             <HudToggleGroup options={[{ key: "fit", label: "ENCUADRAR", title: "Encuadrar lo visible (C)" }]} value="" onChange={fit} />
           </div>
         )}

@@ -21,6 +21,7 @@ import {
 } from "../vtk/viewerRecorder";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
+import { rotuloAccion } from "./stepper/QuirofanoBar";
 import { sinCasoAviso } from "../lib/textos";
 
 type Estado = "idle" | "rec" | "saving";
@@ -42,10 +43,13 @@ export function downloadBlob(blob: Blob, name: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-export function RecordButton({ step, onMessage }: {
+export function RecordButton({ step, onMessage, soloIcono = false }: {
   step: string;
   /** Qué pasó al terminar: error o aviso, para la franja de avisos del topbar. */
   onMessage: (m: { tone: "ok" | "err" | "info"; text: string } | null) => void;
+  /** Píldora estrecha (≤ 1366 px): «Grabar» solo con el icono. Grabando, el
+   *  contador sigue a la vista: es el estado, no un rótulo. */
+  soloIcono?: boolean;
 }) {
   const { viewerRecording, imagingStudyId, sessionId } = usePlanning();
   const [estado, setEstado] = useState<Estado>("idle");
@@ -151,12 +155,10 @@ export function RecordButton({ step, onMessage }: {
   return (
     <Button variant="outline" size="sm" onClick={empezar}
             disabled={!viewerRecording || estado === "saving"}
-            title={!viewerRecording
+            {...rotuloAccion(soloIcono, estado === "saving" ? "Guardando vídeo…" : "Grabar", !viewerRecording
               ? "Abre un paso con el visor para grabarlo"
-              : `Graba el visor en vídeo (máx. ${MAX_RECORDING_MS / 60000} min), sin audio ni datos del paciente`}
+              : `Graba el visor en vídeo (máx. ${MAX_RECORDING_MS / 60000} min), sin audio ni datos del paciente`)}
             leadingIcon={<Icon name="RECORD" color={viewerRecording ? "var(--destructive)" : undefined} />}
-            style={{ marginRight: 8 }}>
-      {estado === "saving" ? "Guardando vídeo…" : "Grabar"}
-    </Button>
+            style={{ marginRight: 8 }} />
   );
 }

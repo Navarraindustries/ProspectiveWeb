@@ -5,7 +5,7 @@
    puros; aquí solo se traducen eventos a esas llamadas. */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ALL_PANES, defaultFraction, promote, setMainFraction, swapPanes, type PaneId, type ViewerLayout } from "./layout";
-import { fractionFromPointer, gridFor, isCompact } from "./layoutGrid";
+import { dockCornerSlot, fractionFromPointer, gridFor, isCompact } from "./layoutGrid";
 import { beginDrag, cancelDrag, endDrag, moveDrag, type DragState } from "./paneDrag";
 
 export interface PaneContext { compact: boolean; isMain: boolean }
@@ -155,10 +155,12 @@ export function ViewerGrid({ layout, onLayoutChange, renderPane, registerCell, m
   };
   const onSplitUp = (e: React.PointerEvent) => { splitting.current = false; release(e.currentTarget, e.pointerId); };
 
+  const dockSlot = dockCornerSlot(spec.areas);
+
   return (
     <div ref={rootRef} className="viewer-grid" tabIndex={-1} onKeyDown={onKeyDown}
          onClickCapture={swallowAfterDrag} onDoubleClickCapture={swallowAfterDrag}
-         style={{ display: "grid", gridTemplateColumns: spec.columns, gridTemplateRows: spec.rows, gridTemplateAreas: spec.areas, width: "100%", height: "100%", position: "relative", background: "var(--hud-dim)" }}>
+         style={{ display: "grid", gridTemplateColumns: spec.columns, gridTemplateRows: spec.rows, gridTemplateAreas: spec.areas, width: "100%", height: "100%", position: "relative", background: "var(--hud-text-dim)" }}>
       {ALL_PANES.map((id) => {
         const slot = spec.slotOf[id];
         const hidden = !spec.visible[id];
@@ -172,7 +174,7 @@ export function ViewerGrid({ layout, onLayoutChange, renderPane, registerCell, m
           // `inert`: una celda oculta (SOLA, la quinta en CUATRO) mide 1×1 px
           // pero conserva su envoltorio enfocable; sin esto Tab entraría en
           // ella y la haría la celda enfocada sin que se vea.
-          <div key={id} ref={cellRef(id)} data-pane={id} data-slot={slot} inert={hidden}
+          <div key={id} ref={cellRef(id)} data-pane={id} data-slot={slot} data-dock-corner={!hidden && slot === dockSlot ? "" : undefined} inert={hidden}
                className={`viewer-cell${hidden ? " viewer-cell--hidden" : ""}${drag?.over === id ? " viewer-cell--over" : ""}`}
                style={{ gridArea: hidden ? undefined : slot, position: hidden ? "absolute" : "relative", minWidth: 0, minHeight: 0, overflow: "hidden", background: "#000" }}
                // En captura: los lienzos de vtk.js y la barra del cine cortan la

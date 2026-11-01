@@ -4,7 +4,7 @@
 
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { glass } from "../../styles/glass";
-import { useEstrecho } from "../patients/useEstrecho";
+import { useEstrecho } from "../../hooks/useEstrecho";
 import "./ficha.css";
 
 export interface ColumnaCascada {

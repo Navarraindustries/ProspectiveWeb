@@ -8,7 +8,7 @@ export function HudToggleGroup({ options, value, onChange, style, label, title }
 }) {
   return (
     <div className="hud-toggle" role="group" style={style} title={title}>
-      {label && <span className="hud-toggle-label" style={{ color: "var(--hud-dim)", fontSize: 11, letterSpacing: ".08em" }}>{label}</span>}
+      {label && <span className="hud-toggle-label" style={{ color: "var(--hud-text-dim)", fontSize: 11, letterSpacing: ".08em" }}>{label}</span>}
       {options.map((o) => {
         const on = o.key === value;
         return (

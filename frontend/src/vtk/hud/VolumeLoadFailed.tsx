@@ -12,7 +12,7 @@ export function VolumeLoadFailed({ onRetry }: { onRetry: () => void }) {
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10,
       }}
     >
-      <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: ".08em", color: "var(--hud-dim)" }}>
+      <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: ".08em", color: "var(--hud-text-dim)" }}>
         No se pudo abrir el volumen
       </div>
       <button
@@ -20,7 +20,7 @@ export function VolumeLoadFailed({ onRetry }: { onRetry: () => void }) {
         onClick={onRetry}
         style={{
           fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: ".06em",
-          background: "transparent", color: "var(--hud)",
+          background: "transparent", color: "var(--hud-text)",
           border: "1px solid currentColor", borderRadius: "var(--radius-sm)",
           padding: "4px 12px", cursor: "pointer", pointerEvents: "auto",
         }}

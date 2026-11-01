@@ -1,6 +1,7 @@
-/* Sesión de planificación — rail de flujo (7 pasos) · visor 3D + MPR · panel del paso. */
+/* Sesión de planificación (quirófano) — visor 3D + MPR en la zona libre, pastillas
+   arriba, dock de los 8 pasos e inspector del paso (hoja inferior a ≤ 1280 px). */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { AttachCaseSheet } from "../components/AttachCaseSheet";
 import type { AttachResult } from "../api/types";
 import { api } from "../api/client";
@@ -9,9 +10,13 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { NEEDS_MORPHOMETRY, STEPS } from "../pipeline/steps";
-import { TopBar } from "../components/shell/TopBar";
+import { CONSULTA_SOLO_ICONO, QuirofanoBar, rotuloAccion } from "../components/stepper/QuirofanoBar";
 import { SaveStatus } from "../components/stepper/SaveStatus";
-import { StepRail } from "../components/stepper/StepRail";
+import { BANDA_SUPERIOR, HOJA_ASOMAR, zonaLibre } from "../pipeline/zonaLibre";
+import { StepDock } from "../components/stepper/StepDock";
+import { Z_SOBRE_HOJA, type AlturaHoja } from "../components/BottomSheet";
+import { useEstrecho, useMediaQuery } from "../hooks/useEstrecho";
+import { ToastStack, type ToastItem } from "../components/ToastStack";
 import { Collapsible } from "../components/PanelHead";
 import { UploadPanel } from "../components/upload/UploadPanel";
 import { SegmentPanel } from "../components/segmentation/SegmentPanel";
@@ -31,10 +36,15 @@ import { RecordButton } from "../components/RecordButton";
 import { ARCHIVAR_EN_CASO, sinCasoAviso } from "../lib/textos";
 import { PREF_PANEL_COLLAPSED, RightPanelColumn, useUnfoldForNote } from "../components/RightPanelColumn";
 import { useStoredFlag } from "../vtk/viewerPrefs";
+import { useRegisterCommands } from "../lib/commands";
 import { usePlanning } from "../store/planning";
+import { useSessionLog } from "../pipeline/sessionLog";
+import { SessionLog } from "../components/planning/SessionLog";
 import { canAdvanceFromDetect } from "../components/planning/detectGate";
 
 
+/** No hace nada: en modo estrecho, el plegado del inspector no escribe la preferencia. */
+const ignorar = () => {};
 /** Atajos que se ejecutan en el visor (ViewerWorkspace escucha `viewer:shortcut`). */
 const VIEWER_SHORTCUTS = new Set(["sync", "center-lesion", "hud-cycle", "center", "cine-toggle", "cine-faster", "cine-slower", "help",
   "anot-regla", "anot-angulo", "anot-region", "anot-marcador", "anot-borrar", "anot-deshacer-punto"]);
@@ -65,6 +75,7 @@ export function Workspace({
   onBack,
   onOpenPatient,
   onFinish,
+  aviso = null,
 }: {
   patient: PatientSummary | null;
   initialStep?: number;
@@ -72,6 +83,8 @@ export function Workspace({
   /** Open this patient's sheet — their cases and archived studies. */
   onOpenPatient: () => void;
   onFinish: () => void;
+  /** Aviso global de App, que en el pipeline se pinta como un toast más del apilado. */
+  aviso?: { texto: string; retry?: () => void; onClose: () => void } | null;
 }) {
   const planning = usePlanning();
   const {
@@ -95,7 +108,34 @@ export function Workspace({
   const [panelCollapsed, setPanelCollapsed] = useStoredFlag(PREF_PANEL_COLLAPSED);
   // Una nota de marcador pendiente despliega la columna (si no, su campo no
   // puede tener el foco y lo tecleado dispararía atajos).
-  const columnCollapsed = useUnfoldForNote(panelCollapsed, setPanelCollapsed, noteFocusRequest);
+  // A ≤ 1280 px el panel baja a una hoja inferior (asomar / media / completa).
+  // Al entrar en modo estrecho arranca a media altura (se deriva en el propio
+  // render: así el primer pintado ya la enseña a media).
+  const estrecho = useEstrecho();
+  // Hasta 1366 px los botones de acción de la píldora derecha son solo icono.
+  const soloIcono = useMediaQuery(CONSULTA_SOLO_ICONO);
+  const [alturaHoja, setAlturaHoja] = useState<AlturaHoja>("media");
+  const [estrechoVisto, setEstrechoVisto] = useState(estrecho);
+  if (estrecho !== estrechoVisto) {
+    setEstrechoVisto(estrecho);
+    if (estrecho) setAlturaHoja("media");
+  }
+  // La preferencia de plegado es del modo ancho: en estrecho ni se lee ni se escribe.
+  const plegadoAncho = useUnfoldForNote(
+    panelCollapsed, estrecho ? ignorar : setPanelCollapsed, estrecho ? null : noteFocusRequest,
+  );
+  const columnCollapsed = estrecho ? false : plegadoAncho;
+  // Una nota que espera el foco necesita el campo a la vista: la hoja asomada lo esconde.
+  useEffect(() => {
+    if (estrecho && noteFocusRequest !== null) setAlturaHoja((a) => (a === "asomar" ? "media" : a));
+  }, [estrecho, noteFocusRequest]);
+  // P (y el mando de la paleta): en ancho pliega el inspector; en estrecho
+  // alterna la hoja entre «asomar» y «media» (el visor gana el alto, como en ancho el ancho).
+  const alternarPanel = () => {
+    if (estrecho) setAlturaHoja((a) => (a === "asomar" ? "media" : "asomar"));
+    else setPanelCollapsed(!panelCollapsed);
+  };
+  const panelPlegado = estrecho ? alturaHoja === "asomar" : panelCollapsed;
   const [saving, setSaving] = useState<"idle" | "saving">("idle");
   // Hora del último guardado hecho en esta pantalla. El botón la enseña
   // mientras no haya cambios nuevos (`dirty`); no hay temporizador que la
@@ -156,6 +196,7 @@ export function Workspace({
     setTimeout(() => setAttachNote(null), 6000);
   };
   const step = STEPS[stepIdx].key;
+  const registro = useSessionLog(STEPS[stepIdx].label, savedAt);
 
   const saveProgress = async (): Promise<boolean> => {
     if (!sessionId) return false;
@@ -217,6 +258,25 @@ export function Workspace({
   };
   const next = () => go(Math.min(stepIdx + 1, STEPS.length - 1));
 
+  // Paleta ⌘K: los pasos y las acciones de la barra, con las mismas
+  // condiciones de deshabilitado que sus botones.
+  useRegisterCommands("workspace", [
+    ...STEPS.map((s, i) => ({
+      id: `paso-${i}`,
+      group: "pasos" as const,
+      label: `${i + 1} · ${s.label}`,
+      disabled: i !== stepIdx && missingFor(i, planning) !== null,
+      run: () => go(i),
+    })),
+    { id: "guardar", group: "acciones" as const, label: "Guardar progreso",
+      disabled: !sessionId || saving === "saving", run: () => void saveProgress() },
+    { id: "captura", group: "acciones" as const, label: "Captura",
+      disabled: !captureCase || shot === "busy", run: () => void tomarCaptura() },
+    { id: "plegar-panel", group: "acciones" as const,
+      label: panelPlegado ? "Mostrar el panel del paso" : "Plegar el panel del paso",
+      run: alternarPanel },
+  ]);
+
   // Teclado: la tabla única de atajos (vtk/shortcuts) decide qué pide cada
   // tecla y no responde con el foco en un campo de texto. Aquí se atiende lo
   // del flujo: Escape cancela el modo de marcado activo (antes había que volver
@@ -235,7 +295,10 @@ export function Workspace({
         // espacio lo arranca con el foco en cualquier sitio y Escape tiene que
         // pararlo igual. Con la hoja de atajos abierta no llega aquí: la hoja
         // se queda la tecla (fase de captura) y solo se cierra ella.
-        setPickMode(null);
+        // La hoja inferior (modo estrecho) se queda Esc para bajar a «asomar» y
+        // lo marca con preventDefault: entonces no se cancela el marcado, pero
+        // el cine sí se para (parar es inocuo y vale con el foco en cualquier sitio).
+        if (!e.defaultPrevented) setPickMode(null);
         window.dispatchEvent(new CustomEvent("viewer:shortcut", { detail: "escape" }));
         return;
       }
@@ -254,7 +317,7 @@ export function Workspace({
       }
       if (id === "panel-toggle") {
         e.preventDefault();
-        setPanelCollapsed(!panelCollapsed);
+        alternarPanel();
         return;
       }
       if (id.startsWith("step-")) {
@@ -265,7 +328,7 @@ export function Workspace({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepIdx, panelCollapsed, planning.series, planning.segmentation, planning.candidates, planning.rejectedCandidates, planning.morphometry]);
+  }, [stepIdx, panelCollapsed, estrecho, planning.series, planning.segmentation, planning.candidates, planning.rejectedCandidates, planning.morphometry]);
 
   const panel = {
     upload: <UploadPanel onNext={next} />,
@@ -296,13 +359,64 @@ export function Workspace({
     report: <ReportPanel onFinish={onFinish} />,
   }[step];
 
+  const libre = zonaLibre({
+    estrecho, plegado: columnCollapsed, ancho: step === "treatment" || step === "report", hoja: alturaHoja,
+  });
+
+  // Un solo apilado: aquí van los avisos del pipeline y el global de App.
+  const avisos: ToastItem[] = [];
+  if (aviso) {
+    avisos.push({
+      id: "app",
+      tono: aviso.retry ? "error" : "info",
+      role: aviso.retry ? "alert" : "status",
+      onClose: aviso.onClose,
+      texto: (
+        <>
+          {aviso.texto}
+          {aviso.retry && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); aviso.retry?.(); }}
+              style={{ marginLeft: 14, background: "transparent", color: "inherit", border: "1px solid currentColor", borderRadius: "var(--radius-sm)", padding: "3px 10px", font: "inherit", cursor: "pointer" }}
+            >
+              Reintentar
+            </button>
+          )}
+        </>
+      ),
+    });
+  }
+  if (attachNote) avisos.push({ id: "adjunto", tono: "ok", role: "status", texto: attachNote, onClose: () => setAttachNote(null) });
+  if (saveError) {
+    avisos.push({ id: "guardado", tono: "error", role: "alert", onClose: () => setSaveError(null),
+      texto: `No se pudo guardar el progreso: ${saveError}` });
+  }
+  // Por qué no se guardó la captura: un botón que vuelve solo a «Captura» a
+  // los cuatro segundos deja creer que la imagen está guardada.
+  if (shotError) {
+    avisos.push({ id: "captura", tono: "error", role: "alert", onClose: () => setShotError(null),
+      texto: `No se pudo guardar la captura: ${shotError}` });
+  }
+  // Cómo terminó la grabación: el vídeo se descarga siempre y esto dice si
+  // además quedó en el caso. «info»: descargar sin caso es lo esperado.
+  if (recMessage) {
+    avisos.push({ id: "grabacion", tono: recMessage.tone === "err" ? "error" : recMessage.tone,
+      role: recMessage.tone === "err" ? "alert" : "status", onClose: () => setRecMessage(null),
+      texto: recMessage.text });
+  }
+
   return (
     // `data-panel-collapsed`: el visor lo lee para su `estadoVisor` sin que
     // el estado del panel tenga que pasar por el store.
     <div data-panel-collapsed={columnCollapsed ? "true" : "false"}
-         style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
-      <TopBar
-        brand
+         style={{ position: "relative", height: "100%", background: "var(--viewer-bg)", overflow: "hidden" }}>
+      {/* Pastillas y avisos flotan sobre el lienzo; el visor deja libre su banda. */}
+      <div data-banda-superior
+           style={{ position: "absolute", top: 0, left: 0, right: 0, height: 0, zIndex: estrecho ? Z_SOBRE_HOJA : 3 }}>
+      <QuirofanoBar
+        onBack={onBack}
+        riskLabel={morphometry?.rupture_risk_label ?? null}
         crumbs={[
           { label: "Pacientes", onClick: onBack },
           // The patient and the case both lead back to the patient sheet, which
@@ -321,20 +435,18 @@ export function Workspace({
           size="sm"
           onClick={() => void tomarCaptura()}
           disabled={!captureCase || shot === "busy"}
-          title={
+          {...rotuloAccion(soloIcono,
+            shot === "busy" ? "Capturando…"
+              : shot === "ok" ? (imagingStudyId ? "Captura guardada ✓" : "Captura descargada ✓")
+              : shot === "err" ? "No se guardó" : "Captura",
             !captureCase
               ? "Abre un paso con el visor para capturar lo que se ve"
               : !imagingStudyId
                 ? "Descarga una imagen de lo que se ve (sin estudio archivado no se puede guardar en el caso)"
-                : "Guarda una imagen de lo que se ve ahora, adjunta al caso"
-          }
+                : "Guarda una imagen de lo que se ve ahora, adjunta al caso")}
           leadingIcon={<Icon name={shot === "ok" ? "STATUS_OK" : "CAMERA"} />}
-        >
-          {shot === "busy" ? "Capturando…"
-            : shot === "ok" ? (imagingStudyId ? "Captura guardada ✓" : "Captura descargada ✓")
-            : shot === "err" ? "No se guardó" : "Captura"}
-        </Button>
-        <RecordButton step={step} onMessage={setRecMessage} />
+        />
+        <RecordButton step={step} onMessage={setRecMessage} soloIcono={soloIcono} />
         {/* Sin estudio archivado: la sesión aún no es de nadie. Con el
             paciente ya fijado, «Adjuntar a un caso» sonaba a elegir paciente
             otra vez; lo que falta es el caso donde archivar (F1-107). */}
@@ -343,22 +455,19 @@ export function Workspace({
             size="sm"
             onClick={() => setAttachOpen(true)}
             leadingIcon={<Icon name="SAVE" />}
-            title={patient
+            {...rotuloAccion(soloIcono, patient ? ARCHIVAR_EN_CASO : "Adjuntar a un caso", patient
               ? "Crea o elige un caso de este paciente y guarda en él el DICOM, las capturas y los vídeos"
-              : "Liga esta sesión a un paciente y un caso y archiva su DICOM"}
-          >
-            {patient ? ARCHIVAR_EN_CASO : "Adjuntar a un caso"}
-          </Button>
+              : "Liga esta sesión a un paciente y un caso y archiva su DICOM")}
+          />
         )}
         <Button
           size="sm"
           onClick={() => void saveProgress()}
           disabled={!sessionId || saving === "saving"}
-          title="Guarda el estudio, la malla, las medidas, la decisión, los dispositivos y las anotaciones de esta sesión"
+          {...rotuloAccion(soloIcono, "Guardar progreso",
+            "Guarda el estudio, la malla, las medidas, la decisión, los dispositivos y las anotaciones de esta sesión")}
           leadingIcon={<Icon name="SAVE" />}
-        >
-          Guardar progreso
-        </Button>
+        />
         </>}
       />
 
@@ -366,142 +475,51 @@ export function Workspace({
         <AttachCaseSheet open={attachOpen} onClose={() => setAttachOpen(false)}
                          sessionId={sessionId} onAttached={(r) => void onAttached(r)} />
       )}
-      {attachNote && (
-        <div role="status" style={{ padding: "8px 16px", fontSize: 12.5, background: "var(--brand-subtle)", color: "var(--foreground)" }}>
-          {attachNote}
-        </div>
-      )}
-      {saveError && (
-        <div
-          role="alert"
-          onClick={() => setSaveError(null)}
-          style={{
-            display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-            padding: "8px 18px", fontSize: 12, fontWeight: 600,
-            background: "color-mix(in srgb, var(--destructive) 12%, transparent)",
-            color: "var(--destructive)",
-            borderBottom: "1px solid color-mix(in srgb, var(--destructive) 35%, transparent)",
-          }}
-        >
-          <Icon name="STATUS_WARN" size={14} color="var(--destructive)" />
-          <span style={{ flex: 1, minWidth: 0 }}>No se pudo guardar el progreso: {saveError}</span>
-          <span style={{ opacity: 0.7 }}>✕</span>
-        </div>
-      )}
+      {/* Los avisos del pipeline (y el global de App) son un solo apilado de cristal. */}
+      <ToastStack items={avisos} top={BANDA_SUPERIOR + 12} right={libre.right} />
 
-      {/* Por qué no se guardó la captura, con el mismo aviso: un botón que
-          vuelve solo a «Captura» a los cuatro segundos deja al profesional
-          creyendo que la imagen está guardada. */}
-      {shotError && (
-        <div
-          role="alert"
-          onClick={() => setShotError(null)}
-          style={{
-            display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-            padding: "8px 18px", fontSize: 12, fontWeight: 600,
-            background: "color-mix(in srgb, var(--destructive) 12%, transparent)",
-            color: "var(--destructive)",
-            borderBottom: "1px solid color-mix(in srgb, var(--destructive) 35%, transparent)",
-          }}
-        >
-          <Icon name="STATUS_WARN" size={14} color="var(--destructive)" />
-          <span style={{ flex: 1, minWidth: 0 }}>No se pudo guardar la captura: {shotError}</span>
-          <span style={{ opacity: 0.7 }}>✕</span>
-        </div>
-      )}
-
-      {/* Cómo terminó la grabación: el vídeo se descarga siempre, y esto dice
-          si además quedó en el caso. Un «solo descargado» callado haría creer
-          que está en el historial. */}
-      {recMessage && (
-        <div
-          role={recMessage.tone === "err" ? "alert" : "status"}
-          onClick={() => setRecMessage(null)}
-          style={{
-            display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-            padding: "8px 18px", fontSize: 12, fontWeight: 600,
-            // «info»: descargar sin caso es lo esperado, no un fallo; ni rojo ni verde.
-            background: recMessage.tone === "err"
-              ? "color-mix(in srgb, var(--destructive) 12%, transparent)"
-              : recMessage.tone === "info"
-                ? "color-mix(in srgb, var(--foreground) 6%, transparent)"
-                : "color-mix(in srgb, var(--success, #2f7d5b) 12%, transparent)",
-            color: recMessage.tone === "err" ? "var(--destructive)"
-              : recMessage.tone === "info" ? "var(--muted-foreground)" : "var(--success, #2f7d5b)",
-            borderBottom: "1px solid var(--border)",
-          }}
-        >
-          <Icon name={recMessage.tone === "err" ? "STATUS_WARN" : recMessage.tone === "info" ? "INFO" : "STATUS_OK"} size={14} />
-          <span style={{ flex: 1, minWidth: 0 }}>{recMessage.text}</span>
-          <span style={{ opacity: 0.7 }}>✕</span>
-        </div>
-      )}
-
-      {/* Barra de pasos compacta — sustituye al rail cuando este se oculta bajo
-          820 px. Antes simplemente desaparecía y no quedaba ninguna forma de
-          cambiar de paso: el usuario se quedaba encerrado donde estuviera. */}
-      <div
-        className="ws-steps-compact"
-        role="tablist"
-        aria-label="Flujo de planificación"
-        style={{
-          display: "none", gap: 4, padding: "8px 12px", overflowX: "auto",
-          background: "var(--background)", borderBottom: "1px solid var(--border)",
-        }}
-      >
-        {STEPS.map((s, i) => {
-          const active = i === stepIdx;
-          const missing = missingFor(i, planning);
-          const locked = !active && !!missing;
-          return (
-            <button
-              key={s.key}
-              role="tab"
-              aria-selected={active}
-              disabled={locked}
-              title={missing ?? s.label}
-              onClick={() => !locked && go(i)}
-              style={{
-                display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
-                padding: "6px 11px", borderRadius: "var(--radius-full)",
-                border: "1px solid " + (active ? "transparent" : "var(--border)"),
-                background: active ? "var(--brand-deep)" : "var(--card)",
-                color: active ? "#fff" : locked ? "var(--muted-foreground)" : "var(--foreground)",
-                cursor: locked ? "not-allowed" : "pointer",
-                opacity: locked ? 0.5 : 1,
-                fontFamily: "var(--font-sans)", fontSize: 12,
-                fontWeight: active ? 700 : 500, whiteSpace: "nowrap",
-              }}
-            >
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, opacity: .8 }}>{i + 1}</span>
-              {s.short}
-            </button>
-          );
-        })}
       </div>
 
-      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-        {/* Rail de flujo — ancho fluido; en pantallas estrechas colapsa a iconos
-            y bajo 820px se oculta (ver styles/responsive.css). */}
-        <StepRail
-          steps={STEPS}
-          activeIndex={stepIdx}
-          missingFor={(i) => missingFor(i, planning)}
-          onGo={go}
-          patient={patient}
-          riskLabel={morphometry?.rupture_risk_label ?? null}
-        />
+      {/* Dock de pasos — pastilla de cristal sobre el visor, abajo a la izquierda.
+          Con la hoja a «completa» no se pinta: taparía el centro de su contenido
+          (los atajos 1–8, ⌘K y P siguen valiendo). */}
+      {!(estrecho && alturaHoja === "completa") && <StepDock
+        steps={STEPS}
+        activeIndex={stepIdx}
+        missingFor={(i) => missingFor(i, planning)}
+        onGo={go}
+        compacto={estrecho}
+        abajo={estrecho ? (alturaHoja === "asomar" ? HOJA_ASOMAR + 12 : "calc(50% + 12px)") : 20}
+        zIndex={estrecho ? Z_SOBRE_HOJA : 3}
+      />}
 
-        {/* Visor central */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <ViewerWorkspace step={step} />
-        </div>
+      {/* Visor: ocupa la zona libre (ni bajo el inspector ni bajo las pastillas).
+          `isolation: isolate` encierra las capas internas del visor (asa de
+          celda z 7, cine y preajustes z 6, botones z 5): sin ello competían con
+          los avisos, el menú de usuario, la hoja inferior y el dock. La hoja de
+          atajos, que sí debe taparlo todo, se pinta en un portal a <body>. */}
+      <div data-zona-libre
+           style={{
+             position: "absolute", display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0,
+             isolation: "isolate",
+             // Ancho: el dock (76 px de alto a 20 del borde) tapa 96 px de la esquina.
+             // Estrecho: el dock compacto (52 px) va 12 px sobre la zona libre, que acaba en la hoja.
+             "--dock-holgura": estrecho ? "72px" : "96px",
+             top: libre.top, right: libre.right, bottom: libre.bottom, left: libre.left,
+             transition: "right var(--dur-2) var(--ease-out), bottom var(--dur-2) var(--ease-out)",
+           } as CSSProperties}>
+        <ViewerWorkspace step={step} />
+      </div>
 
-        {/* Panel del paso — 380 px; 520 en Decisión e Informe; plegable con P. */}
-        <RightPanelColumn
+      {/* Panel del paso — 380 px; 520 en Decisión e Informe; plegable con P. */}
+      <RightPanelColumn
           collapsed={columnCollapsed}
           onToggle={() => setPanelCollapsed(!columnCollapsed)}
+          estrecho={estrecho}
+          altura={alturaHoja}
+          onAltura={setAlturaHoja}
           stepLabel={STEPS[stepIdx].label}
+          stepIndex={stepIdx}
           stepKey={step}
           wide={step === "treatment" || step === "report"}
           badge={sessionId && annotations.length > 0 ? <Badge variant="subtle">{annotations.length}</Badge> : undefined}
@@ -522,10 +540,12 @@ export function Workspace({
               >
                 <AnnotationsPanel />
               </Collapsible>
+              <Collapsible title="Registro" storageKey="ws.sessionlog">
+                <SessionLog entries={registro} />
+              </Collapsible>
             </div>
           )}
         </RightPanelColumn>
-      </div>
     </div>
   );
 }

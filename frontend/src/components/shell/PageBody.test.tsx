@@ -24,3 +24,8 @@ it("ninguna página interna lleva ancho propio y todas usan PageBody", () => {
     expect(src, p).not.toMatch(/maxWidth:\s*(?:"var\(--content-max\)"|(?:900|1000|1100|1320|1440)\b)/);
   }
 });
+
+it("CSS: objetivos de 44 px en la oficina por debajo de 1024", () => {
+  const css = readFileSync(join(__dirname, "shell.css"), "utf8").replace(/\r\n/g, "\n");
+  expect(css).toMatch(/@media\s*\(\s*max-width:\s*1024px\s*\)\s*\{\s*\.page-body,\s*\[data-hoja\]\s*\{\s*--control-sm:\s*44px;\s*--control-icon:\s*44px;/);
+});

@@ -40,10 +40,9 @@ describe("Collapsible", () => {
     render(<Collapsible title="Sección" storageKey="t-cristal">cuerpo</Collapsible>);
     const btn = screen.getByRole("button", { name: /Sección/ });
     const chevron = btn.querySelector("[data-chevron]") as HTMLElement;
-    expect(chevron.style.transform).toBe("rotate(0deg)");
+    expect(chevron).toHaveAttribute("data-abierto", "false");
     fireEvent.click(btn);
-    expect(chevron.style.transform).toBe("rotate(90deg)");
-    expect(chevron.style.transition).toContain("--dur-2");
+    expect(chevron).toHaveAttribute("data-abierto", "true");
     expect(screen.getByText("cuerpo").closest("[data-glass]")).toBeNull();
   });
 });
@@ -55,5 +54,17 @@ describe("ErrorNote", () => {
     expect(el.style.color).toContain("--destructive-text");
     expect(el.style.background).toContain("--destructive-bg");
     expect(el.style.border).toContain("--destructive-text");
+  });
+});
+
+describe("Collapsible chevron", () => {
+  it("el plegable lleva un chevron de Icon que gira al abrir", () => {
+    render(<Collapsible title="Más datos (opcional)" storageKey="t-chevron">x</Collapsible>);
+    const b = screen.getByRole("button", { name: /Más datos/ });
+    expect(b.querySelector("[data-chevron] svg")).not.toBeNull();
+    expect(b.querySelector("[data-chevron]")!.textContent).toBe("");
+    fireEvent.click(b);
+    expect(b).toHaveAttribute("aria-expanded", "true");
+    expect(b.querySelector("[data-chevron]")).toHaveAttribute("data-abierto", "true");
   });
 });

@@ -13,9 +13,11 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   icon?: ReactNode;
   hint?: string;
   invalid?: boolean;
+  /** Marca el campo como obligatorio: asterisco mudo en el rótulo y aria-required (sin `required` nativo). */
+  obligatorio?: boolean;
 }
 
-export function Input({ label, icon, hint, invalid, multiline, style, ...rest }: InputProps) {
+export function Input({ label, icon, hint, invalid, obligatorio, multiline, style, ...rest }: InputProps) {
   const id = useId();
   // aria-invalid solo cuando el llamador lo pide: un campo vacío no nace en rojo (F2-63).
   // El anillo de foco se dibuja en el contorno (no en el campo) mientras el campo tiene el foco.
@@ -31,6 +33,7 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
       setFocused(false);
       onBlur?.(e as FocusEvent<HTMLInputElement>);
     },
+    ...(obligatorio ? { "aria-required": true as const } : {}),
     ...(invalid ? { "aria-invalid": true as const } : {}),
     style: {
       flex: 1,
@@ -55,6 +58,7 @@ export function Input({ label, icon, hint, invalid, multiline, style, ...rest }:
           style={{ fontSize: "var(--text-label)", fontWeight: "var(--weight-label)", color: "var(--muted-foreground)" }}
         >
           {label}
+          {obligatorio && <span aria-hidden="true"> *</span>}
         </label>
       )}
       <div

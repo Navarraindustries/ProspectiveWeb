@@ -9,7 +9,7 @@ import { useState } from "react";
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
 import { lens, motion, pressable } from "../motion";
 
-type Variant = "default" | "outline" | "secondary" | "ghost" | "destructive" | "link";
+type Variant = "default" | "outline" | "secondary" | "ghost" | "destructive" | "destructive-ghost" | "link";
 type Size = "sm" | "md" | "lg" | "icon";
 
 /* motion.button define sus propios tipos para arrastre y animación; se quitan
@@ -65,6 +65,12 @@ function variantStyle(v: Variant, hover: boolean, disabled: boolean): CSSPropert
         color: "var(--destructive)",
         border: "1px solid var(--destructive)",
       };
+    case "destructive-ghost":
+      return {
+        ...base,
+        background: on ? "var(--destructive-bg)" : "transparent",
+        color: on ? "var(--destructive)" : "var(--muted-foreground)",
+      };
     case "link":
       return {
         ...base,
@@ -88,8 +94,9 @@ export function Button({
   ...rest
 }: ButtonProps) {
   const [hover, setHover] = useState(false);
+  const [focus, setFocus] = useState(false);
   // Lente al pasar solo en las variantes de cristal; el prensado (pressable) manda en la transición.
-  const glass = variant === "outline" || variant === "secondary" || variant === "ghost";
+  const glass = variant === "outline" || variant === "secondary" || variant === "ghost" || variant === "destructive-ghost";
   const hoverMotion = disabled
     ? undefined
     : glass ? lens.whileHover : variant === "default" ? { y: -1 } : undefined;
@@ -104,6 +111,8 @@ export function Button({
       disabled={disabled}
       onMouseEnter={(e) => { setHover(true); rest.onMouseEnter?.(e); }}
       onMouseLeave={(e) => { setHover(false); rest.onMouseLeave?.(e); }}
+      onFocus={(e) => { setFocus(true); rest.onFocus?.(e); }}
+      onBlur={(e) => { setFocus(false); rest.onBlur?.(e); }}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -120,7 +129,7 @@ export function Button({
         opacity: disabled ? 0.4 : 1,
         transition:
           "background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out)",
-        ...variantStyle(variant, hover, !!disabled),
+        ...variantStyle(variant, hover || (variant === "destructive-ghost" && focus), !!disabled),
         ...style,
       }}
     >

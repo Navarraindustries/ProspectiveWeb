@@ -523,6 +523,9 @@
 @media (max-width: 1024px) { .page-body__ancho { padding: 24px 24px 40px; } .page-body[data-modo="pantalla"] > .page-body__ancho { padding: 20px 24px; } }
 @media (max-width: 640px)  { .page-body__ancho { padding: 16px 16px 32px; } .page-body[data-modo="pantalla"] > .page-body__ancho { padding: 16px; } }
 
+/* Objetivos táctiles (fase 9): en la oficina, por debajo de 1024, los botones sm e icon miden 44 px. */
+@media (max-width: 1024px) { .page-body, [data-hoja] { --control-sm: 44px; --control-icon: 44px; } }
+
 /* ── Barra lateral por punto de corte (fase 8) ──────────────────────────── */
 /* Tableta: el carril sigue, pero los enlaces miden 44 px. */
 @media (max-width: 1024px) {

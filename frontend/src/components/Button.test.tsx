@@ -96,3 +96,15 @@ describe("Button", () => {
     expect(b.style.border).toBe("1px solid var(--btn-outline-border)");
   });
 });
+
+it("destructive-ghost: gris en reposo, rojo al pasar y al enfocar", () => {
+  render(<Button variant="destructive-ghost">Borrar</Button>);
+  const b = screen.getByRole("button", { name: "Borrar" });
+  expect(b).toHaveStyle({ color: "var(--muted-foreground)" });
+  fireEvent.mouseEnter(b);
+  expect(b).toHaveStyle({ color: "var(--destructive)", background: "var(--destructive-bg)" });
+  fireEvent.mouseLeave(b);
+  expect(b).toHaveStyle({ color: "var(--muted-foreground)" });
+  fireEvent.focus(b);
+  expect(b).toHaveStyle({ color: "var(--destructive)" });
+});

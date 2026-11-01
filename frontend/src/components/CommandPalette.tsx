@@ -6,7 +6,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExtern
 import { api } from "../api/client";
 import { Icon } from "./Icon";
 import type { IconName } from "./Icon";
-import { useTableta } from "../hooks/useEstrecho";
+import { useMovil, useTableta } from "../hooks/useEstrecho";
 import { atajoPaleta } from "../lib/plataforma";
 import type { PatientSummary } from "../api/types";
 import { getCommands, OPEN_PALETTE_EVENT, subscribeCommands } from "../lib/commands";
@@ -63,6 +63,8 @@ export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: P
   const nav = useNav();
   const reduced = useReducedMotion();
   const tableta = useTableta();
+  // En móvil la paleta ocupa la pantalla, como las hojas (R8).
+  const movil = useMovil();
   const listId = useId();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -70,6 +72,7 @@ export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: P
   const [patients, setPatients] = useState<PatientsState>({ status: "idle" });
   const previous = useRef<HTMLElement | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const cerrarRef = useRef<HTMLButtonElement>(null);
   const commands = useSyncExternalStore(subscribeCommands, getCommands);
   const isAdmin = user?.role === "admin";
 
@@ -185,9 +188,13 @@ export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: P
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Tab") {
-      // Dentro del diálogo solo hay un campo: el foco no sale de él.
+      // El foco no sale del diálogo: recorre el buscador y, si existe, el botón de cerrar.
       e.preventDefault();
-      searchRef.current?.focus();
+      const ciclo = ([searchRef.current, cerrarRef.current] as (HTMLElement | null)[]).filter((x): x is HTMLElement => x !== null);
+      if (ciclo.length) {
+        const i = Math.max(ciclo.indexOf(document.activeElement as HTMLElement), 0);
+        ciclo[(i + (e.shiftKey ? -1 : 1) + ciclo.length) % ciclo.length].focus();
+      }
     } else if (e.key === "Escape") {
       // Solo la paleta: los oyentes de Escape en `document` (hojas, menús) no lo reciben.
       e.preventDefault();
@@ -215,7 +222,7 @@ export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: P
     .filter((x) => x.items.length > 0);
 
   return (
-    <div style={veil} onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
+    <div style={movil ? { ...veil, paddingTop: 0 } : veil} onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
       <motion.div
         role="dialog"
         aria-modal="true"
@@ -234,28 +241,50 @@ export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: P
           }
         }}
         style={{
-          ...glass("dense"), width: 640, maxWidth: "calc(100vw - 32px)", maxHeight: "min(560px, 72vh)",
-          display: "flex", flexDirection: "column", borderRadius: "var(--radius-xl)", overflow: "hidden",
+          ...glass("dense"),
+          ...(movil
+            ? { width: "100%", height: "100dvh", borderRadius: 0, borderWidth: 0 }
+            : { width: 640, maxWidth: "calc(100vw - 32px)", maxHeight: "min(560px, 72vh)", borderRadius: "var(--radius-xl)" }),
+          display: "flex", flexDirection: "column", overflow: "hidden",
           color: "var(--foreground)",
         }}
       >
-        <input
-          ref={searchRef}
-          type="text"
-          role="combobox"
-          aria-expanded="true"
-          aria-controls={listId}
-          aria-activedescendant={rows.length ? `${listId}-${current}` : undefined}
-          aria-label="Buscar en la paleta"
-          placeholder="Buscar una sección, un paciente o una acción…"
-          title={`Paleta de mandos (${atajoPaleta()})`}
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); setActive(0); }}
-          style={{
-            height: "var(--field-h)", padding: "0 18px", background: "transparent", border: "none",
-            borderBottom: "1px solid var(--glass-border)", outline: "none", color: "inherit", font: "inherit", fontSize: 15,
-          }}
-        />
+        {/* Fila del buscador: no encoge (la columna con tope de alto aplastaba el campo a 30–34 px, R8). */}
+        <div style={{ display: "flex", alignItems: "center", flexShrink: 0, borderBottom: "1px solid var(--glass-border)" }}>
+          <input
+            ref={searchRef}
+            type="text"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls={listId}
+            aria-activedescendant={rows.length ? `${listId}-${current}` : undefined}
+            aria-label="Buscar en la paleta"
+            placeholder={movil ? "Buscar…" : "Buscar una sección, un paciente o una acción…"}
+            title={`Paleta de mandos (${atajoPaleta()})`}
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setActive(0); }}
+            style={{
+              flex: "1 0 0", minWidth: 0,
+              height: "var(--field-h)", padding: "0 18px", background: "transparent", border: "none",
+              outline: "none", color: "inherit", font: "inherit", fontSize: 15,
+            }}
+          />
+          {movil && (
+            // A pantalla completa no hay velo que tocar ni Escape: cierre a la vista, 44 px.
+            <button
+              ref={cerrarRef}
+              type="button"
+              aria-label="Cerrar la paleta"
+              onClick={close}
+              style={{
+                width: "var(--control-md)", height: "var(--control-md)", marginRight: 6, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                border: "none", borderRadius: "var(--radius-md)", background: "transparent", color: "var(--muted-foreground)", cursor: "pointer",
+              }}
+            >
+              <Icon name="CLOSE" size={16} />
+            </button>
+          )}
+        </div>
         <div id={listId} role="listbox" aria-label="Resultados" style={{ overflowY: "auto", paddingBottom: 8 }}>
           {patients.status === "error" && (
             <div style={{ ...eyebrow, textTransform: "none", letterSpacing: 0, fontFamily: "inherit", fontSize: 12, padding: "10px 16px" }}>

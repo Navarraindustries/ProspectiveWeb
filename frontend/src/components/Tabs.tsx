@@ -1,6 +1,7 @@
 /* Tabs — pastilla segmentada con un resalte activo que se desliza. */
 import { useId } from "react";
 import { DUR, EASE, motion } from "../motion";
+import { useMovil, useTableta } from "../hooks/useEstrecho";
 
 export function Tabs({
   tabs,
@@ -19,12 +20,15 @@ export function Tabs({
   "aria-label"?: string;
 }) {
   const sm = size === "sm";
+  // Táctil (≤ 1024): pestañas de 44 px; en móvil la barra ocupa todo el ancho y las pestañas se reparten.
+  const tableta = useTableta();
+  const movil = useMovil();
   // Un layoutId único por instancia: dos barras en pantalla no se roban el resalte.
   const indicatorId = useId();
   return (
     // Con `wrap`: seis pestañas no caben en el panel estrecho, y sin partirse
     // ensanchaban todo el panel y le sacaban una barra horizontal.
-    <div role="tablist" aria-label={ariaLabel} style={{ display: "flex", flexWrap: "wrap", gap: 2, padding: 3, width: "fit-content", maxWidth: "100%", borderRadius: "var(--radius-full)", background: "color-mix(in srgb, var(--foreground) 6%, transparent)" }}>
+    <div role="tablist" aria-label={ariaLabel} style={{ display: "flex", flexWrap: "wrap", gap: 2, padding: 3, width: movil ? "100%" : "fit-content", maxWidth: "100%", boxSizing: "border-box", borderRadius: "var(--radius-full)", background: "color-mix(in srgb, var(--foreground) 6%, transparent)" }}>
       {tabs.map((t) => {
         const active = t === value;
         return (
@@ -35,6 +39,8 @@ export function Tabs({
             onClick={() => onChange(t)}
             style={{
               position: "relative",
+              ...(tableta ? { minHeight: "var(--control-md)" } : {}),
+              ...(movil ? { flex: "1 1 auto", display: "inline-flex", alignItems: "center", justifyContent: "center" } : {}),
               padding: sm ? "5px 11px" : "7px 14px",
               borderRadius: "var(--radius-full)",
               isolation: "isolate",

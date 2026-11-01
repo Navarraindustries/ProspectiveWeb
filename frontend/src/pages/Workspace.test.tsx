@@ -412,6 +412,13 @@ describe("barra del quirófano por tamaño de pantalla", () => {
     expect(!!screen.queryByRole("button", { name: /Grabar/ })).toBe(modo !== "movil");
     expect(!!screen.queryByRole("button", { name: "Más acciones" })).toBe(modo !== "ancho");
     if (modo !== "ancho") expect(screen.getByRole("button", { name: "Guardar progreso" }).style.height).toBe("var(--control-md)");
+    // R13: en móvil la captura va a «Más acciones» (sigue en la paleta) y el
+    // estado del guardado es un punto con la frase en aria-label; Guardar se queda.
+    expect(!!screen.queryByRole("button", { name: "Captura" })).toBe(modo !== "movil");
+    expect(getCommands().find((c) => c.id === "captura")).toBeTruthy();
+    const estadoGuardado = document.querySelector(".ws-save-status") as HTMLElement;
+    expect(estadoGuardado.hasAttribute("data-punto")).toBe(modo === "movil");
+    expect(screen.getByRole("button", { name: "Guardar progreso" })).toBeTruthy();
   });
   it("la paleta ofrece el tema y, sin estudio archivado, archivar", () => {
     estado.imagingStudyId = null;
@@ -550,5 +557,44 @@ describe("hoja inferior a ≤ 1280 px", () => {
     rerender(<Workspace patient={null} initialStep={2} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
     expect(hoja().style.height).toBe("50%");
     expect(localStorage.getItem("ws.panelCollapsed")).toBeNull();
+  });
+
+  /* R18: a ≤ 640 la hoja abre asomada y la zona libre del visor queda
+     encima de ella (no debajo); en tableta y L5 sigue abriendo a media. */
+  it.each([[360, 700, "96px"], [390, 800, "96px"], [768, 1024, "50%"], [1280, 743, "50%"]] as const)(
+    "a %i×%i abre a %s y el visor no queda tapado", (w, h, alto) => {
+      simularPantalla(w, h);
+      montar_();
+      expect(hoja().style.height).toBe(alto);
+      expect((document.querySelector("[data-zona-libre]") as HTMLElement).style.bottom).toBe("96px");
+    });
+});
+
+describe("ficha del paciente y giro a móvil", () => {
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin almacenamiento */ }
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("con paciente, la paleta ofrece «Abrir la ficha del paciente»; sin él, no", () => {
+    const abrir = vi.fn();
+    const { unmount } = render(<Workspace patient={PACIENTE} onBack={() => {}} onOpenPatient={abrir} onFinish={() => {}} />);
+    const c = getCommands().find((x) => x.label === "Abrir la ficha del paciente");
+    expect(c).toBeTruthy();
+    c!.run();
+    expect(abrir).toHaveBeenCalled();
+    unmount();
+    render(<Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    expect(getCommands().find((x) => x.label === "Abrir la ficha del paciente")).toBeUndefined();
+  });
+
+  it("al pasar de tableta apaisada a móvil vertical la hoja vuelve a asomar", () => {
+    const pantalla = simularPantalla(1000);
+    render(<Workspace patient={null} initialStep={2} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    const hoja = () => screen.getByRole("region", { name: "Panel del paso" });
+    expect(hoja().style.height).toBe("50%");
+    act(() => { pantalla.cambiar({ ancho: 390 }); });
+    expect(hoja().style.height).toBe("96px");
   });
 });

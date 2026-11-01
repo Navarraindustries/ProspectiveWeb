@@ -46,7 +46,12 @@
    marca de seleccionada van en línea). */
 .tt-tarjetas { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .tt-tarjeta { padding: 14px 16px; border-radius: var(--radius-card-lg); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.tt-tarjeta[data-pulsable] { cursor: pointer; }
+.tt-tarjeta[data-pulsable] { cursor: pointer; position: relative; }
+/* Toda la tarjeta es el objetivo táctil (R10): el botón del título se estira sobre ella (stretched link). El detalle
+   desplegado y el pie quedan por encima, así que tocarlos no pliega la tarjeta ni roba sus controles. */
+.tt-tarjeta[data-pulsable] .tt-fila-boton::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius-card-lg); }
+.tt-tarjeta[data-pulsable]:has(.tt-fila-boton:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+.tt-tarjeta[data-pulsable] .tt-tarjeta-detalle, .tt-tarjeta[data-pulsable] .tt-tarjeta-pie { position: relative; z-index: 1; }
 /* Hover de ratón: el cristal y su borde van en línea, así que el realce es un
    contorno interior en el primario (sigue el radio de la tarjeta). */
 @media (hover: hover) {
@@ -74,7 +79,7 @@
   .tarjeta-estudio:hover, .tarjeta-estudio:hover img { transform: none; }
 }
 
-.hoja-dos-columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+.hoja-dos-columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
 @media (max-width: 640px) { .hoja-dos-columnas { grid-template-columns: 1fr; } }
 
 /* Hojas de caso y paciente: filas del selector, rótulos de sección y notas. */
@@ -96,7 +101,17 @@
 
 /* Tarjeta punteada «Subir un estudio nuevo»: se enciende al apuntarla o enfocarla. */
 .tarjeta-nueva { min-height: 120px; border: 1px dashed color-mix(in srgb, var(--foreground) 18%, transparent); background: transparent; border-radius: var(--radius-card-lg); transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out); }
-.es-insignia { line-height: 1.3; pointer-events: none; }
+.es-insignia { line-height: 1.3; pointer-events: none; font-family: var(--font-mono); font-size: 12px; }
+/* R21: metadatos en monoespaciada (HC, sexo, nº de cortes): 13 px en tableta y móvil. */
+.meta-mono { font-family: var(--font-mono); font-size: 12px; }
+@media (max-width: 1024px) { .es-insignia, .meta-mono { font-size: 13px; } }
+
+/* R25: los chips de estado de Pedidos, en móvil, una fila con desplazamiento propio. */
+@media (max-width: 640px) {
+  .pastillas { flex-wrap: nowrap; overflow: auto hidden; scroll-snap-type: x proximity; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .pastillas::-webkit-scrollbar { display: none; }
+  .pastillas > button { flex-shrink: 0; scroll-snap-align: start; }
+}
 .tarjeta-nueva:hover, .tarjeta-nueva:focus-visible { border-color: var(--data); background: color-mix(in srgb, var(--data) 8%, transparent); }
 
 /* Detalle del pedido de clip (A43, A44): sans en los textos, mono solo en nº de pieza y medidas. */

@@ -91,7 +91,7 @@ export function Workspace({
   // Una nota de marcador pendiente despliega la columna (si no, su campo no
   // puede tener el foco y lo tecleado dispararía atajos).
   // A ≤ 1280 px el panel baja a una hoja inferior (asomar / media / completa).
-  // Al entrar en modo estrecho arranca a media altura (se deriva en el propio
+  // Al entrar en modo estrecho arranca a media altura, asomada en móvil (se deriva en el propio
   // render: así el primer pintado ya la enseña a media).
   const estrecho = useEstrecho();
   // Hasta 1366 px los botones de acción de la píldora derecha son solo icono.
@@ -103,11 +103,22 @@ export function Workspace({
   const estiloBoton = estiloAccion(tamAccion, soloIcono);
   const { theme, toggle: alternarTema } = useThemeContext();
   const modoDock = movil ? "mini" : tactil ? "tactil" : estrecho ? "compacto" : "completo";
-  const [alturaHoja, setAlturaHoja] = useState<AlturaHoja>("media");
+  // En móvil (≤ 640) la hoja abre asomada (cabecera del paso a la vista): a
+  // media altura dejaba ~150–190 px de visor a 360–390 (R18). La zona libre
+  // ya reserva el alto asomado, así que el visor queda entero encima.
+  const alturaInicial: AlturaHoja = movil ? "asomar" : "media";
+  const [alturaHoja, setAlturaHoja] = useState<AlturaHoja>(alturaInicial);
   const [estrechoVisto, setEstrechoVisto] = useState(estrecho);
   if (estrecho !== estrechoVisto) {
     setEstrechoVisto(estrecho);
-    if (estrecho) setAlturaHoja("media");
+    if (estrecho) setAlturaHoja(alturaInicial);
+  }
+  // Giro de tableta apaisada a móvil vertical: sigue estrecho, pero la hoja
+  // vuelve a asomar (a media altura el visor se quedaba en ~150 px).
+  const [movilVisto, setMovilVisto] = useState(movil);
+  if (movil !== movilVisto) {
+    setMovilVisto(movil);
+    if (movil) setAlturaHoja("asomar");
   }
   // La preferencia de plegado es del modo ancho: en estrecho ni se lee ni se escribe.
   const plegadoAncho = useUnfoldForNote(
@@ -271,6 +282,11 @@ export function Workspace({
       label: patient ? ARCHIVAR_EN_CASO : "Adjuntar a un caso",
       run: () => setAttachOpen(true),
     }] : []),
+    ...(patient ? [{
+      id: "ficha-paciente", group: "acciones" as const,
+      label: "Abrir la ficha del paciente",
+      run: onOpenPatient,
+    }] : []),
     { id: "plegar-panel", group: "acciones" as const,
       label: panelPlegado ? "Mostrar el panel del paso" : "Plegar el panel del paso",
       run: alternarPanel },
@@ -427,11 +443,13 @@ export function Workspace({
             detail: patient?.hospital_id?.trim() || undefined },
           ...(caseLabel ? [{ label: caseLabel, onClick: patient ? onOpenPatient : undefined }] : []),
         ]}
-        status={<SaveStatus state={saveState} savedAt={savedAt} compacta={modoBarra !== "ancho"} />}
+        status={<SaveStatus state={saveState} savedAt={savedAt} compacta={modoBarra !== "ancho"} punto={movil} />}
         actions={<>
         {/* Sin estudio archivado la captura se descarga en vez de guardarse en
-            el caso, como la grabación; el tooltip lo dice antes de pulsar. */}
-        <Button
+            el caso, como la grabación; el tooltip lo dice antes de pulsar.
+            En móvil va a «Más acciones» (la paleta, mando «captura»): a 360
+            px la píldora pisaba «Volver» (R13). Guardar se queda. */}
+        {!movil && <Button
           variant="outline"
           size={tamAccion}
           style={estiloBoton}
@@ -447,7 +465,7 @@ export function Workspace({
                 ? "Descarga una imagen de lo que se ve (sin estudio archivado no se puede guardar en el caso)"
                 : "Guarda una imagen de lo que se ve ahora, adjunta al caso")}
           leadingIcon={<Icon name={shot === "ok" ? "STATUS_OK" : "CAMERA"} />}
-        />
+        />}
         {!movil && <RecordButton step={step} onMessage={setRecMessage} soloIcono={soloIcono} size={tamAccion} />}
         {/* Sin estudio archivado: la sesión aún no es de nadie. Con el
             paciente ya fijado, «Adjuntar a un caso» sonaba a elegir paciente

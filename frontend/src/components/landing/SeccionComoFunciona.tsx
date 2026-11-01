@@ -27,7 +27,7 @@ const LINEA_PASO: Record<string, string> = {
   report: "Documento clínico",
 };
 
-const ICONO_PASO: Record<string, IconName> = { upload: "UPLOAD", manufacture: "WORKSHOP" };
+const ICONO_PASO: Record<string, IconName> = { manufacture: "WORKSHOP" };
 
 export function ComoFunciona() {
   const reducido = useReducedMotion() ?? false;

@@ -4,7 +4,8 @@
    a 16 px del borde: caben en la banda superior (72) y no invaden la zona libre.
    Van en una sola fila flex: en portátiles (1280–1366) dos píldoras absolutas
    se solapaban; ahora la izquierda encoge (las migas se recortan con elipsis)
-   y la derecha conserva su ancho. */
+   y la derecha conserva su ancho. En táctil la miga empieza en el paciente
+   (Volver ya lleva a Pacientes) y en móvil no hay miga: solo Volver. */
 
 import type { CSSProperties, ReactNode } from "react";
 import { Badge, riskVariant } from "../Badge";
@@ -17,6 +18,7 @@ import { openCommandPalette } from "../../lib/commands";
 import { atajoPaleta, rotuloPaleta, teclasPaleta } from "../../lib/plataforma";
 import { OBJETIVO_TACTIL_PX } from "../../pipeline/puntosCorte";
 import { TEXTO_OCULTO } from "../../styles/oculto";
+import { useEstrecho } from "../../hooks/useEstrecho";
 import "../shell/shell.css";
 
 /** Hasta este ancho los botones de acción de la píldora derecha enseñan solo el icono. */
@@ -73,11 +75,17 @@ export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions, modo 
 }) {
   const movil = modo === "movil";
   const tactil = modo !== "ancho";
-  const migas = movil ? crumbs.slice(-1) : crumbs;
+  // Hasta 1280 px la HC no va aparte: a 768–1025 se quedaba entera mientras
+  // el nombre del paciente caía a 0 px (R14). Pasa al title del nombre.
+  const hcEnTitulo = useEstrecho();
+  // Móvil: sin miga (el caso ya se ve en la hoja; a 390 la miga pisaba
+  // «Volver», R13). Táctil: sin la primera miga, «Pacientes», que repite el
+  // botón «Volver» (R14).
+  const migas = movil ? [] : tactil && crumbs.length > 1 ? crumbs.slice(1) : crumbs;
   const pastilla: CSSProperties = movil ? { ...PASTILLA, gap: 6, padding: "0 6px" } : PASTILLA;
   const fila: CSSProperties = movil ? { ...FILA, left: 12, right: 12, gap: 8 } : FILA;
   return (
-    <div style={fila} data-modo={modo}>
+    <div style={fila} data-modo={modo} data-quirofano-bar>
       <div style={{ ...glass("normal"), ...pastilla, flex: "0 1 auto", minWidth: 0 }} data-glass>
         <button
           type="button"
@@ -96,6 +104,9 @@ export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions, modo 
             <ol>
               {migas.map((c, i) => {
                 const last = i === migas.length - 1;
+                const hcOculta = !!c.detail && hcEnTitulo;
+                const titulo = hcOculta ? `${c.label} · HC ${c.detail}` : c.label;
+                const hcLector = hcOculta && <span style={TEXTO_OCULTO}> · HC {c.detail}</span>;
                 return (
                   <li key={i}>
                     {i > 0 && (
@@ -104,15 +115,15 @@ export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions, modo 
                       </span>
                     )}
                     {c.onClick ? (
-                      <button type="button" className="shell-crumb shell-crumb-link" title={c.label} onClick={c.onClick}>
-                        {c.label}
+                      <button type="button" className="shell-crumb shell-crumb-link" title={titulo} onClick={c.onClick}>
+                        {c.label}{hcLector}
                       </button>
                     ) : (
-                      <span className="shell-crumb" title={c.label} aria-current={last ? "page" : undefined}>
-                        {c.label}
+                      <span className="shell-crumb" title={titulo} aria-current={last ? "page" : undefined}>
+                        {c.label}{hcLector}
                       </span>
                     )}
-                    {c.detail && !movil && (
+                    {c.detail && !hcOculta && (
                       <span className="shell-crumb-detail" title={`HC ${c.detail}`}>
                         <span style={TEXTO_OCULTO}>HC </span>
                         {c.detail}

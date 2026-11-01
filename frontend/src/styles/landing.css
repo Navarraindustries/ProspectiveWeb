@@ -489,6 +489,17 @@
 .landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .hero-cortes__ancla {
   height: var(--control-md);
 }
+/* R29: pantallas bajas (1280 × 600): el hero se compacta para que las notas
+   queden sobre el pliegue. El alto es el de CONSULTA_HERO_QUIETO. */
+@media (max-height: 600px) {
+  .landing-stitch .hero-cortes__contenido,
+  .landing-stitch[data-tramo] .hero-cortes__contenido { padding-top: 72px; padding-bottom: 24px; gap: 24px; }
+  .landing-stitch .hero-cortes__antetitulo { margin-bottom: 12px; }
+  .landing-stitch .hero-cortes__titulo { font-size: clamp(34px, 5vw, 52px); }
+  .landing-stitch .hero-cortes__subtitulo { margin-top: 14px; font-size: 16px; line-height: 1.45; }
+  .landing-stitch .hero-cortes__acciones { margin-top: 20px; }
+  .landing-stitch .hero-cortes__notas { margin-top: 18px; }
+}
 /* Grande (≥ 1920): el contenido sigue acotado, pero con más aire. */
 .landing-stitch[data-tramo="grande"] .hero-cortes__contenido {
   max-width: 1600px;
@@ -831,7 +842,15 @@
   align-items: center;
   justify-content: flex-end;
 }
+.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .sec__texto a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
 .landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .franja-casos__credito a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   padding-block: 12px;
 }
 .landing-stitch .franja-casos__credito a:hover,

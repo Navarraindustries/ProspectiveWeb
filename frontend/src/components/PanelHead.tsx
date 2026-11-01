@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { glass } from "../styles/glass";
 import { DUR, EASE, motion, useReducedMotion } from "../motion";
 import { Icon } from "./Icon";
+import { useTableta } from "../hooks/useEstrecho";
 
 export function PanelHead({ title, desc, right }: { title: string; desc?: string; right?: ReactNode }) {
   return (
@@ -66,6 +67,7 @@ export function Collapsible({
   children: ReactNode;
 }) {
   const reducido = useReducedMotion();
+  const tableta = useTableta();
   const [open, setOpen] = useState(() => {
     // sessionStorage puede lanzar (ventana privada, cookies bloqueadas); en ese
     // caso simplemente se usa el valor por defecto.
@@ -93,14 +95,15 @@ export function Collapsible({
         aria-expanded={open}
         style={{
           display: "flex", alignItems: "center", gap: 10, width: "100%",
-          padding: "11px 14px", border: "none", background: "transparent",
+          padding: "11px 14px", minHeight: tableta ? "var(--control-md)" : undefined, border: "none", background: "transparent",
           cursor: "pointer", textAlign: "left", fontFamily: "var(--font-sans)",
         }}
       >
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>{title}</span>
           {subtitle && (
-            <span className="truncate" style={{ display: "block", fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
+            // ≤ 1024: a 13 px (R19; «Reglas, ángulos, regiones y notas» se leía a 11).
+            <span className="truncate" style={{ display: "block", fontSize: tableta ? 13 : 11, color: "var(--muted-foreground)", marginTop: 2 }}>
               {subtitle}
             </span>
           )}

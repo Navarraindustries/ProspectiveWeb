@@ -12,7 +12,6 @@ const c = (cx: number, cy: number, r: number) =>
 
 const PATHS = {
   // Pasos del flujo
-  STEP_PATIENT: "M3 3h10v10H3z",
   STEP_SEGMENT: `${c(8, 8, 5.5)}M8 5v6M5 8h6`,
   STEP_DETECT: `${c(8, 8, 5.5)}${c(8, 8, 2)}`,
   STEP_MORPHO: "M12 3H4l4 5-4 5h8",

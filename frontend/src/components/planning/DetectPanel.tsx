@@ -21,6 +21,10 @@ import {
 } from "./detectCopy";
 import { canAdvanceFromDetect } from "./detectGate";
 import { cifraCorta } from "../../lib/numero";
+import { useTableta } from "../../hooks/useEstrecho";
+
+/** Letra mínima del panel en tableta y móvil (R19). */
+export const TEXTO_MIN_TABLETA = 13;
 
 /** Número de la última detección pedida. De módulo y no del componente: si el
  *  panel se desmonta y se vuelve a montar con una detección en vuelo, la
@@ -72,6 +76,10 @@ function explainEmpty(d: DetectionDiagnostics): { reason: string; advice: string
 
 export function DetectPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
+  // ≤ 1024 (R19): nada del panel por debajo de 13 px —viñetas, «Candidato N»,
+  // «azul = dónde, no el saco»…—; en ancho se queda la letra pequeña.
+  const tableta = useTableta();
+  const fs = (px: number) => (tableta ? Math.max(TEXTO_MIN_TABLETA, px) : px);
   const {
     sessionId, candidates, rejectedCandidates, allCandidates, selectedCandidate,
     morphoInvalidatedNotice,
@@ -196,7 +204,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
           resto plegado; la cifra viva la da «¿Cuál es la lesión?». */}
       {ran && candidates.length > 1 && (
         <div role="note" aria-label="Cómo leer la lista"
-             style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
+             style={{ fontSize: fs(11), color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
           <ul style={{ margin: 0, paddingLeft: 16 }}>
             {DETECT_LINES.map((t) => <li key={t}>{t}</li>)}
           </ul>
@@ -241,7 +249,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", whiteSpace: "nowrap" }}>{candidateName(c, false, i)}</span>
+                <span style={{ fontSize: fs(12), fontWeight: 600, color: "var(--foreground)", whiteSpace: "nowrap" }}>{candidateName(c, false, i)}</span>
                 {/* Qué criterio lo encontró. Que coincidan varios es
                     información para el clínico; el orden no lo es. */}
                 {manual
@@ -265,12 +273,12 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                 {/* F1-143: «Ø 3.7 mm est.» se leía como el diámetro del
                     aneurisma; es el grosor estimado en ese punto. */}
                 {!manual && (
-                  <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+                  <span style={{ fontSize: fs(12), color: "var(--muted-foreground)" }}>
                     {thicknessLabel(c.max_diameter_mm)}
                   </span>
                 )}
                 {c.patch_kind === "locator" && (
-                  <span style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>
+                  <span style={{ fontSize: fs(10.5), color: "var(--muted-foreground)" }}>
                     azul = dónde, no el saco
                   </span>
                 )}
@@ -297,7 +305,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
             style={{
               display: "flex", alignItems: "center", gap: 6, width: "100%",
               background: "none", border: "none", padding: "4px 0", cursor: "pointer",
-              fontSize: 12, fontWeight: 700, color: "var(--muted-foreground)", textAlign: "left",
+              fontSize: fs(12), fontWeight: 700, color: "var(--muted-foreground)", textAlign: "left",
             }}
           >
             <span aria-hidden style={{ display: "inline-block", width: 10 }}>{showRejected ? "▾" : "▸"}</span>
@@ -305,7 +313,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
           </button>
           {/* Todos los candidatos se dibujan a la vez en el 3D; los descartados,
               tenues, se pueden apagar si estorban en un caso con muchos. */}
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--muted-foreground)", padding: "2px 0 2px 16px", cursor: "pointer" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: fs(12), color: "var(--muted-foreground)", padding: "2px 0 2px 16px", cursor: "pointer" }}>
             <input
               type="checkbox"
               checked={planning.showRejectedIn3d}
@@ -315,7 +323,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
           </label>
           {showRejected && (
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
-              <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+              <div style={{ fontSize: fs(11), color: "var(--muted-foreground)" }}>
                 El detector los apartó por un criterio geométrico. Se listan para poder
                 discrepar: elegir uno lo pinta en el 3D.
               </div>
@@ -336,8 +344,8 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>{candidateName(c, true, i)}</span>
-                      <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+                      <span style={{ fontSize: fs(12), fontWeight: 600, color: "var(--foreground)" }}>{candidateName(c, true, i)}</span>
+                      <span style={{ fontSize: fs(12), color: "var(--muted-foreground)" }}>
                         {thicknessLabel(c.max_diameter_mm)}
                       </span>
                       <div style={{ flex: 1 }} />
@@ -349,7 +357,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                       {on && <Icon name="STATUS_OK" size={15} color="var(--warning)" />}
                     </div>
                     {on && (
-                      <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 6 }}>
+                      <div style={{ fontSize: fs(11), color: "var(--warning)", marginTop: 6 }}>
                         {vetoHint(c.veto?.label)}
                       </div>
                     )}
@@ -364,7 +372,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
       {/* Si el elegido es un descartado con el desplegable cerrado, la
           advertencia no puede quedarse escondida dentro. */}
       {selectedRejected && !showRejected && (
-        <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 8 }}>
+        <div style={{ fontSize: fs(11), color: "var(--warning)", marginTop: 8 }}>
           {candidateName(selectedRejected, true, rejectedCandidates.indexOf(selectedRejected))}: {vetoHint(selectedRejected.veto?.label)}
         </div>
       )}
@@ -373,7 +381,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
         <div role="status" style={{
           marginTop: 10, padding: "8px 12px", borderRadius: "var(--radius-md)",
           border: "1px solid var(--warning)", background: "var(--warning-bg)",
-          fontSize: 12, color: "var(--warning)",
+          fontSize: fs(12), color: "var(--warning)",
         }}>
           {MORPHO_INVALIDATED}
         </div>
@@ -383,7 +391,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
 
       {/* Todo vetado no es un vacío: hay sitios, y se pueden elegir y medir. */}
       {ran && !busy && candidates.length === 0 && rejectedCandidates.length > 0 && (
-        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 10 }}>
+        <div style={{ fontSize: fs(12), color: "var(--muted-foreground)", marginTop: 10 }}>
           {ALL_REJECTED}
         </div>
       )}
@@ -397,7 +405,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
           <div style={{
             marginTop: 10, padding: "12px 14px", borderRadius: "var(--radius-md)",
             border: "1px solid var(--border)", background: "var(--card)",
-            fontSize: 12, lineHeight: 1.55, color: "var(--muted-foreground)",
+            fontSize: fs(12), lineHeight: 1.55, color: "var(--muted-foreground)",
           }}>
             <div style={{ fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>
               Por qué no se encontró nada

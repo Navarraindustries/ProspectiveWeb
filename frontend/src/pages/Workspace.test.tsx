@@ -252,3 +252,23 @@ describe("avisos del pipeline como toasts", () => {
     expect(screen.getByText("Restaurando sesión…")).toBeTruthy();
   });
 });
+
+describe("Registro de la sesión", () => {
+  beforeEach(() => { for (const k of Object.keys(estado)) delete estado[k]; });
+
+  it("va bajo «Anotaciones», plegado, con sesión", () => {
+    montar();
+    const titulos = screen.getAllByRole("button", { hidden: true }).map((b) => b.textContent ?? "");
+    const a = titulos.findIndex((t) => t.includes("Anotaciones"));
+    const r = titulos.findIndex((t) => t.includes("Registro"));
+    expect(a).toBeGreaterThanOrEqual(0);
+    expect(r).toBeGreaterThan(a);
+    expect(screen.queryByText("Aún no ha pasado nada en esta sesión")).toBeNull();
+  });
+
+  it("sin sesión no aparece", () => {
+    estado.sessionId = null;
+    montar();
+    expect(screen.queryByText("Registro")).toBeNull();
+  });
+});

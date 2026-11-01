@@ -34,6 +34,8 @@ import { ARCHIVAR_EN_CASO, sinCasoAviso } from "../lib/textos";
 import { PREF_PANEL_COLLAPSED, RightPanelColumn, useUnfoldForNote } from "../components/RightPanelColumn";
 import { useStoredFlag } from "../vtk/viewerPrefs";
 import { usePlanning } from "../store/planning";
+import { useSessionLog } from "../pipeline/sessionLog";
+import { SessionLog } from "../components/planning/SessionLog";
 import { canAdvanceFromDetect } from "../components/planning/detectGate";
 
 
@@ -161,6 +163,7 @@ export function Workspace({
     setTimeout(() => setAttachNote(null), 6000);
   };
   const step = STEPS[stepIdx].key;
+  const registro = useSessionLog(STEPS[stepIdx].label, savedAt);
 
   const saveProgress = async (): Promise<boolean> => {
     if (!sessionId) return false;
@@ -470,6 +473,9 @@ export function Workspace({
                 badge={annotations.length > 0 ? <Badge variant="subtle">{annotations.length}</Badge> : undefined}
               >
                 <AnnotationsPanel />
+              </Collapsible>
+              <Collapsible title="Registro" storageKey="ws.sessionlog">
+                <SessionLog entries={registro} />
               </Collapsible>
             </div>
           )}

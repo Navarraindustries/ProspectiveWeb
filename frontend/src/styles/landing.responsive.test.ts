@@ -54,3 +54,17 @@ describe("landing.css, anclas", () => {
     expect(tieneDeclaracion(css, '.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .que-es', "grid-template-columns: minmax(0, 1fr)")).toBe(true);
   });
 });
+
+describe("landing.css, rejilla bento de «Funcionalidades»", () => {
+  it("cuatro, dos y una columna por tramo, con las áreas de escritorio exactas", () => {
+    expect(tieneDeclaracion(css, ".landing-stitch .bento", "grid-template-columns: repeat(4, minmax(0, 1fr))")).toBe(true);
+    expect(tieneDeclaracion(css, '.landing-stitch[data-tramo="tableta"] .bento', "grid-template-columns: repeat(2, minmax(0, 1fr))")).toBe(true);
+    expect(tieneDeclaracion(css, '.landing-stitch[data-tramo="movil"] .bento', "grid-template-columns: minmax(0, 1fr)")).toBe(true);
+    expect(tieneDeclaracion(css, ".landing-stitch .bento", 'grid-template-areas: "seg seg morfo motor" "seg seg prueba informe" "sesiones pacientes detec detec" "clip clip detec detec"')).toBe(true);
+  });
+  it("cada tarjeta coge su área y en móvil manda el orden del DOM", () => {
+    expect(tieneDeclaracion(css, '.landing-stitch .bento__tarjeta[data-area="detec"]', "grid-area: detec")).toBe(true);
+    expect(tieneDeclaracion(css, '.landing-stitch[data-tramo="movil"] .bento__tarjeta', "grid-area: auto")).toBe(true);
+    expect(tieneDeclaracion(css, '.landing-stitch[data-tramo="movil"] .bento', "grid-template-areas: none")).toBe(true);
+  });
+});

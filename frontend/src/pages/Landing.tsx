@@ -15,6 +15,7 @@ import { ListaConReglas } from "../components/landing/ListaConReglas";
 import { NavPildora } from "../components/landing/NavPildora";
 import { Revelar, Seccion } from "../components/landing/Seccion";
 import { ComoFunciona } from "../components/landing/SeccionComoFunciona";
+import { Funcionalidades } from "../components/landing/SeccionFuncionalidades";
 import { QueEs } from "../components/landing/SeccionQueEs";
 import { Logo } from "../components/shell/Logo";
 import { useTramo } from "../hooks/useEstrecho";
@@ -26,31 +27,6 @@ import {
   AR_HIGH, BF_WIDE, DNR_HIGH, EI_MOD, SR_HIGH, UI_HIGH,
 } from "../components/morphometry/thresholds";
 /* El lema único del producto vive en el titular de HeroCortes: una sola vez. */
-
-/* ── Funcionalidades ────────────────────────────────────────────────────── */
-const FUNCIONALIDADES = [
-  "Segmentación 3D automática",
-  "Detección por calibre, cociente y curvatura",
-  "Morfometría del saco y del cuello",
-  "Motor de decisión: PHASES, JSDB y geometría",
-  "Prueba de clips, coils y stents",
-  "Clip a medida para fabricar",
-  "Informe clínico",
-  "Sesiones guardadas",
-  "Pacientes, casos y estudios",
-];
-
-function Funcionalidades() {
-  return (
-    <Seccion id="funcionalidades" rotulo="Funcionalidades" titulo="Lo que hay dentro">
-      <ListaConReglas columnas={2} items={FUNCIONALIDADES.map((titulo) => ({ titulo }))} />
-      <p className="sec__nota">
-        Cada resultado dice de dónde viene y cuánto se puede confiar en él. La herramienta propone; el
-        cirujano decide.
-      </p>
-    </Seccion>
-  );
-}
 
 /* ── Índices morfométricos ──────────────────────────────────────────────── */
 // Cada corte con coma decimal y sus decimales (2,0 y no 2), vía lib/numero.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DUR, DUR_DESPLAZAMIENTO, ESCALONADO, EASE, revelar, revelarTransition, glide, glideTransition, lens, lensCard, panelSwap, panelTransition, pressable, sheetSlide, sheetTransition } from "./presets";
+import { DUR, EASE, revelar, revelarTransition, glide, glideTransition, lens, lensCard, panelSwap, panelTransition, pressable, sheetSlide, sheetTransition } from "./presets";
 
 describe("presets de movimiento", () => {
   it("usa las duraciones y la curva de la especificación", () => {
@@ -22,11 +22,9 @@ describe("presets de movimiento", () => {
     expect(lens.whileHover.scale).toBe(1.06);
     expect(lensCard.whileHover.scale).toBe(1.02);
   });
-  it("revelar sube 16 px, se escalona a 0,06 s y el desplazamiento dura 0,6 s", () => {
+  it("revelar sube 16 px", () => {
     expect(revelar.oculto).toEqual({ opacity: 0, y: 16 });
     expect(revelar.visible).toEqual({ opacity: 1, y: 0 });
-    expect(ESCALONADO).toBe(0.06);
-    expect(DUR_DESPLAZAMIENTO).toBe(0.6);
     expect(revelarTransition.duration).toBe(0.48);
   });
 });

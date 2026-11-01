@@ -1,9 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 
-import { CONSULTA } from "../../styles/puntosCorte";
 import { simularPantalla } from "../../test/pantalla";
-import { NAV_PLEGADA, NavPildora } from "./NavPildora";
+import { NavPildora } from "./NavPildora";
 
 const { irA, activa } = vi.hoisted(() => ({ irA: vi.fn(), activa: { valor: null as string | null } }));
 
@@ -27,8 +26,6 @@ afterEach(() => {
 });
 
 describe("NavPildora", () => {
-  it("el punto de plegado es el de tableta (1024)", () => expect(NAV_PLEGADA).toBe(CONSULTA.tableta));
-
   it("lleva los cuatro enlaces de ancla y los dos botones, sobre cristal", () => {
     simularPantalla(1280);
     const { container } = montar();

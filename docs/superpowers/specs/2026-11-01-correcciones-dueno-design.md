@@ -184,3 +184,11 @@ Los assets de Case 3 (proceso VTK pesado) se generan en paralelo a las fases
 
 Informe PDF y DICOM SR (marca y estilo propios); lógica del pipeline; la
 regla de la corteza (revertida el 01-11).
+
+## Decisiones del dueño durante la ronda (01-11)
+
+- **Tema por defecto: oscuro**, también en la landing (no sigue el tema del
+  sistema la primera vez). La tarea «Tema claro» queda como conmutador.
+- **Lecturas del HUD sobre la imagen** (W/L, nº de corte, orientación, rótulo
+  del candidato): se quedan a 10,5–11 px también en táctil; solo los controles
+  crecen (44 px, 13 px). Excepción aceptada a la regla de 13 px.

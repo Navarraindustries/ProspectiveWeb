@@ -20,6 +20,7 @@ import { ThemeToggle } from "../ThemeToggle";
 import { UserMenu } from "./UserMenu";
 import { glass } from "../../styles/glass";
 import { openCommandPalette } from "../../lib/commands";
+import { atajoPaleta, rotuloPaleta, teclasPaleta } from "../../lib/plataforma";
 
 /** Un segmento de la miga: rótulo y, si lleva destino, adónde va. */
 export interface Crumb {
@@ -169,8 +170,15 @@ export function TopBar({ brand = false, crumbs, subtitle, status, acciones, extr
         ))}
         {movil && <MenuMas items={itemsMenu} tactil />}
         {!movil && (
-          <button type="button" className="shell-cmdk" aria-label="Abrir la paleta de mandos (Ctrl+K)" title="Paleta de mandos (Ctrl+K)" onClick={openCommandPalette}>
-            ⌘K
+          <button
+            type="button"
+            className="shell-cmdk"
+            aria-label={rotuloPaleta()}
+            aria-keyshortcuts={teclasPaleta()}
+            title={`Paleta de mandos (${atajoPaleta()})`}
+            onClick={openCommandPalette}
+          >
+            {atajoPaleta()}
           </button>
         )}
         <ThemeToggle size={tableta ? "lg" : "sm"} />

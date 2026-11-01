@@ -1,6 +1,7 @@
 import { act, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PatientSummary } from "../api/types";
+import { simularPantalla } from "../test/pantalla";
 
 const listPatients = vi.fn();
 vi.mock("../api/client", () => ({ api: { listPatients: () => listPatients() } }));
@@ -54,9 +55,37 @@ beforeEach(() => {
   listPatients.mockReset();
   listPatients.mockResolvedValue([P96, P2, P3]);
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("CommandPalette", () => {
+  it("cada opción lleva el icono de su grupo", async () => {
+    setup();
+    open();
+    await screen.findAllByRole("option");
+    const opciones = screen.getAllByRole("option");
+    expect(opciones.length).toBeGreaterThan(0);
+    for (const o of opciones) expect(o.querySelector("svg")).not.toBeNull();
+  });
+
+  it("a 1024 las opciones miden al menos 44 px", async () => {
+    simularPantalla({ ancho: 1024 });
+    setup();
+    open();
+    const opciones = await screen.findAllByRole("option");
+    for (const o of opciones) expect((o as HTMLElement).style.minHeight).toBe("44px");
+  });
+
+  it("a 1280 no se fuerza el alto táctil", async () => {
+    simularPantalla({ ancho: 1280 });
+    setup();
+    open();
+    const opciones = await screen.findAllByRole("option");
+    expect((opciones[0] as HTMLElement).style.minHeight).toBe("");
+  });
+
   it("Ctrl+K abre el diálogo con el foco en el buscador y Esc devuelve el foco al campo", async () => {
     setup();
     const field = open();

@@ -40,6 +40,12 @@ describe("TopBar", () => {
     window.removeEventListener(OPEN_PALETTE_EVENT, fn);
     expect(fn).toHaveBeenCalledTimes(1);
   });
+  it("fuera de Mac el botón dice «Ctrl K»", () => {
+    render(<TopBar crumbs={[{ label: "Pacientes" }]} />);
+    const b = screen.getByRole("button", { name: "Abrir la paleta de mandos (Ctrl+K)" });
+    expect(b.textContent).toBe("Ctrl K");
+    expect(b).toHaveAttribute("aria-keyshortcuts", "Control+K");
+  });
   it("a 1707 todas llevan texto y hay botón Ctrl K", () => {
     const p = simularPantalla({ ancho: 1707 });
     render(barra());

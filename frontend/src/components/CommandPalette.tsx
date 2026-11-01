@@ -4,6 +4,10 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { api } from "../api/client";
+import { Icon } from "./Icon";
+import type { IconName } from "./Icon";
+import { useTableta } from "../hooks/useEstrecho";
+import { atajoPaleta } from "../lib/plataforma";
 import type { PatientSummary } from "../api/types";
 import { getCommands, OPEN_PALETTE_EVENT, subscribeCommands } from "../lib/commands";
 import { fundido, fundidoTransition, glide, glideTransition, motion, useReducedMotion } from "../motion";
@@ -27,11 +31,13 @@ interface Row {
   group: string;
   label: string;
   hint?: string;
+  icon: IconName;
   disabled?: boolean;
   run: () => void;
 }
 
 const GROUPS = ["Ir a", "Pasos", "Acciones", "Pacientes", "Recientes"] as const;
+const ICONO_GRUPO: Record<(typeof GROUPS)[number], IconName> = { "Ir a": "OPEN", Pasos: "TARGET", Acciones: "SPARKLE", Pacientes: "USER", Recientes: "RESUME" };
 const MAX_PATIENTS = 8;
 const MAX_RECENT = 5;
 
@@ -56,6 +62,7 @@ export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: P
   const { user } = useAuth();
   const nav = useNav();
   const reduced = useReducedMotion();
+  const tableta = useTableta();
   const listId = useId();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -130,14 +137,14 @@ export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: P
       if (s.group === "admin" && !isAdmin) continue;
       if (!matches(query, s.label, s.group === "admin" ? ADMIN_GROUP_LABEL : "")) continue;
       out.push({
-        key: `ir:${s.key}`, group: "Ir a", label: s.label,
+        key: `ir:${s.key}`, group: "Ir a", icon: ICONO_GRUPO["Ir a"], label: s.label,
         hint: s.group === "admin" ? ADMIN_GROUP_LABEL : undefined, run: () => nav.go(s.key),
       });
     }
     const label = { ir: "Ir a", pasos: "Pasos", acciones: "Acciones" } as const;
     for (const c of commands) {
       if (!matches(query, c.label, c.hint, ...(c.keywords ?? []))) continue;
-      out.push({ key: `cmd:${c.group}:${c.id}`, group: label[c.group], label: c.label, hint: c.hint, disabled: c.disabled, run: c.run });
+      out.push({ key: `cmd:${c.group}:${c.id}`, group: label[c.group], icon: ICONO_GRUPO[label[c.group]], label: c.label, hint: c.hint, disabled: c.disabled, run: c.run });
     }
     if (patients.status === "ok") {
       if (query.trim()) {
@@ -145,7 +152,7 @@ export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: P
           .filter((p) => matches(query, p.full_name, p.hospital_id))
           .slice(0, MAX_PATIENTS)
           .forEach((p) => out.push({
-            key: `pac:${p.id}`, group: "Pacientes", label: p.full_name, hint: p.hospital_id, run: () => onOpenPatient(p.id),
+            key: `pac:${p.id}`, group: "Pacientes", icon: ICONO_GRUPO.Pacientes, label: p.full_name, hint: p.hospital_id, run: () => onOpenPatient(p.id),
           }));
       }
       patients.list
@@ -154,7 +161,7 @@ export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: P
         .slice(0, MAX_RECENT)
         .filter((p) => matches(query, "Reanudar", p.full_name, p.hospital_id))
         .forEach((p) => out.push({
-          key: `rec:${p.id}`, group: "Recientes", label: `Reanudar · ${p.full_name}`,
+          key: `rec:${p.id}`, group: "Recientes", icon: ICONO_GRUPO.Recientes, label: `Reanudar · ${p.full_name}`,
           hint: reanudarBloqueado ?? p.hospital_id, disabled: !!reanudarBloqueado,
           run: () => onResume(p.last_session_id!, p),
         }));
@@ -241,6 +248,7 @@ export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: P
           aria-activedescendant={rows.length ? `${listId}-${current}` : undefined}
           aria-label="Buscar en la paleta"
           placeholder="Buscar una sección, un paciente o una acción…"
+          title={`Paleta de mandos (${atajoPaleta()})`}
           value={query}
           onChange={(e) => { setQuery(e.target.value); setActive(0); }}
           style={{
@@ -272,13 +280,16 @@ export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: P
                   onMouseMove={() => { if (i !== current) setActive(i); }}
                   onClick={() => exec(r)}
                   style={{
-                    display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline",
-                    margin: "0 8px", padding: "9px 10px", borderRadius: "var(--radius-md)", fontSize: 14,
+                    display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center",
+                    margin: "0 8px", padding: "9px 10px", minHeight: tableta ? 44 : undefined, borderRadius: "var(--radius-md)", fontSize: 14,
                     cursor: r.disabled ? "not-allowed" : "pointer", opacity: r.disabled ? 0.5 : 1,
                     background: i === current ? "var(--glass-hover)" : "transparent",
                   }}
                 >
-                  <span>{r.label}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                    <Icon name={r.icon} size={14} color="var(--muted-foreground)" />
+                    <span>{r.label}</span>
+                  </span>
                   {r.hint && (
                     <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}>{r.hint}</span>
                   )}

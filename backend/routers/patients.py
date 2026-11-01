@@ -22,7 +22,7 @@ from services.database import get_db
 from services.access import own_patient_ids, require_patient, require_share_right
 from services.auth_service import get_current_user
 from services.audit import (ACT_CASE_DELETED, ACT_PATIENT_DELETED, ACT_PATIENT_SHARED,
-                            SkullChain, audit_append, audit_patient, patient_hash_for)
+                            SkullChain, audit_append, audit_patient, pacientes_por_hash)
 from services.sessions import size_of_row
 from services.db_models import (CaseCapture, ImagingStudy, LesionConfirmation, Patient,
                                 PatientShare, PlanningSession, Study, User)
@@ -141,19 +141,11 @@ async def patients_activity(
     if visibles is not None:
         query = query.filter(Patient.id.in_(visibles))
     # La cadena no guarda el id del paciente sino un hash de historia clínica y
-    # fecha de nacimiento, el mismo con que escriben los routers. Se invierte
-    # construyendo el hash de cada paciente visible. Límite aceptado (spec §4.4):
-    # si se edita la historia o la fecha, los bloques anteriores dejan de casar.
-    # Dos fichas con la misma historia y fecha comparten hash (la HC no es única
-    # en BD si viene vacía o de datos antiguos). Se recorre por id y gana la
-    # primera, la más antigua: así el nombre de la actividad no cambia de una
-    # petición a otra según el orden en que devuelva las filas la base.
-    por_hash = {}
-    for p in query.order_by(Patient.id).all():
-        args = audit_patient(p)
-        h = patient_hash_for(args["patient_id"], args["patient_dob"])
-        if h:
-            por_hash.setdefault(h, p)
+    # fecha de nacimiento: se invierte con el hash de cada paciente visible
+    # (`pacientes_por_hash`, compartido con /api/audit/blocks). Se recorre por
+    # id y, si dos fichas comparten hash, gana la más antigua: así el nombre de
+    # la actividad no cambia de una petición a otra.
+    por_hash = pacientes_por_hash(query.order_by(Patient.id).all())
     bloques = SkullChain.instance().get_recent(set(por_hash), limit, _ACCIONES_FUERA_DE_ACTIVIDAD)
     return [PatientActivity(patient_id=por_hash[b["patient_hash"]].id,
                             patient_name=por_hash[b["patient_hash"]].full_name,

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from fastapi.responses import PlainTextResponse
 
 from models.audit import AuditAppendRequest, AuditBlock, AuditVerifyResult
-from services.audit import SkullChain, ACT_INTEGRITY_CHECK, audit_patient, patient_hash_for
+from services.audit import SkullChain, ACT_INTEGRITY_CHECK, hash_de_paciente, pacientes_por_hash
 from services.database import get_db
 from services.auth_service import require_admin
 from services.db_models import Patient, User
@@ -52,24 +52,22 @@ async def append_event(req: AuditAppendRequest,
 async def list_blocks(db: Annotated[Session, Depends(get_db)],
                       patient_id: int | None = None) -> list[AuditBlock]:
     chain = SkullChain.instance()
-    if patient_id is None:
-        raw = chain.get_all_blocks()
-    else:
+    if patient_id is not None:
         patient = db.get(Patient, patient_id)
         if patient is None:
             raise HTTPException(status_code=404, detail="Paciente no encontrado.")
         # Con los mismos argumentos que usan los routers al escribir el bloque
         # (historia clínica o `id:N`, y fecha de nacimiento), no con el id a secas.
-        args = audit_patient(patient)
-        raw = chain.get_blocks(patient_hash_for(args["patient_id"], args["patient_dob"]))
+        # Todos los bloques devueltos son de este paciente: se resuelven con él,
+        # sin montar el mapa de todos. Si otra ficha comparte su HC y su fecha,
+        # manda el id que se pidió, no la ficha más antigua.
+        raw = chain.get_blocks(hash_de_paciente(patient))
+        return [AuditBlock(**b, patient_id=patient.id, patient_name=patient.full_name)
+                for b in raw]
+    raw = chain.get_all_blocks()
     # Se invierte el hash como en la actividad de pacientes: por id, gana el
     # primero. Sin coincidencia (borrado, o HC/fecha editadas) queda vacío.
-    por_hash: dict[str, Patient] = {}
-    for p in db.query(Patient).order_by(Patient.id).all():
-        a = audit_patient(p)
-        h = patient_hash_for(a["patient_id"], a["patient_dob"])
-        if h:
-            por_hash.setdefault(h, p)
+    por_hash = pacientes_por_hash(db.query(Patient).order_by(Patient.id).all())
     out = []
     for b in raw:
         p = por_hash.get(b["patient_hash"])

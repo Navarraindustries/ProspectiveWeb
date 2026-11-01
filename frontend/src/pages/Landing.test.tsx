@@ -8,12 +8,13 @@
 
    Las dos son del mismo tipo: una afirmación escrita a mano al lado del dato que
    la desmiente. Estas pruebas la atan al dato. */
-import { describe, expect, it } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import { Landing } from "./Landing";
 import { STEPS } from "../pipeline/steps";
+import { simularPantalla } from "../test/pantalla";
 
 const show = () => render(<MemoryRouter><Landing /></MemoryRouter>);
 
@@ -240,6 +241,37 @@ describe("Landing D: secciones del tablero", () => {
     const { container } = show();
     for (const id of ["que-es", "como-funciona", "indices", "dispositivos"]) {
       expect(container.querySelector(`#${id}`), id).not.toBeNull();
+    }
+  });
+});
+
+describe("responsive", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each([[360, "movil"], [390, "movil"], [768, "tableta"], [1024, "tableta"], [1280, "estrecho"],
+    [1366, "ancho"], [1707, "ancho"], [1920, "grande"], [2560, "grande"]])(
+    "a %i px la raíz es data-tramo=%s", (ancho, tramo) => {
+      simularPantalla(ancho);
+      const { container } = show();
+      expect(container.querySelector(".landing-stitch")).toHaveAttribute("data-tramo", tramo);
+    });
+
+  it("al girar la tableta el tramo cambia sin recargar", () => {
+    const p = simularPantalla(1280);
+    const { container } = show();
+    act(() => p.cambiar({ ancho: 768 }));
+    expect(container.querySelector(".landing-stitch")).toHaveAttribute("data-tramo", "tableta");
+  });
+
+  it("las imágenes bajo el hero cargan perezosas y con tamaño explícito", () => {
+    const { container } = show();
+    const imgs = [...container.querySelectorAll("img")].filter((i) => !i.closest('[aria-label="Portada"]'));
+    expect(imgs.length).toBeGreaterThan(0);
+    for (const i of imgs) {
+      expect(i).toHaveAttribute("loading", "lazy");
+      expect(i).toHaveAttribute("decoding", "async");
+      expect(i.getAttribute("width")).toMatch(/^\d+$/);
+      expect(i.getAttribute("height")).toMatch(/^\d+$/);
     }
   });
 });

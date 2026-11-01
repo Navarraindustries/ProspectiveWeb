@@ -3,6 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 
 import { HeroCortes } from "./HeroCortes";
 import { CONSULTA_HERO_QUIETO } from "./heroFrames";
+import { simularPantalla } from "../../test/pantalla";
 
 const reducida = vi.hoisted(() => ({ valor: false }));
 vi.mock("../../motion", async (orig) => ({
@@ -151,5 +152,23 @@ describe("HeroCortes", () => {
     const balizas = container.querySelectorAll("[data-baliza]");
     expect(balizas).toHaveLength(1);
     expect(balizas[0]).toHaveTextContent("1");
+  });
+
+  it("la consulta de la disposición quieta usa el ancho del tramo móvil", () => {
+    expect(CONSULTA_HERO_QUIETO).toBe("(max-width: 640px), (max-height: 600px)");
+  });
+
+  it.each([[390, 844], [844, 390]])("a %i × %i es quieto", (ancho, alto) => {
+    simularPantalla(ancho, alto);
+    const { container } = montar();
+    expect(container.querySelector("section")).toHaveClass("hero-cortes--quieto");
+  });
+
+  it.each([[768, 1024], [1707, 743]])("a %i × %i es el hero animado", (ancho, alto) => {
+    simularPantalla(ancho, alto);
+    const { container } = montar();
+    const seccion = container.querySelector("section") as HTMLElement;
+    expect(seccion).not.toHaveClass("hero-cortes--quieto");
+    expect(seccion.style.height).toBe("300vh");
   });
 });

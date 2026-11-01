@@ -5,6 +5,8 @@
    desde `public/`, así que aquí va su copia y `heroFrames.test.ts` la compara
    con el fichero de disco: si se regeneran los assets, el test avisa. */
 
+import { CONSULTA } from "../../styles/puntosCorte";
+
 export const MANIFIESTO = {
   count: 60,
   total: 384,
@@ -57,10 +59,11 @@ export const rutaFotograma =(i: number): string =>
 
 /* Pantallas donde el escenario fijado de 100 vh no cabe (un iPhone con las
    barras visibles, un móvil apaisado): el hero pasa a la
-   disposición quieta, la misma que con movimiento reducido. Debe coincidir con
-   el @media de `.hero-cortes` en landing.css. 600 px de alto deja entrar al
-   portátil de 1366 × 768 (≈ 650 px útiles): el contenido del hero mide ≈ 600. */
-export const CONSULTA_HERO_QUIETO = "(max-width: 760px), (max-height: 600px)";
+   disposición quieta, la misma que con movimiento reducido (la clase
+   `.hero-cortes--quieto` cubre el escenario y el contenido). El ancho es el del
+   tramo móvil. 600 px de alto deja entrar al portátil de 1366 × 768
+   (≈ 650 px útiles): el contenido del hero mide ≈ 600. */
+export const CONSULTA_HERO_QUIETO = `${CONSULTA.movil}, (max-height: 600px)`;
 
 /* Peticiones simultáneas tras el fotograma 0. */
 const EN_PARALELO = 4;

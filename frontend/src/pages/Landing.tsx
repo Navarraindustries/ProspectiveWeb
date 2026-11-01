@@ -16,6 +16,7 @@ import { ListaConReglas } from "../components/landing/ListaConReglas";
 import { NavPildora } from "../components/landing/NavPildora";
 import { useVisible } from "../components/patients/useVisible";
 import { Logo } from "../components/shell/Logo";
+import { useTramo } from "../hooks/useEstrecho";
 import { CONTACTO_ADMIN } from "../lib/contacto";
 import { cifra } from "../lib/numero";
 /* Los cortes de los índices se importan, no se copian: la portada no puede
@@ -278,11 +279,12 @@ export function Landing() {
   const navigate = useNavigate();
   const entrar = () => navigate("/app");
   const crearCuenta = () => navigate("/app/registro");
+  const tramo = useTramo();
   return (
     /* `landing-stitch` trae la maquetación (styles/landing.css) y
        `data-theme="dark"` la ancla en oscuro: la landing no debe seguir el tema
        que el usuario eligió para /app. */
-    <div className="landing-stitch" data-theme="dark" style={{ background: "var(--canvas)", minHeight: "100%" }}>
+    <div className="landing-stitch" data-theme="dark" data-tramo={tramo} style={{ background: "var(--canvas)", minHeight: "100%" }}>
       <NavPildora onEntrar={entrar} onCrearCuenta={crearCuenta} />
       <HeroCortes onEntrar={entrar} onCrearCuenta={crearCuenta} />
       <QueEs />

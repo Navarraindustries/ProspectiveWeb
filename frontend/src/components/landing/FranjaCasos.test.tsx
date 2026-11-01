@@ -27,4 +27,12 @@ describe("FranjaCasos", () => {
       expect(el.style.transform).toBe("");
     }
   });
+
+  it("el texto va sobre cristal, el <source> sigue el tramo móvil y el crédito enlaza IntrA", () => {
+    const { container } = render(<FranjaCasos />);
+    expect(container.querySelector(".franja-casos__texto")).toHaveAttribute("data-glass");
+    expect(container.querySelector("source")).toHaveAttribute("media", "(max-width: 640px)");
+    const enlace = container.querySelector(".franja-casos__credito a");
+    expect(enlace).toHaveAttribute("href", "https://github.com/intra3d2019/IntrA");
+  });
 });

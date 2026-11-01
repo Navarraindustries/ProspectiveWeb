@@ -225,7 +225,7 @@ function SceneHeading({ feed, orientation }: { feed: RefObject<CameraFeed>; orie
 function ViewerLoading({ label }: { label: string }) {
   return (
     <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--viewer-bg)" }}>
-      <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--hud-dim)" }}>{label}</div>
+      <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--hud-text-dim)" }}>{label}</div>
     </div>
   );
 }
@@ -1895,7 +1895,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     } else {
       body = (
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--hud-dim)" }}>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--hud-text-dim)" }}>
             {series ? "Cargando vista previa del volumen…" : "Carga una serie DICOM para comenzar"}
           </div>
         </div>
@@ -2018,7 +2018,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
             lectura de esquina; se ve también en limpio. */}
         {pickMode && meshUrl && (
           <div className={`hud-readout hud-prompt${pickMiss ? " hud-err" : ""}`}
-               style={{ top: 40, left: "50%", transform: "translateX(-50%)", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 12, color: pickMiss ? undefined : "var(--hud)", pointerEvents: "none", zIndex: 5 }}>
+               style={{ top: 40, left: "50%", transform: "translateX(-50%)", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 12, color: pickMiss ? undefined : "var(--hud-text)", pointerEvents: "none", zIndex: 5 }}>
             {(pickMiss ? "Clic fuera de la malla — haz clic sobre la superficie 3D" : pickText(pickMode, annotationDraft.length, pickMode === "scissors" ? scissorsPoints.length : neckRim.length)).toUpperCase()}
             {"\nESC · CANCELAR"}
           </div>

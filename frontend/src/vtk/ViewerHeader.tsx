@@ -75,11 +75,11 @@ export function ViewerHeader({
   return (
     <div ref={bandRef} className="viewer-band"
          onKeyDown={onKeyDown}
-         style={{ flex: "none", height: 22, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, padding: "0 12px", lineHeight: 1.2, fontFamily: "var(--font-mono)", background: "#000", borderBottom: "1px solid var(--hud-dim)", overflow: "hidden", whiteSpace: "nowrap" }}>
+         style={{ flex: "none", height: 22, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, padding: "0 12px", lineHeight: 1.2, fontFamily: "var(--font-mono)", background: "var(--viewer-bg)", borderBottom: "1px solid var(--hud-text-dim)", overflow: "hidden", whiteSpace: "nowrap" }}>
       <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
         {/* PRINCIPAL elige qué vista ocupa el hueco grande; DISTRIBUCIÓN,
             TEXTOS y VINCULAR dicen cómo se ve el visor, no qué hay en él. */}
-        <span style={{ color: "var(--hud-dim)" }} title="Vista principal">{header.mainCaption}</span>
+        <span style={{ color: "var(--hud-text-dim)" }} title="Vista principal">{header.mainCaption}</span>
         <HudToggleGroup options={mainOptions()} value={layout.main}
           onChange={(k) => onLayoutChange(promote(layout, k as PaneId))} />
         <HudToggleGroup

@@ -1,6 +1,6 @@
 /* Sesión de planificación — rail de flujo (7 pasos) · visor 3D + MPR · panel del paso. */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { AttachCaseSheet } from "../components/AttachCaseSheet";
 import type { AttachResult } from "../api/types";
 import { api } from "../api/client";
@@ -462,9 +462,10 @@ export function Workspace({
       <div data-zona-libre
            style={{
              position: "absolute", display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0,
+             "--dock-holgura": "96px",
              top: libre.top, right: libre.right, bottom: libre.bottom, left: libre.left,
              transition: "right var(--dur-2) var(--ease-out), bottom var(--dur-2) var(--ease-out)",
-           }}>
+           } as CSSProperties}>
         <ViewerWorkspace step={step} />
       </div>
 

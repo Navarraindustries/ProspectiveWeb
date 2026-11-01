@@ -395,7 +395,7 @@ export function SliceView(p: SliceViewProps) {
       tabIndex={0}
       onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp}
       onMouseLeave={() => { drag.current = null; }} onKeyDown={onKey} onDoubleClick={onDoubleClick}
-      style={{ position: "relative", width: "100%", height: "100%", background: "#000", overflow: "hidden", cursor: "crosshair", outline: "none" }}
+      style={{ position: "relative", width: "100%", height: "100%", background: "var(--viewer-bg)", overflow: "hidden", cursor: "crosshair", outline: "none" }}
       title={"Rueda o flechas: corte · Ctrl+rueda: zoom · Arrastrar: ventana/nivel · Shift o botón central: desplazar · " + (annotating ? "Clic: punto" : "Clic: centrar")}
     >
       <HudFrame active={p.active} label={LABEL[p.plane]} labelPlane={p.plane}>
@@ -449,17 +449,17 @@ export function SliceView(p: SliceViewProps) {
             }}
             onMouseDown={(e) => e.stopPropagation()}
             onDoubleClick={(e) => e.stopPropagation()}>
-            <option value="" disabled style={{ background: "#000" }}>Preajuste</option>
+            <option value="" disabled style={{ background: "var(--viewer-bg)" }}>Preajuste</option>
             {p.presets.map((x) => (
-              <option key={x.name} value={x.name} style={{ background: "#000", color: "var(--hud)" }}>
+              <option key={x.name} value={x.name} style={{ background: "var(--viewer-bg)", color: "var(--hud-text)" }}>
                 {x.reset ? x.name : `${x.name} · ${Math.round(x.wc)}/${Math.round(x.ww)}`}
               </option>
             ))}
           </select>
         )}
         {!p.compact && box && box.mmPerPx > 0 && (
-          <div className="hud-scale" style={{ position: "absolute", right: 14, bottom: 40, width: 10 / box.mmPerPx, height: 1, background: "var(--hud-dim)" }}>
-            <span style={{ position: "absolute", right: 0, top: -12, fontSize: fs - 1, color: "var(--hud-dim)" }}>10 mm</span>
+          <div className="hud-scale" style={{ position: "absolute", right: 14, bottom: 40, width: 10 / box.mmPerPx, height: 1, background: "var(--hud-text-dim)" }}>
+            <span style={{ position: "absolute", right: 0, top: -12, fontSize: fs - 1, color: "var(--hud-text-dim)" }}>10 mm</span>
           </div>
         )}
       </HudFrame>

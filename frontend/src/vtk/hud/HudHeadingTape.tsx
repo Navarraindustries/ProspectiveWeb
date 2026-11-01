@@ -11,19 +11,19 @@ export function HudHeadingTape({ azimuthDeg, elevationDeg, known }: { azimuthDeg
   const norm = (a: number) => ((a + 540) % 360) - 180;
   const pxPerDeg = 2;
   return (
-    <div className="hud-decor" style={{ position: "absolute", top: 6, left: "20%", right: "20%", height: 22, borderBottom: "var(--hud-line) solid var(--hud-dim)" }}>
+    <div className="hud-decor" style={{ position: "absolute", top: 6, left: "20%", right: "20%", height: 22, borderBottom: "var(--hud-line) solid var(--hud-text-dim)" }}>
       <div data-testid="heading-band" style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: HEADING_READOUT_PX, overflow: "hidden" }}>
         {POINTS.map(([deg, name]) => {
           const off = norm(deg - azimuthDeg) * pxPerDeg;
           return (
-            <span key={name} style={{ position: "absolute", left: `calc(50% + ${off}px)`, transform: "translateX(-50%)", top: 2, fontSize: 10, letterSpacing: ".08em", whiteSpace: "nowrap", color: Math.abs(off) < 8 ? "var(--hud)" : "var(--hud-dim)" }}>
+            <span key={name} style={{ position: "absolute", left: `calc(50% + ${off}px)`, transform: "translateX(-50%)", top: 2, fontSize: 10, letterSpacing: ".08em", whiteSpace: "nowrap", color: Math.abs(off) < 8 ? "var(--hud-text)" : "var(--hud-text-dim)" }}>
               {wrap(name)}
             </span>
           );
         })}
-        <span style={{ position: "absolute", left: "50%", top: 0, width: 1, height: 22, background: "var(--hud)" }} />
+        <span style={{ position: "absolute", left: "50%", top: 0, width: 1, height: 22, background: "var(--hud-text)" }} />
       </div>
-      <span data-testid="heading-readout" style={{ position: "absolute", right: 0, width: HEADING_READOUT_PX, textAlign: "right", top: 3, fontSize: 10, whiteSpace: "nowrap", color: "var(--hud-dim)" }}>
+      <span data-testid="heading-readout" style={{ position: "absolute", right: 0, width: HEADING_READOUT_PX, textAlign: "right", top: 3, fontSize: 10, whiteSpace: "nowrap", color: "var(--hud-text-dim)" }}>
         {wrap(`AZ ${Math.round(norm(azimuthDeg))}° · EL ${Math.round(elevationDeg)}°`)}
       </span>
     </div>

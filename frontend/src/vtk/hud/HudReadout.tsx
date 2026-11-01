@@ -17,7 +17,7 @@ export function HudReadout({ at, lines, tone }: { at: "tl" | "tr" | "bl" | "br";
               <span
                 className="hud-swatch"
                 aria-hidden="true"
-                style={{ display: "inline-block", width: 9, height: 9, background: l.color, border: "var(--hud-line) solid var(--hud-dim)", marginRight: 6, verticalAlign: "-1px" }}
+                style={{ display: "inline-block", width: 9, height: 9, background: l.color, border: "var(--hud-line) solid var(--hud-text-dim)", marginRight: 6, verticalAlign: "-1px" }}
               />
               {l.text}
             </>

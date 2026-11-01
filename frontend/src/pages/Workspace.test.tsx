@@ -569,3 +569,32 @@ describe("hoja inferior a ≤ 1280 px", () => {
       expect((document.querySelector("[data-zona-libre]") as HTMLElement).style.bottom).toBe("96px");
     });
 });
+
+describe("ficha del paciente y giro a móvil", () => {
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin almacenamiento */ }
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("con paciente, la paleta ofrece «Abrir la ficha del paciente»; sin él, no", () => {
+    const abrir = vi.fn();
+    const { unmount } = render(<Workspace patient={PACIENTE} onBack={() => {}} onOpenPatient={abrir} onFinish={() => {}} />);
+    const c = getCommands().find((x) => x.label === "Abrir la ficha del paciente");
+    expect(c).toBeTruthy();
+    c!.run();
+    expect(abrir).toHaveBeenCalled();
+    unmount();
+    render(<Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    expect(getCommands().find((x) => x.label === "Abrir la ficha del paciente")).toBeUndefined();
+  });
+
+  it("al pasar de tableta apaisada a móvil vertical la hoja vuelve a asomar", () => {
+    const pantalla = simularPantalla(1000);
+    render(<Workspace patient={null} initialStep={2} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    const hoja = () => screen.getByRole("region", { name: "Panel del paso" });
+    expect(hoja().style.height).toBe("50%");
+    act(() => { pantalla.cambiar({ ancho: 390 }); });
+    expect(hoja().style.height).toBe("96px");
+  });
+});

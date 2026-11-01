@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { simularPantalla } from "../test/pantalla";
 import { Tabs } from "./Tabs";
 
 describe("Tabs", () => {
@@ -27,5 +28,14 @@ describe("Tabs", () => {
     const active = screen.getByRole("tab", { name: "B" });
     expect(active).toHaveAttribute("aria-selected", "true");
     expect(active.contains(ind[0])).toBe(true);
+  });
+});
+
+describe("Tabs táctil", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+  it("la diana usa --control-md, no 44 literal", () => {
+    simularPantalla({ ancho: 800 });
+    render(<Tabs tabs={["A", "B"]} value="A" onChange={() => {}} />);
+    expect(screen.getByRole("tab", { name: "A" }).style.minHeight).toBe("var(--control-md)");
   });
 });

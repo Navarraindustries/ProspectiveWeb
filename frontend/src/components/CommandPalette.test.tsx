@@ -105,8 +105,8 @@ describe("CommandPalette", () => {
     expect(dlg.style.maxHeight).toBe("");
     expect((dlg.parentElement as HTMLElement).style.paddingTop).toBe("0px");
     const cerrar = screen.getByRole("button", { name: "Cerrar la paleta" });
-    expect(cerrar.style.width).toBe("44px");
-    expect(cerrar.style.height).toBe("44px");
+    expect(cerrar.style.width).toBe("var(--control-md)");
+    expect(cerrar.style.height).toBe("var(--control-md)");
     fireEvent.click(cerrar);
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(field);
@@ -186,6 +186,22 @@ describe("CommandPalette", () => {
       expect(ev.defaultPrevented).toBe(true);
     }
     expect(document.activeElement).toBe(search);
+  });
+
+  it("con el botón de cerrar (móvil), Tab recorre buscador y botón y Mayús+Tab vuelve", async () => {
+    simularPantalla({ ancho: 390 });
+    setup();
+    open();
+    const search = await screen.findByLabelText("Buscar en la paleta");
+    const cerrar = screen.getByRole("button", { name: "Cerrar la paleta" });
+    const tab = (el: Element, shiftKey = false) => fireEvent.keyDown(el, { key: "Tab", shiftKey });
+    search.focus();
+    tab(search);
+    expect(document.activeElement).toBe(cerrar);
+    tab(cerrar);
+    expect(document.activeElement).toBe(search);
+    tab(search, true);
+    expect(document.activeElement).toBe(cerrar);
   });
 
   it("un fallo al cargar pacientes se reintenta al reabrir", async () => {

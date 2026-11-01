@@ -39,7 +39,7 @@ export function Tabs({
             onClick={() => onChange(t)}
             style={{
               position: "relative",
-              ...(tableta ? { minHeight: 44 } : {}),
+              ...(tableta ? { minHeight: "var(--control-md)" } : {}),
               ...(movil ? { flex: "1 1 auto", display: "inline-flex", alignItems: "center", justifyContent: "center" } : {}),
               padding: sm ? "5px 11px" : "7px 14px",
               borderRadius: "var(--radius-full)",

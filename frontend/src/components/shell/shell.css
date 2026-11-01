@@ -516,9 +516,13 @@
   border-radius: 50%;
   background: var(--muted-foreground);
 }
-.ws-save-status[data-state="dirty"] .ws-save-dot { background: var(--warning); }
-.ws-save-status[data-state="saved"] .ws-save-dot { background: var(--success); }
-.ws-save-status[data-state="saving"] .ws-save-dot { animation: ws-pulse 1.2s ease-in-out infinite; }
+/* El estado no depende solo del color: anillo hueco = sin guardar / sucio,
+   punto lleno = guardado, punto que pulsa = guardando (ws-pulse; el
+   movimiento reducido lo detiene en base.css y queda un punto a medias). */
+.ws-save-dot[data-forma="anillo"] { background: transparent; box-shadow: inset 0 0 0 2px var(--muted-foreground); }
+.ws-save-status[data-state="dirty"] .ws-save-dot[data-forma="anillo"] { box-shadow: inset 0 0 0 2px var(--warning); }
+.ws-save-dot[data-forma="lleno"] { background: var(--success); }
+.ws-save-dot[data-forma="pulso"] { background: var(--muted-foreground); opacity: .6; animation: ws-pulse 1.2s ease-in-out infinite; }
 
 /* ── Pestaña de plegado en el borde del panel del paso ──────────────────── */
 .ws-panel-fold {

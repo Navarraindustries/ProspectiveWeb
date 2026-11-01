@@ -72,6 +72,7 @@ export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: P
   const [patients, setPatients] = useState<PatientsState>({ status: "idle" });
   const previous = useRef<HTMLElement | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const cerrarRef = useRef<HTMLButtonElement>(null);
   const commands = useSyncExternalStore(subscribeCommands, getCommands);
   const isAdmin = user?.role === "admin";
 
@@ -187,9 +188,13 @@ export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: P
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Tab") {
-      // Dentro del diálogo solo hay un campo: el foco no sale de él.
+      // El foco no sale del diálogo: recorre el buscador y, si existe, el botón de cerrar.
       e.preventDefault();
-      searchRef.current?.focus();
+      const ciclo = ([searchRef.current, cerrarRef.current] as (HTMLElement | null)[]).filter((x): x is HTMLElement => x !== null);
+      if (ciclo.length) {
+        const i = Math.max(ciclo.indexOf(document.activeElement as HTMLElement), 0);
+        ciclo[(i + (e.shiftKey ? -1 : 1) + ciclo.length) % ciclo.length].focus();
+      }
     } else if (e.key === "Escape") {
       // Solo la paleta: los oyentes de Escape en `document` (hojas, menús) no lo reciben.
       e.preventDefault();
@@ -267,11 +272,12 @@ export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: P
           {movil && (
             // A pantalla completa no hay velo que tocar ni Escape: cierre a la vista, 44 px.
             <button
+              ref={cerrarRef}
               type="button"
               aria-label="Cerrar la paleta"
               onClick={close}
               style={{
-                width: 44, height: 44, marginRight: 6, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                width: "var(--control-md)", height: "var(--control-md)", marginRight: 6, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center",
                 border: "none", borderRadius: "var(--radius-md)", background: "transparent", color: "var(--muted-foreground)", cursor: "pointer",
               }}
             >

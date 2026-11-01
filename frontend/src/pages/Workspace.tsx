@@ -113,6 +113,13 @@ export function Workspace({
     setEstrechoVisto(estrecho);
     if (estrecho) setAlturaHoja(alturaInicial);
   }
+  // Giro de tableta apaisada a móvil vertical: sigue estrecho, pero la hoja
+  // vuelve a asomar (a media altura el visor se quedaba en ~150 px).
+  const [movilVisto, setMovilVisto] = useState(movil);
+  if (movil !== movilVisto) {
+    setMovilVisto(movil);
+    if (movil) setAlturaHoja("asomar");
+  }
   // La preferencia de plegado es del modo ancho: en estrecho ni se lee ni se escribe.
   const plegadoAncho = useUnfoldForNote(
     panelCollapsed, estrecho ? ignorar : setPanelCollapsed, estrecho ? null : noteFocusRequest,
@@ -274,6 +281,11 @@ export function Workspace({
       id: "archivar", group: "acciones" as const,
       label: patient ? ARCHIVAR_EN_CASO : "Adjuntar a un caso",
       run: () => setAttachOpen(true),
+    }] : []),
+    ...(patient ? [{
+      id: "ficha-paciente", group: "acciones" as const,
+      label: "Abrir la ficha del paciente",
+      run: onOpenPatient,
     }] : []),
     { id: "plegar-panel", group: "acciones" as const,
       label: panelPlegado ? "Mostrar el panel del paso" : "Plegar el panel del paso",

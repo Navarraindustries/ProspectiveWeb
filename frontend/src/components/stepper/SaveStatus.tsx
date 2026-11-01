@@ -20,11 +20,13 @@ export function SaveStatus({ state, savedAt, compacta = false, punto = false }: 
     : state === "dirty" ? "Cambios sin guardar"
     : guardado ? `Guardado ${hora(guardado)}`
     : "Sin guardar";
+  // Forma del punto (no solo color): anillo hueco = sin guardar, lleno = guardado, pulso = guardando.
+  const forma = state === "saving" ? "pulso" : guardado ? "lleno" : "anillo";
   const corto = state === "saving" ? "…" : guardado ? `${hora(guardado)} ✓` : "Sin guardar";
   if (punto) {
     return (
       <span role="status" className="ws-save-status" data-state={state} data-punto aria-label={text} title={text}>
-        <span className="ws-save-dot" aria-hidden />
+        <span className="ws-save-dot" data-forma={forma} aria-hidden />
         <span style={TEXTO_OCULTO}>{text}</span>
       </span>
     );
@@ -32,7 +34,7 @@ export function SaveStatus({ state, savedAt, compacta = false, punto = false }: 
   return (
     <span role="status" className="ws-save-status" data-state={state} title={compacta ? text : undefined}
           style={compacta ? { fontSize: 13 } : undefined}>
-      <span className="ws-save-dot" aria-hidden />
+      <span className="ws-save-dot" data-forma={forma} aria-hidden />
       {compacta
         ? <>
             <span aria-hidden data-corto>{corto}</span>

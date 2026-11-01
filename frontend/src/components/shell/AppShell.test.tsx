@@ -63,13 +63,13 @@ describe("AppShell", () => {
     expect(errores).toEqual([]);
   });
   it("la miga solo lleva lo que existe y las acciones del contexto", () => {
-    render(<AppShell crumbs={[{ label: "Pacientes", onClick: () => {} }, { label: "segura, Juan" }]} actions={<button>Nuevo caso</button>}><p>x</p></AppShell>);
+    render(<AppShell crumbs={[{ label: "Pacientes", onClick: () => {} }, { label: "segura, Juan" }]} acciones={[{ id: "nc", label: "Nuevo caso", icon: "PLUS", onClick: () => {} }]}><p>x</p></AppShell>);
     expect(screen.getByText("segura, Juan")).toBeTruthy();
     expect(screen.queryByText("Administración")).toBeNull();
     expect(screen.getByRole("button", { name: "Nuevo caso" })).toBeTruthy();
   });
   it("la barra superior lleva subtítulo, acciones, tema y avatar, y no «Cerrar sesión»", () => {
-    renderShell({ crumbs: [{ label: "Pacientes" }], subtitle: "14 pacientes", actions: <button>Nuevo caso</button> });
+    renderShell({ crumbs: [{ label: "Pacientes" }], subtitle: "14 pacientes", acciones: [{ id: "nc", label: "Nuevo caso", icon: "PLUS", onClick: () => {} }] });
     const header = screen.getByRole("banner");
     expect(within(header).getByText("14 pacientes")).toBeInTheDocument();
     expect(within(header).getByRole("button", { name: "Nuevo caso" })).toBeInTheDocument();

@@ -403,14 +403,8 @@ function UsersAdminPage() {
     <AppShell
       crumbs={USERS_CRUMBS}
       subtitle={subtitulo}
-      actions={
-        <>
-          <div style={{ width: 220 }}>
-            <Input icon={<Icon name="SEARCH" />} placeholder="Buscar usuario…" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
-          <Button size="sm" onClick={() => setNewOpen(true)}>Nuevo usuario</Button>
-        </>
-      }
+      extra={<Input icon={<Icon name="SEARCH" />} placeholder="Buscar usuario…" aria-label="Buscar usuario" value={q} onChange={(e) => setQ(e.target.value)} />}
+      acciones={[{ id: "nuevo-usuario", label: "Nuevo usuario", icon: "PLUS", principal: true, onClick: () => setNewOpen(true) }]}
     >
 
       <PageBody className="fade-rise">

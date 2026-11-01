@@ -20,7 +20,6 @@ import type { Workshop, WorkshopIn } from "../api/types";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Card, ErrorNote, SectionLabel } from "../components/PanelHead";
 import { Sheet } from "../components/Sheet";
@@ -185,15 +184,7 @@ export function WorkshopsPage() {
     <AppShell
       crumbs={[{ label: "Talleres" }]}
       subtitle="Quién fabrica las piezas. Se escriben una vez y se eligen en cada pedido."
-      actions={
-        <Button
-          size="sm"
-          leadingIcon={<Icon name="STEP_PLAN" size={13} />}
-          onClick={() => { setEditing(null); setSheetOpen(true); }}
-        >
-          Nuevo taller
-        </Button>
-      }
+      acciones={[{ id: "nuevo-taller", label: "Nuevo taller", icon: "PLUS", principal: true, onClick: () => { setEditing(null); setSheetOpen(true); } }]}
     >
       <PageBody className="fade-rise">
         <ErrorNote>{error}</ErrorNote>

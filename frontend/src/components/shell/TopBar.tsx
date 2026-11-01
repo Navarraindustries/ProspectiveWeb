@@ -9,7 +9,12 @@
    pantalla actual. */
 
 import type { ReactNode } from "react";
+import { Button } from "../Button";
 import { Icon } from "../Icon";
+import type { IconName } from "../Icon";
+import { MenuMas } from "../MenuMas";
+import type { ItemMenu } from "../MenuMas";
+import { useTramo } from "../../hooks/useEstrecho";
 import { Logo } from "./Logo";
 import { ThemeToggle } from "../ThemeToggle";
 import { UserMenu } from "./UserMenu";
@@ -24,17 +29,90 @@ export interface Crumb {
   detail?: string;
 }
 
-export function TopBar({ brand = false, crumbs, subtitle, status, actions, onAbrirSecciones, seccionesAbiertas = false }: {
+/** Una acción de la barra: la principal conserva su texto; las demás se
+    encogen a icono (≤ 1280) o pasan al menú «⋯» (móvil). */
+export interface AccionBarra {
+  id: string;
+  /** Texto visible y nombre accesible. */
+  label: string;
+  icon: IconName;
+  onClick?: () => void;
+  /** Enlace (descarga) con aspecto de botón: <a target="_blank" rel="noreferrer">. */
+  href?: string;
+  /** Como mucho una: variante «default»; las demás «outline». */
+  principal?: boolean;
+  /** Tooltip; si falta, label. */
+  title?: string;
+  disabled?: boolean;
+}
+
+function Accion({ a, soloIcono, tam }: { a: AccionBarra; soloIcono: boolean; tam: "sm" | "md" }) {
+  const lado = tam === "md" ? "var(--control-md)" : "var(--control-sm)";
+  const icono = <Icon name={a.icon} size={tam === "md" ? 16 : 14} />;
+  const nombre = soloIcono ? a.label : undefined;
+  if (a.href) {
+    return (
+      <a
+        href={a.disabled ? undefined : a.href}
+        target="_blank"
+        rel="noreferrer"
+        className="shell-accion"
+        data-variant="outline"
+        data-size={tam}
+        aria-label={nombre}
+        aria-disabled={a.disabled || undefined}
+        title={a.title ?? (soloIcono ? a.label : undefined)}
+        style={soloIcono ? { width: lado, padding: 0, gap: 0 } : undefined}
+      >
+        {icono}
+        {!soloIcono && a.label}
+      </a>
+    );
+  }
+  return (
+    <Button
+      size={tam}
+      variant={a.principal ? "default" : "outline"}
+      leadingIcon={icono}
+      onClick={a.onClick}
+      disabled={a.disabled}
+      aria-label={nombre}
+      title={a.title ?? (soloIcono ? a.label : undefined)}
+      style={soloIcono ? { width: lado, padding: 0, gap: 0 } : undefined}
+    >
+      {!soloIcono && a.label}
+    </Button>
+  );
+}
+
+export function TopBar({ brand = false, crumbs, subtitle, status, acciones, extra, onAbrirSecciones, seccionesAbiertas = false }: {
   /** Marca a la izquierda de la miga, para pantallas sin barra lateral (el pipeline). */
   brand?: boolean;
   crumbs?: Crumb[];
   subtitle?: ReactNode;
   status?: ReactNode;
-  actions?: ReactNode;
+  acciones?: AccionBarra[];
+  /** Control propio de la pantalla (buscador…), antes de las acciones. */
+  extra?: ReactNode;
   /** Si viene (móvil), pinta al principio el botón que abre el cajón de secciones. */
   onAbrirSecciones?: () => void;
   seccionesAbiertas?: boolean;
 }) {
+  const tramo = useTramo();
+  const movil = tramo === "movil";
+  const tableta = tramo === "tableta" || movil;
+  const estrecho = tramo === "estrecho" || tableta;
+  const tam = tableta ? "md" : "sm";
+  const lista = acciones ?? [];
+  const secundarias = lista.filter((a) => !a.principal);
+  const itemsMenu: ItemMenu[] = movil
+    ? [
+        ...secundarias.map((a): ItemMenu => ({ id: a.id, label: a.label, icon: a.icon, href: a.href, onSelect: a.onClick, disabled: a.disabled })),
+        { id: "paleta", label: "Paleta de mandos", icon: "SEARCH", onSelect: openCommandPalette, separadoAntes: secundarias.length > 0 },
+      ]
+    : [];
+  // En móvil solo se pinta el último segmento de la miga y no hay subtítulo.
+  const migas = crumbs && movil ? crumbs.slice(-1) : crumbs;
   return (
     <header className="shell-top" style={{ ...glass("normal"), borderWidth: "0 0 1px", boxShadow: "var(--glass-highlight)" }} data-glass>
       {onAbrirSecciones && (
@@ -55,11 +133,11 @@ export function TopBar({ brand = false, crumbs, subtitle, status, actions, onAbr
           <Logo size={24} firma={false} />
         </span>
       )}
-      {crumbs && crumbs.length > 0 && (
+      {migas && migas.length > 0 && (
         <nav aria-label="Miga de pan" className="shell-crumbs">
           <ol>
-            {crumbs.map((c, i) => {
-              const last = i === crumbs.length - 1;
+            {migas.map((c, i) => {
+              const last = i === migas.length - 1;
               return (
                 <li key={i}>
                   {i > 0 && (
@@ -82,14 +160,20 @@ export function TopBar({ brand = false, crumbs, subtitle, status, actions, onAbr
           </ol>
         </nav>
       )}
-      {subtitle && <span className="shell-subtitle" title={typeof subtitle === "string" ? subtitle : undefined}>{subtitle}</span>}
+      {subtitle && !movil && <span className="shell-subtitle" title={typeof subtitle === "string" ? subtitle : undefined}>{subtitle}</span>}
       <div className="shell-actions">
         {status}
-        {actions}
-        <button type="button" className="shell-cmdk" aria-label="Abrir la paleta de mandos (Ctrl+K)" title="Paleta de mandos (Ctrl+K)" onClick={openCommandPalette}>
-          ⌘K
-        </button>
-        <ThemeToggle size="sm" />
+        {extra && <div className="shell-extra">{extra}</div>}
+        {lista.filter((a) => !movil || a.principal).map((a) => (
+          <Accion key={a.id} a={a} soloIcono={movil || (estrecho && !a.principal)} tam={tam} />
+        ))}
+        {movil && <MenuMas items={itemsMenu} tactil />}
+        {!movil && (
+          <button type="button" className="shell-cmdk" aria-label="Abrir la paleta de mandos (Ctrl+K)" title="Paleta de mandos (Ctrl+K)" onClick={openCommandPalette}>
+            ⌘K
+          </button>
+        )}
+        <ThemeToggle size={tableta ? "lg" : "sm"} />
         <UserMenu />
       </div>
     </header>

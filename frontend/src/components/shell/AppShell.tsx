@@ -2,7 +2,7 @@
 
    Barra lateral de cristal a la izquierda, barra superior de 56 px con la miga
    y las acciones del contexto, y el contenido transparente sobre el `Ambiente`. Cada pantalla
-   se envuelve a sí misma (`<AppShell crumbs actions>…</AppShell>`) para que la
+   se envuelve a sí misma (`<AppShell crumbs acciones>…</AppShell>`) para que la
    acción viva junto al estado que la habilita. El espacio de trabajo no la usa
    en F2: conserva su barra superior y su carril. */
 
@@ -11,17 +11,20 @@ import type { ReactNode } from "react";
 import { Ambiente } from "../Ambiente";
 import { SideNav } from "./SideNav";
 import { TopBar } from "./TopBar";
-import type { Crumb } from "./TopBar";
+import type { AccionBarra, Crumb } from "./TopBar";
 import { useShellState } from "./useShellState";
 import { useMovil } from "../../hooks/useEstrecho";
 import "./shell.css";
 
-export function AppShell({ crumbs, subtitle, status, actions, children }: {
+export function AppShell({ crumbs, subtitle, status, acciones, extra, children }: {
   crumbs?: Crumb[];
   subtitle?: ReactNode;
   /** Hueco antes de las acciones (estado de guardado del pipeline, fase 3). */
   status?: ReactNode;
-  actions?: ReactNode;
+  /** Acciones del contexto; la barra decide cómo pintarlas según el tramo. */
+  acciones?: AccionBarra[];
+  /** Control propio de la pantalla (p. ej. un buscador), antes de las acciones. */
+  extra?: ReactNode;
   children: ReactNode;
 }) {
   const state = useShellState();
@@ -45,7 +48,8 @@ export function AppShell({ crumbs, subtitle, status, actions, children }: {
             crumbs={crumbs}
             subtitle={subtitle}
             status={status}
-            actions={actions}
+            acciones={acciones}
+            extra={extra}
             onAbrirSecciones={movil ? () => setCajonAbierto(true) : undefined}
             seccionesAbiertas={cajonAbierto}
           />

@@ -114,6 +114,7 @@ const PATHS = {
   BACK: "M13.5 8h-11M6.5 4l-4 4 4 4",
   CHEVRON_RIGHT: "M6 3l5 5-5 5",
   CHEVRON_DOWN: "M3 6l5 5 5-5",
+  MORE: "M3.5 8h.01M8 8h.01M12.5 8h.01",
 } satisfies Record<string, string>;
 
 export type IconName = keyof typeof PATHS;

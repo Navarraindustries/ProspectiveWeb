@@ -17,9 +17,7 @@ vi.mock("../api/client", () => ({
   },
   ApiError: class ApiError extends Error {},
 }));
-vi.mock("../components/shell/AppShell", () => ({
-  AppShell: (p: { subtitle?: import("react").ReactNode; status?: import("react").ReactNode; actions?: import("react").ReactNode; children?: import("react").ReactNode }) => <><header>{p.subtitle}{p.status}{p.actions}</header>{p.children}</>,
-}));
+vi.mock("../components/shell/AppShell", async () => ({ AppShell: (await import("../test/shellMock")).ShellMock }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user: { id: 1, role: "admin", username: "admin" } }) }));
 

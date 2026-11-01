@@ -183,11 +183,7 @@ function PendingRequestsPage() {
           ? (tab === "Aprobadas" ? "Cuentas que ya pueden entrar" : "Solicitudes que no se aceptaron")
           : loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : `${pending.length} pendiente${pending.length === 1 ? "" : "s"} de aprobación`
       }
-      actions={tab === "Pendientes" ? (
-        <Button size="sm" variant="outline" leadingIcon={<Icon name="REFRESH" size={13} />} onClick={load}>
-          Actualizar
-        </Button>
-      ) : undefined}
+      acciones={tab === "Pendientes" ? [{ id: "actualizar", label: "Actualizar", icon: "REFRESH", onClick: load }] : undefined}
     >
       <ConfirmDialog
         open={toReject !== null}

@@ -578,3 +578,38 @@
   z-index: 199;
   background: var(--scrim);
 }
+
+/* ── Barra superior adaptable (fase 8, A19) ─────────────────────────────── */
+.shell-actions > * { white-space: nowrap; flex-shrink: 0; }
+.shell-actions > .shell-extra { flex: 0 1 220px; min-width: 0; flex-shrink: 1; }
+/* Enlace con la pastilla del botón outline (descarga con aspecto de botón). */
+.shell-accion {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: var(--control-sm);
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 30%, transparent);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+.shell-accion[data-size="md"] { height: var(--control-md); padding: 0 16px; font-size: 14px; }
+.shell-accion:hover { background: var(--glass-hover); }
+.shell-accion[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; }
+.shell-accion:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+@media (max-width: 1024px) {
+  .shell-user-btn, .shell-cmdk { width: var(--control-md); min-width: var(--control-md); height: var(--control-md); }
+}
+@media (max-width: 640px) {
+  .shell-top { padding: 0 12px; gap: 8px; }
+  .shell-crumbs { flex: 1 1 0; min-width: 0; }
+  .shell-crumb { max-width: 100%; }
+  .shell-actions > .shell-extra { flex: 1 1 auto; }
+}

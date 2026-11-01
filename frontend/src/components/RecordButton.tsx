@@ -21,7 +21,7 @@ import {
 } from "../vtk/viewerRecorder";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
-import { rotuloAccion } from "./stepper/QuirofanoBar";
+import { estiloAccion, rotuloAccion } from "./stepper/QuirofanoBar";
 import { sinCasoAviso } from "../lib/textos";
 
 type Estado = "idle" | "rec" | "saving";
@@ -161,6 +161,6 @@ export function RecordButton({ step, onMessage, soloIcono = false, size = "sm" }
               ? "Abre un paso con el visor para grabarlo"
               : `Graba el visor en vídeo (máx. ${MAX_RECORDING_MS / 60000} min), sin audio ni datos del paciente`)}
             leadingIcon={<Icon name="RECORD" color={viewerRecording ? "var(--destructive)" : undefined} />}
-            style={{ marginRight: 8, ...(size === "md" && soloIcono ? { padding: 0, width: 44 } : {}) }} />
+            style={{ marginRight: 8, ...estiloAccion(size, soloIcono) }} />
   );
 }

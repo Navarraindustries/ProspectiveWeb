@@ -15,6 +15,7 @@ import type { Crumb } from "../shell/TopBar";
 import { glass } from "../../styles/glass";
 import { openCommandPalette } from "../../lib/commands";
 import { OBJETIVO_TACTIL_PX } from "../../pipeline/puntosCorte";
+import { TEXTO_OCULTO } from "../../styles/oculto";
 import "../shell/shell.css";
 
 /** Hasta este ancho los botones de acción de la píldora derecha enseñan solo el icono. */
@@ -26,6 +27,13 @@ export function rotuloAccion(soloIcono: boolean, texto: string, title?: string) 
   return soloIcono
     ? { "aria-label": texto, title: title ?? texto, children: undefined }
     : { title, children: texto };
+}
+
+/** Estilo de un botón de acción de solo icono en táctil: cuadrado del objetivo
+ *  táctil (el relleno de «md» lo haría más ancho que alto). Workspace y
+ *  RecordButton lo comparten. */
+export function estiloAccion(size: "sm" | "md", soloIcono: boolean): CSSProperties | undefined {
+  return size === "md" && soloIcono ? { padding: 0, width: OBJETIVO_TACTIL_PX } : undefined;
 }
 
 const FILA: CSSProperties = {
@@ -53,8 +61,6 @@ const PASTILLA: CSSProperties = {
 
 /** Tamaño de pantalla de la barra: ancho (≥ 1025), táctil (641–1024), móvil (≤ 640). */
 export type ModoBarra = "ancho" | "tactil" | "movil";
-
-const OCULTO: CSSProperties = { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" };
 
 export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions, modo = "ancho" }: {
   crumbs: Crumb[];
@@ -107,7 +113,7 @@ export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions, modo 
                     )}
                     {c.detail && !movil && (
                       <span className="shell-crumb-detail" title={`HC ${c.detail}`}>
-                        <span style={OCULTO}>HC </span>
+                        <span style={TEXTO_OCULTO}>HC </span>
                         {c.detail}
                       </span>
                     )}

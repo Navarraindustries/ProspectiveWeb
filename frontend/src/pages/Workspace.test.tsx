@@ -309,6 +309,14 @@ describe("dock por tamaño de pantalla", () => {
       unmount();
     }
   });
+  /* La lectura de abajo a la izquierda sube lo que tapa el dock de esa pantalla. */
+  const HOLGURA: Record<string, string> = { mini: "80px", tactil: "80px", compacto: "72px", completo: "96px" };
+  it.each(MATRIZ_ANCHOS)("a %i px la holgura del dock sigue a su alto", (w) => {
+    simularPantalla(w);
+    montar();
+    const z = document.querySelector("[data-zona-libre]") as HTMLElement;
+    expect(z.style.getPropertyValue("--dock-holgura")).toBe(HOLGURA[MODO[w]]);
+  });
 });
 
 describe("dock: hechos por resultado y aviso del paso 4", () => {
@@ -344,6 +352,16 @@ describe("Mandos del pipeline en la paleta", () => {
     expect(deteccion?.disabled).toBe(true);
     expect(pasos.find((c) => c.label.startsWith("2 · "))?.disabled).toBe(false);
     expect(pasos.find((c) => c.label.startsWith("1 · "))?.disabled).toBe(false);
+  });
+
+  /* Táctil: sin tooltip, el paso bloqueado dice por qué en la propia paleta. */
+  it("un paso bloqueado lleva su motivo de pista; uno libre con aviso, el aviso", () => {
+    estado.series = {};
+    montar();
+    const pasos = getCommands().filter((c) => c.group === "pasos");
+    expect(pasos.find((c) => c.label === "3 · Detección")?.hint).toBe("Segmenta el vaso primero");
+    expect(pasos.find((c) => c.label.startsWith("4 · "))?.hint).toBe("Detecta un candidato primero");
+    expect(pasos.find((c) => c.label.startsWith("2 · "))?.hint).toBeUndefined();
   });
 
   it("«Guardar progreso» se deshabilita sin sesión", () => {

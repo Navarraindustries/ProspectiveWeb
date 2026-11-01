@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MORPHO_AUTO_HINT, STEPS } from "../../pipeline/steps";
-import { StepDock } from "./StepDock";
+import { BURBUJA_MS, StepDock } from "./StepDock";
 import * as commands from "../../lib/commands";
 
 const reducida = vi.hoisted(() => ({ valor: false }));
@@ -112,14 +112,31 @@ describe("StepDock", () => {
       render(<StepDock steps={steps} activeIndex={2} missingFor={() => null} avisoFor={(i) => (i === 3 ? MORPHO_AUTO_HINT : null)} onGo={() => {}} modo="mini" />);
       expect(screen.getByRole("button", { name: new RegExp(MORPHO_AUTO_HINT.slice(0, 20)) })).toHaveAttribute("title", expect.stringContaining(MORPHO_AUTO_HINT));
     });
-    it("tactil: los 8 pasos miden 44 px, con ⌘K, sin rótulo flotante", () => {
+    it("tactil: los 8 pasos miden 44 px, sin ⌘K (no hay teclado), sin rótulo flotante", () => {
       render(<StepDock steps={steps} activeIndex={2} missingFor={() => null} onGo={() => {}} modo="tactil" />);
       expect(nav()).toHaveAttribute("data-modo", "tactil");
       const bs = screen.getAllByRole("button", { name: /^Paso [0-9]/ });
       expect(bs).toHaveLength(8);
       for (const b of bs) expect((b as HTMLElement).style.width).toBe("44px");
-      expect(screen.getByText("⌘K")).toBeInTheDocument();
+      expect(screen.queryByText("⌘K")).toBeNull();
+      expect(screen.getAllByRole("button")).toHaveLength(8);
       expect(screen.queryByText(`3 · ${steps[2].label}`)).toBeNull();
+    });
+    it.each(["completo", "compacto"] as const)("%s: conserva el ⌘K", (modo) => {
+      render(<StepDock steps={steps} activeIndex={2} missingFor={() => null} onGo={() => {}} modo={modo} />);
+      expect(screen.getByText("⌘K")).toBeInTheDocument();
+    });
+    it("tactil: un paso hecho enseña su número y el ✓; con ratón, solo el ✓", () => {
+      const { unmount } = render(<StepDock steps={steps} activeIndex={4} missingFor={() => null} onGo={() => {}} modo="tactil" />);
+      const b = screen.getByRole("button", { name: /^Paso 3,/ });
+      expect(b).toHaveAttribute("data-estado", "hecho");
+      expect(b).toHaveTextContent(/^3$/);
+      expect(b.querySelector('[data-marca="hecho"] svg')).not.toBeNull();
+      unmount();
+      render(<StepDock steps={steps} activeIndex={4} missingFor={() => null} onGo={() => {}} modo="compacto" />);
+      const c = screen.getByRole("button", { name: /^Paso 3,/ });
+      expect(c.textContent).toBe("");
+      expect(c.querySelector("svg")).not.toBeNull();
     });
     it("compacto: 36 px; completo: 44 px y el activo 60", () => {
       const { unmount } = render(<StepDock steps={steps} activeIndex={2} missingFor={() => null} onGo={() => {}} modo="compacto" />);
@@ -128,6 +145,87 @@ describe("StepDock", () => {
       render(<StepDock steps={steps} activeIndex={2} missingFor={() => null} onGo={() => {}} />);
       expect(nav()).toHaveAttribute("data-modo", "completo");
       expect(screen.getByRole("button", { name: /^Paso 3,/ }).style.width).toBe("60px");
+    });
+  });
+
+  describe("burbuja en táctil (nada solo en title)", () => {
+    afterEach(() => { vi.useRealTimers(); });
+    const burbuja = () => screen.getByRole("status");
+    const bloqueaDeteccion = (i: number) => (i === 2 ? "Segmenta el vaso primero" : null);
+
+    it.each(["tactil", "mini"] as const)("%s: tocar un bloqueado enseña el motivo a la vista y no navega", (modo) => {
+      const onGo = vi.fn();
+      render(<StepDock steps={steps} activeIndex={1} missingFor={bloqueaDeteccion} onGo={onGo} modo={modo} />);
+      expect(burbuja()).toBeEmptyDOMElement();
+      const b = modo === "mini"
+        ? screen.getByRole("button", { name: /^Paso siguiente:/ })
+        : screen.getByRole("button", { name: /^Paso 3,/ });
+      fireEvent.click(b);
+      expect(onGo).not.toHaveBeenCalled();
+      expect(burbuja()).toHaveTextContent("Segmenta el vaso primero");
+      expect(burbuja().textContent).toContain("Detección");
+    });
+
+    it("se oculta sola a los 3 s", () => {
+      reducida.valor = true; // sin la animación de salida, que no avanza con relojes falsos
+      vi.useFakeTimers();
+      render(<StepDock steps={steps} activeIndex={1} missingFor={bloqueaDeteccion} onGo={() => {}} modo="tactil" />);
+      fireEvent.click(screen.getByRole("button", { name: /^Paso 3,/ }));
+      expect(burbuja()).toHaveTextContent("Segmenta el vaso primero");
+      act(() => { vi.advanceTimersByTime(BURBUJA_MS + 600); });
+      expect(burbuja()).toBeEmptyDOMElement();
+    });
+
+    it("se oculta al tocar fuera del dock", () => {
+      reducida.valor = true;
+      render(<div><p>fuera</p><StepDock steps={steps} activeIndex={1} missingFor={bloqueaDeteccion} onGo={() => {}} modo="tactil" /></div>);
+      fireEvent.click(screen.getByRole("button", { name: /^Paso 3,/ }));
+      expect(burbuja()).toHaveTextContent("Segmenta el vaso primero");
+      fireEvent.pointerDown(screen.getByText("fuera"));
+      expect(burbuja()).toBeEmptyDOMElement();
+    });
+
+    it("con movimiento reducido la burbuja aparece sin capa animada", () => {
+      reducida.valor = true;
+      render(<StepDock steps={steps} activeIndex={1} missingFor={bloqueaDeteccion} onGo={() => {}} modo="tactil" />);
+      fireEvent.click(screen.getByRole("button", { name: /^Paso 3,/ }));
+      const pastilla = burbuja().firstElementChild as HTMLElement;
+      expect(pastilla).toHaveAttribute("data-glass");
+      expect(pastilla).toHaveTextContent("Segmenta el vaso primero");
+    });
+
+    it.each(["tactil", "mini"] as const)("%s: el paso 4 con aviso lo enseña al primer toque y navega al segundo", (modo) => {
+      const onGo = vi.fn();
+      render(<StepDock steps={steps} activeIndex={2} missingFor={() => null} avisoFor={(i) => (i === 3 ? MORPHO_AUTO_HINT : null)} onGo={onGo} modo={modo} />);
+      const b = () => modo === "mini"
+        ? screen.getByRole("button", { name: /^Paso siguiente:/ })
+        : screen.getByRole("button", { name: /^Paso 4,/ });
+      fireEvent.click(b());
+      expect(onGo).not.toHaveBeenCalled();
+      expect(burbuja()).toHaveTextContent(MORPHO_AUTO_HINT);
+      fireEvent.click(b());
+      expect(onGo).toHaveBeenCalledWith(3);
+    });
+
+    it("mini: «‹» respeta el bloqueo del paso anterior como «›»", () => {
+      const onGo = vi.fn();
+      render(<StepDock steps={steps} activeIndex={3} missingFor={bloqueaDeteccion} onGo={onGo} modo="mini" />);
+      const b = screen.getByRole("button", { name: /^Paso anterior:/ });
+      expect(b).toHaveAttribute("aria-disabled", "true");
+      expect(b.getAttribute("aria-label")).toContain("Segmenta el vaso primero");
+      fireEvent.click(b);
+      expect(onGo).not.toHaveBeenCalled();
+      expect(burbuja()).toHaveTextContent("Segmenta el vaso primero");
+    });
+
+    it.each(["completo", "compacto"] as const)("%s (ratón): sin burbuja; el aviso navega al primer clic", (modo) => {
+      const onGo = vi.fn();
+      render(<StepDock steps={steps} activeIndex={2} missingFor={(i) => (i === 5 ? "Falta" : null)} avisoFor={(i) => (i === 3 ? MORPHO_AUTO_HINT : null)} onGo={onGo} modo={modo} />);
+      expect(screen.queryByRole("status")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: /^Paso 6,/ }));
+      expect(screen.queryByRole("status")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: /^Paso 4,/ }));
+      expect(onGo).toHaveBeenCalledWith(3);
     });
   });
 });

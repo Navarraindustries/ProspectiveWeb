@@ -11,7 +11,7 @@ import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { STEPS } from "../pipeline/steps";
 import { stepAviso, stepDone, stepMissing } from "../pipeline/stepGate";
-import { CONSULTA_SOLO_ICONO, QuirofanoBar, rotuloAccion } from "../components/stepper/QuirofanoBar";
+import { CONSULTA_SOLO_ICONO, QuirofanoBar, estiloAccion, rotuloAccion } from "../components/stepper/QuirofanoBar";
 import { SaveStatus } from "../components/stepper/SaveStatus";
 import { BANDA_SUPERIOR, HOJA_ASOMAR, zonaLibre } from "../pipeline/zonaLibre";
 import { MQ_MOVIL, MQ_TACTIL } from "../pipeline/puntosCorte";
@@ -100,8 +100,7 @@ export function Workspace({
   const tactil = useMediaQuery(MQ_TACTIL);
   const modoBarra = movil ? "movil" : tactil ? "tactil" : "ancho";
   const tamAccion = modoBarra === "ancho" ? "sm" : "md";
-  // Icono solo a 44 px: el relleno de «md» lo haría más ancho que alto.
-  const estiloAccion: CSSProperties | undefined = tamAccion === "md" && soloIcono ? { padding: 0, width: 44 } : undefined;
+  const estiloBoton = estiloAccion(tamAccion, soloIcono);
   const { theme, toggle: alternarTema } = useThemeContext();
   const modoDock = movil ? "mini" : tactil ? "tactil" : estrecho ? "compacto" : "completo";
   const [alturaHoja, setAlturaHoja] = useState<AlturaHoja>("media");
@@ -256,7 +255,8 @@ export function Workspace({
       group: "pasos" as const,
       label: `${i + 1} · ${s.label}`,
       disabled: i !== stepIdx && stepMissing(i, planning) !== null,
-      hint: stepAviso(i, planning) ?? undefined,
+      // En táctil no hay tooltip: el bloqueado dice por qué y el libre, su aviso.
+      hint: stepMissing(i, planning) ?? stepAviso(i, planning) ?? undefined,
       run: () => go(i),
     })),
     { id: "guardar", group: "acciones" as const, label: "Guardar progreso",
@@ -434,7 +434,7 @@ export function Workspace({
         <Button
           variant="outline"
           size={tamAccion}
-          style={estiloAccion}
+          style={estiloBoton}
           onClick={() => void tomarCaptura()}
           disabled={!captureCase || shot === "busy"}
           {...rotuloAccion(soloIcono,
@@ -455,7 +455,7 @@ export function Workspace({
         {sessionId && !imagingStudyId && !movil && (
           <Button
             size={tamAccion}
-            style={estiloAccion}
+            style={estiloBoton}
             onClick={() => setAttachOpen(true)}
             leadingIcon={<Icon name="SAVE" />}
             {...rotuloAccion(soloIcono, patient ? ARCHIVAR_EN_CASO : "Adjuntar a un caso", patient
@@ -465,7 +465,7 @@ export function Workspace({
         )}
         <Button
           size={tamAccion}
-          style={estiloAccion}
+          style={estiloBoton}
           onClick={() => void saveProgress()}
           disabled={!sessionId || saving === "saving"}
           {...rotuloAccion(soloIcono, "Guardar progreso",
@@ -508,9 +508,13 @@ export function Workspace({
            style={{
              position: "absolute", display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0,
              isolation: "isolate",
-             // Ancho: el dock (76 px de alto a 20 del borde) tapa 96 px de la esquina.
-             // Estrecho: el dock compacto (52 px) va 12 px sobre la zona libre, que acaba en la hoja.
-             "--dock-holgura": estrecho ? "72px" : "96px",
+             // Alto del dock: botón + 2×8 de relleno + 2 de borde. La lectura de la
+             // esquina sube esta holgura sobre sus 22 px propios.
+             // Ancho: completo (activo de 60 → 78 px, a 20 del borde) llega a 98 → 96.
+             // Estrecho (≤ 1280), la zona libre acaba en la hoja y el dock va 12 px
+             // sobre ella: compacto (36 → 54 px) llega a 66 → 72; táctil y mini
+             // (44 → 62 px, ≤ 1024) llegan a 74 → 80, el mismo aire.
+             "--dock-holgura": !estrecho ? "96px" : tactil ? "80px" : "72px",
              top: libre.top, right: libre.right, bottom: libre.bottom, left: libre.left,
              transition: "right var(--dur-2) var(--ease-out), bottom var(--dur-2) var(--ease-out)",
            } as CSSProperties}>

@@ -9,7 +9,7 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { NEEDS_MORPHOMETRY, STEPS } from "../pipeline/steps";
-import { TopBar } from "../components/shell/TopBar";
+import { QuirofanoBar } from "../components/stepper/QuirofanoBar";
 import { SaveStatus } from "../components/stepper/SaveStatus";
 import { BANDA_SUPERIOR, zonaLibre } from "../pipeline/zonaLibre";
 import { StepRail } from "../components/stepper/StepRail";
@@ -307,9 +307,10 @@ export function Workspace({
     <div data-panel-collapsed={columnCollapsed ? "true" : "false"}
          style={{ position: "relative", height: "100%", background: "var(--viewer-bg)", overflow: "hidden" }}>
       {/* Pastillas y avisos flotan sobre el lienzo; el visor deja libre su banda. */}
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 3 }}>
-      <TopBar
-        brand
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 0, zIndex: 3 }}>
+      <QuirofanoBar
+        onBack={onBack}
+        riskLabel={morphometry?.rupture_risk_label ?? null}
         crumbs={[
           { label: "Pacientes", onClick: onBack },
           // The patient and the case both lead back to the patient sheet, which
@@ -373,6 +374,8 @@ export function Workspace({
         <AttachCaseSheet open={attachOpen} onClose={() => setAttachOpen(false)}
                          sessionId={sessionId} onAttached={(r) => void onAttached(r)} />
       )}
+      {/* Avisos y barra compacta: bajo las pastillas, sobre el visor, hasta la tarea 5. */}
+      <div style={{ position: "absolute", top: BANDA_SUPERIOR, left: 0, right: 0 }}>
       {attachNote && (
         <div role="status" style={{ padding: "8px 16px", fontSize: 12.5, background: "var(--brand-subtle)", color: "var(--foreground)" }}>
           {attachNote}
@@ -485,6 +488,7 @@ export function Workspace({
             </button>
           );
         })}
+      </div>
       </div>
 
       </div>

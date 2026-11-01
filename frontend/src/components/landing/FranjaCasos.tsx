@@ -19,7 +19,8 @@ export function FranjaCasos() {
   const y = useTransform(scrollYProgress, [0, 1], [-PARALAJE / 2, PARALAJE / 2]);
 
   return (
-    <section ref={franja} aria-label="Casos reales" className="franja-casos">
+    /* La figura es de fondo negro: la franja es un escenario oscuro en los dos temas. */
+    <section ref={franja} aria-label="Casos reales" className="franja-casos" data-theme="dark" data-escenario="oscuro">
       <motion.div className="franja-casos__lienzo" style={reducido ? undefined : { y }}>
         <picture>
           <source media={CONSULTA.movil} srcSet="/media/landing/aneurismas-movil.webp" />

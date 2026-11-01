@@ -31,7 +31,7 @@ export function QueEs() {
           data-glass
           style={{ ...glass("normal"), borderRadius: "var(--radius-xl)" }}
         >
-          <div className="que-es__marco" data-theme="dark">
+          <div className="que-es__marco" data-theme="dark" data-escenario="oscuro">
             <img
               src="/media/landing/secciones/case3-oblicua.webp"
               width={800}

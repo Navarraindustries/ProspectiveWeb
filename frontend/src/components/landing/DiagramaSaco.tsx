@@ -56,7 +56,13 @@ function Trazos({ cota }: { cota: Cota }) {
   }
 }
 
-const COTAS: readonly Cota[] = ["contorno", "elipse", "esfera", "anchura", "dmax", "altura", "cuello", "madre"];
+/* Opacidad de las cotas que el índice activo no usa. Con 0,28 el rótulo se quedaba
+   en 1,5:1 en el tema claro; con 0,7 el rótulo (--foreground) pasa de 4,5:1 y la
+   línea (--muted-foreground) de 3:1 en los dos temas (styles/landing.tema.test.ts).
+   La activa se distingue además por el trazo --data, el grosor y la negrita. */
+export const OPACIDAD_COTA_INACTIVA = 0.7;
+
+const COTAS: readonly Cota[] =["contorno", "elipse", "esfera", "anchura", "dmax", "altura", "cuello", "madre"];
 
 export function DiagramaSaco({ activas }: { activas: readonly Cota[] }) {
   const reducido = useReducedMotion() ?? false;
@@ -77,7 +83,7 @@ export function DiagramaSaco({ activas }: { activas: readonly Cota[] }) {
             data-cota={c}
             data-activa={activa ? "true" : "false"}
             initial={false}
-            animate={{ opacity: activa ? 1 : 0.28 }}
+            animate={{ opacity: activa ? 1 : OPACIDAD_COTA_INACTIVA }}
             transition={{ duration: reducido ? 0 : DUR.estado, ease: EASE }}
           >
             <Trazos cota={c} />

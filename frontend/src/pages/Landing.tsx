@@ -4,8 +4,9 @@
    «Entrar» lleva a la aplicación (/app).
 
    Solo tokens, sin colores escritos a mano; la maquetación vive en
-   `styles/landing.css` bajo `.landing-stitch`. Es dark-only: la página fija
-   `data-theme="dark"` y no ofrece conmutador de tema. */
+   `styles/landing.css` bajo `.landing-stitch`. Sigue el tema de la aplicación
+   (conmutador en la nav); el escenario del hero y la franja de casos se quedan
+   en el negro del visor con `data-theme="dark"` acotado a ellos. */
 
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/Button";
@@ -66,10 +67,10 @@ export function Landing() {
   const crearCuenta = () => navigate("/app/registro");
   const tramo = useTramo();
   return (
-    /* `landing-stitch` trae la maquetación (styles/landing.css) y
-       `data-theme="dark"` la ancla en oscuro: la landing no debe seguir el tema
-       que el usuario eligió para /app. */
-    <div className="landing-stitch" data-theme="dark" data-tramo={tramo} style={{ background: "var(--canvas)", minHeight: "100%" }}>
+    /* `landing-stitch` trae la maquetación (styles/landing.css). Sin data-theme:
+       la portada sigue el tema de la aplicación (ThemeProvider lo pone en <html>);
+       solo los escenarios de imagen radiológica fijan el oscuro. */
+    <div className="landing-stitch" data-tramo={tramo} style={{ background: "var(--canvas)", minHeight: "100%" }}>
       <NavPildora onEntrar={entrar} onCrearCuenta={crearCuenta} />
       <HeroCortes onEntrar={entrar} onCrearCuenta={crearCuenta} />
       <QueEs />

@@ -49,7 +49,7 @@ export function Funcionalidades() {
             style={{ ...glass("normal"), borderRadius: "var(--radius-card-lg)" }}
           >
             {"imagen" in t ? (
-              <div className="bento__imagen" data-theme="dark">
+              <div className="bento__imagen" data-theme="dark" data-escenario="oscuro">
                 <img
                   src={t.imagen.src}
                   width={t.imagen.ancho}

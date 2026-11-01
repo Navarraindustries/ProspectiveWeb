@@ -1,17 +1,19 @@
 /* ============================================================================
    PROSPECTIVE — Landing pública
    Desde F2 la landing usa los mismos tokens que la aplicación (identidad A):
-   este fichero conserva solo su maquetación y sus efectos. Sigue siendo
-   dark-only: Landing.tsx fija data-theme="dark" en su contenedor y no ofrece
-   conmutador, así que ahí manda el bloque [data-theme="dark"] de colors.css.
+   este fichero conserva solo su maquetación y sus efectos. Desde la fase 11
+   (tarea 12) sigue el tema de la aplicación: la raíz no fija data-theme, el
+   conmutador está en la nav y todo color sale de un token con variante clara.
+   Las únicas islas oscuras son los escenarios de imagen radiológica
+   (data-escenario="oscuro" + data-theme="dark": escenario del hero, franja de
+   casos, marcos de render), que pintan --viewer-bg en los dos temas como el
+   visor del quirófano; dentro de ellas velos y rótulos usan los tokens oscuros.
    ============================================================================ */
 
-/* El <body> está fuera del contenedor oscuro y sigue la elección de tema de /app:
-   con el claro guardado asomaría un fondo claro en el rebote del scroll y en
-   cualquier franja sin pintar. Se fija el canvas oscuro de la identidad
-   (--canvas oscuro, #0B0C0F) mientras la landing esté en pantalla. */
+/* El <body> pinta el lienzo de la landing en el rebote del scroll y en cualquier
+   franja sin pintar; :root lleva el data-theme, así que el token sigue el tema. */
 :root:has(.landing-stitch) body {
-  background: #0B0C0F;
+  background: var(--canvas);
 }
 
 /* La paleta, las fuentes, los radios y las sombras ya no son propios de la
@@ -102,12 +104,15 @@
 .landing-stitch .hero-cortes--quieto {
   min-height: 100vh;
 }
+/* El escenario lleva data-theme="dark" (HeroCortes.tsx): negro del visor en los
+   dos temas, y dentro velo, texto, botones y ventana con los tokens oscuros. */
 .landing-stitch .hero-cortes__escenario {
   position: sticky;
   top: 0;
   height: 100vh;
   height: 100svh;
   overflow: hidden;
+  background: var(--viewer-bg);
 }
 /* Disposición quieta (movimiento reducido, pantalla estrecha o baja, ahorro de
    datos): sin scroll que consumir, el escenario fluye en el documento y crece
@@ -119,6 +124,26 @@
   height: auto;
   min-height: 100vh;
   overflow: visible;
+}
+
+/* Tema claro por encima de 1024: el escenario es una pantalla dentro de la
+   página (radio y margen, no a sangre), como el visor del quirófano en la
+   aplicación. Hasta 1024 sigue a sangre. Las capas absolutas heredan el radio
+   para que el corte y el render no asomen por las esquinas en el modo quieto,
+   donde el escenario no recorta. */
+:root[data-theme="light"] .landing-stitch:is([data-tramo="estrecho"], [data-tramo="ancho"], [data-tramo="grande"]) .hero-cortes__escenario {
+  top: 16px;
+  height: calc(100vh - 32px);
+  height: calc(100svh - 32px);
+  margin: 16px 16px 0;
+  border-radius: var(--radius-xl);
+}
+:root[data-theme="light"] .landing-stitch:is([data-tramo="estrecho"], [data-tramo="ancho"], [data-tramo="grande"]) .hero-cortes--quieto .hero-cortes__escenario {
+  height: auto;
+  min-height: calc(100vh - 32px);
+}
+:root[data-theme="light"] .landing-stitch:is([data-tramo="estrecho"], [data-tramo="ancho"], [data-tramo="grande"]) :is(.hero-cortes__corte, .hero-cortes__render, .hero-cortes__velo) {
+  border-radius: inherit;
 }
 
 .landing-stitch .hero-cortes__corte,
@@ -710,11 +735,15 @@
   color: var(--muted-foreground);
 }
 
-/* Franja de casos reales */
+/* Franja de casos reales. La figura es de fondo negro: la franja entera es un
+   escenario oscuro (data-theme="dark" en FranjaCasos.tsx), así que su velo, la
+   tarjeta y el crédito usan los tokens oscuros también en el tema claro. */
 .landing-stitch .franja-casos {
   position: relative;
   overflow: hidden;
   height: clamp(380px, 46vw, 620px);
+  background: var(--viewer-bg);
+  color: var(--foreground);
 }
 .landing-stitch .franja-casos__lienzo {
   position: absolute;
@@ -1122,11 +1151,13 @@
   stroke: var(--muted-foreground);
   stroke-width: 1.5;
 }
+/* El rótulo usa --foreground y no --muted-foreground: la cota inactiva se apaga
+   con opacidad (OPACIDAD_COTA_INACTIVA) y con el gris no llegaba a 4,5:1 en claro. */
 .landing-stitch .diagrama-saco [data-cota] text {
   font-family: var(--font-mono);
   font-size: 14px;
   font-weight: 400;
-  fill: var(--muted-foreground);
+  fill: var(--foreground);
   stroke: none;
 }
 .landing-stitch .diagrama-saco [data-activa="true"] {

@@ -14,6 +14,7 @@ import { MemoryRouter } from "react-router-dom";
 
 import { Landing } from "./Landing";
 import { STEPS } from "../pipeline/steps";
+import { ThemeProvider } from "../store/theme";
 import { simularPantalla } from "../test/pantalla";
 
 const show = () => render(<MemoryRouter><Landing /></MemoryRouter>);
@@ -290,6 +291,61 @@ describe("la landing no escribe colores a mano", () => {
 
   it.each(ficheros)("%s usa solo tokens", (_ruta, fuente) => {
     const sinComentarios = fuente.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
-    expect(sinComentarios).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(/i);
+    expect(sinComentarios).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
+  });
+});
+
+/* Tarea 12 (pedido del dueño, 01-11): la portada deja de estar anclada en oscuro
+   y sigue el tema de la aplicación. Solo los escenarios de imagen radiológica
+   (escenario del hero y franja de casos) y los marcos de render conservan el
+   negro del quirófano. */
+describe("tema claro: la portada sigue el tema de la aplicación", () => {
+  afterEach(() => {
+    localStorage.clear();
+    document.documentElement.removeAttribute("data-theme");
+  });
+
+  const conTema = (tema: "light" | "dark") => {
+    localStorage.setItem("prospective.theme", tema);
+    return render(<ThemeProvider><MemoryRouter><Landing /></MemoryRouter></ThemeProvider>);
+  };
+
+  it("la raíz no fija data-theme", () => {
+    const { container } = show();
+    expect(container.querySelector(".landing-stitch")).not.toHaveAttribute("data-theme");
+  });
+
+  it.each(["light", "dark"] as const)("con tema %s la raíz lo hereda de <html>", (tema) => {
+    const { container } = conTema(tema);
+    const raiz = container.querySelector(".landing-stitch")!;
+    expect(raiz.closest("[data-theme]")).toBe(document.documentElement);
+    expect(document.documentElement).toHaveAttribute("data-theme", tema);
+  });
+
+  it.each(["light", "dark"] as const)("con tema %s los escenarios radiológicos siguen oscuros", (tema) => {
+    const { container } = conTema(tema);
+    const escenario = container.querySelector(".hero-cortes__escenario")!;
+    expect(escenario).toHaveAttribute("data-theme", "dark");
+    expect(escenario).toHaveAttribute("data-escenario", "oscuro");
+    // La ventana de detección vive dentro del escenario: hereda el oscuro.
+    expect(container.querySelector(".hero-ventana")!.closest("[data-theme]")).toBe(escenario);
+    const franja = container.querySelector(".franja-casos")!;
+    expect(franja).toHaveAttribute("data-theme", "dark");
+    expect(franja).toHaveAttribute("data-escenario", "oscuro");
+  });
+
+  it("toda isla oscura es un escenario de imagen marcado", () => {
+    const { container } = conTema("light");
+    const islas = [...container.querySelectorAll('[data-theme="dark"]')];
+    expect(islas.length).toBeGreaterThan(2);
+    for (const isla of islas) expect(isla, isla.className).toHaveAttribute("data-escenario", "oscuro");
+  });
+
+  it("el conmutador de la nav cambia el tema de la portada", () => {
+    conTema("dark");
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar a tema claro" }));
+    expect(document.documentElement).toHaveAttribute("data-theme", "light");
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar a tema oscuro" }));
+    expect(document.documentElement).toHaveAttribute("data-theme", "dark");
   });
 });

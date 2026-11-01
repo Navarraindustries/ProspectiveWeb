@@ -78,7 +78,10 @@ export function HeroCortes({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
       /* Quieto: 100 vh como mínimo (`.hero-cortes--quieto`), sin altura de scroll extra. */
       style={quieto ? undefined : { height: "300vh" }}
     >
-      <div className="hero-cortes__escenario">
+      {/* Escenario radiológico: negro del visor en los dos temas, con el oscuro acotado
+          aquí para que velo, texto, botones y ventana de detección sigan claros sobre
+          negro. En el tema claro, por encima de 1024, es una pantalla con radio (landing.css). */}
+      <div className="hero-cortes__escenario" data-theme="dark" data-escenario="oscuro">
         {!quieto && (
           <img className="hero-cortes__corte" src={rutaFotograma(mostrado)} alt="" style={{ opacity: verFinal ? 0 : 1 }} />
         )}

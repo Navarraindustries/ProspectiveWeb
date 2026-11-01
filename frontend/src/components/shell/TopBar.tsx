@@ -169,7 +169,7 @@ export function TopBar({ crumbs, subtitle, status, acciones, extra, onAbrirSecci
         {status}
         {!movil && extraNodo}
         {lista.filter((a) => !movil || a.principal).map((a) => (
-          <Accion key={a.id} a={a} soloIcono={movil || (estrecho && !a.principal)} tam={tam} />
+          <Accion key={a.id} a={a} soloIcono={movil || (estrecho && !a.principal) || (tableta && !!extra && !!a.principal)} tam={tam} />
         ))}
         {movil && <MenuMas items={itemsMenu} tactil />}
         {!movil && (

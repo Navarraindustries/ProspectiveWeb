@@ -548,7 +548,7 @@
 .ws-panel-fold:focus-visible { color: var(--foreground); background: var(--muted); }
 
 /* PageBody (fase 8): un solo ancho para todas las páginas de la oficina. */
-.page-body { flex: 1; min-height: 0; overflow-y: auto; }
+.page-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: clip; }
 .page-body__ancho { box-sizing: border-box; width: 100%; max-width: var(--content-max); margin: 0 auto; padding: 28px 32px 48px; }
 .page-body[data-modo="pantalla"] { overflow: hidden; display: flex; flex-direction: column; }
 .page-body[data-modo="pantalla"] > .page-body__ancho { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 24px 32px; }
@@ -643,6 +643,12 @@
   .shell-user-sub, .shell-user-role { font-size: 13px; }
   /* La miga «Pacientes» mide 44 de alto sin perder la elipsis (R20). */
   .shell-crumb-link { line-height: var(--control-md); }
+}
+/* Tableta (641-1024): si la miga, el buscador y los controles no caben, la barra
+   crece en alto y las acciones envuelven en lugar de salirse por la derecha. */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .shell-top { height: auto; min-height: 56px; padding-top: 6px; padding-bottom: 6px; flex-wrap: wrap; }
+  .shell-actions { flex: 0 1 auto; min-width: 0; flex-wrap: wrap; justify-content: flex-end; }
 }
 @media (max-width: 640px) {
   .shell-top { height: auto; min-height: 56px; padding: 6px 12px; gap: 8px; flex-wrap: wrap; }

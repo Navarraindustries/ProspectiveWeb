@@ -37,6 +37,17 @@ it("≥ 641: tabla de cristal con cabeceras y sin scroll horizontal", () => {
   expect(container.innerHTML).not.toMatch(/overflow-x/);
 });
 
+it("la celda identificadora no parte por letras y tiene ancho mínimo; las demás sí parten", () => {
+  simularPantalla(642);
+  render(<TablaTarjetas rotulo="Usuarios" filas={filas} columnas={cols} clave={(f) => f.id} />);
+  const th = screen.getAllByRole("rowheader")[0];
+  expect(th.style.overflowWrap).toBe("normal");
+  expect(th.style.wordBreak).toBe("normal");
+  expect(th.style.minWidth).toBe("12ch");
+  const td = screen.getAllByRole("cell")[0];
+  expect(td.style.overflowWrap).not.toBe("normal");
+});
+
 it("641 px ya es tabla", () => {
   simularPantalla(641);
   const { container } = render(<TablaTarjetas rotulo="Usuarios" filas={filas} columnas={cols} clave={(f) => f.id} />);
@@ -140,7 +151,7 @@ it("tarjeta pulsable sin columna de título: la que identifica la fila hace de t
 
 it("un texto larguísimo corta por palabra y no ensancha la celda", () => {
   simularPantalla(1280);
-  render(<TablaTarjetas rotulo="U" filas={[{ id: 3, nombre: "x".repeat(80), rol: "Médico" }]} columnas={cols} clave={(f) => f.id} />);
+  render(<TablaTarjetas rotulo="U" filas={[{ id: 3, nombre: "Ana", rol: "x".repeat(80) }]} columnas={cols} clave={(f) => f.id} />);
   expect(screen.getByText("x".repeat(80)).closest("td, th")).toHaveStyle({ overflowWrap: "anywhere" });
   expect(screen.getAllByRole("cell").find((c) => c.textContent?.startsWith("Editar"))).toHaveStyle({ whiteSpace: "nowrap" });
 });

@@ -179,6 +179,37 @@ describe("TopBar", () => {
     expect(container.querySelector("header.shell-top > .shell-extra")).toBeNull();
     p.restaurar();
   });
+  it("tableta con `extra`: la principal pasa a solo icono con nombre accesible", () => {
+    for (const ancho of [642, 768, 1024]) {
+      const p = simularPantalla({ ancho });
+      const { unmount } = render(<TopBar crumbs={[{ label: "Usuarios" }]} extra={<input aria-label="Buscar" />} acciones={acciones} />);
+      const b = screen.getByRole("button", { name: "Nuevo paciente" });
+      expect(b.textContent).toBe("");
+      expect(b).toHaveAttribute("aria-label", "Nuevo paciente");
+      unmount();
+      p.restaurar();
+    }
+  });
+  it("tableta sin `extra`: la principal conserva su texto; a 1280 con `extra` también", () => {
+    let p = simularPantalla({ ancho: 768 });
+    const a = render(<TopBar crumbs={[{ label: "Usuarios" }]} acciones={acciones} />);
+    expect(screen.getByRole("button", { name: "Nuevo paciente" }).textContent).toContain("Nuevo paciente");
+    a.unmount();
+    p.restaurar();
+    p = simularPantalla({ ancho: 1280 });
+    render(<TopBar crumbs={[{ label: "Usuarios" }]} extra={<input aria-label="Buscar" />} acciones={acciones} />);
+    expect(screen.getByRole("button", { name: "Nuevo paciente" }).textContent).toContain("Nuevo paciente");
+    p.restaurar();
+  });
+  it("tableta: la barra puede envolver y crecer en alto, y las acciones también", () => {
+    const css = cssShell();
+    const i = css.indexOf("@media (min-width: 641px) and (max-width: 1024px) {\n  .shell-top {");
+    expect(i).toBeGreaterThan(-1);
+    const bloque = css.slice(i, css.indexOf("\n}", i));
+    expect(bloque).toMatch(/\.shell-top \{[^}]*height: auto;[^}]*flex-wrap: wrap/);
+    expect(bloque).toMatch(/\.shell-actions \{[^}]*min-width: 0;[^}]*flex-wrap: wrap/);
+    expect(css).toMatch(/\.page-body \{[^}]*overflow-x: clip/);
+  });
   it("R4: a 360 el tema no está en la barra y va al menú «⋯»", () => {
     const p = simularPantalla({ ancho: 360 });
     const { container } = render(barra());

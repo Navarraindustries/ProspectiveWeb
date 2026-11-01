@@ -184,7 +184,7 @@ export function TablaTarjetas<T>(p: TablaTarjetasProps<T>) {
                     {...pulsable(fila, onFila)}
                   >
                     {columnas.map((c) => c === identidad ? (
-                      <th key={c.id} scope="row" style={{ ...estiloCelda(c), fontWeight: "inherit" }}>
+                      <th key={c.id} scope="row" style={{ ...estiloCelda(c), fontWeight: "inherit", overflowWrap: "normal", wordBreak: "normal", minWidth: "12ch" }}>
                         {control(fila, c.celda(fila), desplegado)}
                       </th>
                     ) : (

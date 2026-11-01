@@ -160,17 +160,15 @@ describe("HeroCortes", () => {
     expect(balizas[0]).toHaveTextContent("1");
   });
 
-  it("la consulta de la disposición quieta usa el ancho del tramo móvil", () => {
-    expect(CONSULTA_HERO_QUIETO).toBe("(max-width: 640px), (max-height: 600px)");
-  });
-
-  it.each([[390, 844], [844, 390]])("a %i × %i es quieto", (ancho, alto) => {
+  /* Hasta 1024 (móvil y tableta, en los dos giros) y en pantallas bajas, quieto;
+     por encima de 1024 con alto suficiente, animado. */
+  it.each([[390, 844], [844, 390], [768, 1024], [1024, 768], [1024, 1366], [1707, 600]])("a %i × %i es quieto", (ancho, alto) => {
     simularPantalla(ancho, alto);
     const { container } = montar();
-    expect(container.querySelector("section")).toHaveClass("hero-cortes--quieto");
+    esperarQuieto(container);
   });
 
-  it.each([[768, 1024], [1707, 743]])("a %i × %i es el hero animado", (ancho, alto) => {
+  it.each([[1025, 900], [1280, 900], [1366, 768], [1707, 743], [1920, 1080]])("a %i × %i es el hero animado", (ancho, alto) => {
     simularPantalla(ancho, alto);
     const { container } = montar();
     const seccion = container.querySelector("section") as HTMLElement;

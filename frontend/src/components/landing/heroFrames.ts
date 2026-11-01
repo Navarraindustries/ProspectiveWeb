@@ -57,13 +57,14 @@ export const DETECCION_CASE3: readonly CandidatoDetectado[] = [
 export const rutaFotograma =(i: number): string =>
   `/media/landing/hero/${String(i).padStart(3, "0")}.webp`;
 
-/* Pantallas donde el escenario fijado de 100 vh no cabe (un iPhone con las
-   barras visibles, un móvil apaisado): el hero pasa a la
-   disposición quieta, la misma que con movimiento reducido (la clase
-   `.hero-cortes--quieto` cubre el escenario y el contenido). El ancho es el del
-   tramo móvil. 600 px de alto deja entrar al portátil de 1366 × 768
-   (≈ 650 px útiles): el contenido del hero mide ≈ 600. */
-export const CONSULTA_HERO_QUIETO = `${CONSULTA.movil}, (max-height: 600px)`;
+/* Pantallas donde el hero va quieto: todo el tramo de tableta (≤ 1024, móvil
+   incluido), en una columna con el texto arriba y la ventana debajo, y las
+   pantallas bajas donde el escenario fijado de 100 vh no cabe (un móvil
+   apaisado). La disposición quieta es la misma que con movimiento reducido
+   (la clase `.hero-cortes--quieto` cubre el escenario y el contenido). 600 px
+   de alto deja entrar al portátil de 1366 × 768 (≈ 650 px útiles): el
+   contenido del hero mide ≈ 600. */
+export const CONSULTA_HERO_QUIETO = `${CONSULTA.tableta}, (max-height: 600px)`;
 
 /* Peticiones simultáneas tras el fotograma 0. */
 const EN_PARALELO = 4;

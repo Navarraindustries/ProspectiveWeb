@@ -456,11 +456,29 @@
   bottom: 16px;
 }
 
-/* Tableta (640–1024): dos columnas con la ventana de detección estrecha. */
+/* Tableta (640–1024): el hero siempre va quieto (`CONSULTA_HERO_QUIETO`) y en
+   una columna, como el móvil: el texto arriba y la ventana de detección debajo,
+   con el velo de arriba abajo y el saco entre los dos. Hay más alto que en un
+   móvil, así que se conserva el aire del escritorio. */
 .landing-stitch[data-tramo="tableta"] .hero-cortes__contenido {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
-  gap: 24px;
-  padding: 96px 16px 48px;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: space-between;
+  gap: 32px;
+  padding: 104px 24px 32px;
+}
+.landing-stitch[data-tramo="tableta"] .hero-cortes__ventana {
+  max-width: 560px;
+}
+.landing-stitch[data-tramo="tableta"] .hero-cortes__velo {
+  background: linear-gradient(180deg, var(--veil-dense) 0%, var(--veil) 55%, var(--veil-dense) 100%);
+}
+.landing-stitch[data-tramo="tableta"] .hero-cortes__lienzo {
+  top: 68%;
+}
+/* Como en el móvil, la ventana bajo el texto taparía la baliza; la lista ya
+   dice que el 1.º es la lesión. */
+.landing-stitch[data-tramo="tableta"] .hero-balizas {
+  display: none;
 }
 /* Hasta 1024: el ancla del hero llega a los 44 px del dedo. */
 .landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .hero-cortes__ancla {

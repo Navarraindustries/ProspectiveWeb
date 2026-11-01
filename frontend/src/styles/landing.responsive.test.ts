@@ -17,7 +17,9 @@ describe("landing.css, base responsive", () => {
   });
   it("hero y anchos por tramo", () => {
     expect(tieneDeclaracion(css, '.landing-stitch[data-tramo="movil"] .hero-cortes__contenido', "grid-template-columns: minmax(0, 1fr)")).toBe(true);
-    expect(tieneDeclaracion(css, '.landing-stitch[data-tramo="tableta"] .hero-cortes__contenido', "grid-template-columns: minmax(0, 1fr) minmax(0, 340px)")).toBe(true);
+    // Tableta: hero quieto en una columna, como el móvil (texto arriba, ventana debajo).
+    expect(tieneDeclaracion(css, '.landing-stitch[data-tramo="tableta"] .hero-cortes__contenido', "grid-template-columns: minmax(0, 1fr)")).toBe(true);
+    expect(tieneDeclaracion(css, '.landing-stitch[data-tramo="tableta"] .hero-cortes__contenido', "grid-template-columns: minmax(0, 1fr) minmax(0, 340px)")).toBe(false);
     expect(tieneDeclaracion(css, '.landing-stitch[data-tramo="grande"] .hero-cortes__contenido', "max-width: 1600px")).toBe(true);
     expect(tieneDeclaracion(css, '.landing-stitch[data-tramo="grande"] .sec__cuerpo', "max-width: 1360px")).toBe(true);
   });

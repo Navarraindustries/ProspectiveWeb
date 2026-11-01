@@ -25,6 +25,8 @@ export interface ItemMenu {
   destructive?: boolean;
   /** aria-disabled: se puede recorrer con el teclado pero no ejecuta. */
   disabled?: boolean;
+  /** `onSelect` abre un diálogo o una hoja que toma el foco: no se devuelve al disparador. */
+  abreDialogo?: boolean;
   separadoAntes?: boolean;
 }
 
@@ -72,11 +74,15 @@ export function MenuMas({ items, label = "Más acciones", tactil = false }: {
       cerrar(false);
     };
     const alRedimensionar = () => cerrar(false);
+    // El menú es fixed: si algo se desplaza, quedaría desalineado con su botón.
+    const alDesplazar = (e: Event) => { if (!menu.current?.contains(e.target as Node)) cerrar(false); };
     document.addEventListener("pointerdown", fuera);
     window.addEventListener("resize", alRedimensionar);
+    window.addEventListener("scroll", alDesplazar, true);
     return () => {
       document.removeEventListener("pointerdown", fuera);
       window.removeEventListener("resize", alRedimensionar);
+      window.removeEventListener("scroll", alDesplazar, true);
     };
   }, [abierto, cerrar]);
 
@@ -90,7 +96,8 @@ export function MenuMas({ items, label = "Más acciones", tactil = false }: {
       case "Home": ir(0); break;
       case "End": ir(nodos.length - 1); break;
       case "Escape": e.preventDefault(); e.stopPropagation(); cerrar(true); break;
-      case "Tab": cerrar(false); break;
+      // Sin preventDefault: el Tab sigue su curso desde el disparador.
+      case "Tab": cerrar(true); break;
     }
   };
 
@@ -105,7 +112,7 @@ export function MenuMas({ items, label = "Más acciones", tactil = false }: {
   const elegir = (it: ItemMenu) => {
     if (it.disabled) return;
     it.onSelect?.();
-    cerrar(!it.href);
+    cerrar(!it.href && !it.abreDialogo);
   };
 
   const lado = tactil ? 44 : 32;

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MenuMas } from "./MenuMas";
@@ -99,5 +100,38 @@ describe("MenuMas", () => {
     act(() => { fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" }); });
     expect(document.body.querySelectorAll("[role=menu]")).toHaveLength(0);
     expect(document.body.querySelectorAll("body > div[style*='fixed']")).toHaveLength(0);
+  });
+
+  it("hacer scroll cierra el menú", () => {
+    render(<MenuMas items={items()} />);
+    abrir();
+    fireEvent.scroll(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("Tab cierra devolviendo el foco al botón y sin cancelar el Tab", () => {
+    render(<MenuMas items={items()} />);
+    abrir();
+    const ok = fireEvent.keyDown(screen.getByRole("menu"), { key: "Tab" });
+    expect(ok).toBe(true);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.getByRole("button", { name: "Más acciones" })).toHaveFocus();
+  });
+
+  it("abreDialogo: no devuelve el foco al botón y la hoja lo conserva", () => {
+    function Con() {
+      const [hoja, setHoja] = useState(false);
+      return (
+        <>
+          <MenuMas items={[{ id: "x", label: "Abrir hoja", abreDialogo: true, onSelect: () => setHoja(true) }]} />
+          {hoja && <input aria-label="en la hoja" autoFocus />}
+        </>
+      );
+    }
+    render(<Con />);
+    abrir();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Abrir hoja" }));
+    expect(screen.getByLabelText("en la hoja")).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Más acciones" })).not.toHaveFocus();
   });
 });

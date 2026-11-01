@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -100,6 +102,17 @@ describe("TopBar", () => {
     act(() => p.cambiar({ ancho: 390 }));
     expect(screen.getByRole("button", { name: "Más acciones" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Nuevo caso" })).toBeNull();
+    p.restaurar();
+  });
+  it("el contenedor de `extra` lleva su clase y el CSS le da mínimo y fila propia a ≤ 640", () => {
+    const p = simularPantalla({ ancho: 390 });
+    render(<TopBar crumbs={[{ label: LARGO }]} extra={<input aria-label="Buscar" />} />);
+    expect(screen.getByLabelText("Buscar").parentElement).toHaveClass("shell-extra");
+    const css = readFileSync(resolve(__dirname, "shell.css"), "utf8").split("\r").join("");
+    const movil = css.slice(css.indexOf("@media (max-width: 640px) {\n  .shell-top {"));
+    expect(movil).toMatch(/\.shell-actions \{ flex-wrap: wrap/);
+    expect(movil).toMatch(/\.shell-extra \{ flex: 1 1 120px; min-width: 120px/);
+    expect(movil).toMatch(/\.shell-crumbs \{ flex: 1 1 0; min-width: 72px/);
     p.restaurar();
   });
 });

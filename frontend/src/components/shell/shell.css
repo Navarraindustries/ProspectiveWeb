@@ -581,7 +581,7 @@
 
 /* ── Barra superior adaptable (fase 8, A19) ─────────────────────────────── */
 .shell-actions > * { white-space: nowrap; flex-shrink: 0; }
-.shell-actions > .shell-extra { flex: 0 1 220px; min-width: 0; flex-shrink: 1; }
+.shell-actions > .shell-extra { flex: 0 1 220px; min-width: 120px; }
 /* Enlace con la pastilla del botón outline (descarga con aspecto de botón). */
 .shell-accion {
   display: inline-flex;
@@ -608,8 +608,10 @@
   .shell-user-btn, .shell-cmdk { width: var(--control-md); min-width: var(--control-md); height: var(--control-md); }
 }
 @media (max-width: 640px) {
-  .shell-top { padding: 0 12px; gap: 8px; }
-  .shell-crumbs { flex: 1 1 0; min-width: 0; }
+  .shell-top { height: auto; min-height: 56px; padding: 6px 12px; gap: 8px; }
+  /* La miga cede primero (hasta 72 px); si el buscador sigue sin caber, baja a una segunda fila. */
+  .shell-crumbs { flex: 1 1 0; min-width: 72px; }
   .shell-crumb { max-width: 100%; }
-  .shell-actions > .shell-extra { flex: 1 1 auto; }
+  .shell-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .shell-actions > .shell-extra { flex: 1 1 120px; min-width: 120px; }
 }

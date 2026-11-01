@@ -25,7 +25,6 @@ import { cifra } from "../lib/numero";
 import {
   AR_HIGH, BF_WIDE, DNR_HIGH, EI_MOD, SR_HIGH, UI_HIGH,
 } from "../components/morphometry/thresholds";
-import { STEPS } from "../pipeline/steps";
 /* El lema único del producto vive en el titular de HeroCortes: una sola vez. */
 
 /* ── Funcionalidades ────────────────────────────────────────────────────── */

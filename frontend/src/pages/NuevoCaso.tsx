@@ -13,6 +13,8 @@ import { DiscardChanges } from "../components/DiscardChanges";
 import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
+import { EstadoVacio } from "../components/EstadoVacio";
+import { Switch } from "../components/Switch";
 import { Sheet } from "../components/Sheet";
 import { ErrorNote } from "../components/PanelHead";
 import { hoyLocal } from "../lib/fecha";
@@ -40,22 +42,6 @@ const MODALIDADES: [keyof Mods, string][] = [
 ];
 
 type Mods = { tac: boolean; angio: boolean; rm: boolean };
-
-const SECTION: React.CSSProperties = {
-  fontSize: 12, fontWeight: 800, letterSpacing: ".03em", color: "var(--foreground)",
-  margin: "20px 0 10px", paddingBottom: 6, borderBottom: "1px solid var(--border)",
-};
-const SUBTLE: React.CSSProperties = { fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8 };
-
-function checkRow(label: string, checked: boolean, onToggle: (v: boolean) => void, extra?: React.ReactNode): React.ReactNode {
-  return (
-    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--foreground)", cursor: "pointer" }}>
-      <input type="checkbox" checked={checked} onChange={(e) => onToggle(e.target.checked)} />
-      <span style={{ minWidth: 150 }}>{label}</span>
-      {extra}
-    </label>
-  );
-}
 
 export function NuevoEstudioSheet({
   open, patientId, patientName, study, onClose, onCreated,
@@ -168,15 +154,15 @@ export function NuevoEstudioSheet({
           <Button type="button" variant="outline" onClick={requestClose}>Cancelar</Button>
         </>
       }>
-      {patientName && <div style={{ ...SUBTLE, marginBottom: 12 }}>Paciente: <b style={{ color: "var(--foreground)" }}>{patientName}</b></div>}
+      {patientName && <div className="nc-nota" style={{ marginBottom: 12 }}>Paciente: <b style={{ color: "var(--foreground)" }}>{patientName}</b></div>}
       <form id="form-nuevo-caso" onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <Input label="Fecha del caso" hint="Fecha del diagnóstico" type="date" value={f.study_date} onChange={set("study_date")} />
 
-        <div style={SECTION}>Datos clínicos</div>
+        <div className="nc-seccion">Datos clínicos</div>
         <Input label="Clínica" multiline value={f.sintomas_positivos} onChange={set("sintomas_positivos")} placeholder="Síntomas actuales, cefalea, déficit neurológico…" />
         <div style={{ height: 12 }} />
         <div ref={dxBox}>
-          <Input label="Diagnóstico *" value={f.dx_principal}
+          <Input label="Diagnóstico" obligatorio value={f.dx_principal}
                  onChange={(e) => { set("dx_principal")(e); setDxError(null); }}
                  placeholder="Aneurisma basilar sacular"
                  hint={dxError ?? "Da nombre al caso en toda la aplicación"} invalid={!!dxError} />
@@ -184,8 +170,8 @@ export function NuevoEstudioSheet({
         <div style={{ height: 12 }} />
         <Input label="Diagnóstico secundario" value={f.dx_secundario} onChange={set("dx_secundario")} placeholder="Diagnóstico secundario (opcional)" />
 
-        <div style={SECTION}>Caracterización aneurismática</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="nc-seccion">Caracterización aneurismática</div>
+        <div className="hoja-dos-columnas">
           <Select label="Morfología" options={[SIN_DATO, ...MORFOLOGIAS]} value={f.morfologia || SIN_DATO} onChange={(e) => setF((s) => ({ ...s, morfologia: e.target.value === SIN_DATO ? "" : e.target.value }))} />
           <Select label="Tamaño" options={[SIN_DATO, ...TAMANOS]} value={f.tamano || SIN_DATO} onChange={(e) => setF((s) => ({ ...s, tamano: e.target.value === SIN_DATO ? "" : e.target.value }))} />
         </div>
@@ -196,19 +182,19 @@ export function NuevoEstudioSheet({
         <div style={{ height: 12 }} />
         <Select label="Región anatómica" options={REGIONES.map((t) => t || "— seleccionar —")} value={f.region_anatomica || "— seleccionar —"} onChange={(e) => setF((s) => ({ ...s, region_anatomica: e.target.value === "— seleccionar —" ? "" : e.target.value }))} />
         <div style={{ height: 12 }} />
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Tratamiento propuesto</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {TRATAMIENTOS.map((t) => checkRow(t, trat[t], (on) => setTrat((s) => ({ ...s, [t]: on }))))}
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Tratamiento propuesto</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {TRATAMIENTOS.map((t) => <Switch key={t} label={t} checked={trat[t]} onChange={(on) => setTrat((s) => ({ ...s, [t]: on }))} />)}
         </div>
 
-        <div style={SECTION}>Imágenes diagnósticas</div>
-        <div style={SUBTLE}>El DICOM se sube en el paso 1 al abrir el caso.</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {MODALIDADES.map(([k, label]) => checkRow(label, mods[k], (on) => setMods((s) => ({ ...s, [k]: on }))))}
+        <div className="nc-seccion">Imágenes diagnósticas</div>
+        <div className="nc-nota">El DICOM se sube en el paso 1 al abrir el caso.</div>
+        <div className="hoja-dos-columnas">
+          {MODALIDADES.map(([k, label]) => <Switch key={k} label={label} checked={mods[k]} onChange={(on) => setMods((s) => ({ ...s, [k]: on }))} />)}
         </div>
         <div style={{ height: 14 }} />
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Angiógrafo</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Angiógrafo</div>
+        <div className="hoja-dos-columnas">
           <Input label="Marca / modelo" value={f.angio_marca} onChange={set("angio_marca")} placeholder="Marca / modelo" />
           <Select label="Tipo" options={ANGIO_TIPO.map((t) => t || "Tipo")} value={f.angio_tipo || "Tipo"} onChange={(e) => setF((s) => ({ ...s, angio_tipo: e.target.value === "Tipo" ? "" : e.target.value }))} />
         </div>
@@ -244,46 +230,39 @@ export function CasePatientPicker({
       p.full_name.toLowerCase().includes(q.toLowerCase()) ||
       (p.hospital_id || "").toLowerCase().includes(q.toLowerCase()),
   );
+  const nuevoPaciente = (
+    <Button type="button" variant="outline" onClick={onCreatePatient} leadingIcon={<Icon name="PLUS" size={14} />}>
+      Nuevo paciente
+    </Button>
+  );
   return (
-    <Sheet open={open} onClose={onClose} title="Nuevo caso — elegir paciente" width={460}>
-      <div style={{ ...SUBTLE, marginBottom: 12 }}>
+    <Sheet open={open} onClose={onClose} title="Nuevo caso — elegir paciente" width={460}
+      footer={patients.length === 0 ? undefined : nuevoPaciente}>
+      <div className="nc-nota" style={{ marginBottom: 12 }}>
         Selecciona el paciente al que pertenece este caso. Un caso se adjunta a un solo paciente.
       </div>
       {patients.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "20px 0", color: "var(--muted-foreground)", fontSize: 13 }}>
-          Aún no hay pacientes registrados.
-          <div style={{ marginTop: 14 }}>
-            <Button onClick={onCreatePatient} leadingIcon={<Icon name="STEP_PATIENT" size={14} />}>
-              Crear el primer paciente
-            </Button>
-          </div>
-        </div>
+        <EstadoVacio icono="USER" titulo="Aún no hay pacientes registrados"
+          accion={<Button onClick={onCreatePatient} leadingIcon={<Icon name="PLUS" size={14} />}>Crear el primer paciente</Button>}>
+          Crea el primero para poder abrirle un caso.
+        </EstadoVacio>
       ) : (
         <>
-          <Input placeholder="Buscar por nombre o N.º de historia…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <div style={{ height: 10 }} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 320, overflowY: "auto" }}>
+          <div style={{ position: "sticky", top: 0, zIndex: 1, background: "var(--glass-dense)", paddingBottom: 10 }}>
+            <Input icon={<Icon name="SEARCH" size={14} />} aria-label="Buscar paciente o HC"
+              placeholder="Buscar por nombre o N.º de historia…" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {rows.length === 0 && (
               <div style={{ fontSize: 13, color: "var(--muted-foreground)", padding: "8px 2px" }}>
                 Ningún paciente coincide con la búsqueda.
               </div>
             )}
             {rows.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => onPick(p)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10, textAlign: "left", cursor: "pointer",
-                  padding: "10px 12px", borderRadius: "var(--radius-md)", border: "1px solid var(--border)",
-                  background: "var(--card)", fontFamily: "var(--font-sans)",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--brand-deep)")}
-                onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
-              >
+              <button key={p.id} type="button" onClick={() => onPick(p)} className="nc-fila">
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>{p.full_name}</div>
-                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>{p.full_name}</div>
+                  <div style={{ fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
                     {p.hospital_id || "sin HC"} · {p.sex || "—"} · {p.study_count} {p.study_count === 1 ? "caso" : "casos"}
                   </div>
                 </div>
@@ -291,10 +270,6 @@ export function CasePatientPicker({
               </button>
             ))}
           </div>
-          <div style={{ height: 14 }} />
-          <Button type="button" variant="outline" onClick={onCreatePatient} leadingIcon={<Icon name="STEP_PATIENT" size={14} />}>
-            + Nuevo paciente
-          </Button>
         </>
       )}
     </Sheet>

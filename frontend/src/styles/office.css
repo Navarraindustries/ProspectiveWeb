@@ -72,6 +72,23 @@
 .hoja-dos-columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
 @media (max-width: 640px) { .hoja-dos-columnas { grid-template-columns: 1fr; } }
 
+/* Hojas de caso y paciente: filas del selector, rótulos de sección y notas. */
+.nc-fila {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+  padding: 10px 12px; border-radius: var(--radius-md); font-family: var(--font-sans);
+  background: var(--glass); border: 1px solid var(--glass-border); box-shadow: var(--glass-highlight);
+  transition: border-color var(--dur-1) var(--ease-out);
+}
+.nc-fila:hover, .nc-fila:focus-visible { border-color: var(--primary); }
+.nc-fila:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+@media (max-width: 1024px) { .nc-fila { min-height: 44px; } }
+.nc-seccion {
+  font-family: var(--font-mono); font-size: var(--text-eyebrow); font-weight: 600;
+  letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--muted-foreground);
+  margin: 20px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--glass-border);
+}
+.nc-nota { font-size: 13px; color: var(--muted-foreground); margin-bottom: 8px; }
+
 /* Tarjeta punteada «Subir un estudio nuevo»: se enciende al apuntarla o enfocarla. */
 .tarjeta-nueva { border: 1px dashed color-mix(in srgb, var(--foreground) 18%, transparent); background: transparent; border-radius: var(--radius-card-lg); transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out); }
 .tarjeta-nueva:hover, .tarjeta-nueva:focus-visible { border-color: var(--data); background: color-mix(in srgb, var(--data) 8%, transparent); }

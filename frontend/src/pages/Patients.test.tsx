@@ -353,7 +353,7 @@ describe("la lista de pacientes (F2)", () => {
     await screen.findByText(/^Ningún paciente · /);
     listPatients.mockResolvedValue([nuevo]);
     fireEvent.click(screen.getAllByRole("button", { name: /Nuevo paciente/ })[0]);
-    fireEvent.change(screen.getByLabelText("Apellidos"), { target: { value: "Restrepo" } });
+    fireEvent.change(screen.getByLabelText("Apellidos *"), { target: { value: "Restrepo" } });
     fireEvent.click(screen.getByRole("button", { name: "Crear paciente" }));
     const ofrece = await screen.findByRole("button", { name: "Crear un caso para Restrepo, María" });
     fireEvent.click(ofrece);
@@ -424,7 +424,7 @@ describe("avisos en franja y parámetros de URL", () => {
 
   it("?nuevo=paciente abre la hoja de nuevo paciente una vez y borra el parámetro", async () => {
     renderConSonda("/app/pacientes?nuevo=paciente");
-    expect(await screen.findByLabelText("Apellidos")).toBeTruthy();
+    expect(await screen.findByLabelText("Apellidos *")).toBeTruthy();
     await waitFor(() => expect(screen.getByTestId("busqueda").textContent).toBe(""));
   });
 
@@ -456,7 +456,7 @@ describe("Pacientes: gestión (A23-A29)", () => {
     expect(detalle.getAttribute("title")).toBe("P1 · P2 · P3 · P4");
     listPatients.mockResolvedValue([nuevo]);
     fireEvent.click(screen.getAllByRole("button", { name: /Nuevo paciente/ })[0]);
-    fireEvent.change(screen.getByLabelText("Apellidos"), { target: { value: "Restrepo" } });
+    fireEvent.change(screen.getByLabelText("Apellidos *"), { target: { value: "Restrepo" } });
     fireEvent.click(screen.getByRole("button", { name: "Crear paciente" }));
     const estado = (await screen.findByText("Paciente creado: Restrepo, María.")).closest("[role=status]") as HTMLElement;
     expect(estado).toHaveAttribute("data-glass");

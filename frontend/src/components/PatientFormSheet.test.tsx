@@ -64,7 +64,7 @@ describe("datos del paciente", () => {
 
   it("«Guardar cambios» dice por qué está apagado (F2-31)", async () => {
     abrir();
-    fireEvent.change(await screen.findByLabelText("Apellidos"), { target: { value: "" } });
+    fireEvent.change(await screen.findByLabelText("Apellidos *"), { target: { value: "" } });
     expect((screen.getByRole("button", { name: "Guardar cambios" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText("Escribe los apellidos para guardar.")).toBeTruthy();
   });
@@ -99,7 +99,7 @@ describe("alta y pie de la hoja (rediseño fase 2)", () => {
     expect(dialog.style.width).toBe("460px");
     const crear = screen.getByRole("button", { name: "Crear paciente" }) as HTMLButtonElement;
     expect(crear.disabled).toBe(true);
-    fireEvent.change(screen.getByLabelText("Apellidos"), { target: { value: "Restrepo" } });
+    fireEvent.change(screen.getByLabelText("Apellidos *"), { target: { value: "Restrepo" } });
     fireEvent.click(crear);
     await waitFor(() => expect(createPatient).toHaveBeenCalledWith(expect.objectContaining({ surname: "Restrepo", sex: "" })));
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(creado));
@@ -126,7 +126,7 @@ describe("derechos sobre los datos del paciente (T7-rights)", () => {
     abrir(detalle(), true);
     expect(await screen.findByText("Solo lectura: los cambia quien lo creó o un administrador.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Guardar cambios" })).toBeNull();
-    expect((screen.getByLabelText("Apellidos") as HTMLInputElement).readOnly).toBe(true);
+    expect((screen.getByLabelText("Apellidos *") as HTMLInputElement).readOnly).toBe(true);
     expect((screen.getByLabelText("Notas") as HTMLTextAreaElement).readOnly).toBe(true);
     expect((screen.getByLabelText("Sexo") as HTMLSelectElement).disabled).toBe(true);
   });
@@ -134,7 +134,7 @@ describe("derechos sobre los datos del paciente (T7-rights)", () => {
   it("quien lo creó sigue viendo «Guardar cambios» y puede escribir", async () => {
     abrir();
     expect(await screen.findByRole("button", { name: "Guardar cambios" })).toBeTruthy();
-    expect((screen.getByLabelText("Apellidos") as HTMLInputElement).readOnly).toBe(false);
+    expect((screen.getByLabelText("Apellidos *") as HTMLInputElement).readOnly).toBe(false);
     expect(screen.queryByText(/Solo lectura/)).toBeNull();
   });
 });
@@ -179,5 +179,15 @@ describe("descartar los cambios de la ficha", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(onClose).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(screen.queryByLabelText("Notas")).toBeNull());
+  });
+});
+
+describe("hoja del paciente (A33)", () => {
+  it("placeholders neutros y apellidos obligatorios", () => {
+    render(<PatientFormSheet open patient={null} onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect(screen.queryByPlaceholderText("Restrepo")).toBeNull();
+    expect(screen.queryByPlaceholderText("María")).toBeNull();
+    expect(screen.getByPlaceholderText("Apellidos o código")).toHaveAttribute("aria-required", "true");
+    expect(screen.getByPlaceholderText("Nombre o iniciales")).toBeInTheDocument();
   });
 });

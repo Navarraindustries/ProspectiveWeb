@@ -11,6 +11,7 @@ const leer = (f: string) => readFileSync(join(SRC, f), "utf8").replace(/\r\n/g, 
 const REVISADOS: string[] = [
   "components/TablaTarjetas.tsx", "styles/office.css",
   "pages/Patients.tsx", "components/patients/PatientCard.tsx", "components/patients/PatientsSidePanel.tsx", "components/patients/patients.css",
+  "pages/NuevoCaso.tsx", "components/PatientFormSheet.tsx",
 ];
 
 const quitarComentarios = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/[^\n]*/g, "$1");

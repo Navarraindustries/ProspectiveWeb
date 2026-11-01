@@ -166,7 +166,7 @@ describe("PatientPage · columna Datos", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Editar datos" }));
     const hoja = await screen.findByRole("dialog", { name: "Zenodo, Caso 002" });
     expect(within(hoja).getByText("Datos del paciente")).toBeTruthy();
-    expect((within(hoja).getByLabelText("Apellidos") as HTMLInputElement).value).toBe("Zenodo");
+    expect((within(hoja).getByLabelText("Apellidos *") as HTMLInputElement).value).toBe("Zenodo");
     expect(within(hoja).getByRole("button", { name: "Guardar cambios" })).toBeTruthy();
   });
 
@@ -179,7 +179,7 @@ describe("PatientPage · columna Datos", () => {
     expect(screen.queryByRole("button", { name: "Editar datos" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Eliminar paciente" })).toBeNull();
     const hoja = await screen.findByRole("dialog", { name: "Zenodo, Caso 002" });
-    expect((within(hoja).getByLabelText("Apellidos") as HTMLInputElement).readOnly).toBe(true);
+    expect((within(hoja).getByLabelText("Apellidos *") as HTMLInputElement).readOnly).toBe(true);
     expect(within(hoja).queryByRole("button", { name: "Guardar cambios" })).toBeNull();
   });
 
@@ -210,7 +210,7 @@ describe("PatientPage · columna Datos", () => {
     expect(screen.queryByRole("button", { name: "Editar datos" })).toBeNull();
     expect(screen.getByText("No se pudieron comprobar tus permisos sobre este paciente; los datos se muestran de solo lectura.")).toBeTruthy();
     const hoja = await screen.findByRole("dialog", { name: "Zenodo, Caso 002" });
-    expect((within(hoja).getByLabelText("Apellidos") as HTMLInputElement).readOnly).toBe(true);
+    expect((within(hoja).getByLabelText("Apellidos *") as HTMLInputElement).readOnly).toBe(true);
     expect(within(hoja).queryByRole("button", { name: "Guardar cambios" })).toBeNull();
   });
 

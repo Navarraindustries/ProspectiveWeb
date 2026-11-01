@@ -193,13 +193,39 @@ describe("ViewerHeader — aviso de nivel", () => {
     const note = "Vista previa en baja resolución; las medidas no cambian";
     setup({ hasClipField: true, showClipField: true, levelNote: note });
     const b = screen.getByRole("button", { name: note });
-    expect(screen.queryByTestId("header-level-note-text")).toBeNull();
+    expect(screen.getByTestId("header-level-note-text")).not.toBeVisible();
     fireEvent.click(b);
+    expect(screen.getByTestId("header-level-note-text")).toBeVisible();
     expect(screen.getByTestId("header-level-note-text")).toHaveTextContent(note);
     expect(b).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(b);
-    expect(screen.queryByTestId("header-level-note-text")).toBeNull();
+    expect(screen.getByTestId("header-level-note-text")).not.toBeVisible();
     expect(b).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("la línea del aviso está siempre montada como status y el ⚠ la controla", () => {
+    stubBandWidth(1200);
+    const note = "Vista previa en baja resolución; las medidas no cambian";
+    setup({ levelNote: note });
+    const line = screen.getByTestId("header-level-note-text");
+    expect(line).toHaveAttribute("role", "status");
+    expect(line).toHaveAttribute("hidden");
+    expect(line.id).not.toBe("");
+    const b = screen.getByRole("button", { name: note });
+    expect(b).toHaveAttribute("aria-controls", line.id);
+    // Foco visible como los conmutadores del HUD (regla en hud.css).
+    expect(b).toHaveClass("hud-note-toggle");
+  });
+
+  it("un aviso nuevo llega plegado aunque el anterior estuviera desplegado", () => {
+    stubBandWidth(1200);
+    const { rerender, props } = setup({ levelNote: "Vista previa 1:2; las medidas no cambian" });
+    fireEvent.click(screen.getByRole("button", { name: "Vista previa 1:2; las medidas no cambian" }));
+    expect(screen.getByTestId("header-level-note-text")).toBeVisible();
+    rerender(<ViewerHeader {...props} levelNote="Vista previa 1:4; las medidas no cambian" />);
+    expect(screen.getByRole("button", { name: "Vista previa 1:4; las medidas no cambian" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("header-level-note-text")).not.toBeVisible();
+    expect(screen.getByTestId("header-level-note-text")).toHaveTextContent("1:4");
   });
 
   it("en nivel estrecho el aviso también es ⚠, sin forma corta", () => {

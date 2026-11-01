@@ -11,7 +11,7 @@
    encoge y el derecho es elástico y también envuelve. Si los rótulos de un
    nivel no caben, lo que sobra baja a otra línea en vez de tapar al vecino. */
 
-import { useCallback, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Icon } from "../components/Icon";
 import { useMediaQuery } from "../hooks/useEstrecho";
 import { MQ_TACTIL } from "../pipeline/puntosCorte";
@@ -83,7 +83,14 @@ export function ViewerHeader({
   const header = headerLabels(labelWidth);
   const compact = tier === "estrecho" || tier === "iconos";
   // Aviso de nivel: desplegado o no (solo cuenta por debajo del nivel ancho).
+  // Un aviso nuevo (o ninguno) llega plegado: lo desplegado era el anterior.
   const [noteOpen, setNoteOpen] = useState(false);
+  const [noteFor, setNoteFor] = useState(levelNote);
+  if (noteFor !== levelNote) {
+    setNoteFor(levelNote);
+    setNoteOpen(false);
+  }
+  const noteId = useId();
   const noteInline = tier === "ancho";
   // Durante el ensayo manda el saco que se deforma y el campo no se pinta:
   // «●» diría que se está viendo.
@@ -127,8 +134,11 @@ export function ViewerHeader({
                                         : showClipField ? "Ver el saco sin el mapa de calor del clip" : "Pintar el saco según el clip colocado" }]}
             value={calorOn ? "calor" : ""} onChange={() => onShowClipFieldChange(!showClipField)} />
         )}
-        {/* El aviso no tiene forma corta: o cabe entero (nivel ancho, con
-            elipsis si aun así no cabe) o es un ⚠ que despliega el texto. */}
+        {/* El aviso no tiene forma corta: o va entero (nivel ancho) o es un ⚠
+            que despliega el texto. En el nivel ancho no se recorta con elipsis
+            en la misma fila: si no cabe, el grupo derecho entero baja a una
+            segunda fila (decisión aceptada); la elipsis solo actúa si ni sola
+            en su fila cabe. */}
         {levelNote && noteInline && (
           <span data-testid="header-level-note" title={levelNote}
                 style={{ color: "var(--hud-amber)", fontSize: 11, letterSpacing: ".08em", flex: "0 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -136,8 +146,8 @@ export function ViewerHeader({
           </span>
         )}
         {levelNote && !noteInline && (
-          <button type="button" data-testid="header-level-note" aria-label={levelNote} title={levelNote}
-                  aria-expanded={noteOpen} onClick={() => setNoteOpen((o) => !o)}
+          <button type="button" className="hud-note-toggle" data-testid="header-level-note" aria-label={levelNote} title={levelNote}
+                  aria-expanded={noteOpen} aria-controls={noteId} onClick={() => setNoteOpen((o) => !o)}
                   style={{ display: "inline-flex", alignItems: "center", padding: 0, margin: 0, border: "none", background: "none", color: "var(--hud-amber)", cursor: "pointer", font: "inherit" }}>
             <Icon name="STATUS_WARN" size={12} color="var(--hud-amber)" />
           </button>
@@ -148,8 +158,10 @@ export function ViewerHeader({
           <HudToggleGroup options={[{ key: "help", label: "?", title: "Atajos (?)" }]} value="" onChange={onHelp} />
         )}
       </div>
-      {levelNote && !noteInline && noteOpen && (
-        <div data-testid="header-level-note-text" role="status"
+      {/* Siempre montada (oculta si está plegada): una región `status` que
+          aparece ya con el texto no se anuncia; una que se muestra, sí. */}
+      {levelNote && !noteInline && (
+        <div id={noteId} data-testid="header-level-note-text" role="status" hidden={!noteOpen}
              style={{ flexBasis: "100%", color: "var(--hud-amber)", fontSize: 11, letterSpacing: ".08em", whiteSpace: "normal", padding: "2px 0 4px" }}>
           {levelNote}
         </div>

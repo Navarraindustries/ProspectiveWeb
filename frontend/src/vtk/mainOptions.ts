@@ -15,8 +15,10 @@ export function mainOptions() { return ORDER.map((key) => ({ key, label: MAIN_LA
    Cifras estimadas a 11 px mono con `.08em` (≈ 7,5 px por carácter), con
    PLANOS · VINCULAR · CALOR · «?» encendidos:
      ancho    ≥ 1400  PRINCIPAL, DERECHA ABAJO CUATRO SOLA, COMPLETO ESENCIAL
-                      LIMPIO y el aviso de nivel en texto entero (≈ 1360; el
-                      aviso encoge con elipsis si no cabe).
+                      LIMPIO y el aviso de nivel en texto entero (≈ 1360). El
+                      aviso no se recorta con elipsis en la misma fila: si no
+                      cabe, el grupo derecho entero baja a una segunda fila
+                      (decisión aceptada).
      medio    1100–1399  igual, pero el aviso es un botón ⚠ que despliega el
                       texto en una línea debajo (≈ 1075).
      estrecho 800–1099  «▸», DER ABA 4 SOLA, C E L y el aviso ⚠ (≈ 790).

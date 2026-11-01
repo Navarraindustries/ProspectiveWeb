@@ -36,6 +36,7 @@ function sinComentarios(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
 }
 
+// Limitación: la sintaxis de rango `(width <= Npx)` no se vigila.
 /** Cada `(max|min)-(width|height): Npx` dentro de paréntesis, o sea, de una
     consulta de medios; el `max-width: 760px` de una propiedad no cuenta. */
 function consultas(): { fichero: string; eje: "ancho" | "alto"; valor: number }[] {

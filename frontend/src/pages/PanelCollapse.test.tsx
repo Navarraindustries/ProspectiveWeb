@@ -8,6 +8,7 @@ import { PlanningProvider, usePlanning } from "../store/planning";
 import type { Annotation } from "../vtk/annotations";
 import { useStoredFlag } from "../vtk/viewerPrefs";
 import { matchShortcut } from "../vtk/shortcuts";
+import { useEstrecho } from "../components/patients/useEstrecho";
 
 /* El mismo cableado que Workspace: la tabla de atajos decide, el manejador alterna. */
 function Harness() {
@@ -130,5 +131,39 @@ describe("nota de un marcador con el panel plegado", () => {
     // Desplegado de verdad, no solo mientras la nota esperaba.
     expect(screen.queryByRole("button", { name: /PANEL ▸/ })).toBeNull();
     expect(window.localStorage.getItem(PREF_PANEL_COLLAPSED)).toBe("0");
+  });
+});
+
+describe("panel del paso en pantalla estrecha", () => {
+  const original = window.matchMedia;
+  afterEach(() => { window.matchMedia = original; });
+
+  it("a ≤ 1280 px va en una región «Panel del paso» con tirador y lo escrito sigue", () => {
+    let aviso: (() => void) | null = null;
+    let estrecha = false;
+    window.matchMedia = ((query: string) => ({
+      get matches() { return estrecha; }, media: query, onchange: null,
+      addEventListener: (_: string, f: () => void) => { aviso = f; }, removeEventListener: () => {},
+      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+    function Estrecho() {
+      const estrecho = useEstrecho();
+      return (
+        <RightPanelColumn collapsed={false} onToggle={() => {}} stepLabel="Detección" stepIndex={2}
+                          stepKey="detect" wide={false} estrecho={estrecho} altura="media" onAltura={() => {}}>
+          <input aria-label="nota" defaultValue="" />
+        </RightPanelColumn>
+      );
+    }
+    render(<Estrecho />);
+    const campo = screen.getByLabelText("nota") as HTMLInputElement;
+    fireEvent.change(campo, { target: { value: "antes del cambio" } });
+    expect(screen.queryByRole("region", { name: "Panel del paso" })).toBeNull();
+    estrecha = true;
+    act(() => { aviso?.(); });
+    const hoja = screen.getByRole("region", { name: "Panel del paso" });
+    expect(screen.getByRole("button", { name: "Cambiar la altura del panel" })).toBeTruthy();
+    expect(hoja.contains(campo)).toBe(true);
+    expect((screen.getByLabelText("nota") as HTMLInputElement).value).toBe("antes del cambio");
   });
 });

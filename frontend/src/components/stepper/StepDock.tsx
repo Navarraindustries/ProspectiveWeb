@@ -17,12 +17,14 @@ interface Props {
   onGo: (i: number) => void;
   /** Modo estrecho: botones de 36 px solo con número y sin ampliación. */
   compacto?: boolean;
+  /** Distancia al borde inferior (por defecto 20); en modo estrecho va sobre la hoja. */
+  abajo?: number | string;
 }
 
 const ALCANCE = 120; // px de distancia horizontal a partir de la cual no hay ampliación
 const AMPLIACION_MAX = 0.25;
 
-export function StepDock({ steps, activeIndex, missingFor, onGo, compacto = false }: Props) {
+export function StepDock({ steps, activeIndex, missingFor, onGo, compacto = false, abajo = 20 }: Props) {
   const reducido = useReducedMotion();
   const ampliar = !reducido && !compacto;
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -55,7 +57,7 @@ export function StepDock({ steps, activeIndex, missingFor, onGo, compacto = fals
       title={`Atajos: 1–${steps.length} para cambiar de paso · Esc cancela el marcado`}
       style={{
         ...glass("viewer"),
-        position: "absolute", left: 24, bottom: 20, zIndex: 3,
+        position: "absolute", left: 24, bottom: abajo, zIndex: 3,
         display: "flex", alignItems: "center", gap: 8,
         padding: 8, borderRadius: "var(--radius-xl)",
       }}

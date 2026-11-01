@@ -13,6 +13,9 @@ import { QuirofanoBar } from "../components/stepper/QuirofanoBar";
 import { SaveStatus } from "../components/stepper/SaveStatus";
 import { BANDA_SUPERIOR, zonaLibre } from "../pipeline/zonaLibre";
 import { StepDock } from "../components/stepper/StepDock";
+import type { AlturaHoja } from "../components/BottomSheet";
+import { HOJA_ASOMAR } from "../pipeline/zonaLibre";
+import { useEstrecho } from "../components/patients/useEstrecho";
 import { ToastStack, type ToastItem } from "../components/ToastStack";
 import { Collapsible } from "../components/PanelHead";
 import { UploadPanel } from "../components/upload/UploadPanel";
@@ -104,6 +107,26 @@ export function Workspace({
   // Una nota de marcador pendiente despliega la columna (si no, su campo no
   // puede tener el foco y lo tecleado dispararía atajos).
   const columnCollapsed = useUnfoldForNote(panelCollapsed, setPanelCollapsed, noteFocusRequest);
+  // A ≤ 1280 px el panel baja a una hoja inferior (asomar / media / completa).
+  // Al entrar en modo estrecho arranca a media altura.
+  const estrecho = useEstrecho();
+  const [alturaHoja, setAlturaHoja] = useState<AlturaHoja>("media");
+  const estrechoPrevio = useRef(estrecho);
+  useEffect(() => {
+    if (estrecho && !estrechoPrevio.current) setAlturaHoja("media");
+    estrechoPrevio.current = estrecho;
+  }, [estrecho]);
+  // Una nota que espera el foco necesita el campo a la vista: la hoja asomada lo esconde.
+  useEffect(() => {
+    if (estrecho && noteFocusRequest !== null) setAlturaHoja((a) => (a === "asomar" ? "media" : a));
+  }, [estrecho, noteFocusRequest]);
+  // P (y el mando de la paleta): en ancho pliega el inspector; en estrecho
+  // alterna la hoja entre «asomar» y «media» (el visor gana el alto, como en ancho el ancho).
+  const alternarPanel = () => {
+    if (estrecho) setAlturaHoja((a) => (a === "asomar" ? "media" : "asomar"));
+    else setPanelCollapsed(!panelCollapsed);
+  };
+  const panelPlegado = estrecho ? alturaHoja === "asomar" : panelCollapsed;
   const [saving, setSaving] = useState<"idle" | "saving">("idle");
   // Hora del último guardado hecho en esta pantalla. El botón la enseña
   // mientras no haya cambios nuevos (`dirty`); no hay temporizador que la
@@ -241,8 +264,8 @@ export function Workspace({
     { id: "captura", group: "acciones" as const, label: "Captura",
       disabled: !captureCase || shot === "busy", run: () => void tomarCaptura() },
     { id: "plegar-panel", group: "acciones" as const,
-      label: panelCollapsed ? "Mostrar el panel del paso" : "Plegar el panel del paso",
-      run: () => setPanelCollapsed(!panelCollapsed) },
+      label: panelPlegado ? "Mostrar el panel del paso" : "Plegar el panel del paso",
+      run: alternarPanel },
   ]);
 
   // Teclado: la tabla única de atajos (vtk/shortcuts) decide qué pide cada
@@ -282,7 +305,7 @@ export function Workspace({
       }
       if (id === "panel-toggle") {
         e.preventDefault();
-        setPanelCollapsed(!panelCollapsed);
+        alternarPanel();
         return;
       }
       if (id.startsWith("step-")) {
@@ -293,7 +316,7 @@ export function Workspace({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepIdx, panelCollapsed, planning.series, planning.segmentation, planning.candidates, planning.rejectedCandidates, planning.morphometry]);
+  }, [stepIdx, panelCollapsed, estrecho, planning.series, planning.segmentation, planning.candidates, planning.rejectedCandidates, planning.morphometry]);
 
   const panel = {
     upload: <UploadPanel onNext={next} />,
@@ -325,7 +348,7 @@ export function Workspace({
   }[step];
 
   const libre = zonaLibre({
-    estrecho: false, plegado: columnCollapsed, ancho: step === "treatment" || step === "report",
+    estrecho, plegado: columnCollapsed, ancho: step === "treatment" || step === "report", hoja: alturaHoja,
   });
 
   // Un solo apilado: aquí van los avisos del pipeline y el global de App.
@@ -455,14 +478,17 @@ export function Workspace({
         activeIndex={stepIdx}
         missingFor={(i) => missingFor(i, planning)}
         onGo={go}
-        compacto={false}
+        compacto={estrecho}
+        abajo={estrecho ? (alturaHoja === "asomar" ? HOJA_ASOMAR + 12 : "calc(50% + 12px)") : 20}
       />
 
       {/* Visor: ocupa la zona libre (ni bajo el inspector ni bajo las pastillas). */}
       <div data-zona-libre
            style={{
              position: "absolute", display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0,
-             "--dock-holgura": "96px",
+             // Ancho: el dock (76 px de alto a 20 del borde) tapa 96 px de la esquina.
+             // Estrecho: el dock compacto (52 px) va 12 px sobre la zona libre, que acaba en la hoja.
+             "--dock-holgura": estrecho ? "72px" : "96px",
              top: libre.top, right: libre.right, bottom: libre.bottom, left: libre.left,
              transition: "right var(--dur-2) var(--ease-out), bottom var(--dur-2) var(--ease-out)",
            } as CSSProperties}>
@@ -473,6 +499,9 @@ export function Workspace({
       <RightPanelColumn
           collapsed={columnCollapsed}
           onToggle={() => setPanelCollapsed(!columnCollapsed)}
+          estrecho={estrecho}
+          altura={alturaHoja}
+          onAltura={setAlturaHoja}
           stepLabel={STEPS[stepIdx].label}
           stepIndex={stepIdx}
           stepKey={step}

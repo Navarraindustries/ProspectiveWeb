@@ -9,11 +9,12 @@
    `data-theme="dark"` y no ofrece conmutador de tema. */
 
 import { STEP_LABELS } from "../pipeline/steps";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { BorderBeam } from "border-beam";
 import { Icon } from "../components/Icon";
 import type { IconName } from "../components/Icon";
+import { NavPildora } from "../components/landing/NavPildora";
 import { Logo } from "../components/shell/Logo";
 import { CONTACTO_ADMIN } from "../lib/contacto";
 /* Los cortes de las tarjetas de índices se importan, no se copian: la portada
@@ -21,30 +22,6 @@ import { CONTACTO_ADMIN } from "../lib/contacto";
 import {
   AR_HIGH, BF_WIDE, DNR_HIGH, EI_MOD, SR_HIGH, UI_HIGH,
 } from "../components/morphometry/thresholds";
-/* Las dos escenas WebGL del hero van en carga diferida y a propósito: Three.js
-   pesa medio megabyte y esta es la primera página que abre un desconocido. Así
-   el titular y el botón pintan de inmediato con el resto del bundle, y el 3D
-   —que es decoración, marcada `aria-hidden`— entra después en su propio chunk,
-   sin que /app pague por él. Sin `fallback`: el hueco ya lo llena el degradado. */
-const NeuralShader = lazy(() =>
-  import("../components/landing/NeuralShader").then((m) => ({ default: m.NeuralShader })));
-
-/* Las siete escenas Three.js repartidas por la página, cada una en su sección.
-   Se cargan en diferido desde un único módulo (todo three.js va en ese chunk) y
-   cada una se monta sola al entrar en pantalla y se desmonta al salir, así que
-   nunca hay más de un par de contextos WebGL vivos a la vez. */
-const scenes = () => import("../components/landing/scenes");
-const VascularTree = lazy(() => scenes().then((m) => ({ default: m.VascularTree })));
-const VoxelCloud = lazy(() => scenes().then((m) => ({ default: m.VoxelCloud })));
-const Morphometry = lazy(() => scenes().then((m) => ({ default: m.Morphometry })));
-const ClipKinematics = lazy(() => scenes().then((m) => ({ default: m.ClipKinematics })));
-const Endovascular = lazy(() => scenes().then((m) => ({ default: m.Endovascular })));
-const SkullCloud = lazy(() => scenes().then((m) => ({ default: m.SkullCloud })));
-const MixedReality = lazy(() => scenes().then((m) => ({ default: m.MixedReality })));
-const DataVault = lazy(() => scenes().then((m) => ({ default: m.DataVault })));
-const Perforators = lazy(() => scenes().then((m) => ({ default: m.Perforators })));
-const StlPrinting = lazy(() => scenes().then((m) => ({ default: m.StlPrinting })));
-
 const MAXW = 1320;
 /* El lema único del producto (F2-2): el mismo texto en toda la aplicación. */
 const LEMA = "Planificación neurovascular con datos";
@@ -81,95 +58,10 @@ function H2({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* Figura 3D de sección: panel de vidrio, la escena dentro y un pie monoespaciado
-   que dice qué se está viendo. Cada una lleva su propio `Suspense` para que el
-   chunk de Three.js, mientras llega, solo deje en blanco su panel y no la página;
-   la altura la fija `.landing-figure`, así que tampoco hay saltos de layout. */
-function Figure({ children, caption, dashed }: { children: React.ReactNode; caption: string; dashed?: boolean }) {
-  return (
-    <div
-      className="stitch-glass landing-figure"
-      style={dashed ? { borderStyle: "dashed", borderColor: "color-mix(in srgb, var(--primary) 28%, transparent)" } : undefined}
-    >
-      <Suspense fallback={null}>{children}</Suspense>
-      <div className="stitch-label" style={{ position: "absolute", left: 16, bottom: 14, fontSize: 10, color: "var(--brand-slate)", zIndex: 1 }}>
-        {caption}
-      </div>
-    </div>
-  );
-}
-
-/* ── Sticky nav ─────────────────────────────────────────────────────────── */
-function Nav({ onEnter }: { onEnter: () => void }) {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-  const links = [
-    ["Qué es", "que-es"],
-    ["Cómo funciona", "como-funciona"],
-    ["Funcionalidades", "funcionalidades"],
-    ["Índices", "indices"],
-    ["Tecnología", "tecnologia"],
-    ["Contacto", "contacto"],
-  ] as const;
-  return (
-    <div
-      className="stitch-shell"
-      style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 100,
-        height: 68,
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "0 24px",
-        // Fondo sólido SIEMPRE: así el contenido nunca se transparenta a través
-        // del navbar (el bug del "remontado"). Al scrollear se opaca un poco más.
-        background: `color-mix(in srgb, var(--background) ${scrolled ? 97 : 90}%, transparent)`,
-        borderBottom: `1px solid color-mix(in srgb, ${scrolled ? "var(--primary) 22%" : "var(--border) 45%"}, transparent)`,
-        boxShadow: scrolled ? "var(--shadow-sm)" : "none",
-        transition: "background .2s, border-color .2s, box-shadow .2s",
-      }}
-    >
-      <div style={{ maxWidth: MAXW, margin: "0 auto", width: "100%", display: "flex", alignItems: "center", gap: 14 }}>
-        <Logo />
-        <div style={{ flex: 1 }} />
-        <nav className="landing-nav-links" style={{ display: "flex", gap: 20, marginRight: 8 }}>
-          {links.map(([label, id]) => (
-            <a key={id} href={`#${id}`} className="stitch-label" style={{ fontSize: 11, color: "var(--muted-foreground)", textDecoration: "none" }}>
-              {label}
-            </a>
-          ))}
-        </nav>
-        <BorderBeam size="sm" colorVariant="ocean" theme="dark" style={{ display: "inline-flex" }}>
-          <button
-            onClick={onEnter}
-            className="stitch-cta"
-            style={{ height: 38, padding: "0 18px", borderRadius: "var(--radius-md)", border: "none", background: "var(--primary)", color: "var(--primary-foreground)", fontSize: 12.5, textTransform: "uppercase", cursor: "pointer" }}
-          >
-            Entrar
-          </button>
-        </BorderBeam>
-      </div>
-    </div>
-  );
-}
-
 /* ── Hero ───────────────────────────────────────────────────────────────── */
 function Hero({ onEnter, onSignup }: { onEnter: () => void; onSignup: () => void }) {
   return (
-    <div className="stitch-grid" style={{ position: "relative", overflow: "hidden", minHeight: "calc(100vh - 68px)", display: "flex", alignItems: "center", background: "var(--canvas)" }}>
-      {/* Fondo del hero, en tres capas: el shader de flujo neural pinta el telón,
-          el modelo vascular ocupa el flanco derecho y el velo hunde el lado del
-          texto para que el titular conserve contraste. */}
-      <Suspense fallback={null}>
-        <NeuralShader style={{ position: "absolute", inset: 0, opacity: 0.85 }} />
-        <VascularTree className="landing-hero-model" />
-      </Suspense>
+    <div className="stitch-grid" style={{ position: "relative", overflow: "hidden", minHeight: "100vh", paddingTop: 84, display: "flex", alignItems: "center", background: "var(--canvas)" }}>
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(95deg, color-mix(in srgb, var(--canvas) 95%, transparent) 0%, color-mix(in srgb, var(--canvas) 88%, transparent) 30%, color-mix(in srgb, var(--canvas) 55%, transparent) 50%, color-mix(in srgb, var(--canvas) 15%, transparent) 74%, color-mix(in srgb, var(--canvas) 5%, transparent) 100%)" }} />
       <div style={{ position: "relative", zIndex: 1, maxWidth: MAXW, margin: "0 auto", padding: "0 24px", width: "100%" }}>
         {/* Columna estrecha: el modelo ocupa el hero entero por detrás, así que
@@ -242,9 +134,6 @@ function What() {
             para que el equipo decida con datos y de forma reproducible.
           </p>
         </div>
-        {/* La reconstrucción, al lado del párrafo que habla justo de eso: el
-            estudio convertido en un modelo que se puede medir. */}
-        <Figure caption="Reconstrucción volumétrica del estudio"><VoxelCloud /></Figure>
       </div>
 
       {/* Las cuatro cualidades pasan a una fila propia a todo el ancho: antes
@@ -371,12 +260,6 @@ function Features() {
         <Kicker>Funcionalidades</Kicker>
         <H2>Todo el flujo neurovascular en una sola plataforma</H2>
       </div>
-      {/* Las perforantes, que es lo que la tarjeta «Aviso de ramas cercanas»
-          describe: las ramas finas que nacen junto al cuello y no se ven en la
-          imagen. En carmesí las que pasan demasiado cerca. */}
-      <div style={{ marginBottom: 18 }}>
-        <Figure caption="Ramas finas junto al cuello · en rojo, las que pasan demasiado cerca"><Perforators /></Figure>
-      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18 }}>
         {FEATURES.map(([icon, title, desc]) => (
           <div key={title} className="stitch-glass" style={{ padding: "22px 20px" }}>
@@ -496,10 +379,6 @@ function Security() {
         <Kicker>Seguridad y datos</Kicker>
         <H2>Pensado para un entorno clínico</H2>
       </div>
-      {/* Era la única sección de contenido sin ningún apoyo visual. */}
-      <div style={{ marginBottom: 18 }}>
-        <Figure caption="El estudio viaja protegido"><DataVault /></Figure>
-      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 18 }}>
         {items.map(([icon, t, d]) => (
           <div key={t} className="stitch-glass" style={{ padding: "20px 18px" }}>
@@ -550,10 +429,9 @@ function Indices() {
             <Icon name="BOOK" size={17} color="var(--brand-slate)" />
             Referencias: Greving 2014 · Dhar 2008 · Raghavan 2005 · Wadell
           </div>
-          {/* El saco aislado con sus calibres: la imagen de lo que miden las
-              siglas de al lado. */}
-          <div style={{ marginTop: 24 }}>
-            <Figure caption="Cuello, altura máxima y forma del saco"><Morphometry /></Figure>
+          {/* Lo que miden las siglas de al lado, dicho en una línea. */}
+          <div className="stitch-label" style={{ marginTop: 18, fontSize: 11, color: "var(--brand-slate)" }}>
+            Cuello, altura máxima y forma del saco
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -589,14 +467,6 @@ function Devices() {
         <Kicker>Dispositivos</Kicker>
         <H2>Catálogos reales de dispositivos neurovasculares</H2>
       </div>
-      {/* Las dos vías de tratamiento, una escena cada una: el clip propio del
-          centro y el material endovascular. */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 18, marginBottom: 18 }}>
-        <Figure caption="Clipaje · cierre de la mordaza sobre el cuello"><ClipKinematics /></Figure>
-        <Figure caption="Endovascular · stent y coil en la arteria"><Endovascular /></Figure>
-        {/* El paso de fabricación: los clips NAVARRO se hacen bajo pedido. */}
-        <Figure caption="Fabricación · la pieza se imprime en el taller"><StlPrinting /></Figure>
-      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 18 }}>
         {groups.map(([icon, title, sub, brands]) => (
           <div key={title} className="stitch-glass" style={{ padding: "24px 22px" }}>
@@ -629,13 +499,6 @@ function Roadmap() {
       <div style={{ maxWidth: 680, margin: "0 auto 44px", textAlign: "center" }}>
         <Kicker>Próximamente</Kicker>
         <H2>Hacia dónde va PROSPECTIVE</H2>
-      </div>
-      {/* Dos de las tres líneas del roadmap tienen escena propia. Van sobre las
-          tarjetas, en panel de trazo discontinuo como ellas: es lo que marca que
-          esto está ANUNCIADO y no desplegado, y el borde lo repite. */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 18, marginBottom: 18 }}>
-        <Figure dashed caption="SkullCloud · casos compartidos entre centros"><SkullCloud /></Figure>
-        <Figure dashed caption="AR / VR · plan proyectado sobre el campo"><MixedReality /></Figure>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18 }}>
         {items.map(([icon, t, d]) => (
@@ -773,7 +636,7 @@ export function Landing() {
        `data-theme="dark"` la ancla en oscuro: la paleta es dark-only por diseño
        y la landing no debe seguir el tema que el usuario eligió para /app. */
     <div className="landing-stitch" data-theme="dark" style={{ background: "var(--canvas)", minHeight: "100%" }}>
-      <Nav onEnter={enter} />
+      <NavPildora onEntrar={enter} onCrearCuenta={signup} />
       <Hero onEnter={enter} onSignup={signup} />
       <What />
       <Pipeline />

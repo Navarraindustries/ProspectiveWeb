@@ -6,12 +6,14 @@ const POINTS: [number, string][] = [[0, "ANT"], [90, "IZQ"], [180, "POST"], [-90
    rótulo cardinal que pasaba por la derecha se pintaba debajo de la lectura. */
 export const HEADING_READOUT_PX = 110;
 
-export function HudHeadingTape({ azimuthDeg, elevationDeg, known }: { azimuthDeg: number; elevationDeg: number; known: boolean }) {
+export function HudHeadingTape({ azimuthDeg, elevationDeg, known, top = 6, left = "20%", right = "20%" }: {
+  azimuthDeg: number; elevationDeg: number; known: boolean; top?: number; left?: number | string; right?: number | string;
+}) {
   const wrap = (s: string) => (known ? s : `[${s}]`);
   const norm = (a: number) => ((a + 540) % 360) - 180;
   const pxPerDeg = 2;
   return (
-    <div className="hud-decor" style={{ position: "absolute", top: 6, left: "20%", right: "20%", height: 22, borderBottom: "var(--hud-line) solid var(--hud-text-dim)" }}>
+    <div className="hud-decor" style={{ position: "absolute", top, left, right, height: 22, borderBottom: "var(--hud-line) solid var(--hud-text-dim)" }}>
       <div data-testid="heading-band" style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: HEADING_READOUT_PX, overflow: "hidden" }}>
         {POINTS.map(([deg, name]) => {
           const off = norm(deg - azimuthDeg) * pxPerDeg;

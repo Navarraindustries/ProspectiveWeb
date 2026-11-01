@@ -74,7 +74,7 @@ import { HudReadout, type HudLine } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
 import { ViewerHeader } from "./ViewerHeader";
 import { legendLines } from "./clipFieldLegend";
-import { HudHeadingTape } from "./hud/HudHeadingTape";
+import { HudHeadingSlot } from "./hud/HudHeadingSlot";
 import { OrientationSheet } from "./OrientationSheet";
 import { manualFromMeta, shouldSeed } from "./orientationSeed";
 import { windowPresets } from "./windowPresets";
@@ -204,7 +204,7 @@ interface CameraFeed {
   listener: ((cam: { dir: Vec3; up: Vec3 }) => void) | null;
 }
 
-function SceneHeading({ feed, orientation }: { feed: RefObject<CameraFeed>; orientation: Orientation }) {
+function SceneHeading({ feed, orientation, tl, tr }: { feed: RefObject<CameraFeed>; orientation: Orientation; tl: string[]; tr: string[] }) {
   const [cam, setCam] = useState(feed.current.last);
   useEffect(() => {
     const f = feed.current;
@@ -214,12 +214,8 @@ function SceneHeading({ feed, orientation }: { feed: RefObject<CameraFeed>; orie
   }, [feed]);
   if (!cam) return null;
   const h = cameraHeading(cam.dir, cam.up, orientation);
-  // Una línea más abajo, como en el MIP: arriba del todo están el paso y el modo.
-  return (
-    <div style={{ position: "absolute", top: 18, left: 0, right: 0, height: 28, pointerEvents: "none" }}>
-      <HudHeadingTape azimuthDeg={h.azimuthDeg} elevationDeg={h.elevationDeg} known={h.known} />
-    </div>
-  );
+  // Va a la derecha de las lecturas de las esquinas, o no se pinta si no cabe.
+  return <HudHeadingSlot tl={tl} tr={tr} azimuthDeg={h.azimuthDeg} elevationDeg={h.elevationDeg} known={h.known} />;
 }
 
 /* Placeholder shown while the lazy vtk.js chunk is being fetched. */
@@ -1959,7 +1955,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
             {!compact && bl.length > 0 && <HudReadout at="bl" lines={bl} />}
             {!compact && br.length > 0 && <HudReadout at="br" lines={br} />}
             {/* En la celda pequeña no cabe (el rumbo pisa las marcas): se lee al maximizar. */}
-            {!compact && isMesh && <SceneHeading feed={cameraFeed} orientation={orientation} />}
+            {!compact && isMesh && <SceneHeading feed={cameraFeed} orientation={orientation} tl={tl} tr={mode ? [mode] : []} />}
             {/* El maniquí gris no puede ser la única señal de que la orientación
                 es supuesta: una línea ámbar justo encima del recuadro, que sube
                 con él cuando hay leyenda abajo a la derecha. */}

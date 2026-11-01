@@ -24,4 +24,11 @@ describe("HudHeadingTape", () => {
     expect(band.contains(screen.getByText("ANT"))).toBe(true);
     expect(band.contains(screen.getByTestId("heading-readout"))).toBe(false);
   });
+
+  it("sin colocación propia mantiene el 20 % y la línea 6 (el MIP no cambia)", () => {
+    render(<HudHeadingTape azimuthDeg={0} elevationDeg={0} known />);
+    const tape = screen.getByTestId("heading-readout").parentElement!;
+    expect(tape.style.left).toBe("20%");
+    expect(tape.style.top).toBe("6px");
+  });
 });

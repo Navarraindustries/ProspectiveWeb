@@ -114,7 +114,6 @@ export function TablaTarjetas<T>(p: TablaTarjetasProps<T>) {
         {filas.map((fila) => {
           const sel = seleccionada?.(fila) ?? false;
           const desplegado = detalle?.(fila) ?? null;
-          const estilo = glass("normal");
           return (
             <li
               key={clave(fila)}
@@ -122,7 +121,7 @@ export function TablaTarjetas<T>(p: TablaTarjetasProps<T>) {
               className={["tt-tarjeta", claseFila?.(fila)].filter(Boolean).join(" ")}
               data-seleccionada={sel ? "true" : undefined}
               aria-current={sel ? "true" : undefined}
-              style={sel ? { ...estilo, boxShadow: `inset 2px 0 0 var(--primary), ${estilo.boxShadow}` } : estilo}
+              style={sel ? { ...glass("normal"), boxShadow: `inset 2px 0 0 var(--primary), ${glass("normal").boxShadow}` } : glass("normal")}
               {...pulsable(fila, onFila)}
             >
               {titulo && <div className="tt-tarjeta-titulo">{control(fila, titulo.celda(fila), desplegado)}</div>}

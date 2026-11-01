@@ -33,6 +33,7 @@ import { RecordButton } from "../components/RecordButton";
 import { ARCHIVAR_EN_CASO, sinCasoAviso } from "../lib/textos";
 import { PREF_PANEL_COLLAPSED, RightPanelColumn, useUnfoldForNote } from "../components/RightPanelColumn";
 import { useStoredFlag } from "../vtk/viewerPrefs";
+import { useRegisterCommands } from "../lib/commands";
 import { usePlanning } from "../store/planning";
 import { useSessionLog } from "../pipeline/sessionLog";
 import { SessionLog } from "../components/planning/SessionLog";
@@ -224,6 +225,25 @@ export function Workspace({
     setStepIdx(i);
   };
   const next = () => go(Math.min(stepIdx + 1, STEPS.length - 1));
+
+  // Paleta ⌘K: los pasos y las acciones de la barra, con las mismas
+  // condiciones de deshabilitado que sus botones.
+  useRegisterCommands("workspace", [
+    ...STEPS.map((s, i) => ({
+      id: `paso-${i}`,
+      group: "pasos" as const,
+      label: `${i + 1} · ${s.label}`,
+      disabled: i !== stepIdx && missingFor(i, planning) !== null,
+      run: () => go(i),
+    })),
+    { id: "guardar", group: "acciones" as const, label: "Guardar progreso",
+      disabled: !sessionId || saving === "saving", run: () => void saveProgress() },
+    { id: "captura", group: "acciones" as const, label: "Captura",
+      disabled: !captureCase || shot === "busy", run: () => void tomarCaptura() },
+    { id: "plegar-panel", group: "acciones" as const,
+      label: panelCollapsed ? "Mostrar el panel del paso" : "Plegar el panel del paso",
+      run: () => setPanelCollapsed(!panelCollapsed) },
+  ]);
 
   // Teclado: la tabla única de atajos (vtk/shortcuts) decide qué pide cada
   // tecla y no responde con el foco en un campo de texto. Aquí se atiende lo

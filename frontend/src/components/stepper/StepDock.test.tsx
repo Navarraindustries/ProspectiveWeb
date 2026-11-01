@@ -23,6 +23,12 @@ describe("StepDock", () => {
     fireEvent.click(b);
     expect(onGo).not.toHaveBeenCalled();
   });
+  it("un paso opcional lo dice en su nombre accesible y en el tooltip", () => {
+    render(<StepDock steps={steps} activeIndex={0} missingFor={() => null} onGo={() => {}} />);
+    const b = screen.getByRole("button", { name: "Paso 7, Fabricación (opcional)" });
+    expect(b).toHaveAttribute("title", "Fabricación (opcional)");
+    expect(screen.getByRole("button", { name: `Paso 1, ${steps[0].label}` })).toHaveAttribute("title", steps[0].label);
+  });
   it("el activo lleva aria-current=step", () => {
     render(<StepDock steps={steps} activeIndex={2} missingFor={() => null} onGo={() => {}} />);
     expect(screen.getByRole("button", { name: /Detección/ })).toHaveAttribute("aria-current", "step");

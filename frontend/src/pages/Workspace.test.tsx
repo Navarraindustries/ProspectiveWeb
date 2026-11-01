@@ -50,6 +50,7 @@ vi.mock("../components/AttachCaseSheet", () => ({ AttachCaseSheet: Nada }));
 vi.mock("../components/RecordButton", () => ({ RecordButton: Nada }));
 
 import { Workspace } from "./Workspace";
+import { getCommands } from "../lib/commands";
 import type { PatientSummary } from "../api/types";
 
 const montar = () => render(
@@ -273,5 +274,58 @@ describe("Registro de la sesión", () => {
     estado.sessionId = null;
     montar();
     expect(screen.queryByText("Registro")).toBeNull();
+  });
+});
+
+describe("Mandos del pipeline en la paleta", () => {
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); } catch { /* sin persistencia */ }
+  });
+  const mios = () => getCommands().filter((c) => ["pasos", "acciones"].includes(c.group));
+
+  it("los 8 pasos van en «pasos» y los bloqueados, deshabilitados", () => {
+    estado.series = {};
+    montar();
+    const pasos = getCommands().filter((c) => c.group === "pasos");
+    expect(pasos).toHaveLength(8);
+    expect(pasos[0].label).toMatch(/^1 · /);
+    const deteccion = pasos.find((c) => c.label === "3 · Detección");
+    expect(deteccion?.disabled).toBe(true);
+    expect(pasos.find((c) => c.label.startsWith("2 · "))?.disabled).toBe(false);
+    expect(pasos.find((c) => c.label.startsWith("1 · "))?.disabled).toBe(false);
+  });
+
+  it("«Guardar progreso» se deshabilita sin sesión", () => {
+    estado.sessionId = null;
+    montar();
+    expect(getCommands().find((c) => c.label === "Guardar progreso")?.disabled).toBe(true);
+  });
+
+  it("con sesión, «Guardar progreso» guarda y «Captura» sigue el botón", async () => {
+    estado.captureCase = null;
+    saveSession.mockReset().mockResolvedValue({});
+    montar();
+    const g = getCommands().find((c) => c.label === "Guardar progreso");
+    expect(g?.group).toBe("acciones");
+    expect(g?.disabled).toBeFalsy();
+    expect(getCommands().find((c) => c.label === "Captura")?.disabled).toBe(true);
+    act(() => g!.run());
+    await waitFor(() => expect(saveSession).toHaveBeenCalledTimes(1));
+  });
+
+  it("el mando de plegar cambia de rótulo y hace lo de la tecla P", () => {
+    montar();
+    expect(getCommands().find((c) => c.label === "Plegar el panel del paso")).toBeTruthy();
+    act(() => getCommands().find((c) => c.label === "Plegar el panel del paso")!.run());
+    expect(getCommands().find((c) => c.label === "Mostrar el panel del paso")).toBeTruthy();
+    expect(getCommands().find((c) => c.label === "Plegar el panel del paso")).toBeUndefined();
+  });
+
+  it("al desmontar no queda ningún mando del pipeline", () => {
+    const { unmount } = montar();
+    expect(mios().length).toBeGreaterThan(0);
+    unmount();
+    expect(mios()).toHaveLength(0);
   });
 });

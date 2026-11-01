@@ -91,8 +91,8 @@ export function StepDock({ steps, activeIndex, missingFor, onGo, compacto = fals
               data-escala={escala}
               aria-current={active ? "step" : undefined}
               aria-disabled={locked ? "true" : undefined}
-              aria-label={locked ? `Paso ${i + 1}, ${s.label} — ${missing}` : `Paso ${i + 1}, ${s.label}`}
-              title={locked ? (missing ?? s.label) : s.label}
+              aria-label={locked ? `Paso ${i + 1}, ${s.label}${s.optional ? " (opcional)" : ""} — ${missing}` : `Paso ${i + 1}, ${s.label}${s.optional ? " (opcional)" : ""}`}
+              title={locked ? (missing ?? s.label) : `${s.label}${s.optional ? " (opcional)" : ""}`}
               onClick={() => !locked && onGo(i)}
               animate={{ scale: escala }}
               transition={{ duration: 0.12, ease: "easeOut" }}

@@ -41,4 +41,9 @@ describe("landing.css, anclas", () => {
   it("las secciones con id dejan sitio a la nav al caer en un enlace profundo", () => {
     expect(tieneDeclaracion(css, ".landing-stitch section[id]", `scroll-margin-top: ${DESFASE_NAV}px`)).toBe(true);
   });
+
+  it("«Qué es»: dos columnas 5fr/7fr y una sola en móvil y tableta", () => {
+    expect(tieneDeclaracion(css, ".landing-stitch .que-es", "grid-template-columns: minmax(0, 5fr) minmax(0, 7fr)")).toBe(true);
+    expect(tieneDeclaracion(css, '.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .que-es', "grid-template-columns: minmax(0, 1fr)")).toBe(true);
+  });
 });

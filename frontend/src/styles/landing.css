@@ -790,3 +790,65 @@
 .landing-stitch section[tabindex="-1"]:focus {
   outline: none;
 }
+
+/* ── Qué es: texto + render de Case 3 en cristal ── */
+.landing-stitch .que-es {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 48px;
+  align-items: center;
+}
+.landing-stitch .que-es__textos {
+  display: grid;
+  gap: 32px;
+}
+.landing-stitch .que-es__figura {
+  margin: 0;
+  padding: 12px;
+  overflow: hidden;
+}
+.landing-stitch .que-es__marco {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: var(--viewer-bg);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.landing-stitch .que-es__marco img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.landing-stitch .que-es__pie {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.landing-stitch .halo-lesion {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.landing-stitch .halo-lesion__punto,
+.landing-stitch .halo-lesion__anillo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+.landing-stitch .halo-lesion__punto {
+  background: var(--destructive);
+}
+.landing-stitch .halo-lesion__anillo {
+  border: 2px solid var(--destructive);
+  opacity: 0.6;
+}
+.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .que-es {
+  grid-template-columns: minmax(0, 1fr);
+}
+.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .que-es__figura {
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+}

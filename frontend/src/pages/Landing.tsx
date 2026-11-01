@@ -14,6 +14,7 @@ import { HeroCortes } from "../components/landing/HeroCortes";
 import { ListaConReglas } from "../components/landing/ListaConReglas";
 import { NavPildora } from "../components/landing/NavPildora";
 import { Revelar, Seccion } from "../components/landing/Seccion";
+import { QueEs } from "../components/landing/SeccionQueEs";
 import { Logo } from "../components/shell/Logo";
 import { useTramo } from "../hooks/useEstrecho";
 import { CONTACTO_ADMIN } from "../lib/contacto";
@@ -25,30 +26,6 @@ import {
 } from "../components/morphometry/thresholds";
 import { STEPS } from "../pipeline/steps";
 /* El lema único del producto vive en el titular de HeroCortes: una sola vez. */
-
-/* ── Qué es ─────────────────────────────────────────────────────────────── */
-function QueEs() {
-  return (
-    <Seccion id="que-es" rotulo="Qué es" titulo="Una mesa de quirófano hecha de imagen">
-      <div className="sec__dos">
-        <div>
-          <h3 className="sec__subtitulo">Del DICOM a la decisión</h3>
-          <p className="sec__texto">
-            Prospective convierte la angiografía del paciente en un modelo 3D medible y propone la vía
-            de tratamiento con criterios explícitos.
-          </p>
-        </div>
-        <div>
-          <h3 className="sec__subtitulo">Pensada para el servicio</h3>
-          <p className="sec__texto">
-            Pacientes, casos, estudios y sesiones reanudables: el trabajo del neurocirujano continúa
-            donde lo dejó. Puedes registrar al paciente con iniciales o un código.
-          </p>
-        </div>
-      </div>
-    </Seccion>
-  );
-}
 
 /* ── Cómo funciona ──────────────────────────────────────────────────────── */
 /* La portada decía «siete pasos» sobre una lista que ya tenía ocho: los

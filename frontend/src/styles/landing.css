@@ -477,3 +477,309 @@
     bottom: 16px;
   }
 }
+
+/* ============================================================================
+   Secciones del tablero D (después del hero): listas con reglas, no tarjetas.
+   ============================================================================ */
+.landing-stitch .sec {
+  padding: 112px 24px;
+}
+.landing-stitch .sec__cuerpo {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+.landing-stitch .sec__cabecera {
+  margin-bottom: 40px;
+}
+.landing-stitch .sec__rotulo {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.landing-stitch .sec__titulo {
+  margin: 14px 0 0;
+  max-width: 760px;
+  font-size: var(--text-display);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: var(--tracking-display);
+  color: var(--foreground);
+}
+.landing-stitch .sec__titulo--contacto {
+  margin-top: 0;
+  font-size: 28px;
+}
+.landing-stitch .sec__dos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 48px;
+}
+.landing-stitch .sec__subtitulo {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.landing-stitch .sec__texto {
+  margin: 12px 0 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+.landing-stitch .sec__texto--ancho {
+  max-width: 640px;
+  margin: 0 0 32px;
+}
+.landing-stitch .sec__nota {
+  margin: 28px 0 0;
+  max-width: 720px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+
+/* Lista con reglas */
+.landing-stitch .lista-reglas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.landing-stitch .lista-reglas--dos {
+  columns: 2;
+  column-gap: 48px;
+}
+.landing-stitch .lista-reglas__fila {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+  break-inside: avoid;
+}
+.landing-stitch .lista-reglas__fila:last-child {
+  border-bottom: 1px solid var(--border);
+}
+.landing-stitch .lista-reglas--dos .lista-reglas__fila:nth-last-child(2) {
+  border-bottom: 1px solid var(--border);
+}
+.landing-stitch .lista-reglas__titulo {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.landing-stitch .lista-reglas__detalle {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+.landing-stitch .lista-reglas__cifra {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+/* Los ocho pasos */
+.landing-stitch .pasos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.landing-stitch .pasos__paso {
+  padding: 20px 18px;
+  border-radius: var(--radius-card-lg);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-highlight);
+}
+.landing-stitch .pasos__num {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.landing-stitch .pasos__nombre {
+  margin-top: 14px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.landing-stitch .pasos__linea {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+
+/* Las cuatro series NAVARRO */
+.landing-stitch .series {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.landing-stitch .series__ficha {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 22px 18px;
+  border-radius: var(--radius-card-lg);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-highlight);
+  color: var(--foreground);
+}
+.landing-stitch .series__nombre {
+  margin-top: 6px;
+  font-size: 17px;
+  font-weight: 600;
+}
+.landing-stitch .series__detalle {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+/* Franja de casos reales */
+.landing-stitch .franja-casos {
+  position: relative;
+  overflow: hidden;
+  height: clamp(380px, 46vw, 620px);
+}
+.landing-stitch .franja-casos__lienzo {
+  position: absolute;
+  inset: -12px 0;
+}
+.landing-stitch .franja-casos__lienzo picture,
+.landing-stitch .franja-casos__lienzo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.landing-stitch .franja-casos__lienzo img {
+  object-fit: cover;
+}
+.landing-stitch .franja-casos__velo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--veil-dense) 0%, var(--veil) 45%, transparent 75%);
+}
+.landing-stitch .franja-casos__texto {
+  position: absolute;
+  left: max(24px, calc((100% - 1120px) / 2));
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 420px;
+}
+.landing-stitch .franja-casos__rotulo {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  color: var(--muted-foreground);
+}
+.landing-stitch .franja-casos__frase {
+  margin: 14px 0 0;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+.landing-stitch .franja-casos__credito {
+  position: absolute;
+  right: 24px;
+  bottom: 14px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+/* Contacto y pie */
+.landing-stitch .contacto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  padding: 36px 40px;
+  border-radius: var(--radius-xl);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-highlight);
+}
+.landing-stitch .contacto__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.landing-stitch .pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 28px 24px 40px;
+  border-top: 1px solid var(--border);
+}
+.landing-stitch .pie__aviso {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  text-align: right;
+}
+
+@media (max-width: 760px) {
+  .landing-stitch .sec {
+    padding: 72px 16px;
+  }
+  .landing-stitch .sec__titulo {
+    font-size: 30px;
+  }
+  .landing-stitch .sec__dos,
+  .landing-stitch .pasos,
+  .landing-stitch .series {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .landing-stitch .pasos,
+  .landing-stitch .series {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .landing-stitch .lista-reglas--dos {
+    columns: 1;
+  }
+  .landing-stitch .lista-reglas--dos .lista-reglas__fila:nth-last-child(2) {
+    border-bottom: 0;
+  }
+  .landing-stitch .lista-reglas__fila {
+    flex-wrap: wrap;
+  }
+  .landing-stitch .franja-casos {
+    height: 520px;
+  }
+  .landing-stitch .franja-casos__velo {
+    background: linear-gradient(180deg, var(--veil-dense) 0%, var(--veil) 55%, transparent 100%);
+  }
+  .landing-stitch .franja-casos__texto {
+    left: 16px;
+    right: 16px;
+    top: 28px;
+    transform: none;
+  }
+  .landing-stitch .franja-casos__frase {
+    font-size: 22px;
+  }
+  .landing-stitch .contacto {
+    padding: 24px 20px;
+  }
+  .landing-stitch .pie__aviso {
+    text-align: left;
+  }
+}

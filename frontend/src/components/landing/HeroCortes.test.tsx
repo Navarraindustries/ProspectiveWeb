@@ -43,17 +43,27 @@ describe("HeroCortes", () => {
     expect(seccion.style.height).not.toBe("300vh");
   });
 
-  it("la ventana es de cristal y lista cinco candidatos con la lesión primero", () => {
+  it("la ventana es de cristal y lista los cinco candidatos reales del 036, la lesión primero", () => {
     reducida.valor = true;
-    const { container } = montar();
+    montar();
     const ventana = screen.getByText("Detección · 5 candidatos").closest("[data-glass]");
     expect(ventana).not.toBeNull();
     const filas = ventana!.querySelectorAll("li");
     expect(filas).toHaveLength(5);
-    expect(filas[0].textContent).toContain("lesión · ≈9,8 mm");
-    for (const canal of ["calibre", "cociente", "curvatura"]) {
-      expect(ventana!.textContent).toContain(canal);
-    }
-    expect(container.querySelectorAll("[data-baliza]")).toHaveLength(5);
+    expect(filas[0].textContent).toContain("lesión");
+    expect(filas[0].textContent).toContain("≈11,6 mm");
+    expect(filas[0].textContent).toContain("calibre · cociente · curvatura");
+    expect(filas[1].textContent).toContain("≈8,8 mm");
+    expect(filas[4].textContent).toContain("saco pequeño");
+    expect(ventana!.textContent).not.toContain("9,8");
+    expect(screen.getByText("Caso Zenodo 036 · detector de Prospective")).toBeInTheDocument();
+  });
+
+  it("solo la lesión lleva baliza sobre el render: de las otras no hay posición en pantalla", () => {
+    reducida.valor = true;
+    const { container } = montar();
+    const balizas = container.querySelectorAll("[data-baliza]");
+    expect(balizas).toHaveLength(1);
+    expect(balizas[0]).toHaveTextContent("1");
   });
 });

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { MANIFIESTO, fotogramaPara, rutaFotograma, ultimoCargado } from "./heroFrames";
+import { DETECCION_036, MANIFIESTO, fotogramaPara, rutaFotograma, ultimoCargado } from "./heroFrames";
 
 describe("fotogramaPara: el fotograma sale del progreso, no de deltas", () => {
   it("los extremos y la mitad", () => {
@@ -28,6 +28,17 @@ describe("ultimoCargado: sin parpadeo a vacío mientras llega la imagen", () => 
 
   it("sin ninguno cargado, null", () => {
     expect(ultimoCargado(5, new Set())).toBeNull();
+  });
+});
+
+describe("DETECCION_036: la salida del detector para el caso del hero", () => {
+  it("cinco candidatos por puesto y solo el primero es la lesión", () => {
+    expect(DETECCION_036.map((c) => c.puesto)).toEqual([1, 2, 3, 4, 5]);
+    expect(DETECCION_036.filter((c) => c.lesion).map((c) => c.puesto)).toEqual([1]);
+  });
+
+  it("diámetros a un decimal, como los da el detector redondeados", () => {
+    expect(DETECCION_036.map((c) => c.diametroMm)).toEqual([11.6, 8.8, 4.8, 4.7, 6.9]);
   });
 });
 

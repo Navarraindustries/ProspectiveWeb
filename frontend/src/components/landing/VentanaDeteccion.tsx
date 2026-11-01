@@ -1,60 +1,60 @@
 /* VentanaDeteccion — el fotograma final del hero: la ventana de cristal
-   «Detección · 5 candidatos» y las balizas 1–5 sobre el render 3D del 036.
+   «Detección · 5 candidatos» con la salida real del detector para el caso 036
+   (`DETECCION_036`), y la baliza de la lesión sobre su render 3D.
 
-   Las dos piezas comparten la lista de candidatos para que el número de cada
-   fila sea el de su baliza. Las posiciones son porcentajes del render
-   (`hero-3d.webp`, 1400 × 1000): la 1 cae sobre el saco rojo; las otras cuatro
-   son puntos del árbol para ilustrar el resto de la lista. */
+   Solo la lesión lleva baliza: su posición sobre `hero-3d.webp` (1400 × 1000)
+   se conoce porque el saco está pintado en rojo en el render (centro en el
+   50 % / 50 %). De los candidatos 2–5 no hay posición en pantalla, así que
+   aparecen en la lista y no se inventa dónde caen. */
 
 import { glass } from "../../styles/glass";
+import { DETECCION_036 } from "./heroFrames";
+import type { CanalDeteccion } from "./heroFrames";
 
-interface Candidato {
-  n: number;
-  canal: "calibre" | "cociente" | "curvatura";
-  nota?: string;
-  x: number;
-  y: number;
-}
+/* Centro del saco rojo en el render, en % de su anchura y altura. */
+const LESION_EN_RENDER = { x: 50, y: 50 };
 
-const CANDIDATOS: readonly Candidato[] = [
-  { n: 1, canal: "calibre", nota: "lesión · ≈9,8 mm", x: 50, y: 50 },
-  { n: 2, canal: "cociente", x: 61, y: 52 },
-  { n: 3, canal: "curvatura", x: 45, y: 64 },
-  { n: 4, canal: "calibre", x: 60, y: 69 },
-  { n: 5, canal: "curvatura", x: 56, y: 30 },
-];
+const mm = (n: number): string => `≈${n.toFixed(1).replace(".", ",")} mm`;
 
-/** Balizas sobre el render: el padre debe tener la proporción del render. */
+/** Baliza de la lesión sobre el render: el padre debe tener la proporción del render. */
 export function BalizasDeteccion() {
+  const lesion = DETECCION_036.find((c) => c.lesion);
+  if (!lesion) return null;
   return (
     <div className="hero-balizas" aria-hidden="true">
-      {CANDIDATOS.map((c) => (
-        <span
-          key={c.n}
-          data-baliza={c.n}
-          className={c.n === 1 ? "hero-baliza hero-baliza--lesion" : "hero-baliza"}
-          style={{ left: `${c.x}%`, top: `${c.y}%` }}
-        >
-          {c.n}
-        </span>
-      ))}
+      <span
+        data-baliza={lesion.puesto}
+        className="hero-baliza hero-baliza--lesion"
+        style={{ left: `${LESION_EN_RENDER.x}%`, top: `${LESION_EN_RENDER.y}%` }}
+      >
+        {lesion.puesto}
+      </span>
     </div>
   );
 }
 
+const canalesTexto = (canales: readonly CanalDeteccion[]) =>
+  canales.filter((c) => c !== "saco").join(" · ");
+
 export function VentanaDeteccion() {
   return (
-    <div data-glass className="hero-ventana" style={{ ...glass("dense"), borderRadius: "var(--radius-xl)" }}>
-      <div className="hero-ventana__cabecera">Detección · 5 candidatos</div>
-      <ol className="hero-ventana__filas">
-        {CANDIDATOS.map((c) => (
-          <li key={c.n} className="hero-ventana__fila">
-            <span className={c.n === 1 ? "hero-ventana__num hero-ventana__num--lesion" : "hero-ventana__num"}>{c.n}</span>
-            <span className="hero-ventana__canal">{c.canal}</span>
-            {c.nota && <span className="hero-ventana__nota">{c.nota}</span>}
-          </li>
-        ))}
-      </ol>
-    </div>
+    <>
+      <div data-glass className="hero-ventana" style={{ ...glass("dense"), borderRadius: "var(--radius-xl)" }}>
+        <div className="hero-ventana__cabecera">Detección · {DETECCION_036.length} candidatos</div>
+        <ol className="hero-ventana__filas">
+          {DETECCION_036.map((c) => (
+            <li key={c.puesto} className="hero-ventana__fila">
+              <span className={c.lesion ? "hero-ventana__num hero-ventana__num--lesion" : "hero-ventana__num"}>{c.puesto}</span>
+              <span className="hero-ventana__canal">{canalesTexto(c.canales)}</span>
+              {c.canales.includes("saco") && <span className="hero-ventana__insignia">saco pequeño</span>}
+              <span className={c.lesion ? "hero-ventana__nota hero-ventana__nota--lesion" : "hero-ventana__nota"}>
+                {c.lesion ? `lesión · ${mm(c.diametroMm)}` : mm(c.diametroMm)}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </div>
+      <div className="hero-ventana__credito">Caso Zenodo 036 · detector de Prospective</div>
+    </>
   );
 }

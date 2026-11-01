@@ -348,11 +348,32 @@
   background: var(--destructive);
   border-color: var(--destructive);
 }
+.landing-stitch .hero-ventana__fila {
+  flex-wrap: wrap;
+}
+.landing-stitch .hero-ventana__insignia {
+  padding: 1px 8px;
+  border-radius: 9999px;
+  font-size: var(--text-micro);
+  color: var(--muted-foreground);
+  border: 1px solid var(--glass-border);
+}
 .landing-stitch .hero-ventana__nota {
   margin-left: auto;
   font-family: var(--font-mono);
   font-size: var(--text-micro);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.landing-stitch .hero-ventana__nota--lesion {
   color: color-mix(in srgb, var(--destructive) 70%, var(--foreground));
+}
+.landing-stitch .hero-ventana__credito {
+  margin-top: 8px;
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--muted-foreground);
 }
 
 /* Balizas sobre el render: las del visor (elegida 44 px en rojo con halo
@@ -398,8 +419,7 @@
 }
 
 /* Estrecho: una columna, la ventana bajo el texto y el velo de arriba abajo.
-   Todo más apretado para que texto y ventana quepan en 100 vh de un móvil; las
-   balizas se quitan porque caerían sobre el texto (la ventana ya las lista). */
+   Todo más apretado para que texto y ventana quepan en 100 vh de un móvil. */
 @media (max-width: 760px) {
   .landing-stitch .hero-cortes__contenido {
     grid-template-columns: minmax(0, 1fr);
@@ -428,10 +448,7 @@
   .landing-stitch .hero-cortes__notas {
     margin-top: 14px;
   }
-  .landing-stitch .hero-balizas {
-    display: none;
-  }
-  /* El saco (centro del render) baja al hueco entre el texto y la ventana. */
+  /* El saco (centro del render) baja hacia el borde entre el texto y la ventana. */
   .landing-stitch .hero-cortes__lienzo {
     top: 68%;
   }
@@ -442,8 +459,14 @@
     padding-bottom: 6px;
   }
   .landing-stitch .hero-ventana__fila {
+    gap: 8px;
     padding: 4px 2px;
-    font-size: var(--text-desc);
+    font-size: var(--text-micro);
+  }
+  /* En estrecho no hay hueco libre para el saco: la ventana lo taparía y la
+     baliza quedaría a medias. La lista ya dice que el 1.º es la lesión. */
+  .landing-stitch .hero-balizas {
+    display: none;
   }
   .landing-stitch .hero-ventana__num {
     width: 22px;

@@ -41,8 +41,8 @@ describe("assets del hero de la landing", () => {
     expect(hero.window).toEqual({ w: 600, l: 60 });
   });
 
-  it("existen los renders 3D y las dos imágenes de aneurismas", () => {
-    for (const f of ["hero-3d.webp", "hero-3d-wide.webp", "aneurismas.webp", "aneurismas-movil.webp"]) {
+  it("existen el render 3D y las dos imágenes de aneurismas", () => {
+    for (const f of ["hero-3d.webp", "aneurismas.webp", "aneurismas-movil.webp"]) {
       expect(existsSync(join(DIR, f)), f).toBe(true);
     }
   });

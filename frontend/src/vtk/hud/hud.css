@@ -32,6 +32,10 @@
 .hud-toggle button { background: none; border: none; padding: 2px 0; font: inherit; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-text-dim); cursor: pointer; }
 .hud-toggle button[aria-pressed="true"] { color: var(--hud-text); border-bottom: var(--hud-line) solid var(--hud-text); }
 .hud-toggle button:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
+/* Táctil en las celdas: grupos que envuelven y botones de 44 px. Las LECTURAS
+   (.hud-readout) no cambian: excepción declarada. */
+[data-hud][data-tactil="true"] .hud-toggle { flex-wrap: wrap; row-gap: 4px; }
+[data-hud][data-tactil="true"] .hud-toggle button { min-height: 44px; min-width: 44px; font-size: 13px; }
 /* El ⚠ del aviso de nivel en la banda: mismo foco que los conmutadores. */
 .hud-note-toggle:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
 /* Desplegables de la banda en el nivel iconos (vista principal, distribución):

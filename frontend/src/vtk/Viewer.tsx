@@ -81,6 +81,8 @@ import { windowPresets } from "./windowPresets";
 import { unitFor } from "./modality";
 import type { Vector3 } from "@kitware/vtk.js/types";
 import { cifra } from "../lib/numero";
+import { useMediaQuery } from "../hooks/useEstrecho";
+import { MQ_TACTIL } from "../pipeline/puntosCorte";
 
 // vtk.js (~1 MB) is only needed once a 3D mesh is shown, so load MeshView — and
 // with it the whole vtk.js runtime — lazily. The landing/login/MPR-only views
@@ -258,6 +260,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // aplica hud.css. La ref la lee el estado del visor, que se publica una vez
   // y no puede depender del render.
   const [hudLevel, setHudLevel] = useStoredChoice(PREF_HUD_LEVEL, HUD_LEVELS, "completo", readHudLevel);
+  const tactil = useMediaQuery(MQ_TACTIL);
   const hudLevelRef = useRef(hudLevel);
   hudLevelRef.current = hudLevel;
   // Los planos de corte en el 3D van solo con PLANOS, en cualquier nivel del
@@ -1970,10 +1973,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
         )}
 
         {!compact && sessionId && meta && !pickMode && (
-          <div style={{ position: "absolute", top: togglesTop, left: 14, zIndex: 5, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, fontFamily: "var(--font-mono)" }}>
+          <div className="hud-controls-col" style={{ position: "absolute", top: togglesTop, left: 14, maxWidth: "calc(100% - 28px)", zIndex: 5, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, fontFamily: "var(--font-mono)" }}>
             {/* Cortes 3D solo con malla: sin ella la escena es el corte axial
                 y no hay escena en la que colocar los cortes. */}
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
               <HudToggleGroup
                 options={[
                   { key: "default", label: meshVisible ? "3D" : "MPR" },
@@ -2071,7 +2074,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           del salto de paso de Workspace, que ignora Alt. */}
       {/* `data-hud` en la rejilla y no en la raíz: la banda de cabecera queda
           fuera, y sus botones (TEXTOS ▸ incluido) se ven en cualquier nivel. */}
-      <div ref={gridHostRef} data-hud={hudLevel} style={{ flex: "1 1 0", position: "relative", minHeight: 0, overflow: "hidden" }}
+      <div ref={gridHostRef} data-hud={hudLevel} data-tactil={tactil ? "true" : undefined} style={{ flex: "1 1 0", position: "relative", minHeight: 0, overflow: "hidden" }}
            tabIndex={0}
            // Los lienzos de vtk.js y los cortes anulan la acción por defecto del
            // puntero, y con ella el foco: sin esto, pinchar en el visor dejaba

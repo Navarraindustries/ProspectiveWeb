@@ -109,6 +109,18 @@ describe("banda del visor en táctil (hud.css)", () => {
   });
 });
 
+describe("HUD de las celdas en táctil (hud.css)", () => {
+  it("en táctil los conmutadores de la celda miden 44 px y envuelven; sin táctil, no", () => {
+    const { container } = render(
+      <div><div data-hud="completo" data-tactil="true"><span className="hud-toggle" data-t="g"><button data-t="b">AX</button></span></div>
+           <div data-hud="completo"><span className="hud-toggle" data-t="g2"><button data-t="b2">AX</button></span></div></div>);
+    const q = (t: string) => getComputedStyle(container.querySelector(`[data-t="${t}"]`)!);
+    expect(q("b").minHeight).toBe("44px");
+    expect(q("g").flexWrap).toBe("wrap");
+    expect(q("b2").minHeight).not.toBe("44px");
+  });
+});
+
 describe("nivel del HUD (hud.css), lateralidad", () => {
   /* F1-118: LIMPIO quitaba también ANT/POST/IZQ/DER y la regla de 10 mm; una
      captura limpia no decía de qué lado era la lesión ni cuánto medía. */

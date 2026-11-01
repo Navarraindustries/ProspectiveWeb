@@ -82,7 +82,7 @@ describe("confirmar", () => {
     await waitFor(() => expect(api.confirmLesion).toHaveBeenCalledWith({
       session_id: "s1", imaging_study_id: 3, source: "candidate", candidate_id: "cand-002",
     }));
-    expect(await screen.findByText(/La lesión es el candidato #2/)).toBeInTheDocument();
+    expect(await screen.findByText(/La lesión es «Candidato 2»/)).toBeInTheDocument();
   });
 
   it("manda el punto marcado a mano en mm", async () => {
@@ -112,7 +112,7 @@ describe("lo que enseña", () => {
   it("la confirmación vigente del estudio al abrir el paso", async () => {
     vi.mocked(api.currentLesion).mockResolvedValue(confirmacion({ candidate_rank: 1, source: "candidate" }));
     montar({ study: 3 });
-    expect(await screen.findByText(/La lesión es el candidato #1/)).toBeInTheDocument();
+    expect(await screen.findByText(/La lesión es «Candidato 1»/)).toBeInTheDocument();
     expect(api.currentLesion).toHaveBeenCalledWith("s1", 3);
   });
 
@@ -163,7 +163,7 @@ describe("«Confirmar cand-00N como la lesión»", () => {
     vi.mocked(api.confirmLesion).mockResolvedValue(
       confirmacion({ candidate_rank: null, candidate_id: "cand-004" }));
     montar({ study: 3, selected: 3, rejected: [descartado] });
-    fireEvent.click(await screen.findByRole("button", { name: "Confirmar «Candidato descartado» como la lesión" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirmar «Descartado D1» como la lesión" }));
     await waitFor(() => expect(api.confirmLesion).toHaveBeenCalledWith({
       session_id: "s1", imaging_study_id: 3, source: "candidate", candidate_id: "cand-004",
     }));
@@ -216,7 +216,7 @@ describe("confirmar el punto marcado", () => {
     }));
     montar({ mark: [2, 0, 0] });
     fireEvent.click(await screen.findByText("Confirmar el punto marcado"));
-    await screen.findByText(/coincide con el candidato #2/);
+    await screen.findByText(/coincide con «Candidato 2»/);
     expect(screen.getByTestId("lista")).toHaveTextContent("cand-001:curvatura* cand-002:curvatura cand-003:curvatura");
   });
 });

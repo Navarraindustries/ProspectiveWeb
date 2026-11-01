@@ -148,6 +148,14 @@ describe("DetectPanel", () => {
     expect(container.textContent).not.toMatch(/Puesto #/);
   });
 
+  it("un aceptado sin rank (sesión antigua) se numera por su posición", async () => {
+    const sin = (id: string) => ({ ...cand(id, 1), rank: undefined }) as unknown as AneurysmCandidate;
+    mockDetect({ candidates: [sin("cand-007"), sin("cand-002")], rejected: [] });
+    const { container } = render(<Wrapped />);
+    expect(await screen.findByText("Candidato 2")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/cand-\d/);
+  });
+
   /* Decisión nº 20 (F1-144): «Puesto #4» ya dice el orden; «Puesto bajo»
      sugería un juicio que el orden no sostiene. */
   it("el cuarto candidato no lleva «Puesto bajo»", async () => {

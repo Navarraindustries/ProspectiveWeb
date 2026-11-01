@@ -217,7 +217,6 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {candidates.map((c, i) => {
           const on = selectedCandidate === i;
-          const rank = c.rank ?? i + 1;
           // Un punto marcado a mano no tiene grosor medido ni puesto del detector.
           const manual = isManual(c);
           return (
@@ -234,7 +233,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", whiteSpace: "nowrap" }}>{candidateName({ ...c, rank })}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", whiteSpace: "nowrap" }}>{candidateName(c, false, i)}</span>
                 {/* Qué criterio lo encontró. Que coincidan varios es
                     información para el clínico; el orden no lo es. */}
                 {manual
@@ -329,7 +328,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>{candidateName(c, true)}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>{candidateName(c, true, i)}</span>
                       <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
                         {thicknessLabel(c.max_diameter_mm)}
                       </span>
@@ -358,7 +357,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
           advertencia no puede quedarse escondida dentro. */}
       {selectedRejected && !showRejected && (
         <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 8 }}>
-          {candidateName(selectedRejected, true)}: {vetoHint(selectedRejected.veto?.label)}
+          {candidateName(selectedRejected, true, rejectedCandidates.indexOf(selectedRejected))}: {vetoHint(selectedRejected.veto?.label)}
         </div>
       )}
 

@@ -1905,7 +1905,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const tl: string[] = [STEP_SCENE[step]?.toUpperCase() ?? ""];
     if (candidate && (step === "detect" || (isMesh && focusUrl))) {
       // F1-158: el Ø medido si lo hay; si no, la estimación del detector con «est.».
-      tl.push(hudCandidateLine(candidate, morphometry, selectedCandidate >= candidates.length));
+      tl.push(hudCandidateLine(candidate, morphometry, selectedCandidate >= candidates.length,
+        selectedCandidate >= candidates.length ? selectedCandidate - candidates.length : selectedCandidate));
       // F1-156: dice que la medida salió de las marcas, no del saco automático.
       const manualTag = hudManualTag(morphometry);
       if (manualTag) tl.push(manualTag);

@@ -26,8 +26,8 @@ function measures(candidate: Cand, m: Morph | null | undefined): m is Morph {
 
 /** «Candidato 1 · Ø 10,9 mm» con medida; «Candidato 1 · Ø 3,7 mm est.» sin ella;
  *  «Marcado a mano» (A65: nunca el id interno). */
-export function hudCandidateLine(candidate: Cand, morphometry: Morph | null | undefined, rejected = false): string {
-  const name = candidateName(candidate, rejected);
+export function hudCandidateLine(candidate: Cand, morphometry: Morph | null | undefined, rejected = false, index?: number | null): string {
+  const name = candidateName(candidate, rejected, index);
   if (measures(candidate, morphometry)) return `${name} · Ø ${es1(morphometry.max_diameter_mm)} mm`;
   // Un candidato marcado a mano (F1-146) no tiene grosor estimado: «Ø 0,0 mm» mentiría.
   if (isManual(candidate)) return name;

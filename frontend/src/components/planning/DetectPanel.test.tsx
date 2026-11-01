@@ -126,6 +126,16 @@ describe("DetectPanel", () => {
     expect(await screen.findByText(/La morfometría se ha limpiado/)).toBeInTheDocument();
   });
 
+  it("el pie envuelve «Re-detectar» y «Analizar morfometría» en .ws-panel-actions sin flex en línea", async () => {
+    mockDetect({});
+    render(<Wrapped />);
+    for (const n of [/Re-detectar/, /Analizar morfometría/]) {
+      const b = await screen.findByRole("button", { name: n });
+      expect(b.closest(".ws-panel-actions")).not.toBeNull();
+      expect(b.style.flex).toBe("");
+    }
+  });
+
   it("re-detectar sin invalidación oculta el aviso", async () => {
     mockDetect({ morphometry_invalidated: true });
     render(<Wrapped />);
@@ -181,6 +191,8 @@ describe("DetectPanel", () => {
     fireEvent.click(mas);
     expect(nota).toHaveTextContent(/La medida real la da Morfometría/);
     expect(nota).not.toHaveTextContent(/dos casos/);
+    const menos = screen.getByRole("button", { name: "Menos" });
+    expect(menos).toHaveAttribute("aria-expanded", "true");
   });
 
   /* F1-143: «Ø 3.7 mm est.» se leía como el diámetro del aneurisma. */

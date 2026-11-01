@@ -95,6 +95,8 @@ html, body, #root {
   padding: 12px 18px;
   margin: 16px -18px 0;
 }
+.ws-panel-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.ws-panel-actions > * { flex: 1 1 auto; white-space: nowrap; }
 
 /* Resultado en dos columnas (p. ej. Decisión): una sola fuera del panel ancho. */
 .panel-dos-columnas { display: grid; grid-template-columns: 1fr; gap: 16px; }

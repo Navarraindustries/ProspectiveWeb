@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
+import { DUR, EASE, motion } from "../../motion";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { PanelHead, ErrorNote } from "../PanelHead";
-import { PanelFooter } from "../PanelFooter";
+import { PanelActions, PanelFooter } from "../PanelFooter";
 import { ProgressBar } from "../ProgressBar";
 import { LesionConfirm } from "./LesionConfirm";
 import { SegmentProgress } from "../segmentation/SegmentProgress";
@@ -200,17 +201,24 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
             {DETECT_LINES.map((t) => <li key={t}>{t}</li>)}
           </ul>
           {showMore && DETECT_MORE.map((t) => <p key={t} style={{ margin: "6px 0 0" }}>{t}</p>)}
-          <button
-            type="button"
+          <Button
+            variant="link"
+            size="sm"
             aria-expanded={showMore}
             onClick={() => setShowMore((v) => !v)}
-            style={{
-              background: "none", border: "none", padding: "4px 0 0", cursor: "pointer",
-              fontSize: 11, fontWeight: 700, color: "var(--muted-foreground)",
-            }}
+            trailingIcon={
+              <motion.span
+                aria-hidden
+                style={{ display: "inline-flex" }}
+                animate={{ rotate: showMore ? 90 : 0 }}
+                transition={{ duration: DUR.respuesta, ease: EASE }}
+              >
+                <Icon name="CHEVRON_RIGHT" size={12} />
+              </motion.span>
+            }
           >
             {showMore ? "Menos" : "Más"}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -418,19 +426,18 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
         </Button>
       )}
       <PanelFooter>
-        <div style={{ display: "flex", gap: 10 }}>
+        <PanelActions>
           <Button variant="outline" onClick={() => void run()} disabled={busy || clearing || !sessionId} leadingIcon={<Icon name="REFRESH" />}>
             Re-detectar
           </Button>
           <Button
-            style={{ flex: 1 }}
             onClick={onNext}
             disabled={!canAdvanceFromDetect(candidates, rejectedCandidates)}
             trailingIcon={<Icon name="STEP_MORPHO" />}
           >
             Analizar morfometría
           </Button>
-        </div>
+        </PanelActions>
       </PanelFooter>
       {/* F1-12: limpiar se llevaba la medida, el cuello marcado a mano y la
           recomendación al primer clic, sin forma de recuperarlos. */}

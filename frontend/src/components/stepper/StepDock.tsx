@@ -114,11 +114,10 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
   // La región `status` existe siempre (un lector anuncia lo que entra en ella);
   // la pastilla de cristal solo cuando hay algo que decir.
   const estiloBurbuja = {
-    ...glass("viewer"),
     padding: "8px 12px", borderRadius: "var(--radius-lg)", maxWidth: 300,
     fontSize: 13, lineHeight: 1.4, color: "var(--foreground)",
   } as const;
-  const contenidoBurbuja = burbuja && <span data-glass style={{ display: "block", ...estiloBurbuja }}>{burbuja.texto}</span>;
+  const contenidoBurbuja = burbuja && <span data-glass style={{ display: "block", ...glass("viewer"), ...estiloBurbuja }}>{burbuja.texto}</span>;
   const capaBurbuja = tactil && (
     <span
       role="status"

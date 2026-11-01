@@ -12,7 +12,8 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
-import { AnimatePresence, motion, fundido, fundidoTransition, scrimFade, sheetSlide, sheetTransition, useReducedMotion } from "../motion";
+import { AnimatePresence, motion, fundido, fundidoTransition, scrimFade, sheetSlide, sheetTransition, useIsPresent, useReducedMotion } from "../motion";
+import { useMovil, useTableta } from "../hooks/useEstrecho";
 import { glass } from "../styles/glass";
 import { Icon } from "./Icon";
 
@@ -25,6 +26,14 @@ const openSheets: object[] = [];
 /** true mientras haya alguna hoja abierta: la paleta ⌘K no se abre encima. */
 export function isSheetOpen(): boolean {
   return openSheets.length > 0;
+}
+
+/** Capa fija de la hoja. Hijo directo de AnimatePresence: en cuanto empieza la
+    salida suelta el puntero, y los clics atraviesan velo y panel hasta la página
+    en vez de perderse durante los 480 ms de la animación. */
+function CapaHoja({ children }: { children: ReactNode }) {
+  const presente = useIsPresent();
+  return <div style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: presente ? "auto" : "none" }}>{children}</div>;
 }
 
 export function Sheet({
@@ -50,6 +59,8 @@ export function Sheet({
   const panelRef = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
   const transition = reduced ? fundidoTransition : sheetTransition;
+  const movil = useMovil();
+  const tableta = useTableta();
 
   // Escape closed the user menu but not this, so the only ways out were the ✕
   // and the scrim — and keyboard focus stayed behind on the page underneath.
@@ -84,7 +95,7 @@ export function Sheet({
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 100 }}>
+        <CapaHoja>
           <motion.div
             variants={scrimFade}
             initial="initial"
@@ -113,9 +124,9 @@ export function Sheet({
               top: 0,
               right: 0,
               bottom: 0,
-              width,
-              maxWidth: "94vw",
-              borderRadius: "var(--radius-xl) 0 0 var(--radius-xl)",
+              width: movil ? "100%" : width,
+              maxWidth: movil ? "100vw" : "94vw",
+              borderRadius: movil ? "0px" : "var(--radius-xl) 0 0 var(--radius-xl)",
               boxShadow: "var(--shadow-sheet)",
               display: "flex",
               flexDirection: "column",
@@ -135,7 +146,7 @@ export function Sheet({
               <button
                 onClick={onClose}
                 aria-label="Cerrar"
-                style={{ width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--radius-full)", border: "none", background: "transparent", cursor: "pointer", color: "var(--muted-foreground)", flexShrink: 0 }}
+                style={{ width: tableta ? 44 : 40, height: tableta ? 44 : 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--radius-full)", border: "none", background: "transparent", cursor: "pointer", color: "var(--muted-foreground)", flexShrink: 0 }}
               >
                 <Icon name="STATUS_FAIL" size={15} />
               </button>
@@ -145,7 +156,7 @@ export function Sheet({
               <div data-sheet-footer style={{ padding: "14px 22px", borderTop: "1px solid var(--border)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>{footer}</div>
             )}
           </motion.div>
-        </div>
+        </CapaHoja>
       )}
     </AnimatePresence>,
     document.body,

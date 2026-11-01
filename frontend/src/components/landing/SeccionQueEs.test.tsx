@@ -16,7 +16,7 @@ describe("QueEs", () => {
 
   it("región «Qué es» con los dos textos de siempre", () => {
     const { container } = render(<QueEs />);
-    expect(container.querySelector("section#que-es")).toHaveAttribute("aria-label", "Qué es");
+    expect(container.querySelector("section#que-es")).toHaveAccessibleName("Una mesa de quirófano hecha de imagen");
     expect(screen.getByText("Del DICOM a la decisión")).toBeInTheDocument();
     expect(screen.getByText(/Puedes registrar al paciente con iniciales o un código/)).toBeInTheDocument();
   });

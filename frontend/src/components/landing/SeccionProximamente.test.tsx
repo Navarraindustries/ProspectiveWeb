@@ -6,7 +6,7 @@ import { Proximamente } from "./SeccionProximamente";
 describe("Proximamente", () => {
   it("tres tarjetas de cristal con icono, título, texto e insignia", () => {
     const { container } = render(<Proximamente />);
-    expect(container.querySelector("section#proximamente")).toHaveAttribute("aria-label", "Próximamente");
+    expect(container.querySelector("section#proximamente")).toHaveAccessibleName("Lo que viene");
     const lis = [...container.querySelectorAll("ul.proximo > li[data-glass]")];
     expect(lis).toHaveLength(3);
     const esperado: [string, string][] = [

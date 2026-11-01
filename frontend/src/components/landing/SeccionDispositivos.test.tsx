@@ -23,7 +23,7 @@ const FICHAS: [string, string, string, string[]][] = [
 describe("Dispositivos", () => {
   it("región con id y cuatro fichas de cristal con su imagen", () => {
     const { container } = render(<Dispositivos />);
-    expect(container.querySelector("section#dispositivos")).toHaveAttribute("aria-label", "Dispositivos NAVARRO™");
+    expect(container.querySelector("section#dispositivos")).toHaveAccessibleName("Cuatro series, fabricadas bajo pedido");
     const lis = [...container.querySelectorAll("ul.series > li")];
     expect(lis).toHaveLength(4);
     lis.forEach((li, i) => {

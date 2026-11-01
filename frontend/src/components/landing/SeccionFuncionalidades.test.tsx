@@ -18,7 +18,7 @@ const TITULOS = [
 describe("Funcionalidades", () => {
   it("región con nueve tarjetas de cristal en el orden de lectura", () => {
     const { container } = render(<Funcionalidades />);
-    expect(container.querySelector("section#funcionalidades")).toHaveAttribute("aria-label", "Funcionalidades");
+    expect(container.querySelector("section#funcionalidades")).toHaveAccessibleName("Lo que hay dentro");
     const lis = [...container.querySelectorAll("ul.bento > li[data-glass]")];
     expect(lis.map((li) => li.getAttribute("data-area"))).toEqual(
       ["seg", "morfo", "motor", "detec", "prueba", "informe", "clip", "sesiones", "pacientes"],

@@ -16,6 +16,10 @@ describe("Tabs", () => {
     render(<Tabs tabs={["A", "B"]} value="A" onChange={() => {}} />);
     expect(screen.getByRole("tab", { name: "A" }).style.transition).toContain("color var(--dur-2)");
   });
+  it("acepta un nombre accesible para la barra", () => {
+    render(<Tabs aria-label="Qué ver" tabs={["A", "B"]} value="A" onChange={() => {}} />);
+    expect(screen.getByRole("tablist", { name: "Qué ver" })).toBeInTheDocument();
+  });
   it("el indicador es un solo elemento que vive bajo la pestaña activa", () => {
     render(<Tabs tabs={["A", "B", "C"]} value="B" onChange={() => {}} />);
     const ind = document.querySelectorAll("[data-tab-indicator]");

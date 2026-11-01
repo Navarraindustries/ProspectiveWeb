@@ -153,7 +153,11 @@ describe("con el API fallando (F1-2, F1-29)", () => {
     // «Hoy» tampoco puede decir 0 pacientes: con el servidor caído parecería una pérdida.
     const hoy = screen.getByRole("region", { name: "Hoy" });
     expect(within(hoy).getByText("Pacientes").parentElement!.textContent).toContain("—");
-    expect(hoy.textContent).not.toMatch(/0/);
+    // Cada cifra del resumen, no el texto pegado («En curso0» no tiene frontera de palabra).
+    const cifras = within(hoy).getAllByRole("definition").map((d) => d.textContent);
+    expect(cifras.length).toBeGreaterThan(0);
+    expect(cifras).not.toContain("0");
+    expect(cifras.every((c) => c === "—")).toBe(true);
 
     listPatients.mockResolvedValueOnce([fila({ id: 7, full_name: "Restrepo, María" })]);
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
@@ -253,7 +257,7 @@ describe("la lista de pacientes (F2)", () => {
     ]);
     renderAt("/app/pacientes");
     await screen.findByText("Solo mío");
-    expect(within(screen.getByRole("tablist")).getAllByRole("tab")).toHaveLength(3);
+    expect(within(screen.getByRole("tablist", { name: "Qué pacientes ver" })).getAllByRole("tab")).toHaveLength(3);
     expect(screen.getByRole("tab", { name: "Todos" }).getAttribute("aria-selected")).toBe("true");
 
     fireEvent.click(screen.getByRole("tab", { name: "Míos" }));

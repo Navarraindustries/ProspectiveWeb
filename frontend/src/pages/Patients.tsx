@@ -227,7 +227,7 @@ export function Patients({
                      value={q} onChange={(e) => setQ(e.target.value)} />
             </div>
             {conCompartidos && (
-              <Tabs tabs={PESTANAS.map((t) => t.texto)}
+              <Tabs aria-label="Qué pacientes ver" tabs={PESTANAS.map((t) => t.texto)}
                     value={PESTANAS.find((t) => t.id === pestanaActiva)!.texto}
                     onChange={(texto) => setPestana(PESTANAS.find((t) => t.texto === texto)!.id)} />
             )}

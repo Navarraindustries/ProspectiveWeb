@@ -424,7 +424,7 @@ export function Workspace({
           // way out was the button on the right, which drops you in the full
           // list having forgotten which case you were planning.
           { label: patient ? patient.full_name : "Sesión", onClick: patient ? onOpenPatient : undefined,
-            detail: patient?.hospital_id || undefined },
+            detail: patient?.hospital_id?.trim() || undefined },
           ...(caseLabel ? [{ label: caseLabel, onClick: patient ? onOpenPatient : undefined }] : []),
         ]}
         status={<SaveStatus state={saveState} savedAt={savedAt} />}

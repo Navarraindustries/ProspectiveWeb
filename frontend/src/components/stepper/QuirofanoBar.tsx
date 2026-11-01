@@ -91,7 +91,12 @@ export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions }: {
                         {c.label}
                       </span>
                     )}
-                    {c.detail && <span className="shell-crumb-detail" title={`HC ${c.detail}`}>{c.detail}</span>}
+                    {c.detail && (
+                      <span className="shell-crumb-detail" title={`HC ${c.detail}`}>
+                        <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}>HC </span>
+                        {c.detail}
+                      </span>
+                    )}
                   </li>
                 );
               })}

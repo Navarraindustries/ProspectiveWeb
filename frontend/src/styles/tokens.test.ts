@@ -243,11 +243,31 @@ describe("tokens de la dirección D", () => {
       }
     };
     recorre(raiz);
-    const texto = ficheros.map((f) => readFileSync(f, "utf8")).join("\n");
+    // Sin comentarios: una variable nombrada solo en un comentario no está definida.
+    const texto = ficheros.map((f) => readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\/|(^|[^:"'`])\/\/.*$/gm, "$1")).join("\n");
     const definidas = new Set<string>(Object.keys(EN_EJECUCION));
     for (const m of texto.matchAll(/(?:^|[\s;{"'`])(--[a-z0-9-]+)\s*(?::|["'`]\s*:)/gi)) definidas.add(m[1]);
     for (const m of texto.matchAll(/setProperty\(\s*["'`](--[a-z0-9-]+)/g)) definidas.add(m[1]);
-    const usadas = new Set([...texto.matchAll(/var\(\s*(--[a-z0-9-]+)/gi)].map((m) => m[1]));
+    // `var(--x, respaldo)` con respaldo no falla aunque --x no exista.
+    const usadas = new Set([...texto.matchAll(/var\(\s*(--[a-z0-9-]+)\s*([,)])/gi)].filter((m) => m[2] === ")").map((m) => m[1]));
+    // Suelo de cordura: si el escaneo dejara de ver el código, la prueba pasaría vacía.
+    expect(usadas.size).toBeGreaterThan(100);
+    expect(definidas.has("--primary") && definidas.has("--glass")).toBe(true);
     expect([...usadas].filter((n) => !definidas.has(n)).sort()).toEqual([]);
+
+    // Nombres dinámicos var(--${x}): no se pueden escanear, así que cada uno se declara aquí
+    // con los valores que puede tomar (leídos de su tipo en el código) y cada valor debe existir.
+    const DINAMICAS: Record<string, string[]> = {
+      // Patients.tsx: var(--${av.tono}); tono es "warning" | "destructive" | "success" (lib/avisosOficina.ts).
+      "pages/Patients.tsx": ["warning", "destructive", "success"],
+    };
+    const tonos = readFileSync(join(raiz, "lib/avisosOficina.ts"), "utf8").match(/tono:\s*([^;]+);/)![1];
+    expect([...tonos.matchAll(/"([a-z-]+)"/g)].map((m) => m[1]).sort()).toEqual([...DINAMICAS["pages/Patients.tsx"]].sort());
+    const conDinamicas = ficheros.filter((f) => /var\(--\$\{/.test(readFileSync(f, "utf8")))
+      .map((f) => f.slice(raiz.length + 1).replace(/\\/g, "/")).sort();
+    expect(conDinamicas).toEqual(Object.keys(DINAMICAS).sort());
+    for (const valores of Object.values(DINAMICAS)) {
+      for (const v of valores) expect(definidas.has("--" + v), `--${v}`).toBe(true);
+    }
   });
 });

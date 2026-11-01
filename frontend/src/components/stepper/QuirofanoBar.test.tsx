@@ -28,9 +28,11 @@ describe("QuirofanoBar", () => {
   });
   it("la HC del paciente se enseña junto a su nombre si la miga la trae", () => {
     const { rerender } = render(<QuirofanoBar crumbs={[{ label: "Ana Pérez", detail: "HC-42" }]} onBack={vi.fn()} />);
-    expect(screen.getByText("HC-42")).toBeTruthy();
+    // El lector oye «HC HC-42»: el rótulo va como texto oculto.
+    expect(screen.getByText("HC-42", { exact: false }).textContent).toBe("HC HC-42");
+    expect(screen.getByTitle("HC HC-42")).toBeTruthy();
     rerender(<QuirofanoBar crumbs={[{ label: "Ana Pérez" }]} onBack={vi.fn()} />);
-    expect(screen.queryByText("HC-42")).toBeNull();
+    expect(screen.queryByTitle("HC HC-42")).toBeNull();
   });
   it("las dos pastillas son de cristal", () => {
     const { container } = render(<QuirofanoBar crumbs={[]} onBack={vi.fn()} />);

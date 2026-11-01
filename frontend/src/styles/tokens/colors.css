@@ -43,7 +43,7 @@
   --muted-foreground:   #B8C0CC;
   --accent:             rgba(90, 169, 255, 0.16);
   --accent-foreground:  #8CC4FF;
-  --data:               #5AA9FF;
+  --data:               #60ADFF;   /* un punto más claro que el acento: 4,5:1 sobre el peor fondo de cristal */
 
   /* Estado activo / selección */
   --brand-subtle:       rgba(90, 169, 255, 0.16);

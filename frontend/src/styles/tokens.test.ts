@@ -72,7 +72,7 @@ describe("tokens de la dirección D", () => {
     const dark = block(DARK), light = block('[data-theme="light"]');
     expect(dark).toMatch(/--surface-2:\s*#0A0B0E/i);
     expect(light).toMatch(/--surface-2:\s*#FFFFFF/i);
-    expect(dark).toMatch(/--data:\s*#5AA9FF/i);
+    expect(dark).toMatch(/--data:\s*#60ADFF/i);
     expect(light).toMatch(/--data:\s*#1F5FC0/i);
     expect(light).toMatch(/--canvas:\s*#F3F5F8/i);
     expect(light).toMatch(/--primary:\s*#0A66FF/i);

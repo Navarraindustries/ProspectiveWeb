@@ -55,7 +55,7 @@ export function etiquetaAccion(code: string): string {
 const CLAVES: Record<string, string> = {
   target: "Cuenta", session_id: "Sesión", part_no: "Nº de pieza", role: "Rol", workshop: "Taller",
   username: "Usuario", user_ids: "Usuarios", status: "Estado", reason: "Motivo",
-  patient_id: "Paciente", patient: "Paciente", pages: "Páginas", ok: "Correcto", broken: "Bloques rotos",
+  patient_id: "Id. del paciente", patient: "Paciente", pages: "Páginas", ok: "Correcto", broken: "Bloques rotos",
   label: "Nombre", kind: "Tipo", case: "Caso", capture: "Captura", step: "Paso", study: "Estudio",
   detalle: "Detalle",
 };
@@ -78,13 +78,21 @@ function valor(v: unknown): string {
 }
 
 /** El `payload_json` como pares clave · valor, con las claves ya en castellano;
- *  lo que no es un objeto JSON se muestra entero para no ocultar nada a quien audita. */
+ *  lo que no es un objeto JSON se muestra entero para no ocultar nada a quien audita.
+ *  Los rótulos salen únicos (sirven de clave): si dos claves se traducen igual, la
+ *  segunda lleva entre paréntesis su nombre original. */
 export function detalleDelBloque(payloadJson: string): [string, string][] {
   if (!payloadJson) return [];
   try {
     const p: unknown = JSON.parse(payloadJson);
     if (p && typeof p === "object" && !Array.isArray(p)) {
-      return Object.entries(p as Record<string, unknown>).map(([k, v]) => [etiquetaClave(k), valor(v)]);
+      const vistos = new Set<string>();
+      return Object.entries(p as Record<string, unknown>).map(([k, v]) => {
+        let rotulo = etiquetaClave(k);
+        if (vistos.has(rotulo)) rotulo = `${rotulo} (${k})`;
+        vistos.add(rotulo);
+        return [rotulo, valor(v)];
+      });
     }
     return [[etiquetaClave("detalle"), valor(p)]];
   } catch {

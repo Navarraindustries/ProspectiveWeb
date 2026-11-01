@@ -191,6 +191,73 @@ describe("F2 (16)", () => {
     expect(dts).toEqual(expect.arrayContaining(["Fecha y hora", "Usuario", "Paciente"]));
   });
 
+  it("a 1024 la fecha y la etiqueta de la acción pueden partir (I3)", async () => {
+    simularPantalla(1024);
+    auditBlocks.mockResolvedValueOnce([bloque()]);
+    render(<AuditTrail onBack={() => {}} />);
+    const accion = await screen.findByText("Inicio de sesión", { selector: "span" });
+    expect(accion).toHaveStyle({ whiteSpace: "normal" });
+    const fecha = screen.getByText(fechaHora("2026-10-11T03:01:00Z"));
+    expect(fecha.closest("td, th")!.getAttribute("style") ?? "").not.toMatch(/white-space:\s*nowrap/);
+  });
+
+  it("> 1024 la fecha y la acción no parten", async () => {
+    simularPantalla(1280);
+    auditBlocks.mockResolvedValueOnce([bloque()]);
+    render(<AuditTrail onBack={() => {}} />);
+    const accion = await screen.findByText("Inicio de sesión", { selector: "span" });
+    expect(accion).toHaveStyle({ whiteSpace: "nowrap" });
+    expect(screen.getByText(fechaHora("2026-10-11T03:01:00Z")).closest("td, th")).toHaveStyle({ whiteSpace: "nowrap" });
+  });
+
+  it("la fecha va en sans con cifras tabulares, no en mono (M2)", async () => {
+    auditBlocks.mockResolvedValueOnce([bloque()]);
+    render(<AuditTrail onBack={() => {}} />);
+    const fecha = await screen.findByText(fechaHora("2026-10-11T03:01:00Z"));
+    expect(fecha).toHaveStyle({ fontFamily: "var(--font-sans)", fontVariantNumeric: "tabular-nums", fontSize: "13px" });
+  });
+
+  it("un solo chevron por fila, que gira al desplegar (P6)", async () => {
+    auditBlocks.mockResolvedValueOnce([bloque()]);
+    render(<AuditTrail onBack={() => {}} />);
+    const boton = await screen.findByRole("button", { name: /Inicio de sesión/ });
+    const fila = boton.closest("tr")!;
+    expect(fila.querySelectorAll("svg")).toHaveLength(1);
+    expect(fila.querySelector(".tt-chevron")).toHaveAttribute("data-abierto", "false");
+    fireEvent.click(boton);
+    expect(fila.querySelectorAll("svg")).toHaveLength(1);
+    expect(fila.querySelector(".tt-chevron")).toHaveAttribute("data-abierto", "true");
+  });
+
+  it("una sola fila «Paciente» en el detalle y sin claves repetidas (M6)", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    auditBlocks.mockResolvedValueOnce([bloque({
+      action: "CASE_DELETED", patient_hash: "h9", patient_name: "",
+      payload_json: JSON.stringify({ patient: 9, patient_id: 9, case: 3 }),
+    })]);
+    render(<AuditTrail onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Caso eliminado/ }));
+    const dts = screen.getAllByRole("term").map((d) => d.textContent);
+    expect(dts.filter((t) => t === "Paciente")).toHaveLength(1);
+    expect(dts).toContain("Id. del paciente");
+    // El aviso de la huella sin paciente va dentro de esa fila.
+    const dd = screen.getByText("Paciente", { selector: "dt" }).nextElementSibling as HTMLElement;
+    expect(dd).toHaveTextContent("9");
+    expect(dd).toHaveTextContent(/huella del paciente/);
+    expect(error.mock.calls.some((c) => String(c[0]).includes("same key"))).toBe(false);
+    error.mockRestore();
+  });
+
+  it("con filtro de paciente y sin bloques dice que el paciente no tiene registros (M6)", async () => {
+    auditBlocks.mockResolvedValueOnce([bloque()]);
+    render(<AuditTrail onBack={() => {}} />);
+    await screen.findByText("Inicio de sesión", { selector: "span" });
+    auditBlocks.mockResolvedValueOnce([]);
+    fireEvent.change(screen.getByLabelText("Paciente"), { target: { value: "7" } });
+    expect(await screen.findByText("No hay registros de este paciente")).toBeInTheDocument();
+    expect(screen.queryByText("La cadena está vacía.")).toBeNull();
+  });
+
   it("a 1024 la tabla cabe sin minWidth ni scroll horizontal", async () => {
     simularPantalla(1024);
     auditBlocks.mockResolvedValueOnce([bloque()]);
@@ -248,7 +315,7 @@ describe("cristal (fase 2)", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Inicio de sesión/ }));
     expect(screen.getByText("Hash anterior").closest("tr")).toHaveClass("fila-detalle");
     const css = readFileSync(join(__dirname, "..", "styles", "office.css"), "utf8");
-    const regla = css.match(/\.tabla-oficina tbody tr\.fila-detalle td\s*\{([^}]*)\}/);
+    const regla = css.match(/\.tabla-oficina tbody tr\.fila-detalle :is\(td, th\)\s*\{([^}]*)\}/);
     expect(regla).not.toBeNull();
     expect(regla![1]).toMatch(/border-top:\s*0/);
     expect(regla![1]).toMatch(/background:\s*var\(--muted\)/);

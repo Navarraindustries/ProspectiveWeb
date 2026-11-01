@@ -16,7 +16,8 @@ import { SectionLabel, Card, ErrorNote } from "../components/PanelHead";
 import { AdminOnlyCard } from "../components/AdminOnly";
 import { LoadState, loadErrorText } from "../components/LoadState";
 import { useAuth } from "../store/auth";
-import { fechaHora } from "../lib/fecha";
+import { ESTILO_FECHA, fechaHora } from "../lib/fecha";
+import { useTableta } from "../hooks/useEstrecho";
 import { detalleDelBloque, etiquetaAccion } from "../lib/auditoria";
 import "../styles/office.css";
 import { PageBody } from "../components/shell/PageBody";
@@ -135,20 +136,27 @@ function AuditTrailPage() {
 
   useEffect(() => setShown(PAGE), [q, action]);
 
+  // Hasta 1024 px: la fecha y la etiqueta de la acción pueden partir en líneas
+  // para que la tabla quepa sin scroll horizontal (y el título de la tarjeta, en móvil).
+  const partir = useTableta();
   const columnas: ColumnaTabla<AuditBlock>[] = [
     {
-      id: "fecha", titulo: "Fecha y hora", sinPartir: true,
+      id: "fecha", titulo: "Fecha y hora", sinPartir: !partir,
       // Hora local para leer; la UTC original, que es la que firma la cadena, queda en el tooltip.
-      celda: (b) => <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }} title={`UTC: ${b.iso_ts}`}>{fechaHora(b.iso_ts)}</span>,
+      celda: (b) => <span style={{ ...ESTILO_FECHA, fontSize: 13, color: "var(--muted-foreground)" }} title={`UTC: ${b.iso_ts}`}>{fechaHora(b.iso_ts)}</span>,
     },
     { id: "usuario", titulo: "Usuario", celda: (b) => b.username || "—" },
     {
+      // Un solo chevron por fila: el de TablaTarjetas, que gira al desplegar.
       id: "accion", titulo: "Acción", enTarjeta: "titulo",
       celda: (b) => (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <Icon name={open.has(b.id) ? "CHEVRON_DOWN" : "CHEVRON_RIGHT"} size={14} />
-          <Badge title={b.action} variant={b.action === "GENESIS" ? "outline" : b.action === "INTEGRITY_CHECK" ? "subtle" : "secondary"}>{etiquetaAccion(b.action)}</Badge>
-        </span>
+        <Badge
+          title={b.action}
+          variant={b.action === "GENESIS" ? "outline" : b.action === "INTEGRITY_CHECK" ? "subtle" : "secondary"}
+          style={partir ? { whiteSpace: "normal" } : undefined}
+        >
+          {etiquetaAccion(b.action)}
+        </Badge>
       ),
     },
     { id: "paciente", titulo: "Paciente", celda: (b) => <PacienteDelBloque b={b} /> },
@@ -230,7 +238,13 @@ function AuditTrailPage() {
           ) : loading && blocks.length === 0 ? (
             <LoadState state="cargando" />
           ) : (
-            <EstadoVacio icono={blocks.length === 0 ? "SHIELD" : "FILTER"} titulo={blocks.length === 0 ? "La cadena está vacía." : "Ningún bloque coincide con el filtro."} />
+            <EstadoVacio
+              icono={blocks.length === 0 && !patientId ? "SHIELD" : "FILTER"}
+              titulo={blocks.length > 0 ? "Ningún bloque coincide con el filtro."
+                // Un paciente sin eventos no es una cadena vacía (que sería una alarma).
+                : patientId ? "No hay registros de este paciente"
+                : "La cadena está vacía."}
+            />
           )}
         />
 
@@ -254,11 +268,15 @@ function AuditTrailPage() {
 function DetalleBloque({ b }: { b: AuditBlock }) {
   const detalle = detalleDelBloque(b.payload_json);
   const sinResolver = !!b.patient_hash && !b.patient_name;
+  // Una sola fila «Paciente»: si el detalle ya la trae, el aviso de huella sin
+  // paciente va dentro de ella.
+  const conPaciente = detalle.some(([k]) => k === "Paciente");
+  const aviso = <div style={ROTULO}>{SIN_PACIENTE_TITULO}</div>;
   return (
     <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 14px", margin: 0 }}>
       <dt style={ROTULO}>Código</dt>
       <dd style={MONO}>{b.action}</dd>
-      {sinResolver && (
+      {sinResolver && !conPaciente && (
         <>
           <dt style={ROTULO}>Paciente</dt>
           <dd style={{ margin: 0 }}>{SIN_PACIENTE_TITULO}</dd>
@@ -267,7 +285,10 @@ function DetalleBloque({ b }: { b: AuditBlock }) {
       {detalle.map(([k, v]) => (
         <Fragment key={k}>
           <dt style={ROTULO}>{k}</dt>
-          <dd style={{ margin: 0, overflowWrap: "anywhere" }}>{v}</dd>
+          <dd style={{ margin: 0, overflowWrap: "anywhere" }}>
+            {v}
+            {sinResolver && k === "Paciente" && aviso}
+          </dd>
         </Fragment>
       ))}
       <dt style={ROTULO}>Hash</dt>

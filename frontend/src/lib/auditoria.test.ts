@@ -37,6 +37,12 @@ describe("claves y booleanos", () => {
     expect(detalleDelBloque('{"capture": 3, "case": 7, "ok": true, "broken": false}')).toEqual([["Captura", "3"], ["Caso", "7"], ["Correcto", "Sí"], ["Bloques rotos", "No"]]);
     expect(etiquetaClave("algo_raro")).toBe("Algo raro");
     expect(etiquetaClave("part_no")).toBe("Nº de pieza");
-    expect(etiquetaClave("patient_id")).toBe("Paciente");
+    expect(etiquetaClave("patient_id")).toBe("Id. del paciente");
+    expect(etiquetaClave("patient")).toBe("Paciente");
+  });
+
+  it("los rótulos salen únicos aunque dos claves se traduzcan igual (M6)", () => {
+    expect(detalleDelBloque('{"patient": 4, "patient_id": 4}').map(([k]) => k)).toEqual(["Paciente", "Id. del paciente"]);
+    expect(detalleDelBloque('{"detalle": "a", "Detalle": "b"}').map(([k]) => k)).toEqual(["Detalle", "Detalle (Detalle)"]);
   });
 });

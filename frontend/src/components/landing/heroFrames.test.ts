@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
-  DETECCION_036, MANIFIESTO, fotogramaPara, precargarEnOrden, rutaFotograma, ultimoCargado,
+  DETECCION_CASE3, MANIFIESTO, fotogramaPara, precargarEnOrden, rutaFotograma, ultimoCargado,
 } from "./heroFrames";
 
 describe("fotogramaPara: el fotograma sale del progreso, no de deltas", () => {
@@ -33,14 +33,15 @@ describe("ultimoCargado: sin parpadeo a vacío mientras llega la imagen", () => 
   });
 });
 
-describe("DETECCION_036: la salida del detector para el caso del hero", () => {
+describe("DETECCION_CASE3: la salida del detector para el caso del hero", () => {
   it("cinco candidatos por puesto y solo el primero es la lesión", () => {
-    expect(DETECCION_036.map((c) => c.puesto)).toEqual([1, 2, 3, 4, 5]);
-    expect(DETECCION_036.filter((c) => c.lesion).map((c) => c.puesto)).toEqual([1]);
+    expect(DETECCION_CASE3.map((c) => c.puesto)).toEqual([1, 2, 3, 4, 5]);
+    expect(DETECCION_CASE3.filter((c) => c.lesion).map((c) => c.puesto)).toEqual([1]);
   });
 
   it("diámetros a un decimal, como los da el detector redondeados", () => {
-    expect(DETECCION_036.map((c) => c.diametroMm)).toEqual([11.6, 8.8, 4.8, 4.7, 6.9]);
+    expect(DETECCION_CASE3.map((c) => c.diametroMm)).toEqual([3.7, 5.4, 5.8, 5.1, 2.7]);
+    expect(DETECCION_CASE3[0].canales).toEqual(["curvatura"]);
   });
 });
 

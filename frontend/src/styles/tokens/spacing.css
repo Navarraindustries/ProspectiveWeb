@@ -59,7 +59,8 @@
   --shadow-sheet: -30px 0 80px rgba(11, 12, 15, 0.18);
 }
 
-/* La landing fija data-theme="dark" bajo un documento que puede ser claro. */
+/* Los escenarios oscuros de la landing (data-escenario="oscuro") fijan
+   data-theme="dark" bajo un documento que puede ser claro. */
 [data-theme="dark"] {
   --shadow-md: 0 14px 40px rgba(0, 0, 0, 0.5);
   --shadow-lg: 0 40px 90px rgba(0, 0, 0, 0.6);

@@ -8,12 +8,14 @@
 
    Las dos son del mismo tipo: una afirmación escrita a mano al lado del dato que
    la desmiente. Estas pruebas la atan al dato. */
-import { describe, expect, it } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import { Landing } from "./Landing";
 import { STEPS } from "../pipeline/steps";
+import { ThemeProvider } from "../store/theme";
+import { simularPantalla } from "../test/pantalla";
 
 const show = () => render(<MemoryRouter><Landing /></MemoryRouter>);
 
@@ -44,9 +46,10 @@ describe("lo que la portada promete", () => {
   it("nombra la familia que sí se ofrece, y sus cuatro series", () => {
     show();
     expect(screen.getByText(/NAVARRO/)).toBeInTheDocument();
-    for (const serie of [/T1 recta/, /T2 curva/, /T3 angulada/, /T4 fenestrada/]) {
+    for (const serie of [/T1 recto/, /T2 curvo/, /T3 angulado/, /T4 fenestrado/]) {
       expect(screen.getByText(serie)).toBeInTheDocument();
     }
+    expect(text()).not.toMatch(/T1 recta|T2 curva|T3 angulada|T4 fenestrada/);
   });
 
   it("no se calla el paso de fabricación entre lo que ofrece", () => {
@@ -220,9 +223,9 @@ describe("Landing D: secciones del tablero", () => {
 
   it("«Casos reales» va entre «Funcionalidades» e «Índices morfométricos» y su figura es la real", () => {
     const { container } = show();
-    const antes = screen.getByRole("region", { name: "Funcionalidades" });
+    const antes = screen.getByRole("region", { name: "Lo que hay dentro" });
     const casos = screen.getByRole("region", { name: "Casos reales" });
-    const despues = screen.getByRole("region", { name: "Índices morfométricos" });
+    const despues = screen.getByRole("region", { name: "Ocho números que describen el saco" });
     expect(antes.compareDocumentPosition(casos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(casos.compareDocumentPosition(despues) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const img = casos.querySelector("img");
@@ -241,5 +244,108 @@ describe("Landing D: secciones del tablero", () => {
     for (const id of ["que-es", "como-funciona", "indices", "dispositivos"]) {
       expect(container.querySelector(`#${id}`), id).not.toBeNull();
     }
+  });
+});
+
+describe("responsive", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each([[360, "movil"], [390, "movil"], [768, "tableta"], [1024, "tableta"], [1280, "estrecho"],
+    [1366, "ancho"], [1707, "ancho"], [1920, "grande"], [2560, "grande"]])(
+    "a %i px la raíz es data-tramo=%s", (ancho, tramo) => {
+      simularPantalla(ancho);
+      const { container } = show();
+      expect(container.querySelector(".landing-stitch")).toHaveAttribute("data-tramo", tramo);
+    });
+
+  it("al girar la tableta el tramo cambia sin recargar", () => {
+    const p = simularPantalla(1280);
+    const { container } = show();
+    act(() => p.cambiar({ ancho: 768 }));
+    expect(container.querySelector(".landing-stitch")).toHaveAttribute("data-tramo", "tableta");
+  });
+
+  it("las imágenes bajo el hero cargan perezosas y con tamaño explícito", () => {
+    const { container } = show();
+    const imgs = [...container.querySelectorAll("img")].filter((i) => !i.closest('[aria-label="Portada"]'));
+    expect(imgs.length).toBeGreaterThan(0);
+    for (const i of imgs) {
+      expect(i).toHaveAttribute("loading", "lazy");
+      expect(i).toHaveAttribute("decoding", "async");
+      expect(i.getAttribute("width")).toMatch(/^\d+$/);
+      expect(i.getAttribute("height")).toMatch(/^\d+$/);
+    }
+  });
+});
+
+describe("la landing no escribe colores a mano", () => {
+  const ficheros = [
+    ...Object.entries(import.meta.glob("../components/landing/*.tsx", { query: "?raw", import: "default", eager: true }))
+      .filter(([ruta]) => !ruta.includes(".test.")),
+    ...Object.entries(import.meta.glob("./Landing.tsx", { query: "?raw", import: "default", eager: true })),
+  ] as [string, string][];
+
+  it("encuentra los ficheros", () => {
+    expect(ficheros.length).toBeGreaterThan(5);
+  });
+
+  it.each(ficheros)("%s usa solo tokens", (_ruta, fuente) => {
+    const sinComentarios = fuente.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+    expect(sinComentarios).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
+  });
+});
+
+/* Tarea 12 (pedido del dueño, 01-11): la portada deja de estar anclada en oscuro
+   y sigue el tema de la aplicación. Solo los escenarios de imagen radiológica
+   (escenario del hero y franja de casos) y los marcos de render conservan el
+   negro del quirófano. */
+describe("tema claro: la portada sigue el tema de la aplicación", () => {
+  afterEach(() => {
+    localStorage.clear();
+    document.documentElement.removeAttribute("data-theme");
+  });
+
+  const conTema = (tema: "light" | "dark") => {
+    localStorage.setItem("prospective.theme", tema);
+    return render(<ThemeProvider><MemoryRouter><Landing /></MemoryRouter></ThemeProvider>);
+  };
+
+  it("la raíz no fija data-theme", () => {
+    const { container } = show();
+    expect(container.querySelector(".landing-stitch")).not.toHaveAttribute("data-theme");
+  });
+
+  it.each(["light", "dark"] as const)("con tema %s la raíz lo hereda de <html>", (tema) => {
+    const { container } = conTema(tema);
+    const raiz = container.querySelector(".landing-stitch")!;
+    expect(raiz.closest("[data-theme]")).toBe(document.documentElement);
+    expect(document.documentElement).toHaveAttribute("data-theme", tema);
+  });
+
+  it.each(["light", "dark"] as const)("con tema %s los escenarios radiológicos siguen oscuros", (tema) => {
+    const { container } = conTema(tema);
+    const escenario = container.querySelector(".hero-cortes__escenario")!;
+    expect(escenario).toHaveAttribute("data-theme", "dark");
+    expect(escenario).toHaveAttribute("data-escenario", "oscuro");
+    // La ventana de detección vive dentro del escenario: hereda el oscuro.
+    expect(container.querySelector(".hero-ventana")!.closest("[data-theme]")).toBe(escenario);
+    const franja = container.querySelector(".franja-casos")!;
+    expect(franja).toHaveAttribute("data-theme", "dark");
+    expect(franja).toHaveAttribute("data-escenario", "oscuro");
+  });
+
+  it("toda isla oscura es un escenario de imagen marcado", () => {
+    const { container } = conTema("light");
+    const islas = [...container.querySelectorAll('[data-theme="dark"]')];
+    expect(islas.length).toBeGreaterThan(2);
+    for (const isla of islas) expect(isla, isla.className).toHaveAttribute("data-escenario", "oscuro");
+  });
+
+  it("el conmutador de la nav cambia el tema de la portada", () => {
+    conTema("dark");
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar a tema claro" }));
+    expect(document.documentElement).toHaveAttribute("data-theme", "light");
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar a tema oscuro" }));
+    expect(document.documentElement).toHaveAttribute("data-theme", "dark");
   });
 });

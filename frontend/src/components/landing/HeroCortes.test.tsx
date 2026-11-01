@@ -1,13 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import { HeroCortes } from "./HeroCortes";
 import { CONSULTA_HERO_QUIETO } from "./heroFrames";
+import { simularPantalla } from "../../test/pantalla";
 
 const reducida = vi.hoisted(() => ({ valor: false }));
 vi.mock("../../motion", async (orig) => ({
   ...(await orig<typeof import("../../motion")>()),
   useReducedMotion: () => reducida.valor,
+}));
+
+const irA = vi.hoisted(() => vi.fn());
+vi.mock("./desplazamiento", async (orig) => ({
+  ...(await orig<typeof import("./desplazamiento")>()),
+  useIrASeccion: () => irA,
 }));
 
 const LEMA = "Planificación neurovascular con datos";
@@ -51,7 +58,7 @@ function esperarQuieto(container: HTMLElement) {
     expect(el.style.transform).toBe("");
   }
   expect(cortes(container)).toHaveLength(0);
-  expect(screen.queryByText(/^W 600 · L 60/)).toBeNull();
+  expect(screen.queryByText(/^W 3000 · L 1800/)).toBeNull();
   const cabecera = screen.getByText("Detección · 5 candidatos");
   expect(cabecera.closest("[aria-hidden]")).toBeNull();
   expect((cabecera.closest(".hero-cortes__ventana") as HTMLElement).style.opacity).toBe("1");
@@ -77,7 +84,7 @@ describe("HeroCortes", () => {
     const primera = container.querySelector("img");
     expect(primera).toHaveAttribute("src", "/media/landing/hero/000.webp");
     expect(cortes(container)).toHaveLength(1);
-    expect(screen.getByText("W 600 · L 60 · corte 60/594")).toBeInTheDocument();
+    expect(screen.getByText("W 3000 · L 1800 · MIP 4,2 mm · corte 95/384")).toBeInTheDocument();
     const seccion = container.querySelector("section") as HTMLElement;
     expect(seccion.style.height).toBe("300vh");
     expect(seccion).not.toHaveClass("hero-cortes--quieto");
@@ -124,25 +131,25 @@ describe("HeroCortes", () => {
     expect(cabecera.closest("[aria-hidden]")).toBeNull();
     const lista = screen.getByRole("list");
     expect(lista.querySelectorAll("li")).toHaveLength(5);
-    expect(lista.querySelectorAll("li")[0].textContent).toContain("coincide con la lesión anotada");
+    expect(lista.querySelectorAll("li")[0].textContent).toContain("coincide con la lesión confirmada");
     expect(screen.getByRole("img", { name: /Malla 3D del árbol vascular/ })).toBeInTheDocument();
   });
 
-  it("la ventana es de cristal y lista los cinco candidatos reales del 036, la lesión primero", () => {
+  it("la ventana es de cristal y lista los cinco candidatos reales de Case 3, la lesión primero", () => {
     reducida.valor = true;
     montar();
     const ventana = screen.getByText("Detección · 5 candidatos").closest("[data-glass]");
     expect(ventana).not.toBeNull();
     const filas = ventana!.querySelectorAll("li");
     expect(filas).toHaveLength(5);
-    expect(filas[0].textContent).toContain("candidato 1 · ≈11,6 mm · coincide con la lesión anotada");
-    expect(filas[0].textContent).not.toContain("lesión · ≈11,6");
-    expect(filas[0].textContent).toContain("calibre · cociente · curvatura");
-    expect(filas[1].textContent).toContain("≈8,8 mm");
-    expect(filas[4].textContent).toContain("saco pequeño");
-    expect(ventana!.textContent).not.toContain("9,8");
-    expect(screen.getByText("Caso Zenodo 036 · detector de Prospective")).toBeInTheDocument();
-    expect(screen.getByText("Un caso real; el puesto de la lesión varía de un caso a otro.")).toBeInTheDocument();
+    expect(filas[0].textContent).toContain("candidato 1 · ≈3,7 mm · coincide con la lesión confirmada (tronco basilar)");
+    expect(filas[0].textContent).toContain("curvatura");
+    expect(filas[1].textContent).toContain("≈5,4 mm");
+    for (const f of filas) expect(f.textContent).not.toContain("saco pequeño");
+    const marco = screen.getByText("Detección · 5 candidatos").closest("[data-glass]") as HTMLElement;
+    expect(within(marco).getByText("Case 3 · 3DRA · detector de Prospective")).toBeInTheDocument();
+    expect(within(marco).getByText(/no el tamaño del aneurisma/)).toBeInTheDocument();
+    expect(screen.queryByText(/Zenodo/)).toBeNull();
   });
 
   it("solo la lesión lleva baliza sobre el render: de las otras no hay posición en pantalla", () => {
@@ -151,5 +158,33 @@ describe("HeroCortes", () => {
     const balizas = container.querySelectorAll("[data-baliza]");
     expect(balizas).toHaveLength(1);
     expect(balizas[0]).toHaveTextContent("1");
+  });
+
+  /* Hasta 1024 (móvil y tableta, en los dos giros) y en pantallas bajas, quieto;
+     por encima de 1024 con alto suficiente, animado. */
+  it.each([[390, 844], [844, 390], [768, 1024], [1024, 768], [1024, 1366], [1707, 600]])("a %i × %i es quieto", (ancho, alto) => {
+    simularPantalla(ancho, alto);
+    const { container } = montar();
+    esperarQuieto(container);
+  });
+
+  it.each([[1025, 900], [1280, 900], [1366, 768], [1707, 743], [1920, 1080]])("a %i × %i es el hero animado", (ancho, alto) => {
+    simularPantalla(ancho, alto);
+    const { container } = montar();
+    const seccion = container.querySelector("section") as HTMLElement;
+    expect(seccion).not.toHaveClass("hero-cortes--quieto");
+    expect(seccion.style.height).toBe("300vh");
+  });
+});
+
+describe("HeroCortes, ancla", () => {
+  it("«Ver cómo funciona ↓» desplaza a la sección y conserva el href", () => {
+    simularPantalla(1280);
+    montar();
+    const a = screen.getByRole("link", { name: /Ver cómo funciona/ });
+    expect(a).toHaveAttribute("href", "#como-funciona");
+    fireEvent.click(a);
+    expect(irA).toHaveBeenCalledWith(expect.anything(), "como-funciona");
+    vi.unstubAllGlobals();
   });
 });

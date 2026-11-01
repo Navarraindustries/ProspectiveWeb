@@ -1,8 +1,9 @@
 /* ============================================================================
    PROSPECTIVE — Color tokens · dirección D, Quirófano de cristal
    El oscuro es el tema por defecto y vive en :root junto a [data-theme="dark"]
-   (la landing fija ese atributo en su contenedor y, sin él, heredaría el claro
-   elegido para la aplicación; una sola declaración evita que las copias se separen);
+   (los escenarios de imagen —los de la landing y los marcos del visor— fijan ese
+   atributo en su contenedor y, sin él, heredarían el claro elegido para la
+   aplicación; una sola declaración evita que las copias se separen);
    el claro se aplica bajo
    [data-theme="light"]. Los dos bloques definen EXACTAMENTE los mismos nombres
    (lo vigila tokens.test.ts): un token que solo exista en un tema dejaría una

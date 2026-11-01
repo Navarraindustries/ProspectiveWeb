@@ -13,11 +13,7 @@ const ALTOS = new Set([600, 768, 900, 1080]); // altos de la matriz
 
 /** Números previos al módulo. Cada fase que migra uno lo quita de aquí. */
 const LEGADO: Record<string, number[]> = {
-  "styles/landing.css": [760], // fase 11
   "styles/office.css": [760], // fase 9
-  "components/landing/heroFrames.ts": [760],
-  "components/landing/FranjaCasos.tsx": [760],
-  "components/landing/NavPildora.tsx": [900],
   "components/stepper/QuirofanoBar.tsx": [1366], // fase 10
 };
 

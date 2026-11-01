@@ -1,3 +1,16 @@
+# OBSOLETO: el hero usa Case 3 (backend/scripts/landing_case3/).
+#
+# Este script generaba el hero del rediseño D con el caso Zenodo 036. Se
+# conserva como referencia, pero ya no se ejecuta: escribiría en
+# frontend/public/media/landing/ y sobrescribiría los fotogramas de Case 3.
+# Para regenerar el hero: backend/scripts/landing_case3/hero_slices_case3.py.
+if __name__ == "__main__":
+    raise SystemExit(
+        "landing_hero_assets.py está obsoleto: el hero de la landing usa Case 3. "
+        "Ejecuta backend/scripts/landing_case3/hero_slices_case3.py; este script "
+        "sobrescribiría los assets actuales."
+    )
+
 import os, json, glob
 import numpy as np
 import SimpleITK as sitk

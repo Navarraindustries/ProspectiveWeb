@@ -37,8 +37,27 @@ describe("assets del hero de la landing", () => {
     expect(hero.lesionFrame).toBeLessThan(hero.count);
   });
 
-  it("la ventana de detección es 600/60", () => {
-    expect(hero.window).toEqual({ w: 600, l: 60 });
+  it("la ventana es la de la 3DRA de Case 3 (unidades crudas, no HU)", () => {
+    expect(hero.window).toEqual({ w: 3000, l: 1800 });
+  });
+
+  it("existen los renders de las secciones y de los cuatro clips", () => {
+    for (const f of ["secciones/case3-frontal.webp", "secciones/case3-oblicua.webp", "secciones/case3-saco.webp",
+      "clips/navarro-t1-recto.webp", "clips/navarro-t2-curvo.webp", "clips/navarro-t3-angulado-45.webp",
+      "clips/navarro-t4-fenestrado.webp"]) expect(existsSync(join(DIR, f)), f).toBe(true);
+  });
+
+  it("en la carpeta pública solo hay .webp y hero.json (nada de datos de trabajo)", () => {
+    const sobran: string[] = [];
+    const recorre = (dir: string, rel: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const r = rel ? `${rel}/${e.name}` : e.name;
+        if (e.isDirectory()) recorre(join(dir, e.name), r);
+        else if (!e.name.endsWith(".webp") && r !== "hero.json") sobran.push(r);
+      }
+    };
+    recorre(DIR, "");
+    expect(sobran).toEqual([]);
   });
 
   it("existen el render 3D y las dos imágenes de aneurismas", () => {

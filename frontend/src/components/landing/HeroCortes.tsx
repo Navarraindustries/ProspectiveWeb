@@ -1,4 +1,4 @@
-/* HeroCortes — la portada: los cortes axiales reales del caso Zenodo 036
+/* HeroCortes — la portada: los cortes axiales reales de Case 3 (3DRA)
    atados al scroll, que al llegar al corte del aneurisma se funden en el render
    3D de su malla con la ventana de detección encima.
 
@@ -11,9 +11,9 @@
 
    Disposición quieta: 100 vh como mínimo, sin cortes ni scroll extra, con el
    fotograma final (render 3D, balizas y ventana) desde el principio y en flujo
-   normal, así que nada se recorta. La toma con movimiento reducido, en
-   pantallas estrechas o bajas (`CONSULTA_HERO_QUIETO`: un iPhone con las barras
-   visibles no da los ~800 px que piden texto y ventana juntos) y con ahorro de
+   normal, así que nada se recorta. La toma con movimiento reducido, hasta
+   1024 de ancho y en pantallas bajas (`CONSULTA_HERO_QUIETO`: en móvil y
+   tableta va en una columna, texto arriba y ventana debajo) y con ahorro de
    datos (no se descargan los 60 cortes).
 
    La ventana de detección está siempre en el árbol de accesibilidad: con
@@ -21,12 +21,14 @@
    que no recorre el scroll la oye igual. */
 
 import { useEffect, useRef, useState } from "react";
+import { cifra } from "../../lib/numero";
 import { useMediaQuery } from "../../hooks/useEstrecho";
 import { useMotionValueEvent, useReducedMotion, useScroll } from "../../motion";
 import { Button } from "../Button";
 import {
-  CONSULTA_HERO_QUIETO, MANIFIESTO, fotogramaPara, precargarEnOrden, rutaFotograma, ultimoCargado,
+  CONSULTA_HERO_QUIETO, GROSOR_LOSA_MM, MANIFIESTO, fotogramaPara, precargarEnOrden, rutaFotograma, ultimoCargado,
 } from "./heroFrames";
+import { useIrASeccion } from "./desplazamiento";
 import { BalizasDeteccion, VentanaDeteccion } from "./VentanaDeteccion";
 
 const LEMA = "Planificación neurovascular con datos";
@@ -40,6 +42,7 @@ const pideAhorroDatos = (): boolean =>
 
 export function HeroCortes({ onEntrar, onCrearCuenta }: { onEntrar: () => void; onCrearCuenta: () => void }) {
   const reducido = useReducedMotion() ?? false;
+  const irA = useIrASeccion();
   const pequena = useMediaQuery(CONSULTA_HERO_QUIETO);
   const datosReducidos = useMediaQuery("(prefers-reduced-data: reduce)");
   const [ahorro] = useState(pideAhorroDatos);
@@ -75,14 +78,17 @@ export function HeroCortes({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
       /* Quieto: 100 vh como mínimo (`.hero-cortes--quieto`), sin altura de scroll extra. */
       style={quieto ? undefined : { height: "300vh" }}
     >
-      <div className="hero-cortes__escenario">
+      {/* Escenario radiológico: negro del visor en los dos temas, con el oscuro acotado
+          aquí para que velo, texto, botones y ventana de detección sigan claros sobre
+          negro. En el tema claro, por encima de 1024, es una pantalla con radio (landing.css). */}
+      <div className="hero-cortes__escenario" data-theme="dark" data-escenario="oscuro">
         {!quieto && (
           <img className="hero-cortes__corte" src={rutaFotograma(mostrado)} alt="" style={{ opacity: verFinal ? 0 : 1 }} />
         )}
 
         <div className="hero-cortes__render" style={{ opacity: verFinal ? 1 : 0 }}>
           <div className="hero-cortes__lienzo">
-            <img src="/media/landing/hero-3d.webp" alt="Malla 3D del árbol vascular con la lesión marcada en rojo" />
+            <img src="/media/landing/hero-3d.webp" alt="Malla 3D del árbol vascular de Case 3 (3DRA) con la lesión del tronco basilar marcada en rojo" />
           </div>
         </div>
 
@@ -106,7 +112,7 @@ export function HeroCortes({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
             <div className="hero-cortes__acciones">
               <Button size="lg" onClick={onEntrar}>Entrar</Button>
               <Button size="lg" variant="secondary" onClick={onCrearCuenta}>Crear cuenta</Button>
-              <a className="hero-cortes__ancla" href="#como-funciona">Ver cómo funciona ↓</a>
+              <a className="hero-cortes__ancla" href="#como-funciona" onClick={(e) => irA(e, "como-funciona")}>Ver cómo funciona ↓</a>
             </div>
             <div className="hero-cortes__notas">
               <span>Sin instalar nada</span>
@@ -124,7 +130,7 @@ export function HeroCortes({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
 
         {!quieto && (
           <div className="hero-cortes__rotulo" style={{ opacity: verFinal ? 0 : 1 }}>
-            W {MANIFIESTO.window.w} · L {MANIFIESTO.window.l} · corte {MANIFIESTO.sliceOf[mostrado] ?? mostrado + 1}/{MANIFIESTO.total}
+            W {MANIFIESTO.window.w} · L {MANIFIESTO.window.l} · MIP {cifra(GROSOR_LOSA_MM, 1)} mm · corte {MANIFIESTO.sliceOf[mostrado] ?? mostrado + 1}/{MANIFIESTO.total}
           </div>
         )}
       </div>

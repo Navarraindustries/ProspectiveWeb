@@ -1,17 +1,19 @@
 /* ============================================================================
    PROSPECTIVE — Landing pública
    Desde F2 la landing usa los mismos tokens que la aplicación (identidad A):
-   este fichero conserva solo su maquetación y sus efectos. Sigue siendo
-   dark-only: Landing.tsx fija data-theme="dark" en su contenedor y no ofrece
-   conmutador, así que ahí manda el bloque [data-theme="dark"] de colors.css.
+   este fichero conserva solo su maquetación y sus efectos. Desde la fase 11
+   (tarea 12) sigue el tema de la aplicación: la raíz no fija data-theme, el
+   conmutador está en la nav y todo color sale de un token con variante clara.
+   Las únicas islas oscuras son los escenarios de imagen radiológica
+   (data-escenario="oscuro" + data-theme="dark": escenario del hero, franja de
+   casos, marcos de render), que pintan --viewer-bg en los dos temas como el
+   visor del quirófano; dentro de ellas velos y rótulos usan los tokens oscuros.
    ============================================================================ */
 
-/* El <body> está fuera del contenedor oscuro y sigue la elección de tema de /app:
-   con el claro guardado asomaría un fondo claro en el rebote del scroll y en
-   cualquier franja sin pintar. Se fija el canvas oscuro de la identidad
-   (--canvas oscuro, #0B0C0F) mientras la landing esté en pantalla. */
+/* El <body> pinta el lienzo de la landing en el rebote del scroll y en cualquier
+   franja sin pintar; :root lleva el data-theme, así que el token sigue el tema. */
 :root:has(.landing-stitch) body {
-  background: #0B0C0F;
+  background: var(--canvas);
 }
 
 /* La paleta, las fuentes, los radios y las sombras ya no son propios de la
@@ -22,8 +24,8 @@
   font-family: var(--font-sans);
 }
 
-/* Landing.tsx fija tamaño y peso inline; aquí solo se ajusta el tracking de los
-   titulares, sin tocar la escala. */
+/* Tamaño y peso de cada titular salen de su clase (.hero-cortes__titulo,
+   .sec__titulo…); aquí solo la fuente de titulares y el tracking comunes. */
 .landing-stitch h1,
 .landing-stitch h2,
 .landing-stitch h3,
@@ -45,7 +47,8 @@
 }
 
 /* Al saltar a un ancla, el rótulo de la sección queda por debajo de la
-   pastilla fija de la nav (unos 70 px con su margen). */
+   pastilla fija de la nav. Es el mismo número que DESFASE_NAV
+   (desplazamiento.ts), que resta el desplazamiento animado. */
 .landing-stitch section[id] {
   scroll-margin-top: 96px;
 }
@@ -58,13 +61,26 @@
   color: var(--muted-foreground);
   text-decoration: none;
   transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
+  position: relative;
+  isolation: isolate;
+}
+/* Píldora deslizante de la sección activa (layoutId), detrás del texto. */
+.landing-stitch .landing-nav__activa {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--glass-hover);
+  border-radius: var(--radius-full);
+}
+.landing-stitch .landing-nav__enlace--activo {
+  color: var(--foreground);
 }
 .landing-stitch .landing-nav__enlace:hover,
 .landing-stitch .landing-nav__enlace:focus-visible {
   color: var(--foreground);
   background: var(--glass-hover);
 }
-/* Panel plegado (≤ 900 px): blancos de 44 px de alto. */
+/* Panel plegado (≤ 1024 px): blancos de 44 px de alto. */
 .landing-stitch .landing-nav__panel .landing-nav__enlace {
   padding: 12px;
 }
@@ -89,34 +105,47 @@
 .landing-stitch .hero-cortes--quieto {
   min-height: 100vh;
 }
+/* El escenario lleva data-theme="dark" (HeroCortes.tsx): negro del visor en los
+   dos temas, y dentro velo, texto, botones y ventana con los tokens oscuros. */
 .landing-stitch .hero-cortes__escenario {
   position: sticky;
   top: 0;
   height: 100vh;
   height: 100svh;
   overflow: hidden;
+  background: var(--viewer-bg);
 }
 /* Disposición quieta (movimiento reducido, pantalla estrecha o baja, ahorro de
    datos): sin scroll que consumir, el escenario fluye en el documento y crece
    con su contenido, sin recortar nada. El render se recorta en su propia capa
-   (`.hero-cortes__render`). El @media repite la clase que pone HeroCortes con
-   `CONSULTA_HERO_QUIETO` (heroFrames.ts): deben coincidir. */
+   (`.hero-cortes__render`). La clase la pone HeroCortes según
+   `CONSULTA_HERO_QUIETO` (heroFrames.ts): todo el tramo de tableta y las
+   pantallas bajas. */
 .landing-stitch .hero-cortes--quieto .hero-cortes__escenario {
   position: relative;
   height: auto;
   min-height: 100vh;
   overflow: visible;
 }
-@media (max-width: 760px), (max-height: 600px) {
-  .landing-stitch .hero-cortes__escenario {
-    position: relative;
-    height: auto;
-    min-height: 100vh;
-    overflow: visible;
-  }
-  .landing-stitch .hero-cortes__contenido {
-    min-height: 100vh;
-  }
+
+/* Tema claro por encima de 1024: el escenario es una pantalla dentro de la
+   página (radio y margen, no a sangre), como el visor del quirófano en la
+   aplicación. Hasta 1024 sigue a sangre. Las capas absolutas heredan el radio
+   para que el corte y el render no asomen por las esquinas en el modo quieto,
+   donde el escenario no recorta. */
+:root[data-theme="light"] .landing-stitch:is([data-tramo="estrecho"], [data-tramo="ancho"], [data-tramo="grande"]) .hero-cortes__escenario {
+  top: 16px;
+  height: calc(100vh - 32px);
+  height: calc(100svh - 32px);
+  margin: 16px 16px 0;
+  border-radius: var(--radius-xl);
+}
+:root[data-theme="light"] .landing-stitch:is([data-tramo="estrecho"], [data-tramo="ancho"], [data-tramo="grande"]) .hero-cortes--quieto .hero-cortes__escenario {
+  height: auto;
+  min-height: calc(100vh - 32px);
+}
+:root[data-theme="light"] .landing-stitch:is([data-tramo="estrecho"], [data-tramo="ancho"], [data-tramo="grande"]) :is(.hero-cortes__corte, .hero-cortes__render, .hero-cortes__velo) {
+  border-radius: inherit;
 }
 
 .landing-stitch .hero-cortes__corte,
@@ -239,7 +268,7 @@
   bottom: 24px;
   z-index: 1;
   font-family: var(--font-mono);
-  font-size: var(--text-micro);
+  font-size: 13px;
   letter-spacing: 0.06em;
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
@@ -253,7 +282,7 @@
 }
 .landing-stitch .hero-ventana__cabecera {
   font-family: var(--font-mono);
-  font-size: var(--text-micro);
+  font-size: 13px;
   color: var(--muted-foreground);
   padding: 2px 2px 10px;
 }
@@ -281,25 +310,27 @@
   align-items: center;
   justify-content: center;
   font-family: var(--font-mono);
-  font-size: var(--text-micro);
+  font-size: 13px;
   background: color-mix(in srgb, var(--canvas) 85%, transparent);
   border: 1.5px solid var(--foreground);
 }
+/* El «1» de la lesión va en oscuro sobre el rojo: en blanco no llega a 4,5:1. */
 .landing-stitch .hero-ventana__num--lesion {
   background: var(--destructive);
   border-color: var(--destructive);
+  color: var(--destructive-foreground);
 }
 .landing-stitch .hero-ventana__insignia {
   padding: 1px 8px;
   border-radius: 9999px;
-  font-size: var(--text-micro);
+  font-size: 13px;
   color: var(--muted-foreground);
   border: 1px solid var(--glass-border);
 }
 .landing-stitch .hero-ventana__nota {
   margin-left: auto;
   font-family: var(--font-mono);
-  font-size: var(--text-micro);
+  font-size: 13px;
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
 }
@@ -311,17 +342,20 @@
   padding-left: 38px;
   color: color-mix(in srgb, var(--destructive) 70%, var(--foreground));
 }
+.landing-stitch .hero-ventana__pie {
+  margin-top: 4px;
+  padding: 10px 2px 6px;
+  border-top: 1px solid var(--border);
+}
 .landing-stitch .hero-ventana__credito {
-  margin-top: 8px;
-  padding: 0 4px;
+  margin: 0;
   font-family: var(--font-mono);
-  font-size: var(--text-micro);
+  font-size: 13px;
   color: var(--muted-foreground);
 }
 .landing-stitch .hero-ventana__matiz {
-  margin: 4px 0 0;
-  padding: 0 4px;
-  font-size: var(--text-micro);
+  margin: 0;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--muted-foreground);
 }
@@ -353,6 +387,7 @@
   width: 44px;
   height: 44px;
   font-size: 15px;
+  color: var(--destructive-foreground);
   background: var(--destructive);
   border-color: var(--destructive);
   box-shadow: 0 0 0 6px color-mix(in srgb, var(--destructive) 35%, transparent),
@@ -368,74 +403,103 @@
   }
 }
 
-/* Estrecho: una columna, la ventana bajo el texto y el velo de arriba abajo.
+/* Móvil (< 640): una columna, la ventana bajo el texto y el velo de arriba abajo.
    Todo más apretado para que texto y ventana quepan en 100 vh de un móvil. */
-@media (max-width: 760px) {
-  .landing-stitch .hero-cortes__contenido {
-    grid-template-columns: minmax(0, 1fr);
-    align-content: space-between;
-    gap: 16px;
-    padding: 104px 16px 20px;
-  }
-  .landing-stitch .hero-cortes__velo {
-    background: linear-gradient(180deg, var(--veil-dense) 0%, var(--veil) 55%, var(--veil-dense) 100%);
-  }
-  .landing-stitch .hero-cortes__antetitulo {
-    margin-bottom: 14px;
-  }
-  .landing-stitch .hero-cortes__subtitulo {
-    margin-top: 16px;
-    font-size: 15px;
-    line-height: 1.5;
-  }
-  .landing-stitch .hero-cortes__acciones {
-    margin-top: 20px;
-    gap: 8px;
-  }
-  .landing-stitch .hero-cortes__ancla {
-    height: var(--control-sm);
-  }
-  .landing-stitch .hero-cortes__notas {
-    margin-top: 14px;
-  }
-  /* El saco (centro del render) baja hacia el borde entre el texto y la ventana. */
-  .landing-stitch .hero-cortes__lienzo {
-    top: 68%;
-  }
-  .landing-stitch .hero-ventana {
-    padding: 10px 12px 4px;
-  }
-  .landing-stitch .hero-ventana__cabecera {
-    padding-bottom: 6px;
-  }
-  .landing-stitch .hero-ventana__fila {
-    gap: 8px;
-    padding: 4px 2px;
-    font-size: var(--text-micro);
-  }
-  /* En estrecho no hay hueco libre para el saco: la ventana lo taparía y la
-     baliza quedaría a medias. La lista ya dice que el 1.º es la lesión. */
-  .landing-stitch .hero-balizas {
-    display: none;
-  }
-  .landing-stitch .hero-ventana__num {
-    width: 22px;
-    height: 22px;
-  }
-  .landing-stitch .hero-ventana__nota--lesion {
-    padding-left: 30px;
-  }
-  .landing-stitch .hero-cortes__rotulo {
-    right: 16px;
-    bottom: 16px;
-  }
+.landing-stitch[data-tramo="movil"] .hero-cortes__contenido {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: space-between;
+  gap: 16px;
+  padding: 104px 16px 20px;
+}
+.landing-stitch[data-tramo="movil"] .hero-cortes__velo {
+  background: linear-gradient(180deg, var(--veil-dense) 0%, var(--veil) 55%, var(--veil-dense) 100%);
+}
+.landing-stitch[data-tramo="movil"] .hero-cortes__antetitulo {
+  margin-bottom: 14px;
+}
+.landing-stitch[data-tramo="movil"] .hero-cortes__subtitulo {
+  margin-top: 16px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.landing-stitch[data-tramo="movil"] .hero-cortes__acciones {
+  margin-top: 20px;
+  gap: 8px;
+}
+.landing-stitch[data-tramo="movil"] .hero-cortes__notas {
+  margin-top: 14px;
+}
+/* El saco (centro del render) baja hacia el borde entre el texto y la ventana. */
+.landing-stitch[data-tramo="movil"] .hero-cortes__lienzo {
+  top: 68%;
+}
+.landing-stitch[data-tramo="movil"] .hero-ventana {
+  padding: 10px 12px 4px;
+}
+.landing-stitch[data-tramo="movil"] .hero-ventana__cabecera {
+  padding-bottom: 6px;
+}
+.landing-stitch[data-tramo="movil"] .hero-ventana__fila {
+  gap: 8px;
+  padding: 4px 2px;
+  font-size: 13px;
+}
+/* En estrecho no hay hueco libre para el saco: la ventana lo taparía y la
+   baliza quedaría a medias. La lista ya dice que el 1.º es la lesión. */
+.landing-stitch[data-tramo="movil"] .hero-balizas {
+  display: none;
+}
+.landing-stitch[data-tramo="movil"] .hero-ventana__num {
+  width: 22px;
+  height: 22px;
+}
+.landing-stitch[data-tramo="movil"] .hero-ventana__nota--lesion {
+  padding-left: 30px;
+}
+.landing-stitch[data-tramo="movil"] .hero-cortes__rotulo {
+  right: 16px;
+  bottom: 16px;
+}
+
+/* Tableta (640–1024): el hero siempre va quieto (`CONSULTA_HERO_QUIETO`) y en
+   una columna, como el móvil: el texto arriba y la ventana de detección debajo,
+   con el velo de arriba abajo y el saco entre los dos. Hay más alto que en un
+   móvil, así que se conserva el aire del escritorio. */
+.landing-stitch[data-tramo="tableta"] .hero-cortes__contenido {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: space-between;
+  gap: 32px;
+  padding: 104px 24px 32px;
+}
+.landing-stitch[data-tramo="tableta"] .hero-cortes__ventana {
+  max-width: 560px;
+}
+.landing-stitch[data-tramo="tableta"] .hero-cortes__velo {
+  background: linear-gradient(180deg, var(--veil-dense) 0%, var(--veil) 55%, var(--veil-dense) 100%);
+}
+.landing-stitch[data-tramo="tableta"] .hero-cortes__lienzo {
+  top: 68%;
+}
+/* Como en el móvil, la ventana bajo el texto taparía la baliza; la lista ya
+   dice que el 1.º es la lesión. */
+.landing-stitch[data-tramo="tableta"] .hero-balizas {
+  display: none;
+}
+/* Hasta 1024: el ancla del hero llega a los 44 px del dedo. */
+.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .hero-cortes__ancla {
+  height: var(--control-md);
+}
+/* Grande (≥ 1920): el contenido sigue acotado, pero con más aire. */
+.landing-stitch[data-tramo="grande"] .hero-cortes__contenido {
+  max-width: 1600px;
 }
 
 /* ============================================================================
-   Secciones del tablero D (después del hero): listas con reglas, no tarjetas.
+   Secciones después del hero: la cabecera común (.sec) y la maquetación de
+   cada una (riel, bento de cristal, índices, series, próximamente).
    ============================================================================ */
 .landing-stitch .sec {
-  padding: 112px 24px;
+  padding: clamp(64px, 10vh, 140px) 24px;
 }
 .landing-stitch .sec__cuerpo {
   max-width: 1120px;
@@ -464,11 +528,6 @@
   margin-top: 0;
   font-size: 28px;
 }
-.landing-stitch .sec__dos {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 48px;
-}
 .landing-stitch .sec__subtitulo {
   margin: 0;
   font-size: 20px;
@@ -493,99 +552,146 @@
   color: var(--muted-foreground);
 }
 
-/* Lista con reglas */
-.landing-stitch .lista-reglas {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+/* «Cómo funciona»: riel de pasos con la línea que se enciende al avanzar */
+.landing-stitch .riel__marco {
+  position: relative;
 }
-.landing-stitch .lista-reglas--dos {
-  columns: 2;
-  column-gap: 48px;
-}
-.landing-stitch .lista-reglas__fila {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 16px 0;
-  border-top: 1px solid var(--border);
-  break-inside: avoid;
-}
-.landing-stitch .lista-reglas__fila:last-child {
-  border-bottom: 1px solid var(--border);
-}
-.landing-stitch .lista-reglas--dos .lista-reglas__fila:nth-last-child(2) {
-  border-bottom: 1px solid var(--border);
-}
-.landing-stitch .lista-reglas__titulo {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--foreground);
-}
-.landing-stitch .lista-reglas__detalle {
-  margin-top: 4px;
-  font-size: 14px;
-  color: var(--muted-foreground);
-}
-.landing-stitch .lista-reglas__cifra {
-  flex-shrink: 0;
-  font-family: var(--font-mono);
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--foreground);
-}
-
-/* Los ocho pasos */
-.landing-stitch .pasos {
+.landing-stitch .riel {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
 }
-.landing-stitch .pasos__paso {
-  padding: 20px 18px;
-  border-radius: var(--radius-card-lg);
-  background: var(--glass);
+.landing-stitch .riel__pista {
+  position: absolute;
+  background: var(--border);
+  overflow: hidden;
+}
+.landing-stitch .riel__relleno {
+  width: 100%;
+  height: 100%;
+  background: var(--data);
+}
+.landing-stitch .riel__paso {
+  position: relative;
+  display: grid;
+}
+.landing-stitch .riel__nodo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-highlight);
+  background: var(--background);
+  color: var(--muted-foreground);
+  transition: color var(--dur-2), border-color var(--dur-2), background-color var(--dur-2);
 }
-.landing-stitch .pasos__num {
+.landing-stitch .riel__paso[data-encendido="true"] .riel__nodo {
+  border-color: var(--data);
+  color: var(--data);
+  background: color-mix(in srgb, var(--data) 14%, var(--background));
+}
+.landing-stitch .riel__num {
   font-family: var(--font-mono);
   font-size: 13px;
   color: var(--muted-foreground);
 }
-.landing-stitch .pasos__nombre {
-  margin-top: 14px;
-  font-size: 17px;
+.landing-stitch .riel__nombre {
   font-weight: 600;
   color: var(--foreground);
 }
-.landing-stitch .pasos__linea {
-  margin-top: 4px;
-  font-size: 14px;
+.landing-stitch .riel__linea {
   color: var(--muted-foreground);
 }
+.landing-stitch .riel[data-disposicion="horizontal"] {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 8px;
+  text-align: center;
+}
+.landing-stitch .riel__marco[data-disposicion="horizontal"] .riel__pista {
+  top: 22px;
+  left: calc(100% / 16);
+  right: calc(100% / 16);
+  height: 2px;
+}
+.landing-stitch .riel__marco[data-disposicion="horizontal"] .riel__relleno {
+  transform-origin: left center;
+}
+.landing-stitch .riel[data-disposicion="horizontal"] .riel__paso {
+  justify-items: center;
+  align-content: start;
+  row-gap: 6px;
+}
+.landing-stitch .riel[data-disposicion="horizontal"] .riel__num {
+  margin-top: 8px;
+}
+.landing-stitch .riel[data-disposicion="horizontal"] .riel__nombre {
+  font-size: 15px;
+}
+.landing-stitch .riel[data-disposicion="horizontal"] .riel__linea {
+  font-size: 13px;
+}
+.landing-stitch .riel[data-disposicion="vertical"] {
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 20px;
+}
+.landing-stitch .riel__marco[data-disposicion="vertical"] .riel__pista {
+  left: 22px;
+  top: 22px;
+  bottom: 22px;
+  width: 2px;
+}
+.landing-stitch .riel__marco[data-disposicion="vertical"] .riel__relleno {
+  transform-origin: center top;
+}
+.landing-stitch .riel[data-disposicion="vertical"] .riel__paso {
+  grid-template-columns: 44px minmax(0, 1fr);
+  column-gap: 16px;
+  align-items: center;
+}
+.landing-stitch .riel[data-disposicion="vertical"] .riel__nodo {
+  grid-row: 1 / span 3;
+}
+.landing-stitch .riel[data-disposicion="vertical"] .riel__num {
+  grid-column: 2;
+}
+.landing-stitch .riel[data-disposicion="vertical"] .riel__nombre {
+  grid-column: 2;
+  font-size: 17px;
+}
+.landing-stitch .riel[data-disposicion="vertical"] .riel__linea {
+  grid-column: 2;
+  font-size: 14px;
+}
 
-/* Las cuatro series NAVARRO */
+/* Las cuatro series NAVARRO: ficha de cristal con el render del clip */
 .landing-stitch .series {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.landing-stitch .series__item {
+  display: flex;
 }
 .landing-stitch .series__ficha {
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
   padding: 22px 18px;
-  border-radius: var(--radius-card-lg);
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-highlight);
   color: var(--foreground);
+}
+.landing-stitch .series__ficha img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 220px;
 }
 .landing-stitch .series__nombre {
   margin-top: 6px;
@@ -598,11 +704,67 @@
   color: var(--muted-foreground);
 }
 
-/* Franja de casos reales */
+/* Próximamente: tarjetas de cristal con insignia */
+.landing-stitch .proximo {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.landing-stitch .proximo__tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 22px 20px;
+  color: var(--foreground);
+}
+.landing-stitch .proximo__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.landing-stitch .proximo__icono {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  color: var(--primary);
+}
+.landing-stitch .proximo__insignia {
+  padding: 4px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  color: var(--muted-foreground);
+}
+.landing-stitch .proximo__titulo {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.landing-stitch .proximo__texto {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+
+/* Franja de casos reales. La figura es de fondo negro: la franja entera es un
+   escenario oscuro (data-theme="dark" en FranjaCasos.tsx), así que su velo, la
+   tarjeta y el crédito usan los tokens oscuros también en el tema claro. */
 .landing-stitch .franja-casos {
   position: relative;
   overflow: hidden;
   height: clamp(380px, 46vw, 620px);
+  background: var(--viewer-bg);
+  color: var(--foreground);
 }
 .landing-stitch .franja-casos__lienzo {
   position: absolute;
@@ -629,11 +791,13 @@
   top: 50%;
   transform: translateY(-50%);
   max-width: 420px;
+  padding: 20px 24px;
 }
 .landing-stitch .franja-casos__rotulo {
   font-family: var(--font-mono);
   font-size: var(--text-eyebrow);
   letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
   color: var(--muted-foreground);
 }
 .landing-stitch .franja-casos__frase {
@@ -646,15 +810,29 @@
 }
 .landing-stitch .franja-casos__credito {
   position: absolute;
-  right: 24px;
-  bottom: 14px;
-  font-size: 11px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 24px;
+  background: var(--veil-dense);
+  text-align: right;
+  font-size: 13px;
   color: var(--muted-foreground);
 }
 .landing-stitch .franja-casos__credito a {
   color: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+/* Hasta 1024: la banda y el enlace llegan a los 44 px del dedo. */
+.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .franja-casos__credito {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .franja-casos__credito a {
+  padding-block: 12px;
 }
 .landing-stitch .franja-casos__credito a:hover,
 .landing-stitch .franja-casos__credito a:focus-visible {
@@ -697,51 +875,324 @@
   text-align: right;
 }
 
-@media (max-width: 760px) {
-  .landing-stitch .sec {
-    padding: 72px 16px;
-  }
-  .landing-stitch .sec__titulo {
-    font-size: 30px;
-  }
-  .landing-stitch .sec__dos,
-  .landing-stitch .pasos,
-  .landing-stitch .series {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 14px;
-  }
-  .landing-stitch .pasos,
-  .landing-stitch .series {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .landing-stitch .lista-reglas--dos {
-    columns: 1;
-  }
-  .landing-stitch .lista-reglas--dos .lista-reglas__fila:nth-last-child(2) {
-    border-bottom: 0;
-  }
-  .landing-stitch .lista-reglas__fila {
-    flex-wrap: wrap;
-  }
-  .landing-stitch .franja-casos {
-    height: 520px;
-  }
-  .landing-stitch .franja-casos__velo {
-    background: linear-gradient(180deg, var(--veil-dense) 0%, var(--veil) 55%, transparent 100%);
-  }
-  .landing-stitch .franja-casos__texto {
-    left: 16px;
-    right: 16px;
-    top: 28px;
-    transform: none;
-  }
-  .landing-stitch .franja-casos__frase {
-    font-size: 22px;
-  }
-  .landing-stitch .contacto {
-    padding: 24px 20px;
-  }
-  .landing-stitch .pie__aviso {
-    text-align: left;
-  }
+/* Móvil (< 640): secciones en una columna y franja de casos apilada. */
+.landing-stitch[data-tramo="movil"] .sec {
+  padding: clamp(64px, 10vh, 140px) 16px;
+}
+.landing-stitch[data-tramo="movil"] .sec__titulo {
+  font-size: 30px;
+}
+.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .series {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.landing-stitch[data-tramo="movil"] .proximo {
+  grid-template-columns: minmax(0, 1fr);
+}
+.landing-stitch[data-tramo="movil"] .franja-casos {
+  height: 520px;
+}
+.landing-stitch[data-tramo="movil"] .franja-casos__velo {
+  background: linear-gradient(180deg, var(--veil-dense) 0%, var(--veil) 55%, transparent 100%);
+}
+.landing-stitch[data-tramo="movil"] .franja-casos__texto {
+  left: 16px;
+  right: 16px;
+  top: 28px;
+  transform: none;
+}
+.landing-stitch[data-tramo="movil"] .franja-casos__frase {
+  font-size: 22px;
+}
+.landing-stitch[data-tramo="movil"] .contacto {
+  padding: 24px 20px;
+}
+.landing-stitch[data-tramo="movil"] .pie__aviso {
+  text-align: left;
+}
+
+/* Grande (≥ 1920): cuerpo y pie más anchos; el texto de la franja sigue su borde. */
+.landing-stitch[data-tramo="grande"] .sec__cuerpo,
+.landing-stitch[data-tramo="grande"] .pie {
+  max-width: 1360px;
+}
+.landing-stitch[data-tramo="grande"] .franja-casos__texto {
+  left: max(24px, calc((100% - 1360px) / 2));
+}
+
+/* El foco lo pone el programa al llegar por el desplazamiento, no el teclado:
+   sin anillo sobre toda la sección. */
+.landing-stitch section[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* ── Qué es: texto + render de Case 3 en cristal ── */
+.landing-stitch .que-es {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 48px;
+  align-items: center;
+}
+.landing-stitch .que-es__textos {
+  display: grid;
+  gap: 32px;
+}
+.landing-stitch .que-es__figura {
+  margin: 0;
+  padding: 12px;
+  overflow: hidden;
+}
+.landing-stitch .que-es__marco {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: var(--viewer-bg);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.landing-stitch .que-es__marco img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.landing-stitch .que-es__pie {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.landing-stitch .halo-lesion {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.landing-stitch .halo-lesion__punto,
+.landing-stitch .halo-lesion__anillo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+.landing-stitch .halo-lesion__punto {
+  background: var(--destructive);
+}
+.landing-stitch .halo-lesion__anillo {
+  border: 2px solid var(--destructive);
+  opacity: 0.6;
+}
+.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .que-es {
+  grid-template-columns: minmax(0, 1fr);
+}
+.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .que-es__figura {
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+}
+
+/* ── Funcionalidades: rejilla bento de cristal ── */
+.landing-stitch .bento {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: minmax(180px, auto);
+  gap: 14px;
+  grid-template-areas: "seg seg morfo motor" "seg seg prueba informe" "sesiones pacientes detec detec" "clip clip detec detec";
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.landing-stitch .bento__tarjeta[data-area="seg"] { grid-area: seg; }
+.landing-stitch .bento__tarjeta[data-area="morfo"] { grid-area: morfo; }
+.landing-stitch .bento__tarjeta[data-area="motor"] { grid-area: motor; }
+.landing-stitch .bento__tarjeta[data-area="detec"] { grid-area: detec; }
+.landing-stitch .bento__tarjeta[data-area="prueba"] { grid-area: prueba; }
+.landing-stitch .bento__tarjeta[data-area="informe"] { grid-area: informe; }
+.landing-stitch .bento__tarjeta[data-area="clip"] { grid-area: clip; }
+.landing-stitch .bento__tarjeta[data-area="sesiones"] { grid-area: sesiones; }
+.landing-stitch .bento__tarjeta[data-area="pacientes"] { grid-area: pacientes; }
+.landing-stitch .bento__tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  transition: border-color var(--dur-1) var(--ease-out);
+}
+.landing-stitch .bento__tarjeta:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+}
+.landing-stitch .bento__imagen {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: var(--viewer-bg);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.landing-stitch .bento__imagen img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.landing-stitch .bento__icono {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  color: var(--primary);
+}
+.landing-stitch .bento__titulo {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--foreground);
+}
+.landing-stitch .bento__tarjeta--grande .bento__titulo {
+  font-size: 17px;
+}
+.landing-stitch .bento__linea {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+}
+.landing-stitch:is([data-tramo="estrecho"], [data-tramo="ancho"], [data-tramo="grande"]) .bento__tarjeta[data-area="clip"] {
+  flex-direction: row;
+  align-items: center;
+}
+.landing-stitch:is([data-tramo="estrecho"], [data-tramo="ancho"], [data-tramo="grande"]) .bento__tarjeta[data-area="clip"] .bento__imagen {
+  flex: none;
+  width: 200px;
+  aspect-ratio: 1 / 1;
+}
+.landing-stitch[data-tramo="tableta"] .bento {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-areas: "seg seg" "morfo motor" "detec detec" "prueba informe" "clip clip" "sesiones pacientes";
+}
+.landing-stitch[data-tramo="movil"] .bento {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: none;
+}
+.landing-stitch[data-tramo="movil"] .bento__tarjeta {
+  grid-area: auto;
+}
+
+/* ── Índices: lista + diagrama del saco que enciende la cota de cada índice ── */
+.landing-stitch .indices {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 48px;
+}
+.landing-stitch .indices__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.landing-stitch .indices__item {
+  border-top: 1px solid var(--border);
+}
+.landing-stitch .indices__item:last-child {
+  border-bottom: 1px solid var(--border);
+}
+.landing-stitch .indices__fila {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+  min-height: 44px;
+  padding: 16px 12px;
+  border: 0;
+  border-left: 3px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.landing-stitch .indices__fila[aria-pressed="true"] {
+  border-left-color: var(--data);
+  background: color-mix(in srgb, var(--data) 8%, transparent);
+}
+.landing-stitch .indices__fila:focus-visible {
+  outline: 2px solid var(--data);
+  outline-offset: -2px;
+}
+.landing-stitch .indices__texto {
+  display: grid;
+  gap: 4px;
+}
+.landing-stitch .indices__titulo {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.landing-stitch .indices__detalle {
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+.landing-stitch .indices__sigla {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.landing-stitch .indices__diagrama {
+  position: sticky;
+  top: 120px;
+  align-self: start;
+}
+.landing-stitch .diagrama-saco {
+  display: block;
+  width: 100%;
+  min-width: 300px;
+  height: auto;
+  color: var(--foreground);
+}
+.landing-stitch .diagrama-saco__madre {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 2;
+}
+.landing-stitch .diagrama-saco__saco {
+  fill: color-mix(in srgb, var(--destructive) 18%, transparent);
+  stroke: var(--destructive);
+  stroke-width: 2;
+}
+.landing-stitch .diagrama-saco [data-cota] {
+  fill: none;
+  stroke: var(--muted-foreground);
+  stroke-width: 1.5;
+}
+/* El rótulo usa --foreground y no --muted-foreground: la cota inactiva se apaga
+   con opacidad (OPACIDAD_COTA_INACTIVA) y con el gris no llegaba a 4,5:1 en claro. */
+.landing-stitch .diagrama-saco [data-cota] text {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 400;
+  fill: var(--foreground);
+  stroke: none;
+}
+.landing-stitch .diagrama-saco [data-activa="true"] {
+  stroke: var(--data);
+  stroke-width: 2;
+}
+.landing-stitch .diagrama-saco [data-activa="true"] text {
+  font-weight: 700;
+  fill: var(--foreground);
+}
+.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .indices {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+}
+.landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .indices__diagrama {
+  order: -1;
+  position: static;
+  width: 100%;
+  max-width: 420px;
+  margin-inline: auto;
 }

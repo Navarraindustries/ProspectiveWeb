@@ -5,6 +5,8 @@
 
 import { useRef } from "react";
 import { motion, useReducedMotion, useScroll, useTransform } from "../../motion";
+import { glass } from "../../styles/glass";
+import { CONSULTA } from "../../styles/puntosCorte";
 
 const ALT = "Modelos 3D de aneurismas intracraneales: sacos en rojo sobre sus vasos";
 /* Recorrido total del paralaje en px (de -12 a +12). */
@@ -17,15 +19,16 @@ export function FranjaCasos() {
   const y = useTransform(scrollYProgress, [0, 1], [-PARALAJE / 2, PARALAJE / 2]);
 
   return (
-    <section ref={franja} aria-label="Casos reales" className="franja-casos">
+    /* La figura es de fondo negro: la franja es un escenario oscuro en los dos temas. */
+    <section ref={franja} aria-label="Casos reales" className="franja-casos" data-theme="dark" data-escenario="oscuro">
       <motion.div className="franja-casos__lienzo" style={reducido ? undefined : { y }}>
         <picture>
-          <source media="(max-width: 760px)" srcSet="/media/landing/aneurismas-movil.webp" />
-          <img src="/media/landing/aneurismas.webp" alt={ALT} loading="lazy" width={2400} height={1080} />
+          <source media={CONSULTA.movil} srcSet="/media/landing/aneurismas-movil.webp" />
+          <img src="/media/landing/aneurismas.webp" alt={ALT} loading="lazy" decoding="async" width={2400} height={1080} />
         </picture>
       </motion.div>
       <div className="franja-casos__velo" />
-      <div className="franja-casos__texto">
+      <div className="franja-casos__texto" data-glass style={{ ...glass("dense"), borderRadius: "var(--radius-xl)" }}>
         <div className="franja-casos__rotulo">CASOS REALES</div>
         <p className="franja-casos__frase">
           Cada pieza es un aneurisma real: el saco en rojo, el vaso que lo lleva en gris.

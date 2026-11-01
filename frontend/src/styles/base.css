@@ -174,4 +174,21 @@ select option {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
+  /* Los tokens viven en [data-theme="…"] (0,1,0): html[data-theme] (0,1,1) gana. */
+  html[data-theme] {
+    --glass-blur: 0px;
+    --glass-blur-viewer: 0px;
+  }
+}
+
+/* Coste del desenfoque ajustable (§4.7). Preparado para un interruptor de
+   rendimiento: con <html data-blur="bajo"> el cristal que flota sobre el visor
+   3D (dock, barra, inspector) no desenfoca nada (0px, es lo caro: se recalcula
+   en cada fotograma del visor) y el resto de superficies baja de 30px a 12px.
+   Mismo mecanismo que la transparencia reducida, sin tocar ningún componente.
+   Aún sin interfaz: se activa poniendo el atributo (p. ej. desde la consola
+   o un futuro ajuste). */
+html[data-blur="bajo"] {
+  --glass-blur: 12px;
+  --glass-blur-viewer: 0px;
 }

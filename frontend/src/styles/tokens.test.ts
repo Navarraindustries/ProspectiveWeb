@@ -216,4 +216,17 @@ describe("tokens de la dirección D", () => {
     expect(base).toContain("@supports not ((backdrop-filter: blur(1px))");
     expect(base).toMatch(/\[data-glass\]\s*\{[^}]*background:\s*var\(--glass-solid\) !important/);
   });
+  it("la transparencia reducida también apaga el desenfoque de los tokens", () => {
+    const base = readFileSync(join(__dirname, "base.css"), "utf8").replace(/\r\n/g, "\n");
+    const i = base.indexOf("@media (prefers-reduced-transparency: reduce)");
+    const rule = base.slice(i, base.indexOf("\n}\n", i));
+    expect(rule).toMatch(/html\[data-theme\]\s*\{[^}]*--glass-blur:\s*0px;[^}]*--glass-blur-viewer:\s*0px;/);
+  });
+  it("html[data-blur=\"bajo\"] quita el desenfoque del visor y baja el resto a 12px", () => {
+    const base = readFileSync(join(__dirname, "base.css"), "utf8");
+    const m = base.match(/html\[data-blur="bajo"\]\s*\{([^}]*)\}/);
+    expect(m).not.toBeNull();
+    expect(m![1]).toMatch(/--glass-blur-viewer:\s*0px/);
+    expect(m![1]).toMatch(/--glass-blur:\s*12px/);
+  });
 });

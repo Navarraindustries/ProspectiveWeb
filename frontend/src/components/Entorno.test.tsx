@@ -46,7 +46,7 @@ describe("Entorno", () => {
 
   it("con prefers-reduced-transparency no hay imagen", () => {
     vi.spyOn(window, "matchMedia").mockImplementation(
-      (q: string) => ({ matches: q.includes("reduced-transparency"), media: q }) as MediaQueryList,
+      (q: string) => ({ matches: q.includes("reduced-transparency"), media: q, addEventListener() {}, removeEventListener() {} }) as unknown as MediaQueryList,
     );
     const { container } = renderEntorno("dark");
     expect(container.querySelector("img")).toBeNull();

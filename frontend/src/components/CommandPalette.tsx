@@ -6,7 +6,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExtern
 import { api } from "../api/client";
 import type { PatientSummary } from "../api/types";
 import { getCommands, OPEN_PALETTE_EVENT, subscribeCommands } from "../lib/commands";
-import { glide, glideTransition, motion, useReducedMotion } from "../motion";
+import { fundido, fundidoTransition, glide, glideTransition, motion, useReducedMotion } from "../motion";
 import { useAuth } from "../store/auth";
 import { useNav } from "../store/nav";
 import { glass } from "../styles/glass";
@@ -200,7 +200,7 @@ export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: P
 
   if (!open) return null;
 
-  const variants = reduced ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } } : glide;
+  const variants = reduced ? fundido : glide;
   // Cada grupo es un role=group nombrado por su rótulo; el índice de cada fila
   // sigue siendo el global (el de ↑/↓ y aria-activedescendant).
   const groups = GROUPS
@@ -217,7 +217,7 @@ export function CommandPalette({ onOpenPatient, onResume, reanudarBloqueado }: P
         variants={variants}
         initial="initial"
         animate="animate"
-        transition={reduced ? { duration: 0 } : glideTransition}
+        transition={reduced ? fundidoTransition : glideTransition}
         tabIndex={-1}
         onKeyDown={onKeyDown}
         onMouseDown={(e) => {

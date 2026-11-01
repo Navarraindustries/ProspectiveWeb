@@ -1,18 +1,16 @@
 /* Entorno — imagen de fondo (corte de TC) bajo un velo; solo en oscuro. */
 
 import type { ReactNode } from "react";
+import { useMediaQuery } from "../hooks/useEstrecho";
 import { useThemeContext } from "../store/theme";
 
 export const ENTORNO_SRC = "/media/entorno/corte-036.webp";
 
-function prefersReducedTransparency(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia("(prefers-reduced-transparency: reduce)")?.matches === true;
-}
 
 export function Entorno({ dense = false, children }: { dense?: boolean; children?: ReactNode }) {
   const { theme } = useThemeContext();
-  const showImage = theme === "dark" && !prefersReducedTransparency();
+  const sinTransparencia = useMediaQuery("(prefers-reduced-transparency: reduce)");
+  const showImage = theme === "dark" && !sinTransparencia;
 
   return (
     <div style={{ position: "relative", minHeight: "100%" }}>

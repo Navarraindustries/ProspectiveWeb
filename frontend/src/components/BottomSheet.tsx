@@ -7,6 +7,7 @@ import { useEffect, useRef, type CSSProperties, type PointerEvent as ReactPointe
 import { useReducedMotion } from "../motion";
 import { glass } from "../styles/glass";
 import { BANDA_SUPERIOR, HOJA_ASOMAR } from "../pipeline/zonaLibre";
+import { OBJETIVO_TACTIL_PX } from "../pipeline/puntosCorte";
 
 export type AlturaHoja = "asomar" | "media" | "completa";
 
@@ -108,6 +109,10 @@ export function useHojaInferior({ activa, altura, onAltura }: {
   return { ref, style, tirador };
 }
 
+/** Alto del tirador: objetivo táctil de 44 px (R18; medía 24). La barra
+ *  visible sigue en 4 px. */
+export const ALTO_TIRADOR = OBJETIVO_TACTIL_PX;
+
 /** El tirador de la hoja: una barra sobre el contenido. */
 export function Tirador({ props }: { props: ReturnType<typeof useHojaInferior>["tirador"] }) {
   return (
@@ -116,7 +121,7 @@ export function Tirador({ props }: { props: ReturnType<typeof useHojaInferior>["
       aria-label="Cambiar la altura del panel"
       {...props}
       style={{
-        flex: "none", height: 24, border: "none", background: "transparent", cursor: "grab",
+        flex: "none", height: ALTO_TIRADOR, border: "none", background: "transparent", cursor: "grab",
         display: "flex", alignItems: "center", justifyContent: "center", touchAction: "none",
       }}
     >

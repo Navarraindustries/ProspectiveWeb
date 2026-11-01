@@ -4,7 +4,8 @@
    En pantalla táctil (`tactil` y `mini`) no hay puntero que enseñe un `title`:
    un toque en un paso bloqueado dice por qué en una burbuja junto al dock, y un
    toque en un paso con aviso (Morfometría sin medir) enseña el aviso y no
-   navega hasta un segundo toque. Con ratón (`completo`, `compacto`) el motivo y
+   navega hasta un segundo toque (salvo el paso activo: navega y solo informa).
+   Con ratón (`completo`, `compacto`) el motivo y
    el aviso siguen en el tooltip y en el nombre accesible. */
 
 import { useEffect, useRef, useState } from "react";
@@ -74,7 +75,9 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
   }, [burbuja]);
 
   /** Toque en un paso. Con ratón: navega si no está bloqueado. En táctil: un
-   *  bloqueado dice su motivo; uno con aviso lo enseña y navega al segundo toque. */
+   *  bloqueado dice su motivo; uno con aviso lo enseña y navega al segundo toque.
+   *  El paso ACTIVO no se abre de nuevo (no hay nada que avisar antes de
+   *  entrar): navega al primer toque y la burbuja solo informa (R17). */
   const pulsar = (i: number, motivo: string | null, aviso: string | null, rotulo: string) => {
     if (!tactil) {
       if (!motivo) onGo(i);
@@ -82,6 +85,11 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
     }
     if (motivo) {
       setBurbuja({ texto: `${rotulo} — ${motivo}`, paso: i, tipo: "motivo" });
+      return;
+    }
+    if (aviso && i === activeIndex) {
+      setBurbuja({ texto: `${rotulo} — ${aviso}`, paso: i, tipo: "aviso" });
+      onGo(i);
       return;
     }
     if (aviso && !(burbuja?.tipo === "aviso" && burbuja.paso === i)) {

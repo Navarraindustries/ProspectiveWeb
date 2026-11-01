@@ -209,6 +209,17 @@ describe("StepDock", () => {
       expect(onGo).toHaveBeenCalledWith(3);
     });
 
+    /* R17: en el paso activo no hay nada que confirmar antes de entrar. */
+    it("táctil: el paso ACTIVO con aviso navega al primer toque y la burbuja solo informa", () => {
+      const onGo = vi.fn();
+      render(<StepDock steps={steps} activeIndex={3} missingFor={() => null} avisoFor={(i) => (i === 3 ? MORPHO_AUTO_HINT : null)} onGo={onGo} modo="tactil" />);
+      fireEvent.click(screen.getByRole("button", { name: /^Paso 4,/ }));
+      expect(onGo).toHaveBeenCalledTimes(1);
+      expect(onGo).toHaveBeenCalledWith(3);
+      expect(burbuja()).toHaveTextContent(MORPHO_AUTO_HINT);
+      expect(burbuja().textContent).not.toMatch(/Toca otra vez/);
+    });
+
     it("mini: «‹» respeta el bloqueo del paso anterior como «›»", () => {
       const onGo = vi.fn();
       render(<StepDock steps={steps} activeIndex={3} missingFor={bloqueaDeteccion} onGo={onGo} modo="mini" />);

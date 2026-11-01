@@ -341,6 +341,15 @@
   color: var(--foreground);
   text-decoration: underline;
 }
+/* Barra del quirófano (QuirofanoBar): sin subtítulo al lado, la miga no se
+   queda en la mitad de su píldora (regla de R2, que es de la barra de la
+   oficina): encoge con ella. El nombre del paciente (toda miga que no sea la
+   última) no baja de 10 caracteres (R14): a 768 caía a 0 px. El mínimo va en
+   el <li> porque el texto, sin cortes, pediría su ancho entero. */
+[data-quirofano-bar] .shell-crumbs { flex: 0 1 auto; max-width: none; }
+[data-quirofano-bar] .shell-crumbs li:not(:last-child) { font-size: 13px; }
+[data-quirofano-bar] .shell-crumbs li:first-child:not(:last-child) { min-width: 10ch; }
+[data-quirofano-bar] .shell-crumbs li + li:not(:last-child) { min-width: calc(10ch + 18px); }
 
 .shell-actions {
   display: flex;

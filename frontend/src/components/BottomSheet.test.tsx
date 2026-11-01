@@ -36,6 +36,12 @@ describe("hoja inferior", () => {
     expect(hoja().style.height).toBe("calc(100% - 72px)");
   });
 
+  it("el tirador mide 44 px de alto (diana táctil, R18) y la barra visible sigue en 4", () => {
+    montar("media");
+    expect(tirador().style.height).toBe("44px");
+    expect((tirador().firstElementChild as HTMLElement).style.height).toBe("4px");
+  });
+
   it("el tirador recorre asomar → media → completa → asomar", () => {
     const a = montar("asomar");
     fireEvent.click(tirador());

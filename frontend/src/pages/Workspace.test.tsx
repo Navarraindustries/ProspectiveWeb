@@ -412,6 +412,13 @@ describe("barra del quirófano por tamaño de pantalla", () => {
     expect(!!screen.queryByRole("button", { name: /Grabar/ })).toBe(modo !== "movil");
     expect(!!screen.queryByRole("button", { name: "Más acciones" })).toBe(modo !== "ancho");
     if (modo !== "ancho") expect(screen.getByRole("button", { name: "Guardar progreso" }).style.height).toBe("var(--control-md)");
+    // R13: en móvil la captura va a «Más acciones» (sigue en la paleta) y el
+    // estado del guardado es un punto con la frase en aria-label; Guardar se queda.
+    expect(!!screen.queryByRole("button", { name: "Captura" })).toBe(modo !== "movil");
+    expect(getCommands().find((c) => c.id === "captura")).toBeTruthy();
+    const estadoGuardado = document.querySelector(".ws-save-status") as HTMLElement;
+    expect(estadoGuardado.hasAttribute("data-punto")).toBe(modo === "movil");
+    expect(screen.getByRole("button", { name: "Guardar progreso" })).toBeTruthy();
   });
   it("la paleta ofrece el tema y, sin estudio archivado, archivar", () => {
     estado.imagingStudyId = null;
@@ -551,4 +558,14 @@ describe("hoja inferior a ≤ 1280 px", () => {
     expect(hoja().style.height).toBe("50%");
     expect(localStorage.getItem("ws.panelCollapsed")).toBeNull();
   });
+
+  /* R18: a ≤ 640 la hoja abre asomada y la zona libre del visor queda
+     encima de ella (no debajo); en tableta y L5 sigue abriendo a media. */
+  it.each([[360, 700, "96px"], [390, 800, "96px"], [768, 1024, "50%"], [1280, 743, "50%"]] as const)(
+    "a %i×%i abre a %s y el visor no queda tapado", (w, h, alto) => {
+      simularPantalla(w, h);
+      montar_();
+      expect(hoja().style.height).toBe(alto);
+      expect((document.querySelector("[data-zona-libre]") as HTMLElement).style.bottom).toBe("96px");
+    });
 });

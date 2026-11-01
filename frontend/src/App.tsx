@@ -292,7 +292,7 @@ function Router() {
     view = (
       <Studies
         onOpen={(s) => void openStudy(s)}
-        onResume={(s) => void resumeStudySession(s)}
+        onResume={(s) => resumeStudySession(s)}
         onOpenPatient={(id) => navigate(patientPath(id))}
         onNew={startWithoutPatient}
       />

@@ -19,6 +19,7 @@ import { MenuMas } from "../components/MenuMas";
 import type { ItemMenu } from "../components/MenuMas";
 import { EstadoVacio } from "../components/EstadoVacio";
 import { useTableta } from "../hooks/useEstrecho";
+import { useEnCurso } from "../hooks/useEnCurso";
 import { fechaDia } from "../lib/fecha";
 import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
@@ -121,14 +122,24 @@ export function StudyGallery({
   /** Restrict to one clinical case — a case can hold several acquisitions. */
   caseId?: number;
   onOpen: (study: StudyCard) => void;
-  /** Restore the study's saved session instead of starting a new one. */
-  onResume?: (study: StudyCard) => void;
+  /** Restore the study's saved session instead of starting a new one. Si
+      devuelve una promesa, el botón enseña «Abriendo…» hasta que acabe. */
+  onResume?: (study: StudyCard) => unknown;
   /** Ir a la ficha del paciente de la tarjeta. Dentro de la propia ficha no se pasa. */
   onOpenPatient?: (patientId: number) => void;
   /** Message shown when this scope has no imaging studies yet. */
   emptyHint?: string;
 }) {
   const [studies, setStudies] = useState<StudyCard[]>([]);
+  // Reanudar: «Abriendo…» en la tarjeta pulsada y ningún otro Reanudar
+  // mientras dura (como en Pacientes).
+  const [abriendo, lanzar] = useEnCurso();
+  const [abriendoId, setAbriendoId] = useState<number | null>(null);
+  const reanudar = (est: StudyCard) => {
+    if (abriendo) return;
+    setAbriendoId(est.id);
+    lanzar(() => onResume?.(est));
+  };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -245,7 +256,8 @@ export function StudyGallery({
             >
               <button
                 type="button"
-                onClick={() => (canResume ? onResume?.(est) : onOpen(est))}
+                disabled={canResume && abriendo}
+                onClick={() => (canResume ? reanudar(est) : onOpen(est))}
                 style={{ display: "block", padding: 0, border: "none", background: "transparent", cursor: "pointer", width: "100%" }}
               >
                 <Thumbnail study={est} />
@@ -272,13 +284,14 @@ export function StudyGallery({
                 <div style={{ display: "flex", gap: 8, marginTop: "auto", paddingTop: 8, alignItems: "center" }}>
                   <Button
                     size="sm"
-                    onClick={() => (canResume ? onResume?.(est) : onOpen(est))}
+                    disabled={canResume && abriendo}
+                    onClick={() => (canResume ? reanudar(est) : onOpen(est))}
                     title={canResume
                       ? (est.last_step != null ? `Reanudar en «${STEP_LABELS[est.last_step] ?? est.last_step}»` : "Reanudar la sesión guardada")
                       : undefined}
                     style={{ flex: 1 }}
                   >
-                    {canResume ? "Reanudar" : "Abrir"}
+                    {canResume ? (abriendo && abriendoId === est.id ? "Abriendo…" : "Reanudar") : "Abrir"}
                   </Button>
                   {menuDe(est, canResume).length > 0 && (
                     <MenuMas
@@ -345,7 +358,8 @@ export function Studies({
   onOpen, onResume, onOpenPatient, onNew,
 }: {
   onOpen: (study: StudyCard) => void;
-  onResume: (study: StudyCard) => void;
+  /** Devuelve la promesa de reanudar: la tarjeta enseña «Abriendo…» mientras dura. */
+  onResume: (study: StudyCard) => unknown;
   onOpenPatient: (patientId: number) => void;
   onNew: () => void;
 }) {
@@ -363,7 +377,10 @@ export function Studies({
       <PageBody className="fade-rise">
           <StudyGallery
             onOpen={(est) => conTransicion(() => onOpen(est))}
-            onResume={(est) => conTransicion(() => onResume(est))}
+            onResume={(est) => new Promise<unknown>((resolver, rechazar) => {
+              // La transición llama más tarde: la promesa sigue a la de reanudar.
+              conTransicion(() => { Promise.resolve(onResume(est)).then(resolver, rechazar); });
+            })}
             onOpenPatient={onOpenPatient}
             onNew={onNew}
             onCount={setCount}

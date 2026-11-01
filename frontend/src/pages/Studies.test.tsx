@@ -272,3 +272,31 @@ describe("«Estudios»: gestión (fase 9, A34–A36)", () => {
     expect(await screen.findByRole("button", { name: /Más acciones del estudio/ })).toHaveStyle({ width: "32px" });
   });
 });
+
+describe("Reanudar enseña «Abriendo…» (M5)", () => {
+  it("mientras dura la promesa el botón dice «Abriendo…» y no admite otro clic; vuelve al acabar", async () => {
+    let terminar: () => void = () => {};
+    const onResume = vi.fn(() => new Promise<void>((r) => { terminar = r; }));
+    listStudies.mockResolvedValue([tarjeta({ id: 5 }), tarjeta({ id: 6, patient_name: "Gil, Luis" })]);
+    render(<Studies {...props} onResume={onResume} />);
+    const [primero] = await screen.findAllByRole("button", { name: "Reanudar" });
+    fireEvent.click(primero);
+    const abriendo = await screen.findByRole("button", { name: "Abriendo…" });
+    expect(abriendo).toBeDisabled();
+    // Solo la tarjeta pulsada dice «Abriendo…»; la otra no lanza un segundo Reanudar.
+    expect(screen.getAllByRole("button", { name: "Abriendo…" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Reanudar" }));
+    expect(onResume).toHaveBeenCalledTimes(1);
+    terminar();
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Reanudar" })).toHaveLength(2));
+  });
+
+  it("si reanudar falla, el botón vuelve a «Reanudar»", async () => {
+    const onResume = vi.fn(() => Promise.reject(new Error("no")));
+    listStudies.mockResolvedValue([tarjeta()]);
+    render(<Studies {...props} onResume={onResume} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Reanudar" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Reanudar" })).not.toBeDisabled());
+    expect(onResume).toHaveBeenCalledTimes(1);
+  });
+});

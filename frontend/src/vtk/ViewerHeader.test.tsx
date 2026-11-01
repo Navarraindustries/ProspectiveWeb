@@ -97,6 +97,12 @@ describe("ViewerHeader — ancho de la banda", () => {
     }
   });
 
+  it("sin maquetar (ancho 0: oculta o jsdom) la banda va en el nivel ancho, no en iconos", () => {
+    stubBandWidth(0);
+    const { container } = setup();
+    expect(container.querySelector('[data-banda="raiz"]')).toHaveAttribute("data-tier", "ancho");
+  });
+
   it("la estructura no deja solapar: la raíz y el grupo derecho envuelven, el izquierdo no encoge", () => {
     const { container } = setup();
     expect((container.querySelector('[data-banda="raiz"]') as HTMLElement).style.flexWrap).toBe("wrap");
@@ -240,6 +246,141 @@ describe("ViewerHeader — aviso de nivel", () => {
     setup({ levelNote: null });
     expect(screen.queryByTestId("header-level-note")).toBeNull();
     expect(screen.queryByText(/RESOLUCIÓN/)).toBeNull();
+  });
+});
+
+describe("ViewerHeader — modo iconos (táctil ≤ 1024, móvil ≤ 640)", () => {
+  it.each([360, 390, 768])("a %i px (táctil) la banda va en iconos con objetivos marcados", (w) => {
+    simularPantalla(w); stubBandWidth(anchoBanda(w));
+    const { container } = setup({ onHelp: () => {} });
+    const raiz = container.querySelector('[data-banda="raiz"]')!;
+    expect(raiz).toHaveAttribute("data-tactil", "true");
+    if (w <= 640) expect(raiz).toHaveAttribute("data-movil", "true");
+    else expect(raiz).not.toHaveAttribute("data-movil");
+    expect(screen.getByRole("combobox", { name: "Vista principal" })).toHaveValue(DEFAULT_LAYOUT.main);
+    expect(screen.getByRole("combobox", { name: "Distribución" })).toHaveValue(DEFAULT_LAYOUT.preset);
+    expect(screen.getByRole("button", { name: "Planos de corte en el 3D" })).toBeInTheDocument();
+    expect(screen.queryByText("PRINCIPAL")).toBeNull();
+    if (w <= 640) expect(screen.queryByTitle("Atajos (?)")).toBeNull();
+    else expect(screen.getByTitle("Atajos (?)")).toBeInTheDocument();
+  });
+
+  it("los desplegables llevan los nombres enteros de vistas y distribuciones", () => {
+    simularPantalla(390); stubBandWidth(anchoBanda(390));
+    setup();
+    const opciones = (name: string) =>
+      [...screen.getByRole("combobox", { name }).querySelectorAll("option")].map((o) => o.textContent);
+    expect(opciones("Vista principal")).toEqual(["3D", "AX", "COR", "SAG", "VOLUMEN"]);
+    expect(opciones("Distribución")).toEqual(["DERECHA", "ABAJO", "CUATRO", "SOLA"]);
+  });
+
+  it("en iconos, cambiar el desplegable de vista llama a promote y el de distribución a setPreset", () => {
+    simularPantalla(390); stubBandWidth(anchoBanda(390));
+    const { props } = setup();
+    fireEvent.change(screen.getByRole("combobox", { name: "Vista principal" }), { target: { value: "axial" } });
+    expect(props.onLayoutChange).toHaveBeenLastCalledWith(promote(DEFAULT_LAYOUT, "axial"));
+    fireEvent.change(screen.getByRole("combobox", { name: "Distribución" }), { target: { value: "sola" } });
+    expect(props.onLayoutChange).toHaveBeenLastCalledWith(setPreset(DEFAULT_LAYOUT, "sola"));
+  });
+
+  it("en iconos, TEXTOS rota completo → esencial → limpio → completo", () => {
+    simularPantalla(390); stubBandWidth(anchoBanda(390));
+    const { props, rerender } = setup({ hudLevel: "completo" });
+    const b = screen.getByRole("button", { name: /Nivel de textos: completo/ });
+    expect(b).toHaveTextContent(/^C$/);
+    expect(b).toHaveAccessibleName("Nivel de textos: completo. Cambiar (H)");
+    fireEvent.click(b);
+    expect(props.onHudLevelChange).toHaveBeenLastCalledWith("esencial");
+    rerender(<ViewerHeader {...props} hudLevel="esencial" />);
+    fireEvent.click(screen.getByRole("button", { name: /Nivel de textos: esencial/ }));
+    expect(props.onHudLevelChange).toHaveBeenLastCalledWith("limpio");
+    rerender(<ViewerHeader {...props} hudLevel="limpio" />);
+    expect(screen.getByRole("button", { name: /Nivel de textos: limpio/ })).toHaveTextContent(/^L$/);
+    fireEvent.click(screen.getByRole("button", { name: /Nivel de textos: limpio/ }));
+    expect(props.onHudLevelChange).toHaveBeenLastCalledWith("completo");
+  });
+
+  it("en iconos, PLANOS, VINCULAR y CALOR dicen su estado con aria-pressed y avisan del contrario", () => {
+    simularPantalla(390); stubBandWidth(anchoBanda(390));
+    const { props } = setup({ planesHidden: true, syncViews: true, hasClipField: true, showClipField: true });
+    const planos = screen.getByRole("button", { name: "Planos de corte en el 3D" });
+    const vincular = screen.getByRole("button", { name: "Vincular las vistas" });
+    const calor = screen.getByRole("button", { name: "Mapa de calor del clip" });
+    expect(planos).toHaveAttribute("aria-pressed", "false");
+    expect(vincular).toHaveAttribute("aria-pressed", "true");
+    expect(calor).toHaveAttribute("aria-pressed", "true");
+    expect(calor).toHaveTextContent("CAL ●");
+    expect(calor).toHaveAttribute("title", "Ver el saco sin el mapa de calor del clip");
+    fireEvent.click(planos); fireEvent.click(vincular); fireEvent.click(calor);
+    expect(props.onPlanesHiddenChange).toHaveBeenCalledWith(false);
+    expect(props.onSyncViewsChange).toHaveBeenCalledWith(false);
+    expect(props.onShowClipFieldChange).toHaveBeenCalledWith(false);
+  });
+
+  it("en iconos CALOR se apaga durante el ensayo y solo existe con campo del clip", () => {
+    simularPantalla(390); stubBandWidth(anchoBanda(390));
+    const { props, rerender } = setup();
+    expect(screen.queryByRole("button", { name: "Mapa de calor del clip" })).toBeNull();
+    rerender(<ViewerHeader {...props} hasClipField showClipField clipRehearsal />);
+    const calor = screen.getByRole("button", { name: "Mapa de calor del clip" });
+    expect(calor).toHaveAttribute("aria-pressed", "false");
+    expect(calor).toHaveTextContent("CAL ○");
+  });
+
+  // Revisión de la tarea 2 (b): en táctil no hay hover; nada vive solo en `title`.
+  it("en iconos cada control tiene nombre accesible propio, no solo el título", () => {
+    simularPantalla(768); stubBandWidth(anchoBanda(768));
+    const { container } = setup({ onHelp: () => {}, hasClipField: true, levelNote: "Vista previa 1:2; las medidas no cambian" });
+    const controles = container.querySelectorAll('[data-banda="raiz"] button, [data-banda="raiz"] select');
+    expect(controles.length).toBeGreaterThanOrEqual(8);
+    for (const el of controles) expect(el.getAttribute("aria-label"), el.outerHTML).toMatch(/\S{3,}/);
+  });
+
+  // Revisión de la tarea 2 (a): el grupo izquierdo no puede desbordar a 360.
+  it("a 360 el grupo izquierdo de iconos cabe: solo los dos desplegables y puede encoger y envolver", () => {
+    simularPantalla(360); stubBandWidth(anchoBanda(360));
+    const { container } = setup({ onHelp: () => {}, hasClipField: true });
+    const izq = container.querySelector('[data-banda="izq"]') as HTMLElement;
+    expect([...izq.children].map((c) => c.tagName)).toEqual(["SELECT", "SELECT"]);
+    expect(izq.style.flexWrap).toBe("wrap");
+    expect(izq.style.flexShrink).toBe("1");
+    expect(izq.style.minWidth).toMatch(/^0(px)?$/);
+    for (const s of izq.querySelectorAll("select")) expect((s as HTMLElement).style.maxWidth).toBe("100%");
+    // Estimación a 13 px mono (≈ 8,9 px por carácter con .08em) más 28 px de
+    // relleno y flecha: dos desplegables de 7 caracteres y el hueco caben en
+    // 360 menos el relleno lateral de la banda (24).
+    expect(2 * (7 * 8.9 + 28) + 10).toBeLessThanOrEqual(360 - 24);
+  });
+
+  // Revisión de la tarea 2 (c): el ⚠ es un objetivo táctil como los demás.
+  it("en iconos el ⚠ es un botón de la banda sin tamaño fijado en línea (lo da hud.css: 44 px)", () => {
+    simularPantalla(390); stubBandWidth(anchoBanda(390));
+    const note = "Vista previa en baja resolución; las medidas no cambian";
+    setup({ levelNote: note });
+    const b = screen.getByRole("button", { name: note });
+    expect(b).toHaveClass("hud-note-toggle");
+    expect(b.style.minHeight).toBe("");
+    expect(b.style.height).toBe("");
+    const line = screen.getByTestId("header-level-note-text");
+    expect(b).toHaveAttribute("aria-controls", line.id);
+    expect(line).not.toBeVisible();
+    fireEvent.click(b);
+    expect(line).toBeVisible();
+  });
+
+  it("en táctil la raíz no fija su alto en línea (el mínimo de 44 px de hud.css manda)", () => {
+    simularPantalla(390); stubBandWidth(anchoBanda(390));
+    const { container } = setup();
+    expect((container.querySelector('[data-banda="raiz"]') as HTMLElement).style.minHeight).toBe("");
+  });
+
+  it("a 1025 o más no hay marca táctil", () => {
+    simularPantalla(1025); stubBandWidth(1025);
+    const { container } = setup();
+    const raiz = container.querySelector('[data-banda="raiz"]')!;
+    expect(raiz).not.toHaveAttribute("data-tactil");
+    expect(raiz).not.toHaveAttribute("data-movil");
+    expect(screen.queryByRole("combobox")).toBeNull();
   });
 });
 

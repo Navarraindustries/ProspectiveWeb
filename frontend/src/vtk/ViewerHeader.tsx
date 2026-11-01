@@ -9,15 +9,18 @@
 
    No se pisa a ningún ancho (A63): la raíz envuelve, el grupo izquierdo no
    encoge y el derecho es elástico y también envuelve. Si los rótulos de un
-   nivel no caben, lo que sobra baja a otra línea en vez de tapar al vecino. */
+   nivel no caben, lo que sobra baja a otra línea en vez de tapar al vecino.
+   En el nivel iconos (táctil ≤ 1024 o banda < 800) los grupos los pinta
+   ViewerHeaderIconos; aquí quedan la raíz, la medida, el aviso y su línea. */
 
 import { useCallback, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Icon } from "../components/Icon";
 import { useMediaQuery } from "../hooks/useEstrecho";
-import { MQ_TACTIL } from "../pipeline/puntosCorte";
+import { MQ_MOVIL, MQ_TACTIL } from "../pipeline/puntosCorte";
 import { promote, setPreset, type PaneId, type ViewerLayout } from "./layout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
 import { bandTier, headerLabels, mainOptions, presetOptions } from "./mainOptions";
+import { ViewerHeaderIconos } from "./ViewerHeaderIconos";
 import { HUD_LEVELS, type HudLevel } from "./viewerPrefs";
 
 const LEVEL_TITLES: Record<HudLevel, string> = {
@@ -54,14 +57,15 @@ export interface ViewerHeaderProps {
   levelNote?: string | null;
 }
 
-export function ViewerHeader({
-  layout, onLayoutChange, onKeyDown,
-  planesHidden, onPlanesHiddenChange,
-  hudLevel, onHudLevelChange,
-  syncViews, onSyncViewsChange,
-  hasClipField, showClipField, clipRehearsal, onShowClipFieldChange, onHelp,
-  levelNote,
-}: ViewerHeaderProps) {
+export function ViewerHeader(props: ViewerHeaderProps) {
+  const {
+    layout, onLayoutChange, onKeyDown,
+    planesHidden, onPlanesHiddenChange,
+    hudLevel, onHudLevelChange,
+    syncViews, onSyncViewsChange,
+    hasClipField, showClipField, clipRehearsal, onShowClipFieldChange, onHelp,
+    levelNote,
+  } = props;
   // Ancho de la banda para elegir el nivel y abreviar sus rótulos.
   const [bandWidth, setBandWidth] = useState(Number.POSITIVE_INFINITY);
   const bandObs = useRef<ResizeObserver | null>(null);
@@ -69,19 +73,22 @@ export function ViewerHeader({
     bandObs.current?.disconnect();
     bandObs.current = null;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => setBandWidth(el.clientWidth));
+    // Ancho 0 = sin maquetar (oculta, o jsdom): sin medida, como sin
+    // observador, el nivel ancho, que no esconde nada. Al mostrarse, el
+    // observador trae el ancho real.
+    const medir = () => setBandWidth(el.clientWidth > 0 ? el.clientWidth : Number.POSITIVE_INFINITY);
+    const ro = new ResizeObserver(medir);
     ro.observe(el);
     bandObs.current = ro;
-    setBandWidth(el.clientWidth);
+    medir();
   }, []);
-  // En táctil la banda va siempre en iconos (a 44 px los rótulos no caben).
+  // En táctil la banda va siempre en iconos (a 44 px los rótulos no caben);
+  // en móvil, además, sin «?» (ViewerHeaderIconos).
   const touch = useMediaQuery(MQ_TACTIL);
+  const movil = useMediaQuery(MQ_MOVIL);
   const tier = bandTier(bandWidth, touch);
-  // El nivel iconos (tarea 3) se pinta por ahora como estrecho: rótulos
-  // abreviados aunque la banda de una pantalla táctil mida más.
-  const labelWidth = tier === "iconos" ? 0 : bandWidth;
-  const header = headerLabels(labelWidth);
-  const compact = tier === "estrecho" || tier === "iconos";
+  const header = headerLabels(bandWidth);
+  const compact = tier === "estrecho";
   // Aviso de nivel: desplegado o no (solo cuenta por debajo del nivel ancho).
   // Un aviso nuevo (o ninguno) llega plegado: lo desplegado era el anterior.
   const [noteOpen, setNoteOpen] = useState(false);
@@ -95,11 +102,18 @@ export function ViewerHeader({
   // Durante el ensayo manda el saco que se deforma y el campo no se pinta:
   // «●» diría que se está viendo.
   const calorOn = showClipField && !clipRehearsal;
+  // En táctil (data-tactil) el alto mínimo de 44 px lo pone hud.css; un
+  // minHeight en línea le ganaría, así que solo se fija fuera de táctil.
 
   return (
     <div ref={bandRef} className="viewer-band" data-banda="raiz" data-tier={tier}
+         data-tactil={touch ? "true" : undefined} data-movil={movil ? "true" : undefined}
          onKeyDown={onKeyDown}
-         style={{ flex: "none", minHeight: 22, display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", columnGap: 14, rowGap: 0, padding: "0 12px", lineHeight: 1.2, fontFamily: "var(--font-mono)", background: "var(--viewer-bg)", borderBottom: "1px solid var(--hud-text-dim)", whiteSpace: "nowrap" }}>
+         style={{ flex: "none", minHeight: touch ? undefined : 22, display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", columnGap: 14, rowGap: 0, padding: "0 12px", lineHeight: 1.2, fontFamily: "var(--font-mono)", background: "var(--viewer-bg)", borderBottom: "1px solid var(--hud-text-dim)", whiteSpace: "nowrap" }}>
+      {tier === "iconos" ? (
+        <ViewerHeaderIconos {...props} movil={movil} noteOpen={noteOpen}
+          onToggleNote={() => setNoteOpen((o) => !o)} noteId={noteId} />
+      ) : (<>
       <div data-banda="izq" style={{ display: "flex", gap: 10, alignItems: "center", flex: "0 0 auto", minHeight: 22 }}>
         {/* PRINCIPAL elige qué vista ocupa el hueco grande; DISTRIBUCIÓN,
             TEXTOS y VINCULAR dicen cómo se ve el visor, no qué hay en él. */}
@@ -107,7 +121,7 @@ export function ViewerHeader({
         <HudToggleGroup options={mainOptions()} value={layout.main}
           onChange={(k) => onLayoutChange(promote(layout, k as PaneId))} />
         <HudToggleGroup
-          options={presetOptions(labelWidth)}
+          options={presetOptions(bandWidth)}
           value={layout.preset}
           onChange={(k) => onLayoutChange(setPreset(layout, k as ViewerLayout["preset"]))} />
       </div>
@@ -158,6 +172,7 @@ export function ViewerHeader({
           <HudToggleGroup options={[{ key: "help", label: "?", title: "Atajos (?)" }]} value="" onChange={onHelp} />
         )}
       </div>
+      </>)}
       {/* Siempre montada (oculta si está plegada): una región `status` que
           aparece ya con el texto no se anuncia; una que se muestra, sí. */}
       {levelNote && !noteInline && (

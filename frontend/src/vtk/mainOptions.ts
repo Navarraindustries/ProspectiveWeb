@@ -22,7 +22,8 @@ export function mainOptions() { return ORDER.map((key) => ({ key, label: MAIN_LA
      medio    1100–1399  igual, pero el aviso es un botón ⚠ que despliega el
                       texto en una línea debajo (≈ 1075).
      estrecho 800–1099  «▸», DER ABA 4 SOLA, C E L y el aviso ⚠ (≈ 790).
-     iconos   < 800 o pantalla táctil (por ahora se pinta como estrecho).
+     iconos   < 800 o pantalla táctil (≤ 1024): dos desplegables y botones
+                      de icono de 44 px en táctil (ViewerHeaderIconos).
    Si una cifra falla, la estructura de la banda (flex-wrap, grupo izquierdo
    rígido, derecho elástico) baja a otra línea en vez de pisar. El título de
    cada botón sigue diciendo el nombre entero. */

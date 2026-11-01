@@ -19,6 +19,9 @@ import { openCommandPalette } from "../../lib/commands";
 import { AppShell } from "./AppShell";
 import { resetSessionPinned } from "./useShellState";
 
+/** shell.css con saltos de línea normalizados (el repositorio puede traerlo en CRLF). */
+const cssShell = () => readFileSync(resolve(__dirname, "shell.css"), "utf8").replace(/\r\n/g, "\n");
+
 /** La navegación del cajón: sin nombre propio, dentro del diálogo «Secciones». */
 const navCajon = () => within(screen.getByRole("dialog", { name: "Secciones" })).getByRole("navigation");
 
@@ -92,9 +95,9 @@ describe("AppShell", () => {
     localStorage.setItem("shell.sidebar", "pinned");
     const { container } = renderShell({});
     expect(container.querySelector(".shell")).toHaveAttribute("data-pinned", "true");
-    const css = readFileSync(resolve(__dirname, "shell.css"), "utf8");
-    expect(css).toMatch(/\.shell\[data-pinned="true"\]\s*\{[^}]*grid-template-columns:\s*240px 1fr/);
-    expect(css).toMatch(/\.shell\s*\{[^}]*grid-template-columns:\s*64px 1fr/);
+    const css = cssShell();
+    expect(css).toMatch(/\.shell\[data-pinned="true"\]\s*\{[^}]*grid-template-columns:\s*240px\s+1fr/);
+    expect(css).toMatch(/\.shell\s*\{[^}]*grid-template-columns:\s*64px\s+1fr/);
   });
   it("a 1280 px o menos arranca plegada aunque la preferencia diga fijada, sin pisarla", () => {
     localStorage.setItem("shell.sidebar", "pinned");
@@ -111,8 +114,7 @@ describe("AppShell", () => {
   it("la altura de la barra sale del CSS: la clase es shell-top y mide 56 px", () => {
     renderShell({ crumbs: [{ label: "Pacientes" }] });
     expect(screen.getByRole("banner")).toHaveClass("shell-top");
-    const css = readFileSync(resolve(__dirname, "shell.css"), "utf8");
-    expect(css).toMatch(/\.shell-top\s*\{[^}]*height:\s*56px/);
+    expect(cssShell()).toMatch(/\.shell-top\s*\{[^}]*height:\s*56px/);
   });
 
   it("> 1280 con la preferencia «fijada»: carril fijado a 240", () => {
@@ -127,8 +129,7 @@ describe("AppShell", () => {
     const { container } = renderShell({});
     expect(screen.getByRole("navigation", { name: "Secciones" })).toHaveAttribute("data-modo", "carril");
     expect(container.querySelector(".shell")).toHaveAttribute("data-pinned", "false");
-    const css = readFileSync(resolve(__dirname, "shell.css"), "utf8");
-    expect(css).toMatch(/@media \(max-width: 1024px\)\s*\{[^}]*\.shell-nav-link\s*\{\s*height:\s*44px/);
+    expect(cssShell()).toMatch(/@media\s*\(\s*max-width:\s*1024px\s*\)\s*\{[^}]*\.shell-nav-link\s*\{\s*height:\s*44px/);
     s.restaurar();
   });
   it("a 390: sin carril; el botón abre el cajón con el foco en el primer enlace y Escape lo cierra devolviendo el foco", () => {

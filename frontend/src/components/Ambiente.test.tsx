@@ -16,20 +16,29 @@ it("pinta la capa decorativa y los hijos encima; sin imagen", () => {
   expect(screen.getByText("contenido").parentElement!.style.zIndex).toBe("1");
 });
 
-it.each([360, 768, 1707, 2560])("a %i px el marcado es el mismo (el fondo no depende del ancho)", (ancho) => {
+/** El marcado del Ambiente a un ancho dado. */
+function marcadoA(ancho: number): string {
   const s = simularPantalla({ ancho });
-  const { container } = render(<Ambiente><p>x</p></Ambiente>);
-  expect(container.querySelectorAll("[data-ambiente]")).toHaveLength(1);
+  const { container, unmount } = render(<Ambiente><p>x</p></Ambiente>);
+  const html = container.innerHTML;
+  unmount();
   s.restaurar();
+  return html;
+}
+
+it.each([360, 768, 1024, 2560])("a %i px el marcado es idéntico al de 1707 (el fondo no depende del ancho)", (ancho) => {
+  const referencia = marcadoA(1707);
+  expect(referencia).toContain("data-ambiente");
+  expect(marcadoA(ancho)).toBe(referencia);
 });
 
 it("CSS: capa fija sin puntero, dos brillos en vmax sobre --canvas, grano ≤ 4 % y plano con transparencia reducida", () => {
-  const css = readFileSync(join(__dirname, "../styles/ambiente.css"), "utf8");
+  const css = readFileSync(join(__dirname, "../styles/ambiente.css"), "utf8").replace(/\r\n/g, "\n");
   expect(css).toMatch(/\.ambiente\s*\{[^}]*position:\s*fixed[^}]*pointer-events:\s*none/);
-  expect(css).toMatch(/radial-gradient\(60vmax 60vmax at 8% 0%, var\(--ambient-glow-1\)/);
-  expect(css).toMatch(/radial-gradient\(40vmax 40vmax at 100% 100%, var\(--ambient-glow-2\)/);
+  expect(css).toMatch(/radial-gradient\(\s*60vmax\s+60vmax\s+at\s+8%\s+0%\s*,\s*var\(--ambient-glow-1\)/);
+  expect(css).toMatch(/radial-gradient\(\s*40vmax\s+40vmax\s+at\s+100%\s+100%\s*,\s*var\(--ambient-glow-2\)/);
   expect(css).toMatch(/opacity:\s*var\(--ambient-grain-opacity\)/);
-  expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\)\s*\{\s*\.ambiente\s*\{\s*background:\s*var\(--canvas\);\s*\}\s*\.ambiente::after\s*\{\s*display:\s*none;/);
+  expect(css).toMatch(/@media\s*\(\s*prefers-reduced-transparency:\s*reduce\s*\)\s*\{\s*\.ambiente\s*\{\s*background:\s*var\(--canvas\);?\s*\}\s*\.ambiente::after\s*\{\s*display:\s*none;?/);
   expect(css).not.toMatch(/@media[^{]*(max|min)-width/);
   expect(css).not.toMatch(/animation/);
 });

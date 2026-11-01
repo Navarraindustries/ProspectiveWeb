@@ -11,10 +11,10 @@ it("lista: desplaza y limita el ancho", () => {
   expect(cuerpo.firstElementChild).toHaveClass("page-body__ancho", "fade-rise");
 });
 it("CSS: --content-max y márgenes por punto de corte (1024 y 640)", () => {
-  const css = readFileSync(join(__dirname, "shell.css"), "utf8");
-  expect(css).toMatch(/\.page-body__ancho\s*\{[^}]*max-width:\s*var\(--content-max\)[^}]*padding:\s*28px 32px 48px/);
-  expect(css).toMatch(/@media \(max-width: 1024px\)\s*\{\s*\.page-body__ancho\s*\{\s*padding:\s*24px 24px 40px/);
-  expect(css).toMatch(/@media \(max-width: 640px\)\s*\{\s*\.page-body__ancho\s*\{\s*padding:\s*16px 16px 32px/);
+  const css = readFileSync(join(__dirname, "shell.css"), "utf8").replace(/\r\n/g, "\n");
+  expect(css).toMatch(/\.page-body__ancho\s*\{[^}]*max-width:\s*var\(--content-max\)[^}]*padding:\s*28px\s+32px\s+48px/);
+  expect(css).toMatch(/@media\s*\(\s*max-width:\s*1024px\s*\)\s*\{\s*\.page-body__ancho\s*\{\s*padding:\s*24px\s+24px\s+40px/);
+  expect(css).toMatch(/@media\s*\(\s*max-width:\s*640px\s*\)\s*\{\s*\.page-body__ancho\s*\{\s*padding:\s*16px\s+16px\s+32px/);
 });
 it("ninguna página interna lleva ancho propio y todas usan PageBody", () => {
   const PAGINAS = ["UsersAdmin", "PendingRequests", "AuditTrail", "Studies", "Patients", "Workshops", "ClipOrders", "PatientPage"];

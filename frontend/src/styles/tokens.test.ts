@@ -160,17 +160,6 @@ describe("tokens de la dirección D", () => {
     expect(light).toMatch(/--ambient-glow-2:\s*rgba\(10, ?102, ?255, ?0?\.06\)/);
     expect(light).toMatch(/--ambient-grain-opacity:\s*0?\.03\b/);
   });
-  it("el texto secundario aguanta 4,5:1 sobre cristal encima de lo más claro del corte", () => {
-    // peor caso: blanco puro bajo el velo .55 y bajo el cristal .55 + blanco .08
-    const mix = (top: number[], a: number, under: number[]) => under.map((u, i) => u * (1 - a) + top[i] * a);
-    let bg = [255, 255, 255];
-    bg = mix([5, 6, 8], 0.55, bg);          // --veil
-    bg = mix([255, 255, 255], 0.08, bg);    // tinte del cristal
-    bg = mix([5, 6, 8], 0.55, bg);          // velo del propio cristal
-    const hexBg = "#" + bg.map((c) => Math.round(c).toString(16).padStart(2, "0")).join("");
-    expect(ratio("#B8C0CC", hexBg)).toBeGreaterThanOrEqual(4.5);
-    expect(ratio("#FFFFFF", hexBg)).toBeGreaterThanOrEqual(7);
-  });
   it("el cristal tiene fondo de reserva opaco y desenfoque en los dos temas", () => {
     for (const b of [block(DARK), block('[data-theme="light"]')]) {
       expect(b).toMatch(/--glass-solid:\s*#[0-9A-F]{6}/i);

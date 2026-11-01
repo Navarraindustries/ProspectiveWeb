@@ -3,6 +3,7 @@
    vi.unstubAllGlobals()) en afterEach. */
 import { vi } from "vitest";
 import { zonaLibre } from "../pipeline/zonaLibre";
+import { PUNTOS_CORTE } from "../styles/puntosCorte";
 
 export const MATRIZ_ANCHOS = [360, 390, 768, 1024, 1280, 1366, 1440, 1707, 1920, 2560] as const;
 export const MATRIZ_ALTOS = [600, 768, 900, 1080] as const;
@@ -89,5 +90,5 @@ export function simularPantalla(a: number | Pantalla, altoArg = 900): ControlPan
 
 /** Ancho de la banda del visor: la pantalla menos lo que ocupa el inspector. */
 export function anchoBanda(ancho: number, o: { ancho520?: boolean; plegado?: boolean } = {}): number {
-  return ancho - zonaLibre({ estrecho: ancho <= 1280, plegado: !!o.plegado, ancho: !!o.ancho520 }).right;
+  return ancho - zonaLibre({ estrecho: ancho <= PUNTOS_CORTE.estrecho, plegado: !!o.plegado, ancho: !!o.ancho520 }).right;
 }

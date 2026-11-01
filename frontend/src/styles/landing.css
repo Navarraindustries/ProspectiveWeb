@@ -24,8 +24,8 @@
   font-family: var(--font-sans);
 }
 
-/* Landing.tsx fija tamaño y peso inline; aquí solo se ajusta el tracking de los
-   titulares, sin tocar la escala. */
+/* Tamaño y peso de cada titular salen de su clase (.hero-cortes__titulo,
+   .sec__titulo…); aquí solo la fuente de titulares y el tracking comunes. */
 .landing-stitch h1,
 .landing-stitch h2,
 .landing-stitch h3,
@@ -47,7 +47,8 @@
 }
 
 /* Al saltar a un ancla, el rótulo de la sección queda por debajo de la
-   pastilla fija de la nav (unos 70 px con su margen). */
+   pastilla fija de la nav. Es el mismo número que DESFASE_NAV
+   (desplazamiento.ts), que resta el desplazamiento animado. */
 .landing-stitch section[id] {
   scroll-margin-top: 96px;
 }
@@ -117,8 +118,9 @@
 /* Disposición quieta (movimiento reducido, pantalla estrecha o baja, ahorro de
    datos): sin scroll que consumir, el escenario fluye en el documento y crece
    con su contenido, sin recortar nada. El render se recorta en su propia capa
-   (`.hero-cortes__render`). El @media repite la clase que pone HeroCortes con
-   `CONSULTA_HERO_QUIETO` (heroFrames.ts); el contenido del hero también. */
+   (`.hero-cortes__render`). La clase la pone HeroCortes según
+   `CONSULTA_HERO_QUIETO` (heroFrames.ts): todo el tramo de tableta y las
+   pantallas bajas. */
 .landing-stitch .hero-cortes--quieto .hero-cortes__escenario {
   position: relative;
   height: auto;
@@ -493,7 +495,8 @@
 }
 
 /* ============================================================================
-   Secciones del tablero D (después del hero): listas con reglas, no tarjetas.
+   Secciones después del hero: la cabecera común (.sec) y la maquetación de
+   cada una (riel, bento de cristal, índices, series, próximamente).
    ============================================================================ */
 .landing-stitch .sec {
   padding: clamp(64px, 10vh, 140px) 24px;
@@ -524,11 +527,6 @@
 .landing-stitch .sec__titulo--contacto {
   margin-top: 0;
   font-size: 28px;
-}
-.landing-stitch .sec__dos {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 48px;
 }
 .landing-stitch .sec__subtitulo {
   margin: 0;
@@ -884,10 +882,6 @@
 .landing-stitch[data-tramo="movil"] .sec__titulo {
   font-size: 30px;
 }
-.landing-stitch[data-tramo="movil"] .sec__dos {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 14px;
-}
 .landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .series {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -1024,7 +1018,7 @@
   transition: border-color var(--dur-1) var(--ease-out);
 }
 .landing-stitch .bento__tarjeta:hover {
-  border-color: var(--border-strong, var(--border));
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
 }
 .landing-stitch .bento__imagen {
   position: relative;

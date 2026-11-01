@@ -11,9 +11,9 @@
 
    Disposición quieta: 100 vh como mínimo, sin cortes ni scroll extra, con el
    fotograma final (render 3D, balizas y ventana) desde el principio y en flujo
-   normal, así que nada se recorta. La toma con movimiento reducido, en
-   pantallas estrechas o bajas (`CONSULTA_HERO_QUIETO`: un iPhone con las barras
-   visibles no da los ~800 px que piden texto y ventana juntos) y con ahorro de
+   normal, así que nada se recorta. La toma con movimiento reducido, hasta
+   1024 de ancho y en pantallas bajas (`CONSULTA_HERO_QUIETO`: en móvil y
+   tableta va en una columna, texto arriba y ventana debajo) y con ahorro de
    datos (no se descargan los 60 cortes).
 
    La ventana de detección está siempre en el árbol de accesibilidad: con

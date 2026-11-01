@@ -12,7 +12,7 @@ import { NEEDS_MORPHOMETRY, STEPS } from "../pipeline/steps";
 import { QuirofanoBar } from "../components/stepper/QuirofanoBar";
 import { SaveStatus } from "../components/stepper/SaveStatus";
 import { BANDA_SUPERIOR, zonaLibre } from "../pipeline/zonaLibre";
-import { StepRail } from "../components/stepper/StepRail";
+import { StepDock } from "../components/stepper/StepDock";
 import { Collapsible } from "../components/PanelHead";
 import { UploadPanel } from "../components/upload/UploadPanel";
 import { SegmentPanel } from "../components/segmentation/SegmentPanel";
@@ -447,65 +447,18 @@ export function Workspace({
         </div>
       )}
 
-      {/* Barra de pasos compacta — sustituye al rail cuando este se oculta bajo
-          820 px. Antes simplemente desaparecía y no quedaba ninguna forma de
-          cambiar de paso: el usuario se quedaba encerrado donde estuviera. */}
-      <div
-        className="ws-steps-compact"
-        role="tablist"
-        aria-label="Flujo de planificación"
-        style={{
-          display: "none", gap: 4, padding: "8px 12px", overflowX: "auto",
-          background: "var(--background)", borderBottom: "1px solid var(--border)",
-        }}
-      >
-        {STEPS.map((s, i) => {
-          const active = i === stepIdx;
-          const missing = missingFor(i, planning);
-          const locked = !active && !!missing;
-          return (
-            <button
-              key={s.key}
-              role="tab"
-              aria-selected={active}
-              disabled={locked}
-              title={missing ?? s.label}
-              onClick={() => !locked && go(i)}
-              style={{
-                display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
-                padding: "6px 11px", borderRadius: "var(--radius-full)",
-                border: "1px solid " + (active ? "transparent" : "var(--border)"),
-                background: active ? "var(--brand-deep)" : "var(--card)",
-                color: active ? "#fff" : locked ? "var(--muted-foreground)" : "var(--foreground)",
-                cursor: locked ? "not-allowed" : "pointer",
-                opacity: locked ? 0.5 : 1,
-                fontFamily: "var(--font-sans)", fontSize: 12,
-                fontWeight: active ? 700 : 500, whiteSpace: "nowrap",
-              }}
-            >
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, opacity: .8 }}>{i + 1}</span>
-              {s.short}
-            </button>
-          );
-        })}
-      </div>
       </div>
 
       </div>
 
-      {/* Rail de flujo — ancho fluido; en pantallas estrechas colapsa a iconos
-          y bajo 820px se oculta (ver styles/responsive.css). */}
-      <div style={{ position: "absolute", top: BANDA_SUPERIOR, bottom: 0, left: 0, zIndex: 2, display: "flex" }}>
-        <StepRail
-          steps={STEPS}
-          activeIndex={stepIdx}
-          missingFor={(i) => missingFor(i, planning)}
-          onGo={go}
-          patient={patient}
-          riskLabel={morphometry?.rupture_risk_label ?? null}
-        />
-
-      </div>
+      {/* Dock de pasos — pastilla de cristal sobre el visor, abajo a la izquierda. */}
+      <StepDock
+        steps={STEPS}
+        activeIndex={stepIdx}
+        missingFor={(i) => missingFor(i, planning)}
+        onGo={go}
+        compacto={false}
+      />
 
       {/* Visor: ocupa la zona libre (ni bajo el inspector ni bajo las pastillas). */}
       <div data-zona-libre

@@ -34,20 +34,6 @@ html, body, #root {
   .login-form { flex: 1 1 100% !important; min-width: 0 !important; }
 }
 
-/* ── Workspace: el rail se estrecha y oculta textos; luego se oculta ────── */
-@media (max-width: 1024px) {
-  .ws-rail-progress { display: none; }
-  .ws-rail { width: 62px !important; padding-left: 6px !important; padding-right: 6px !important; }
-  .ws-rail .ws-rail-label { display: none !important; }
-  .ws-rail .ws-patient-card { display: none !important; }
-}
-@media (max-width: 820px) {
-  /* El rail cede su sitio a la barra de pasos horizontal — nunca desaparece
-     dejando la navegación sin sustituto. */
-  .ws-rail { display: none !important; }
-  .ws-steps-compact { display: flex !important; }
-}
-
 /* ── Workspace: panel del paso plegado a una tira (tecla P) ───────────── */
 /* La tira se queda con 28 px y el visor con el resto. El texto va en vertical
    para que el nombre del paso quepa sin ensanchar la tira. */

@@ -21,9 +21,9 @@ import { planeFromNormal } from "../../vtk/freePlane";
 import { cifra, coordenadas } from "../../lib/numero";
 
 const RESOLUTIONS = [
-  { value: "1.0", label: "1.0 mm · rápida" },
-  { value: "0.8", label: "0.8 mm · recomendada" },
-  { value: "0.6", label: "0.6 mm · fina (lenta)" },
+  { value: "1.0", label: "1,0 mm · rápida" },
+  { value: "0.8", label: "0,8 mm · recomendada" },
+  { value: "0.6", label: "0,6 mm · fina (lenta)" },
 ];
 
 function fmt(p: [number, number, number] | null): string {

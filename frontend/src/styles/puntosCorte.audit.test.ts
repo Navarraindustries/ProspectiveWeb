@@ -15,7 +15,6 @@ const ALTOS = new Set([600, 768, 900, 1080]); // altos de la matriz
 const LEGADO: Record<string, number[]> = {
   "styles/landing.css": [760], // fase 11
   "styles/office.css": [760], // fase 9
-  "styles/responsive.css": [1100, 820], // tarea 12 de esta fase
   "components/landing/heroFrames.ts": [760],
   "components/landing/FranjaCasos.tsx": [760],
   "components/landing/NavPildora.tsx": [900],

@@ -5,8 +5,8 @@
    contraseña demasiado corta, un 500) se anunciaba como «¿Está el backend en
    marcha?». El servidor estaba en marcha: era él quien contestaba. */
 
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 const { login, ApiError } = vi.hoisted(() => {
@@ -27,6 +27,7 @@ vi.mock("../store/auth", () => ({ useAuth: () => ({ login }) }));
 vi.mock("../components/ThemeToggle", () => ({ ThemeToggle: () => null }));
 
 import { Login } from "./Login";
+import { simularPantalla } from "../test/pantalla";
 
 /** Ningún contenedor de la ventana pinta un fondo opaco: el Ambiente debe verse. */
 function sinFondoOpaco(ventana: HTMLElement) {
@@ -214,4 +215,54 @@ describe("identidad nueva de «Entrar» (F2-10, F2-11, F2-12)", () => {
     montar();
     sinFondoOpaco(screen.getByRole("region", { name: "Iniciar sesión" }));
   });
+});
+
+describe("tramos de pantalla (fase 8, tarea 12)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const montar = () => render(<MemoryRouter><Login onLogin={() => {}} onSignup={() => {}} /></MemoryRouter>);
+
+  it("a 1707 el panel de marca ocupa el 62%", () => {
+    simularPantalla({ ancho: 1707 });
+    const { container } = montar();
+    expect(container.querySelector<HTMLElement>(".login-media")!.style.flex).toBe("1 1 62%");
+    expect(container.querySelector<HTMLElement>(".login-form")!.style.minWidth).toBe("320px");
+  });
+
+  it("a 1280 cede al 45 %", () => {
+    simularPantalla({ ancho: 1280 });
+    const { container } = montar();
+    expect(container.querySelector<HTMLElement>(".login-media")!.style.flex).toBe("1 1 45%");
+  });
+
+  it.each([1024, 768, 390, 360])("a %i px no hay panel de vídeo: el logotipo va sobre la ventana y nada fuerza ancho mínimo", (ancho) => {
+    simularPantalla({ ancho });
+    const { container } = montar();
+    expect(container.querySelector(".login-media")).toBeNull();
+    expect(container.querySelector("video")).toBeNull();
+    const zona = container.querySelector<HTMLElement>(".login-form")!;
+    expect(within(zona).getByText("Prospective")).toBeInTheDocument();
+    expect(zona.style.minWidth).toBe("0px");
+    expect(zona.style.flex).toBe("1 1 100%");
+  });
+
+  it("por debajo de 1024 el botón de volver mide 44 px", () => {
+    simularPantalla({ ancho: 768 });
+    montar();
+    expect(screen.getByRole("button", { name: /Página principal/ })).toHaveAttribute("data-size", "md");
+  });
+
+  it("ningún texto de la pantalla baja de 13 px (salvo rótulos mono y la marca)", () => {
+    const { container } = montar();
+    for (const el of container.querySelectorAll<HTMLElement>("p, div, span, a, button, label")) {
+      const fs = parseFloat(el.style.fontSize);
+      if (Number.isNaN(fs) || el.closest("[data-logo]") || el.style.fontFamily.includes("--font-mono")) continue;
+      if (el.style.textTransform === "uppercase") continue;
+      expect(fs, el.textContent ?? "").toBeGreaterThanOrEqual(13);
+    }
+  });
+});
+
+it("«Crear cuenta» es un botón de enlace del sistema", () => {
+  render(<MemoryRouter><Login onLogin={() => {}} onSignup={() => {}} /></MemoryRouter>);
+  expect(screen.getByRole("button", { name: "Crear cuenta" })).toHaveAttribute("data-variant", "link");
 });

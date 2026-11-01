@@ -77,8 +77,7 @@ export function ChangePasswordSheet({ open, onClose }: { open: boolean; onClose:
       ) : (
         <>
           <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 14, lineHeight: 1.5 }}>
-            Tu sesión seguirá abierta: el token va firmado sobre tu usuario, no sobre
-            la contraseña.
+            Tu sesión seguirá abierta en este equipo.
           </div>
 
           <Input

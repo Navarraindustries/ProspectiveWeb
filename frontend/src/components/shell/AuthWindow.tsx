@@ -1,10 +1,11 @@
 /* Ventana de cristal de las pantallas públicas (Entrar, Crear cuenta, cambio de
    contraseña): fluida (ancho 100 %, máximo 440 px); el margen de 16 px lo pone la
-   zona que la contiene, no la ventana. Cristal denso, título de ventana y entrada
+   zona que la contiene, no la ventana. Cristal normal (A15), título de ventana y entrada
    «glide» (solo opacidad con movimiento reducido). */
 
 import { useId, type ReactNode } from "react";
 import { glass } from "../../styles/glass";
+import { useMovil } from "../../hooks/useEstrecho";
 import { glide, glideTransition, motion, useReducedMotion } from "../../motion";
 
 const SOLO_OPACIDAD = {
@@ -21,6 +22,7 @@ export interface AuthWindowProps {
 export function AuthWindow({ titulo, subtitulo, children }: AuthWindowProps) {
   const reduced = useReducedMotion();
   const tituloId = useId();
+  const movil = useMovil();
   return (
     <motion.section
       aria-labelledby={tituloId}
@@ -30,12 +32,12 @@ export function AuthWindow({ titulo, subtitulo, children }: AuthWindowProps) {
       animate="animate"
       transition={reduced ? { duration: 0.15 } : glideTransition}
       style={{
-        ...glass("dense"),
+        ...glass("normal"),
         width: "100%",
         maxWidth: 440,
         boxSizing: "border-box",
         borderRadius: "var(--radius-xl)",
-        padding: 40,
+        padding: movil ? 24 : 40,
         color: "var(--foreground)",
       }}
     >

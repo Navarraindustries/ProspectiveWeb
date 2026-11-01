@@ -4,8 +4,8 @@
    marcha?», y desde que el cliente lanza ApiError 0 ni siquiera eso: salía
    «Sin conexión con el servidor» a secas. Ahora es el mismo texto que «Entrar». */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 const { signup, ApiError } = vi.hoisted(() => {
@@ -25,6 +25,7 @@ const tema = vi.hoisted(() => ({ actual: "light" as "light" | "dark" }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: tema.actual }) }));
 
 import { Signup } from "./Signup";
+import { simularPantalla } from "../test/pantalla";
 
 /** Ningún contenedor de la ventana pinta un fondo opaco: el Ambiente debe verse. */
 function sinFondoOpaco(ventana: HTMLElement) {
@@ -192,5 +193,50 @@ describe("la ventana de cristal de «Crear cuenta»", () => {
   it("los contenedores de la ventana no tapan el Ambiente", () => {
     render(<MemoryRouter><Signup onBack={() => {}} onDone={() => {}} /></MemoryRouter>);
     sinFondoOpaco(screen.getByRole("region", { name: "Crear cuenta" }));
+  });
+});
+
+describe("tramos de pantalla (fase 8, tarea 12)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const montar = () => render(<MemoryRouter><Signup onBack={() => {}} onDone={() => {}} /></MemoryRouter>);
+
+  it("a 1707 el panel de marca ocupa el 56%", () => {
+    simularPantalla({ ancho: 1707 });
+    const { container } = montar();
+    expect(container.querySelector<HTMLElement>(".login-media")!.style.flex).toBe("1 1 56%");
+    expect(container.querySelector<HTMLElement>(".login-form")!.style.minWidth).toBe("340px");
+  });
+
+  it("a 1280 cede al 45 %", () => {
+    simularPantalla({ ancho: 1280 });
+    const { container } = montar();
+    expect(container.querySelector<HTMLElement>(".login-media")!.style.flex).toBe("1 1 45%");
+  });
+
+  it.each([1024, 768, 390, 360])("a %i px no hay panel de vídeo: el logotipo va sobre la ventana y nada fuerza ancho mínimo", (ancho) => {
+    simularPantalla({ ancho });
+    const { container } = montar();
+    expect(container.querySelector(".login-media")).toBeNull();
+    expect(container.querySelector("video")).toBeNull();
+    const zona = container.querySelector<HTMLElement>(".login-form")!;
+    expect(within(zona).getByText("Prospective")).toBeInTheDocument();
+    expect(zona.style.minWidth).toBe("0px");
+    expect(zona.style.flex).toBe("1 1 100%");
+  });
+
+  it("por debajo de 1024 el botón de volver mide 44 px", () => {
+    simularPantalla({ ancho: 768 });
+    montar();
+    expect(screen.getByRole("button", { name: /Volver a Entrar/ })).toHaveAttribute("data-size", "md");
+  });
+
+  it("ningún texto de la pantalla baja de 13 px (salvo rótulos mono y la marca)", () => {
+    const { container } = montar();
+    for (const el of container.querySelectorAll<HTMLElement>("p, div, span, a, button, label")) {
+      const fs = parseFloat(el.style.fontSize);
+      if (Number.isNaN(fs) || el.closest("[data-logo]") || el.style.fontFamily.includes("--font-mono")) continue;
+      if (el.style.textTransform === "uppercase") continue;
+      expect(fs, el.textContent ?? "").toBeGreaterThanOrEqual(13);
+    }
   });
 });

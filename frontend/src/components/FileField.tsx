@@ -10,7 +10,7 @@ export function FileField({
   const ref = useRef<HTMLInputElement>(null);
   return (
     <div>
-      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 6 }}>{label}</div>
       <input
         ref={ref}
         type="file"

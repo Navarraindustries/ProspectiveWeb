@@ -243,6 +243,16 @@ describe("avisos del pipeline como toasts", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("«Reintentar» del aviso global llama a retry y no cierra el aviso", () => {
+    const onClose = vi.fn();
+    const retry = vi.fn();
+    render(<Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}}
+                      aviso={{ texto: "No se pudo restaurar la sesión", retry, onClose }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("error de guardado y aviso global se apilan sin taparse; cada uno se cierra solo", async () => {
     estado.dirty = true;
     saveSession.mockRejectedValue(new Error("caído"));
@@ -425,6 +435,19 @@ describe("hoja inferior a ≤ 1280 px", () => {
       fireEvent.keyDown(document.activeElement as Element, { key: "Escape" });
       expect(setPickMode).toHaveBeenCalledWith(null);
     } finally { window.removeEventListener("viewer:shortcut", oyente); }
+  });
+
+  it("a «completa» el dock no se muestra; los atajos de paso siguen", () => {
+    estado.series = {};
+    montar_();
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar la altura del panel" })); // completa
+    expect(hoja().style.height).toBe("calc(100% - 72px)");
+    expect(screen.queryByRole("navigation", { name: "Flujo de planificación" })).toBeNull();
+    // El 2 salta a Segmentación aunque el dock no esté.
+    fireEvent.keyDown(window, { key: "2", code: "Digit2" });
+    expect(hoja().textContent).toContain("PASO 2 · SEGMENTACIÓN");
+    pulsarP(); // asomar
+    expect(dock()).toBeTruthy();
   });
 
   it("el dock compacto sube con la hoja y queda sobre ella, igual que la banda de avisos", () => {

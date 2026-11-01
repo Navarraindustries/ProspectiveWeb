@@ -480,8 +480,10 @@ export function Workspace({
 
       </div>
 
-      {/* Dock de pasos — pastilla de cristal sobre el visor, abajo a la izquierda. */}
-      <StepDock
+      {/* Dock de pasos — pastilla de cristal sobre el visor, abajo a la izquierda.
+          Con la hoja a «completa» no se pinta: taparía el centro de su contenido
+          (los atajos 1–8, ⌘K y P siguen valiendo). */}
+      {!(estrecho && alturaHoja === "completa") && <StepDock
         steps={STEPS}
         activeIndex={stepIdx}
         missingFor={(i) => missingFor(i, planning)}
@@ -489,7 +491,7 @@ export function Workspace({
         compacto={estrecho}
         abajo={estrecho ? (alturaHoja === "asomar" ? HOJA_ASOMAR + 12 : "calc(50% + 12px)") : 20}
         zIndex={estrecho ? Z_SOBRE_HOJA : 3}
-      />
+      />}
 
       {/* Visor: ocupa la zona libre (ni bajo el inspector ni bajo las pastillas).
           `isolation: isolate` encierra las capas internas del visor (asa de

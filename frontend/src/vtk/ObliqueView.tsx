@@ -272,8 +272,9 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, onWindowLevelR
       {/* La fila se parte en dos líneas en una celda estrecha: sin ello ELEVACIÓN
           quedaba recortada y solo se podía cambiar con el botón derecho.
           `hud-controls`: es una fila de controles y se oculta en esencial y
-          limpio como los grupos de botones; AZ · EL siguen en la lectura. */}
-      <div className="hud-controls" style={{ flexShrink: 0, padding: "8px 16px", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", borderTop: "var(--hud-line) solid var(--hud-text-dim)", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--hud-text-dim)" }}>
+          limpio como los grupos de botones; AZ · EL siguen en la lectura.
+          En la celda bajo el dock del quirófano sube su holgura (--hud-bl-extra). */}
+      <div className="hud-controls" style={{ flexShrink: 0, marginBottom: "var(--hud-bl-extra, 0px)", padding: "8px 16px", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", borderTop: "var(--hud-line) solid var(--hud-text-dim)", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--hud-text-dim)" }}>
         {slider("AZIMUT", "Azimut", AZIMUTH_RANGE, freePlane.azimuthDeg, (v) => commitPlane({ ...freePlane, azimuthDeg: v }))}
         {slider("ELEVACIÓN", "Elevación", ELEVATION_RANGE, freePlane.elevationDeg, (v) => commitPlane({ ...freePlane, elevationDeg: v }))}
         {walk && onWalkChange && (

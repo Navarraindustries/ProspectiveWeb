@@ -40,6 +40,12 @@ describe("texto del HUD", () => {
     expect(css).toMatch(/\.hud-readout\.bl\s*\{[^}]*calc\(22px \+ var\(--hud-bl-extra,\s*0px\)\)/);
     expect(css).toMatch(/\.hud-cine\s*\{[^}]*calc\(40px \+ var\(--hud-bl-extra,\s*0px\)\)/);
   });
+  it("la fila de deslizadores del Oblicuo (hud-controls) sube la holgura del dock en su celda", () => {
+    const src = readFileSync(resolve(__dirname, "ObliqueView.tsx"), "utf8");
+    const fila = src.match(/className="hud-controls" style=\{\{([^}]*)\}\}/);
+    expect(fila, "fila hud-controls del Oblicuo").not.toBeNull();
+    expect(fila![1]).toMatch(/marginBottom:\s*"var\(--hud-bl-extra,\s*0px\)"/);
+  });
   it("la celda bajo el dock es la de abajo a la izquierda de cada distribución", () => {
     const L = (preset: string) => ({ preset, main: "axial", side: ["coronal", "sagital", "scene"], mainFraction: 0.7 }) as never;
     expect(dockCornerSlot(gridFor(L("sola"), false).areas)).toBe("main");

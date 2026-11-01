@@ -14,6 +14,7 @@ import { UserMenu } from "../shell/UserMenu";
 import type { Crumb } from "../shell/TopBar";
 import { glass } from "../../styles/glass";
 import { openCommandPalette } from "../../lib/commands";
+import { atajoPaleta, rotuloPaleta, teclasPaleta } from "../../lib/plataforma";
 import { OBJETIVO_TACTIL_PX } from "../../pipeline/puntosCorte";
 import { TEXTO_OCULTO } from "../../styles/oculto";
 import "../shell/shell.css";
@@ -135,8 +136,8 @@ export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions, modo 
           </button>
         ) : (
           <>
-            <button type="button" className="shell-cmdk" aria-label="Abrir la paleta de mandos (Ctrl+K)" title="Paleta de mandos (Ctrl+K)" onClick={openCommandPalette}>
-              ⌘K
+            <button type="button" className="shell-cmdk" aria-label={rotuloPaleta()} aria-keyshortcuts={teclasPaleta()} title={`Paleta de mandos (${atajoPaleta()})`} onClick={openCommandPalette}>
+              {atajoPaleta()}
             </button>
             <ThemeToggle size="sm" />
           </>

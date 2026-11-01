@@ -79,7 +79,7 @@ describe("StepDock", () => {
       render(<StepDock steps={steps} activeIndex={2} missingFor={() => null} onGo={() => {}} modo="mini" />);
       expect(nav()).toHaveAttribute("data-modo", "mini");
       expect(screen.getAllByRole("button")).toHaveLength(3);
-      expect(screen.queryByText("⌘K")).toBeNull();
+      expect(screen.queryByRole("button", { name: /paleta de mandos/ })).toBeNull();
       expect(screen.getByRole("button", { name: `Paso 3 de 8, ${steps[2].label}. Ver todos los pasos` })).toHaveTextContent(`3/8 · ${steps[2].label}`);
     });
     it("mini: la píldora abre la paleta; anterior y siguiente navegan", () => {
@@ -118,13 +118,15 @@ describe("StepDock", () => {
       const bs = screen.getAllByRole("button", { name: /^Paso [0-9]/ });
       expect(bs).toHaveLength(8);
       for (const b of bs) expect((b as HTMLElement).style.width).toBe("44px");
-      expect(screen.queryByText("⌘K")).toBeNull();
+      expect(screen.queryByRole("button", { name: /paleta de mandos/ })).toBeNull();
       expect(screen.getAllByRole("button")).toHaveLength(8);
       expect(screen.queryByText(`3 · ${steps[2].label}`)).toBeNull();
     });
-    it.each(["completo", "compacto"] as const)("%s: conserva el ⌘K", (modo) => {
+    it.each(["completo", "compacto"] as const)("%s: conserva el atajo de la paleta (Ctrl K fuera de Mac)", (modo) => {
       render(<StepDock steps={steps} activeIndex={2} missingFor={() => null} onGo={() => {}} modo={modo} />);
-      expect(screen.getByText("⌘K")).toBeInTheDocument();
+      const boton = screen.getByRole("button", { name: /paleta de mandos/ });
+      expect(boton).toHaveTextContent("Ctrl K");
+      expect(boton).toHaveAttribute("aria-keyshortcuts", "Control+K");
     });
     it("tactil: un paso hecho enseña su número y el ✓; con ratón, solo el ✓", () => {
       const { unmount } = render(<StepDock steps={steps} activeIndex={4} missingFor={() => null} onGo={() => {}} modo="tactil" />);

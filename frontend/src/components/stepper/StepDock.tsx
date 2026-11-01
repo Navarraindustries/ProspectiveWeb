@@ -12,6 +12,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { Icon } from "../Icon";
 import { AnimatePresence, fundido, fundidoTransition, motion, useReducedMotion } from "../../motion";
 import { openCommandPalette } from "../../lib/commands";
+import { atajoPaleta, rotuloPaleta, teclasPaleta } from "../../lib/plataforma";
 import { glass } from "../../styles/glass";
 import { OBJETIVO_TACTIL_PX } from "../../pipeline/puntosCorte";
 import type { PipelineStep } from "../../pipeline/steps";
@@ -304,8 +305,9 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
           <span aria-hidden style={{ width: 1, alignSelf: "stretch", margin: "6px 2px", background: "var(--glass-border)" }} />
           <button
             type="button"
-            aria-label="Abrir la paleta de mandos (Ctrl+K)"
-            title="Paleta de mandos (Ctrl+K)"
+            aria-label={rotuloPaleta()}
+            aria-keyshortcuts={teclasPaleta()}
+            title={`Paleta de mandos (${atajoPaleta()})`}
             onClick={() => openCommandPalette()}
             style={{
               height: base, padding: "0 12px", borderRadius: "var(--radius-full)", border: "1px solid var(--glass-border)",
@@ -313,7 +315,7 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
               fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600,
             }}
           >
-            ⌘K
+            {atajoPaleta()}
           </button>
         </>
       )}

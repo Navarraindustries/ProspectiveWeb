@@ -10,6 +10,11 @@
 import { DUR, EASE, motion, useReducedMotion } from "../../motion";
 import { NOMBRE_COTA, type Cota } from "./indices";
 
+/* Lienzo recortado al dibujo (rótulo de Ø máx arriba, rótulos bajo la arteria
+   abajo): así el dibujo, y no una caja con franjas vacías, queda centrado en
+   vertical respecto a la lista de índices. */
+export const VIEWBOX = "0 44 440 342";
+
 const ARTERIA_Y = 300;   // pared superior del vaso
 const ARTERIA_FONDO = 350; // pared inferior
 
@@ -64,17 +69,17 @@ function Trazos({ cota }: { cota: Cota }) {
     case "contorno":
       return (<>
         <path d={ENVOLVENTE} fill="none" strokeDasharray="6 5" />
-        <text x="16" y="40">envolvente convexa</text>
+        <text x="430" y="376" textAnchor="end">envolvente convexa</text>
       </>);
     case "elipse":
       return (<>
         <ellipse cx="220" cy="184" rx="104" ry="116" fill="none" strokeDasharray="6 5" />
-        <text x="16" y="40">elipse ajustada</text>
+        <text x="430" y="376" textAnchor="end">elipse ajustada</text>
       </>);
     case "esfera":
       return (<>
         <circle cx="220" cy="186" r="106" fill="none" strokeDasharray="6 5" />
-        <text x="16" y="40">esfera de igual volumen</text>
+        <text x="430" y="376" textAnchor="end">esfera de igual volumen</text>
       </>);
   }
 }
@@ -92,7 +97,7 @@ export function DiagramaSaco({ activas }: { activas: readonly Cota[] }) {
   return (
     <svg
       className="diagrama-saco"
-      viewBox="0 0 440 390"
+      viewBox={VIEWBOX}
       role="img"
       aria-label={`Diagrama del saco: resalta ${activas.map((c) => NOMBRE_COTA[c]).join(" y ")}`}
     >

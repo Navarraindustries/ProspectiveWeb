@@ -16,9 +16,9 @@ export const NOMBRE_COTA: Record<Cota, string> = {
   anchura: "Ø domo",
   dmax: "Ø máx",
   madre: "Ø arteria madre",
-  contorno: "contorno",
-  elipse: "elipse",
-  esfera: "esfera",
+  contorno: "envolvente convexa",
+  elipse: "elipse ajustada",
+  esfera: "esfera de igual volumen",
 };
 
 export interface IndiceMorfo {

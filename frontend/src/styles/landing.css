@@ -1102,8 +1102,9 @@
 /* ── Índices: lista + diagrama del saco que enciende la cota de cada índice ── */
 .landing-stitch .indices {
   display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-  gap: 48px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 56px;
+  align-items: center;
 }
 .landing-stitch .indices__lista {
   list-style: none;
@@ -1160,22 +1161,31 @@
   font-weight: 600;
   color: var(--foreground);
 }
+/* Centrado en vertical respecto a la lista (align-items del grid). */
 .landing-stitch .indices__diagrama {
-  position: sticky;
-  top: 120px;
-  align-self: start;
+  width: 100%;
+  max-width: 560px;
+  justify-self: center;
 }
 .landing-stitch .diagrama-saco {
   display: block;
   width: 100%;
-  min-width: 300px;
   height: auto;
   color: var(--foreground);
 }
+/* La arteria madre: luz del vaso y sus dos paredes (la superior se abre en el cuello). */
 .landing-stitch .diagrama-saco__madre {
-  fill: none;
-  stroke: var(--border);
+  fill: color-mix(in srgb, var(--destructive) 8%, transparent);
+  stroke: none;
+}
+.landing-stitch .diagrama-saco__pared {
+  stroke: var(--destructive);
   stroke-width: 2;
+}
+.landing-stitch .diagrama-saco__vaso {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  fill: var(--muted-foreground);
 }
 .landing-stitch .diagrama-saco__saco {
   fill: color-mix(in srgb, var(--destructive) 18%, transparent);
@@ -1191,7 +1201,7 @@
    con opacidad (OPACIDAD_COTA_INACTIVA) y con el gris no llegaba a 4,5:1 en claro. */
 .landing-stitch .diagrama-saco [data-cota] text {
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 400;
   fill: var(--foreground);
   stroke: none;
@@ -1210,8 +1220,7 @@
 }
 .landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .indices__diagrama {
   order: -1;
-  position: static;
   width: 100%;
-  max-width: 420px;
+  max-width: 480px;
   margin-inline: auto;
 }

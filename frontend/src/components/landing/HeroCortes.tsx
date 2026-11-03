@@ -26,7 +26,8 @@ import { useMediaQuery } from "../../hooks/useEstrecho";
 import { useMotionValueEvent, useReducedMotion, useScroll } from "../../motion";
 import { Button } from "../Button";
 import {
-  CONSULTA_HERO_QUIETO, GROSOR_LOSA_MM, MANIFIESTO, fotogramaPara, precargarEnOrden, rutaFotograma, ultimoCargado,
+  CONSULTA_HERO_QUIETO, GROSOR_LOSA_MM, MANIFIESTO, fotogramaPara, fotogramasListos, pideAhorroDatos, rutaFotograma,
+  suscribirPrecargaHero, ultimoCargado,
 } from "./heroFrames";
 import { useIrASeccion } from "./desplazamiento";
 import { BalizasDeteccion, VentanaDeteccion } from "./VentanaDeteccion";
@@ -34,11 +35,6 @@ import { BalizasDeteccion, VentanaDeteccion } from "./VentanaDeteccion";
 const LEMA = "Planificación neurovascular con datos";
 /* Progreso a partir del cual se ve el render 3D en vez de los cortes. */
 const UMBRAL_3D = 0.85;
-
-/* ¿El navegador pide ahorrar datos? (`navigator.connection` no es estándar). */
-const pideAhorroDatos = (): boolean =>
-  typeof navigator !== "undefined" &&
-  (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
 
 export function HeroCortes({ onEntrar, onCrearCuenta }: { onEntrar: () => void; onCrearCuenta: () => void }) {
   const reducido = useReducedMotion() ?? false;
@@ -51,7 +47,7 @@ export function HeroCortes({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
   const seccion = useRef<HTMLElement>(null);
   const [objetivo, setObjetivo] = useState(0);
   const [final, setFinal] = useState(false);
-  const [cargados, setCargados] = useState<ReadonlySet<number>>(() => new Set());
+  const [cargados, setCargados] = useState<ReadonlySet<number>>(() => new Set(fotogramasListos()));
 
   const { scrollYProgress } = useScroll({ target: seccion, offset: ["start start", "end end"] });
   useMotionValueEvent(scrollYProgress, "change", (p) => {
@@ -59,11 +55,12 @@ export function HeroCortes({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
     setFinal(p > UMBRAL_3D);
   });
 
-  // Precarga en orden (el 0 primero) solo con el hero animado.
+  // Precarga en orden (el 0 primero) solo con el hero animado. Es la compartida
+  // con la pantalla de carga: si ya la había arrancado ella, se engancha.
   useEffect(() => {
     if (quieto) return;
-    return precargarEnOrden(MANIFIESTO.count, rutaFotograma, (i) => {
-      setCargados((prev) => new Set(prev).add(i));
+    return suscribirPrecargaHero((i) => {
+      setCargados((prev) => (prev.has(i) ? prev : new Set(prev).add(i)));
     });
   }, [quieto]);
 

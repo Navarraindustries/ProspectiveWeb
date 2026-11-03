@@ -118,6 +118,56 @@ export function precargarEnOrden(
   };
 }
 
+/* ── Precarga compartida ───────────────────────────────────────────────────
+   El hero y la pantalla de carga (CargaEscaner) leen la misma precarga: la
+   primera suscripción la arranca, las demás se enganchan a la que ya corre y
+   reciben al instante lo que ya estaba listo. Así los 60 fotogramas se piden
+   una sola vez. Si se van todos los suscriptores antes de acabar, se corta
+   (la siguiente suscripción la reanuda; lo descargado sigue en la caché HTTP). */
+const listosHero = new Set<number>();
+const oyentesHero = new Set<(i: number) => void>();
+let cortarPrecargaHero: (() => void) | null = null;
+
+/** Fotogramas del hero ya descargados y decodificados (en esta página). */
+export function fotogramasListos(): ReadonlySet<number> {
+  return listosHero;
+}
+
+/** Se engancha a la precarga compartida de los fotogramas del hero.
+    `alListo(i)` avisa de cada fotograma nuevo; los que ya estaban se avisan
+    al suscribirse. Devuelve la baja. */
+export function suscribirPrecargaHero(alListo: (i: number) => void): () => void {
+  oyentesHero.add(alListo);
+  for (const i of listosHero) alListo(i);
+  if (!cortarPrecargaHero && listosHero.size < MANIFIESTO.count) {
+    cortarPrecargaHero = precargarEnOrden(MANIFIESTO.count, rutaFotograma, (i) => {
+      if (listosHero.has(i)) return;
+      listosHero.add(i);
+      for (const f of [...oyentesHero]) f(i);
+    });
+  }
+  return () => {
+    oyentesHero.delete(alListo);
+    if (oyentesHero.size === 0 && cortarPrecargaHero) {
+      cortarPrecargaHero();
+      cortarPrecargaHero = null;
+    }
+  };
+}
+
+/** Solo para las pruebas: olvida lo precargado y corta lo pendiente. */
+export function reiniciarPrecargaHero(): void {
+  cortarPrecargaHero?.();
+  cortarPrecargaHero = null;
+  listosHero.clear();
+  oyentesHero.clear();
+}
+
+/* ¿El navegador pide ahorrar datos? (`navigator.connection` no es estándar). */
+export const pideAhorroDatos = (): boolean =>
+  typeof navigator !== "undefined" &&
+  (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
+
 /** Fotograma para un progreso 0–1. Se deriva del progreso absoluto, no de
     deltas: un salto con la barra cae en el fotograma correcto. */
 export function fotogramaPara(progreso: number, count: number): number {

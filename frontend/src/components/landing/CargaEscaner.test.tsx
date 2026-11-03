@@ -10,7 +10,8 @@ import { tieneDeclaracion } from "../../test/cssReglas";
 import { simularPantalla } from "../../test/pantalla";
 import {
   BARRIDO_MS, BREVE_MS, CORTES_ESCANEO, CargaEscaner, FASES_MS, MIN_CONTADOR_MS, SALTO_MS,
-  corteMostrado, progresoMostrado, puntoEnCover, radioApertura, rotuloCandidato,
+  LADO_ANILLO, LESION_EN_IMAGEN, corteMostrado, escalaDe, progresoMostrado, puntoEnCover, puntoFinal, radioApertura,
+  rotuloCandidato,
 } from "./CargaEscaner";
 import { MANIFIESTO, reiniciarPrecargaHero, rutaFotograma } from "./heroFrames";
 
@@ -65,6 +66,17 @@ describe("aritmética", () => {
     const p = puntoEnCover(360, 800, 1024, 1024, 0.49, 0.5);
     expect(p.x).toBeCloseTo(172);
     expect(p.y).toBeCloseTo(400);
+  });
+
+  it("el destino del punto deshace la escala de la marca desde su centro", () => {
+    const marca = { left: 0, top: 0, width: 1000, height: 600 };
+    // Sin escala, el centro del punto tal cual.
+    expect(puntoFinal({ left: 290, top: 190, width: 20, height: 20 }, marca, 1)).toEqual({ x: 300, y: 200, d: 20 });
+    // A 0,5, el punto medido está a mitad de camino del centro (500, 300).
+    expect(puntoFinal({ left: 390, top: 245, width: 10, height: 10 }, marca, 0.5)).toEqual({ x: 290, y: 200, d: 20 });
+    expect(escalaDe("matrix(0.96, 0, 0, 0.96, 0, 0)")).toBeCloseTo(0.96);
+    expect(escalaDe("none")).toBe(1);
+    expect(escalaDe("")).toBe(1);
   });
 
   it("la apertura llega a la esquina más lejana", () => {
@@ -177,12 +189,53 @@ describe("CargaEscaner: secuencia completa", () => {
     expect(screen.getByText(/^50\s%$/)).toBeInTheDocument();
   });
 
-  it("coloca la lesión con la geometría de cover y abre hasta la esquina más lejana", () => {
+  it("coloca la lesión (la mancha medida en el fotograma 59) con la geometría de cover", () => {
+    expect(LESION_EN_IMAGEN).toEqual({ x: 0.485, y: 0.48 });
     simularPantalla(1920, 1080);
     montar();
-    expect(capa().style.getPropertyValue("--carga-x")).toBe("941px");
-    expect(capa().style.getPropertyValue("--carga-y")).toBe("540px");
-    expect(capa().style.getPropertyValue("--carga-iris-fin")).toBe(`${radioApertura(1920, 1080, 940.8, 540)}px`);
+    // 0,485 × 1920 = 931,2; −420 + 0,48 × 1920 = 501,6.
+    expect(capa().style.getPropertyValue("--carga-x")).toBe("931px");
+    expect(capa().style.getPropertyValue("--carga-y")).toBe("502px");
+    // Sin maqueta (jsdom) no hay punto del icono que medir: ni viaje, y abre desde la lesión.
+    expect(capa().style.getPropertyValue("--carga-dx")).toBe("0px");
+    expect(capa().style.getPropertyValue("--carga-dy")).toBe("0px");
+    expect(capa().style.getPropertyValue("--carga-punto")).toBe("0.18");
+    expect(capa().style.getPropertyValue("--carga-ax")).toBe("931px");
+    expect(capa().style.getPropertyValue("--carga-iris-fin")).toBe(`${radioApertura(1920, 1080, 931, 502)}px`);
+  });
+
+  it("el punto viaja de la lesión al punto del icono D y la apertura sale de allí", () => {
+    simularPantalla(1920, 1080);
+    const original = Element.prototype.getBoundingClientRect;
+    // La marca entra escalada (0,96); el punto del icono se mide así y se deshace la escala.
+    const caja = (left: number, top: number, width: number, height: number) =>
+      ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      if (this.classList.contains("carga-escaner__logo")) return caja(38.4, 21.6, 1843.2, 1036.8);
+      if (this.matches("svg g > circle:last-of-type")) return caja(700, 480, 10.56, 10.56);
+      return caja(0, 0, 0, 0);
+    };
+    const computado = window.getComputedStyle.bind(window);
+    const estilo = vi.spyOn(window, "getComputedStyle").mockImplementation((el: Element, pseudo?: string | null) =>
+      el.classList.contains("carga-escaner__logo")
+        ? ({ transform: "matrix(0.96, 0, 0, 0.96, 0, 0)" } as CSSStyleDeclaration)
+        : computado(el, pseudo));
+    try {
+      montar();
+      const fin = puntoFinal(caja(700, 480, 10.56, 10.56), caja(38.4, 21.6, 1843.2, 1036.8), 0.96);
+      const ax = Math.round(fin.x);
+      const ay = Math.round(fin.y);
+      expect(capa().style.getPropertyValue("--carga-dx")).toBe(`${ax - 931}px`);
+      expect(capa().style.getPropertyValue("--carga-dy")).toBe(`${ay - 502}px`);
+      expect(capa().style.getPropertyValue("--carga-ax")).toBe(`${ax}px`);
+      expect(capa().style.getPropertyValue("--carga-ay")).toBe(`${ay}px`);
+      // El viajero llega con el tamaño del punto del icono (11 px de 64).
+      expect(capa().style.getPropertyValue("--carga-punto")).toBe(String(Math.round((11 / LADO_ANILLO) * 1000) / 1000));
+      expect(capa().style.getPropertyValue("--carga-iris-fin")).toBe(`${radioApertura(1920, 1080, ax, ay)}px`);
+    } finally {
+      Element.prototype.getBoundingClientRect = original;
+      estilo.mockRestore();
+    }
   });
 
   it("no roba el foco", () => {
@@ -326,8 +379,22 @@ describe("CargaEscaner: fuente y estilos", () => {
     expect(tieneDeclaracion(css, ".carga-escaner__barrido", `carga-apagar 120ms linear ${FASES_MS.lesion}ms forwards`)).toBe(true);
     expect(tieneDeclaracion(css, ".carga-escaner__corte", `carga-corte ${BARRIDO_MS}ms linear calc(var(--k) * ${BARRIDO_MS}ms) both`)).toBe(true);
     expect(tieneDeclaracion(css, ".carga-escaner__anillo", `carga-anillo-entra 150ms var(--ease-out) ${FASES_MS.lesion}ms both`)).toBe(true);
-    expect(tieneDeclaracion(css, ".carga-escaner__anillo", `carga-anillo-punto 200ms var(--ease-out) ${FASES_MS.logo}ms forwards`)).toBe(true);
+    expect(tieneDeclaracion(css, ".carga-escaner__anillo", `carga-anillo-punto 150ms var(--ease-out) ${FASES_MS.logo}ms forwards`)).toBe(true);
   });
+
+  it("fase logo: cortes a casi negro y rótulos de esquina apagados entre 1900 y 2150 ms", () => {
+    expect(tieneDeclaracion(css, ".carga-escaner__corte", "carga-velar 250ms linear 1900ms forwards")).toBe(true);
+    const velar = /@keyframes carga-velar \{\s*to \{ opacity: ([\d.]+); \}/.exec(css);
+    expect(velar).not.toBeNull();
+    expect(Number(velar![1])).toBeLessThanOrEqual(0.12);
+    expect(tieneDeclaracion(css, ".carga-escaner__hud", "animation: carga-apagar 250ms linear 1900ms forwards")).toBe(true);  });
+
+  it("el punto viaja 300 ms hasta el del icono, que toma el relevo, y la apertura sale de allí", () => {
+    expect(tieneDeclaracion(css, ".carga-escaner__anillo", "carga-anillo-viaja 300ms cubic-bezier(0.65, 0, 0.35, 1) 2150ms forwards")).toBe(true);
+    expect(tieneDeclaracion(css, ".carga-escaner__anillo", "carga-apagar 40ms linear 2450ms forwards")).toBe(true);
+    expect(css).toMatch(/@keyframes carga-anillo-viaja \{\s*from \{ transform: translate\(0, 0\) scale\(var\(--carga-punto\)\); \}\s*to \{ transform: translate\(var\(--carga-dx\), var\(--carga-dy\)\) scale\(var\(--carga-punto\)\); \}/);
+    expect(tieneDeclaracion(css, ".carga-escaner__logo svg g > circle:last-of-type", "animation: carga-encender 1ms linear 2450ms both")).toBe(true);
+    expect(tieneDeclaracion(css, '.carga-escaner[data-modo="completo"]', "mask-image: radial-gradient(circle at var(--carga-ax) var(--carga-ay)")).toBe(true);  });
 
   it("rótulos mono en mayúsculas y gris atenuado; en móvil el rótulo de la lesión va debajo", () => {
     expect(tieneDeclaracion(css, ".carga-escaner__hud", "font-family: var(--font-mono)")).toBe(true);

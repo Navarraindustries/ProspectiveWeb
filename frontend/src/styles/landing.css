@@ -1230,8 +1230,10 @@
    .landing-stitch, que queda inert debajo). Escenario radiológico: negro del
    visor y tokens oscuros en los dos temas (data-theme="dark" acotado a ella).
    Toda la coreografía va aquí, con los tiempos de CargaEscaner.tsx: escaneo
-   0–1600 ms (cinco pasadas de 320 ms), lesión 1600–2000, logo 2000–2500 y
-   apertura 2500–3000; al saltar, apertura rápida de 240 ms. */
+   0–1600 ms (cinco pasadas de 320 ms), lesión 1600–2000 (cortes y rótulos se
+   apagan a casi negro entre 1900 y 2150), logo 2000–2500 (el anillo se encoge
+   y viaja de 2150 a 2450 hasta el punto del icono, que toma el relevo) y
+   apertura 2500–3000 desde ese punto; al saltar, apertura rápida de 240 ms. */
 @property --carga-iris {
   syntax: "<length>";
   inherits: false;
@@ -1248,13 +1250,13 @@
   color: var(--foreground);
   font-family: var(--font-sans);
 }
-/* La apertura: un agujero circular que crece desde el punto de la lesión
-   (--carga-x/--carga-y, calculados con la geometría de object-fit: cover) hasta
-   la esquina más lejana (--carga-iris-fin). Antes de abrir, el radio es
-   negativo y la máscara lo tapa todo. */
+/* La apertura: un agujero circular que crece desde el punto donde acaba el
+   viajero, el del icono (--carga-ax/--carga-ay, medidos en CargaEscaner.tsx;
+   sin medida, la lesión), hasta la esquina más lejana (--carga-iris-fin).
+   Antes de abrir, el radio es negativo y la máscara lo tapa todo. */
 .carga-escaner[data-modo="completo"] {
-  -webkit-mask-image: radial-gradient(circle at var(--carga-x) var(--carga-y), transparent var(--carga-iris), var(--viewer-bg) calc(var(--carga-iris) + 1px));
-  mask-image: radial-gradient(circle at var(--carga-x) var(--carga-y), transparent var(--carga-iris), var(--viewer-bg) calc(var(--carga-iris) + 1px));
+  -webkit-mask-image: radial-gradient(circle at var(--carga-ax) var(--carga-ay), transparent var(--carga-iris), var(--viewer-bg) calc(var(--carga-iris) + 1px));
+  mask-image: radial-gradient(circle at var(--carga-ax) var(--carga-ay), transparent var(--carga-iris), var(--viewer-bg) calc(var(--carga-iris) + 1px));
   animation: carga-iris 500ms cubic-bezier(0.65, 0, 0.35, 1) 2500ms both;
 }
 .carga-escaner[data-modo="completo"][data-fase="salto"] {
@@ -1274,6 +1276,10 @@
 }
 @keyframes carga-apagar {
   to { opacity: 0; }
+}
+/* A casi negro: los cortes dejan sitio al logo sin desaparecer de golpe. */
+@keyframes carga-velar {
+  to { opacity: 0.08; }
 }
 
 .carga-escaner__decorado {
@@ -1297,7 +1303,7 @@
   object-position: 50% 50%;
   animation:
     carga-corte 320ms linear calc(var(--k) * 320ms) both,
-    carga-apagar 300ms linear 1950ms forwards;
+    carga-velar 250ms linear 1900ms forwards;
 }
 @keyframes carga-corte {
   from { clip-path: inset(0 0 100% 0); }
@@ -1332,7 +1338,7 @@
   white-space: nowrap;
   color: var(--muted-foreground);
   text-shadow: 0 0 6px var(--viewer-bg);
-  animation: carga-apagar 200ms linear 1950ms forwards;
+  animation: carga-apagar 250ms linear 1900ms forwards;
 }
 .carga-escaner__hud--titulo {
   position: absolute;
@@ -1343,8 +1349,10 @@
   color: var(--foreground);
 }
 
-/* Lesión: el anillo cae sobre ella, se encoge hasta el punto azul y se apaga
-   cuando empieza la apertura. */
+/* Lesión: el anillo cae sobre ella, se encoge hasta un punto azul del tamaño
+   del punto del icono (--carga-punto) y viaja hasta él (--carga-dx/--carga-dy,
+   FLIP medido en CargaEscaner.tsx). Al llegar se apaga y el punto del icono,
+   oculto hasta entonces, toma el relevo. */
 .carga-escaner__anillo {
   position: absolute;
   left: var(--carga-x);
@@ -1358,8 +1366,9 @@
   box-shadow: 0 0 0 10px color-mix(in srgb, var(--destructive) 16%, transparent);
   animation:
     carga-anillo-entra 150ms var(--ease-out) 1600ms both,
-    carga-anillo-punto 200ms var(--ease-out) 2000ms forwards,
-    carga-apagar 120ms linear 2500ms forwards;
+    carga-anillo-punto 150ms var(--ease-out) 2000ms forwards,
+    carga-anillo-viaja 300ms cubic-bezier(0.65, 0, 0.35, 1) 2150ms forwards,
+    carga-apagar 40ms linear 2450ms forwards;
 }
 @keyframes carga-anillo-entra {
   from { opacity: 0; transform: scale(2.2); }
@@ -1367,11 +1376,19 @@
 }
 @keyframes carga-anillo-punto {
   to {
-    transform: scale(0.18);
+    transform: scale(var(--carga-punto));
     background: var(--data);
     border-color: var(--data);
-    box-shadow: 0 0 0 10px color-mix(in srgb, var(--data) 30%, transparent);
+    box-shadow: 0 0 0 0 transparent;
   }
+}
+@keyframes carga-anillo-viaja {
+  from { transform: translate(0, 0) scale(var(--carga-punto)); }
+  to { transform: translate(var(--carga-dx), var(--carga-dy)) scale(var(--carga-punto)); }
+}
+/* El punto del icono no se ve hasta que llega el viajero. */
+.carga-escaner__logo svg g > circle:last-of-type {
+  animation: carga-encender 1ms linear 2450ms both;
 }
 .carga-escaner__rotulo {
   position: absolute;

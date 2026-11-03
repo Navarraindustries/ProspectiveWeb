@@ -41,11 +41,11 @@ import {
 } from "./heroFrames";
 
 /** Comienzo de cada fase, en ms desde que se monta la capa. `fin` es el total. */
-export const FASES_MS = { lesion: 1600, logo: 2000, apertura: 2500, fin: 3000 } as const;
+export const FASES_MS = { lesion: 2400, logo: 3000, apertura: 3750, fin: 4500 } as const;
 /** La apertura rápida al saltar. */
 export const SALTO_MS = 240;
 /** El porcentaje no llega al 100 % antes de esto aunque la precarga vuele. */
-export const MIN_CONTADOR_MS = 1200;
+export const MIN_CONTADOR_MS = 1800;
 /** Versión breve (movimiento reducido o ahorro de datos). */
 export const BREVE_MS = { entrada: 200, salida: 480, fin: 700 } as const;
 /** Fotogramas que descubre cada pasada del escaneo; el último es el de la lesión. */

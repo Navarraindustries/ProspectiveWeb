@@ -1230,10 +1230,10 @@
    .landing-stitch, que queda inert debajo). Escenario radiológico: negro del
    visor y tokens oscuros en los dos temas (data-theme="dark" acotado a ella).
    Toda la coreografía va aquí, con los tiempos de CargaEscaner.tsx: escaneo
-   0–1600 ms (cinco pasadas de 320 ms), lesión 1600–2000 (cortes y rótulos se
-   apagan a casi negro entre 1900 y 2150), logo 2000–2500 (el anillo se encoge
-   y viaja de 2150 a 2450 hasta el punto del icono, que toma el relevo) y
-   apertura 2500–3000 desde ese punto; al saltar, apertura rápida de 240 ms. */
+   0–2400 ms (cinco pasadas de 480 ms), lesión 2400–3000 (cortes y rótulos se
+   apagan a casi negro entre 2850 y 3225), logo 3000–3750 (el anillo se encoge
+   y viaja de 3225 a 3675 hasta el punto del icono, que toma el relevo) y
+   apertura 3750–4500 desde ese punto; al saltar, apertura rápida de 240 ms. */
 @property --carga-iris {
   syntax: "<length>";
   inherits: false;
@@ -1257,7 +1257,7 @@
 .carga-escaner[data-modo="completo"] {
   -webkit-mask-image: radial-gradient(circle at var(--carga-ax) var(--carga-ay), transparent var(--carga-iris), var(--viewer-bg) calc(var(--carga-iris) + 1px));
   mask-image: radial-gradient(circle at var(--carga-ax) var(--carga-ay), transparent var(--carga-iris), var(--viewer-bg) calc(var(--carga-iris) + 1px));
-  animation: carga-iris 500ms cubic-bezier(0.65, 0, 0.35, 1) 2500ms both;
+  animation: carga-iris 750ms cubic-bezier(0.65, 0, 0.35, 1) 3750ms both;
 }
 .carga-escaner[data-modo="completo"][data-fase="salto"] {
   animation: carga-iris-salto 240ms cubic-bezier(0.65, 0, 0.35, 1) both;
@@ -1302,8 +1302,8 @@
   object-fit: cover;
   object-position: 50% 50%;
   animation:
-    carga-corte 320ms linear calc(var(--k) * 320ms) both,
-    carga-velar 250ms linear 1900ms forwards;
+    carga-corte 480ms linear calc(var(--k) * 480ms) both,
+    carga-velar 375ms linear 2850ms forwards;
 }
 @keyframes carga-corte {
   from { clip-path: inset(0 0 100% 0); }
@@ -1319,8 +1319,8 @@
   box-shadow: 0 0 24px 6px color-mix(in srgb, var(--data) 55%, transparent);
   will-change: transform;
   animation:
-    carga-barrido 320ms linear 0ms 5 both,
-    carga-apagar 120ms linear 1600ms forwards;
+    carga-barrido 480ms linear 0ms 5 both,
+    carga-apagar 120ms linear 2400ms forwards;
 }
 @keyframes carga-barrido {
   from { transform: translateY(0); }
@@ -1338,7 +1338,7 @@
   white-space: nowrap;
   color: var(--muted-foreground);
   text-shadow: 0 0 6px var(--viewer-bg);
-  animation: carga-apagar 250ms linear 1900ms forwards;
+  animation: carga-apagar 375ms linear 2850ms forwards;
 }
 .carga-escaner__hud--titulo {
   position: absolute;
@@ -1365,10 +1365,10 @@
   border: 2px solid var(--destructive);
   box-shadow: 0 0 0 10px color-mix(in srgb, var(--destructive) 16%, transparent);
   animation:
-    carga-anillo-entra 150ms var(--ease-out) 1600ms both,
-    carga-anillo-punto 150ms var(--ease-out) 2000ms forwards,
-    carga-anillo-viaja 300ms cubic-bezier(0.65, 0, 0.35, 1) 2150ms forwards,
-    carga-apagar 40ms linear 2450ms forwards;
+    carga-anillo-entra 150ms var(--ease-out) 2400ms both,
+    carga-anillo-punto 150ms var(--ease-out) 3000ms forwards,
+    carga-anillo-viaja 450ms cubic-bezier(0.65, 0, 0.35, 1) 3225ms forwards,
+    carga-apagar 40ms linear 3675ms forwards;
 }
 @keyframes carga-anillo-entra {
   from { opacity: 0; transform: scale(2.2); }
@@ -1388,7 +1388,7 @@
 }
 /* El punto del icono no se ve hasta que llega el viajero. */
 .carga-escaner__logo svg g > circle:last-of-type {
-  animation: carga-encender 1ms linear 2450ms both;
+  animation: carga-encender 1ms linear 3675ms both;
 }
 .carga-escaner__rotulo {
   position: absolute;
@@ -1403,8 +1403,8 @@
   color: var(--destructive);
   text-shadow: 0 0 6px var(--viewer-bg);
   animation:
-    carga-encender 150ms linear 1650ms both,
-    carga-apagar 150ms linear 1950ms forwards;
+    carga-encender 150ms linear 2475ms both,
+    carga-apagar 150ms linear 2925ms forwards;
 }
 /* En el móvil no cabe a la derecha del anillo: va debajo, centrado. */
 .carga-escaner[data-tramo="movil"] .carga-escaner__rotulo {
@@ -1423,8 +1423,8 @@
   justify-content: center;
   padding: 0 16px;
   animation:
-    carga-logo-entra 250ms var(--ease-out) 2050ms both,
-    carga-logo-sale 300ms ease-in 2550ms forwards;
+    carga-logo-entra 375ms var(--ease-out) 3075ms both,
+    carga-logo-sale 450ms ease-in 3825ms forwards;
 }
 @keyframes carga-logo-entra {
   from { opacity: 0; transform: scale(0.96); }

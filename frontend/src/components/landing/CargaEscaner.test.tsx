@@ -111,7 +111,7 @@ describe("aritmética", () => {
     expect(CORTES_ESCANEO).toEqual([0, 15, 30, 45, 59]);
     expect(CORTES_ESCANEO.at(-1)).toBe(MANIFIESTO.lesionFrame);
     expect(BARRIDO_MS * CORTES_ESCANEO.length).toBe(FASES_MS.lesion);
-    expect(FASES_MS.fin).toBeLessThanOrEqual(3000);
+    expect(FASES_MS.fin).toBeLessThanOrEqual(4500);
     expect(SALTO_MS).toBeLessThanOrEqual(250);
     expect(BREVE_MS.fin).toBeLessThanOrEqual(700);
   });
@@ -137,7 +137,7 @@ describe("CargaEscaner: secuencia completa", () => {
     expect(capa().querySelector(".carga-escaner__barrido")).not.toBeNull();
   });
 
-  it("pasa por escaneo, lesión, logo y apertura, y termina a los 3000 ms", () => {
+  it("pasa por escaneo, lesión, logo y apertura, y termina a los 4500 ms", () => {
     const { onFin, onAbrir } = montar();
     expect(capa()).toHaveAttribute("data-fase", "escaneo");
     avanzar(FASES_MS.lesion);
@@ -351,8 +351,8 @@ describe("CargaEscaner: movimiento reducido y pantallas", () => {
     montar();
     expect(creadas).toHaveLength(0);
     for (const img of capa().querySelectorAll("img.carga-escaner__corte")) fireEvent.load(img);
-    avanzar(300);
-    // Los cinco listos: el porcentaje va al ritmo máximo, 300 / 1200 ms.
+    avanzar(MIN_CONTADOR_MS / 4);
+    // Los cinco listos: el porcentaje va al ritmo máximo, un cuarto de MIN_CONTADOR_MS.
     expect(screen.getByText(/^25\s%$/)).toBeInTheDocument();
   });
 });
@@ -382,18 +382,18 @@ describe("CargaEscaner: fuente y estilos", () => {
     expect(tieneDeclaracion(css, ".carga-escaner__anillo", `carga-anillo-punto 150ms var(--ease-out) ${FASES_MS.logo}ms forwards`)).toBe(true);
   });
 
-  it("fase logo: cortes a casi negro y rótulos de esquina apagados entre 1900 y 2150 ms", () => {
-    expect(tieneDeclaracion(css, ".carga-escaner__corte", "carga-velar 250ms linear 1900ms forwards")).toBe(true);
+  it("fase logo: cortes a casi negro y rótulos de esquina apagados entre 2850 y 3225 ms", () => {
+    expect(tieneDeclaracion(css, ".carga-escaner__corte", "carga-velar 375ms linear 2850ms forwards")).toBe(true);
     const velar = /@keyframes carga-velar \{\s*to \{ opacity: ([\d.]+); \}/.exec(css);
     expect(velar).not.toBeNull();
     expect(Number(velar![1])).toBeLessThanOrEqual(0.12);
-    expect(tieneDeclaracion(css, ".carga-escaner__hud", "animation: carga-apagar 250ms linear 1900ms forwards")).toBe(true);  });
+    expect(tieneDeclaracion(css, ".carga-escaner__hud", "animation: carga-apagar 375ms linear 2850ms forwards")).toBe(true);  });
 
   it("el punto viaja 300 ms hasta el del icono, que toma el relevo, y la apertura sale de allí", () => {
-    expect(tieneDeclaracion(css, ".carga-escaner__anillo", "carga-anillo-viaja 300ms cubic-bezier(0.65, 0, 0.35, 1) 2150ms forwards")).toBe(true);
-    expect(tieneDeclaracion(css, ".carga-escaner__anillo", "carga-apagar 40ms linear 2450ms forwards")).toBe(true);
+    expect(tieneDeclaracion(css, ".carga-escaner__anillo", "carga-anillo-viaja 450ms cubic-bezier(0.65, 0, 0.35, 1) 3225ms forwards")).toBe(true);
+    expect(tieneDeclaracion(css, ".carga-escaner__anillo", "carga-apagar 40ms linear 3675ms forwards")).toBe(true);
     expect(css).toMatch(/@keyframes carga-anillo-viaja \{\s*from \{ transform: translate\(0, 0\) scale\(var\(--carga-punto\)\); \}\s*to \{ transform: translate\(var\(--carga-dx\), var\(--carga-dy\)\) scale\(var\(--carga-punto\)\); \}/);
-    expect(tieneDeclaracion(css, ".carga-escaner__logo svg g > circle:last-of-type", "animation: carga-encender 1ms linear 2450ms both")).toBe(true);
+    expect(tieneDeclaracion(css, ".carga-escaner__logo svg g > circle:last-of-type", "animation: carga-encender 1ms linear 3675ms both")).toBe(true);
     expect(tieneDeclaracion(css, '.carga-escaner[data-modo="completo"]', "mask-image: radial-gradient(circle at var(--carga-ax) var(--carga-ay)")).toBe(true);  });
 
   it("rótulos mono en mayúsculas y gris atenuado; en móvil el rótulo de la lesión va debajo", () => {

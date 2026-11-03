@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  DETECCION_CASE3, MANIFIESTO, fotogramaPara, precargarEnOrden, rutaFotograma, ultimoCargado,
+  DETECCION_CASE3, MANIFIESTO, fotogramaPara, fotogramasListos, precargarEnOrden, reiniciarPrecargaHero, rutaFotograma,
+  suscribirPrecargaHero, ultimoCargado,
 } from "./heroFrames";
 
 describe("fotogramaPara: el fotograma sale del progreso, no de deltas", () => {
@@ -123,5 +124,70 @@ describe("precargarEnOrden: el fotograma 0 primero, luego por orden y sin retene
     creadas[0].cargar();
     expect(listos).toEqual([]);
     expect(pedidas()).toEqual(["f0"]);
+  });
+});
+
+/* La precarga compartida: el hero y la pantalla de carga la leen a la vez y
+   los fotogramas se piden una sola vez. */
+describe("suscribirPrecargaHero: una sola precarga para el hero y la pantalla de carga", () => {
+  const creadas: ImagenFalsa[] = [];
+  function espiar() {
+    creadas.length = 0;
+    vi.stubGlobal("Image", class extends ImagenFalsa {
+      constructor() { super(); creadas.push(this); }
+    });
+  }
+  afterEach(() => {
+    reiniciarPrecargaHero();
+    vi.unstubAllGlobals();
+  });
+
+  it("dos suscriptores, una sola petición por fotograma, y los dos se enteran", () => {
+    espiar();
+    const a: number[] = [];
+    const b: number[] = [];
+    suscribirPrecargaHero((i) => a.push(i));
+    suscribirPrecargaHero((i) => b.push(i));
+    expect(creadas.map((c) => c.src)).toEqual([rutaFotograma(0)]);
+    creadas[0].cargar();
+    expect(a).toEqual([0]);
+    expect(b).toEqual([0]);
+    expect(creadas.filter((c) => c.src === rutaFotograma(0))).toHaveLength(1);
+  });
+
+  it("quien llega tarde recibe al momento lo que ya estaba listo", () => {
+    espiar();
+    suscribirPrecargaHero(() => {});
+    creadas[0].cargar();
+    creadas[1].cargar();
+    const tarde: number[] = [];
+    suscribirPrecargaHero((i) => tarde.push(i));
+    expect(tarde).toEqual([0, 1]);
+    expect([...fotogramasListos()]).toEqual([0, 1]);
+  });
+
+  it("si se van todos antes de acabar se corta; lo listo no se olvida", () => {
+    espiar();
+    const baja = suscribirPrecargaHero(() => {});
+    creadas[0].cargar();
+    baja();
+    const pedidas = creadas.length;
+    creadas[1].cargar();
+    expect(fotogramasListos().has(1)).toBe(false);
+    expect(creadas).toHaveLength(pedidas);
+    expect(fotogramasListos().has(0)).toBe(true);
+  });
+
+  it("con todo listo no vuelve a pedir nada", () => {
+    espiar();
+    suscribirPrecargaHero(() => {});
+    for (let k = 0; k < creadas.length; k++) creadas[k].cargar();
+    expect(fotogramasListos().size).toBe(MANIFIESTO.count);
+    const antes = creadas.length;
+    const avisados: number[] = [];
+    suscribirPrecargaHero((i) => avisados.push(i))();
+    suscribirPrecargaHero(() => {});
+    expect(creadas).toHaveLength(antes);
+    expect(avisados).toHaveLength(MANIFIESTO.count);
   });
 });

@@ -8,8 +8,10 @@
    (conmutador en la nav); el escenario del hero y la franja de casos se quedan
    en el negro del visor con `data-theme="dark"` acotado a ellos. */
 
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/Button";
+import { CargaEscaner } from "../components/landing/CargaEscaner";
 import { FranjaCasos } from "../components/landing/FranjaCasos";
 import { HeroCortes } from "../components/landing/HeroCortes";
 import { NavPildora } from "../components/landing/NavPildora";
@@ -60,17 +62,55 @@ function Pie() {
   );
 }
 
+/* ── Pantalla de carga ──────────────────────────────────────────────────── */
+/* Mientras está la capa, el documento no se desplaza. `scrollbar-gutter`
+   guarda el hueco de la barra para que la página no salte al soltarla. Con
+   cuenta: el primero que bloquea guarda lo que había y el último lo devuelve. */
+let bloqueosScroll = 0;
+let scrollPrevio = { overflow: "", hueco: "" };
+function useSinScroll(activo: boolean) {
+  useEffect(() => {
+    if (!activo) return;
+    const raiz = document.documentElement;
+    if (bloqueosScroll++ === 0) {
+      scrollPrevio = { overflow: raiz.style.overflow, hueco: raiz.style.scrollbarGutter };
+      raiz.style.overflow = "hidden";
+      raiz.style.scrollbarGutter = "stable";
+    }
+    return () => {
+      if (--bloqueosScroll > 0) return;
+      raiz.style.overflow = scrollPrevio.overflow;
+      raiz.style.scrollbarGutter = scrollPrevio.hueco;
+    };
+  }, [activo]);
+}
+
+/* Con #ancla, lo de siempre: la sección queda arriba (scroll-margin-top deja
+   sitio a la nav), sin mover el foco. Se hace al empezar la apertura, debajo de
+   la capa, para que el círculo ya descubra la sección. */
+function irAlAncla() {
+  const id = decodeURIComponent(window.location.hash.slice(1));
+  if (!id) return;
+  document.getElementById(id)?.scrollIntoView?.({ block: "start" });
+}
+
 /* ── Página ─────────────────────────────────────────────────────────────── */
 export function Landing() {
   const navigate = useNavigate();
   const entrar = () => navigate("/app");
   const crearCuenta = () => navigate("/app/registro");
   const tramo = useTramo();
+  // «El escáner» se pone encima en cada entrada a la portada; no se recuerda nada.
+  const [cargando, setCargando] = useState(true);
+  const alTerminarCarga = useCallback(() => setCargando(false), []);
+  useSinScroll(cargando);
   return (
-    /* `landing-stitch` trae la maquetación (styles/landing.css). Sin data-theme:
-       la portada sigue el tema de la aplicación (ThemeProvider lo pone en <html>);
-       solo los escenarios de imagen radiológica fijan el oscuro. */
-    <div className="landing-stitch" data-tramo={tramo} style={{ background: "var(--canvas)", minHeight: "100%" }}>
+    <>
+    {/* `landing-stitch` trae la maquetación (styles/landing.css). Sin data-theme:
+        la portada sigue el tema de la aplicación (ThemeProvider lo pone en <html>);
+        solo los escenarios de imagen radiológica fijan el oscuro. Bajo la capa de
+        carga va `inert`: ni foco ni clics hasta que se abre. */}
+    <div className="landing-stitch" data-tramo={tramo} inert={cargando} style={{ background: "var(--canvas)", minHeight: "100%" }}>
       <NavPildora onEntrar={entrar} onCrearCuenta={crearCuenta} />
       <HeroCortes onEntrar={entrar} onCrearCuenta={crearCuenta} />
       <QueEs />
@@ -83,5 +123,7 @@ export function Landing() {
       <Contacto onEntrar={entrar} onCrearCuenta={crearCuenta} />
       <Pie />
     </div>
+    {cargando && <CargaEscaner onAbrir={irAlAncla} onFin={alTerminarCarga} />}
+    </>
   );
 }

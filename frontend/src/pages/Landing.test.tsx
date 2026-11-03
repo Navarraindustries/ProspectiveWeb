@@ -8,7 +8,7 @@
 
    Las dos son del mismo tipo: una afirmación escrita a mano al lado del dato que
    la desmiente. Estas pruebas la atan al dato. */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
@@ -347,5 +347,75 @@ describe("tema claro: la portada sigue el tema de la aplicación", () => {
     expect(document.documentElement).toHaveAttribute("data-theme", "light");
     fireEvent.click(screen.getByRole("button", { name: "Cambiar a tema oscuro" }));
     expect(document.documentElement).toHaveAttribute("data-theme", "dark");
+  });
+});
+
+/* «El escáner»: la pantalla de carga va encima de la portada en cada entrada.
+   Mientras está, la portada queda inert y el documento sin scroll; al acabar,
+   todo vuelve a su sitio sin mover el foco. */
+import { FASES_MS, SALTO_MS } from "../components/landing/CargaEscaner";
+
+describe("pantalla de carga «El escáner»", () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    history.replaceState(null, "", "/");
+  });
+
+  const capa = () => document.querySelector(".carga-escaner");
+  const raiz = (c: HTMLElement) => c.querySelector(".landing-stitch")!;
+
+  it("se muestra al montar la portada, con la portada inert y sin scroll", () => {
+    const { container } = show();
+    expect(capa()).not.toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent("Cargando Prospective");
+    expect(raiz(container)).toHaveAttribute("inert");
+    expect(document.documentElement.style.overflow).toBe("hidden");
+  });
+
+  it("a los 3000 ms se desmonta y suelta la portada, aunque la precarga no acabe", () => {
+    const { container } = show();
+    act(() => { vi.advanceTimersByTime(FASES_MS.fin - 1); });
+    expect(capa()).not.toBeNull();
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(capa()).toBeNull();
+    expect(raiz(container)).not.toHaveAttribute("inert");
+    expect(document.documentElement.style.overflow).toBe("");
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("«Saltar» la quita enseguida", () => {
+    const { container } = show();
+    fireEvent.click(screen.getByRole("button", { name: "Saltar" }));
+    act(() => { vi.advanceTimersByTime(SALTO_MS); });
+    expect(capa()).toBeNull();
+    expect(raiz(container)).not.toHaveAttribute("inert");
+  });
+
+  it("se vuelve a mostrar en cada entrada: no se guarda nada", () => {
+    const antes = { ...localStorage };
+    const primera = show();
+    act(() => { vi.advanceTimersByTime(FASES_MS.fin); });
+    primera.unmount();
+    show();
+    expect(capa()).not.toBeNull();
+    expect({ ...localStorage }).toEqual(antes);
+  });
+
+  it("con #ancla, al abrir lleva a la sección como siempre", () => {
+    history.replaceState(null, "", "/#indices");
+    const llevar = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element) { llevar(this.id); };
+    try {
+      show();
+      act(() => { vi.advanceTimersByTime(FASES_MS.apertura - 1); });
+      expect(llevar).not.toHaveBeenCalled();
+      act(() => { vi.advanceTimersByTime(1); });
+      expect(llevar).toHaveBeenCalledWith("indices");
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
   });
 });

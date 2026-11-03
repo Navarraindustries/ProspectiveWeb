@@ -1224,3 +1224,258 @@
   max-width: 480px;
   margin-inline: auto;
 }
+
+/* ---- Pantalla de carga «El escáner» (CargaEscaner.tsx) -------------------
+   Capa fija por encima de la nav, en un portal a <body> (fuera de
+   .landing-stitch, que queda inert debajo). Escenario radiológico: negro del
+   visor y tokens oscuros en los dos temas (data-theme="dark" acotado a ella).
+   Toda la coreografía va aquí, con los tiempos de CargaEscaner.tsx: escaneo
+   0–1600 ms (cinco pasadas de 320 ms), lesión 1600–2000, logo 2000–2500 y
+   apertura 2500–3000; al saltar, apertura rápida de 240 ms. */
+@property --carga-iris {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: -2px;
+}
+
+.carga-escaner {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background: var(--viewer-bg);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+/* La apertura: un agujero circular que crece desde el punto de la lesión
+   (--carga-x/--carga-y, calculados con la geometría de object-fit: cover) hasta
+   la esquina más lejana (--carga-iris-fin). Antes de abrir, el radio es
+   negativo y la máscara lo tapa todo. */
+.carga-escaner[data-modo="completo"] {
+  -webkit-mask-image: radial-gradient(circle at var(--carga-x) var(--carga-y), transparent var(--carga-iris), var(--viewer-bg) calc(var(--carga-iris) + 1px));
+  mask-image: radial-gradient(circle at var(--carga-x) var(--carga-y), transparent var(--carga-iris), var(--viewer-bg) calc(var(--carga-iris) + 1px));
+  animation: carga-iris 500ms cubic-bezier(0.65, 0, 0.35, 1) 2500ms both;
+}
+.carga-escaner[data-modo="completo"][data-fase="salto"] {
+  animation: carga-iris-salto 240ms cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+@keyframes carga-iris {
+  from { --carga-iris: -2px; }
+  to { --carga-iris: var(--carga-iris-fin); }
+}
+@keyframes carga-iris-salto {
+  from { --carga-iris: -2px; }
+  to { --carga-iris: var(--carga-iris-fin); }
+}
+@keyframes carga-encender {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes carga-apagar {
+  to { opacity: 0; }
+}
+
+.carga-escaner__decorado {
+  position: absolute;
+  inset: 0;
+}
+.carga-escaner[data-modo="breve"] .carga-escaner__decorado {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+}
+
+/* Escaneo: cada pasada descubre su fotograma de arriba abajo, al paso de la línea. */
+.carga-escaner__corte {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 50%;
+  animation:
+    carga-corte 320ms linear calc(var(--k) * 320ms) both,
+    carga-apagar 300ms linear 1950ms forwards;
+}
+@keyframes carga-corte {
+  from { clip-path: inset(0 0 100% 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+.carga-escaner__barrido {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--data);
+  box-shadow: 0 0 24px 6px color-mix(in srgb, var(--data) 55%, transparent);
+  will-change: transform;
+  animation:
+    carga-barrido 320ms linear 0ms 5 both,
+    carga-apagar 120ms linear 1600ms forwards;
+}
+@keyframes carga-barrido {
+  from { transform: translateY(0); }
+  to { transform: translateY(100vh); transform: translateY(100dvh); }
+}
+
+/* Rótulos del visor: mono en mayúsculas, gris atenuado sobre negro (4,5:1). */
+.carga-escaner__hud {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  text-shadow: 0 0 6px var(--viewer-bg);
+  animation: carga-apagar 200ms linear 1950ms forwards;
+}
+.carga-escaner__hud--titulo {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+}
+.carga-escaner__hud--cifra {
+  color: var(--foreground);
+}
+
+/* Lesión: el anillo cae sobre ella, se encoge hasta el punto azul y se apaga
+   cuando empieza la apertura. */
+.carga-escaner__anillo {
+  position: absolute;
+  left: var(--carga-x);
+  top: var(--carga-y);
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid var(--destructive);
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--destructive) 16%, transparent);
+  animation:
+    carga-anillo-entra 150ms var(--ease-out) 1600ms both,
+    carga-anillo-punto 200ms var(--ease-out) 2000ms forwards,
+    carga-apagar 120ms linear 2500ms forwards;
+}
+@keyframes carga-anillo-entra {
+  from { opacity: 0; transform: scale(2.2); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes carga-anillo-punto {
+  to {
+    transform: scale(0.18);
+    background: var(--data);
+    border-color: var(--data);
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--data) 30%, transparent);
+  }
+}
+.carga-escaner__rotulo {
+  position: absolute;
+  left: calc(var(--carga-x) + 44px);
+  top: calc(var(--carga-y) - 30px);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--destructive);
+  text-shadow: 0 0 6px var(--viewer-bg);
+  animation:
+    carga-encender 150ms linear 1650ms both,
+    carga-apagar 150ms linear 1950ms forwards;
+}
+/* En el móvil no cabe a la derecha del anillo: va debajo, centrado. */
+.carga-escaner[data-tramo="movil"] .carga-escaner__rotulo {
+  left: var(--carga-x);
+  top: calc(var(--carga-y) + 48px);
+  transform: translateX(-50%);
+}
+
+/* La marca grande, centrada: icono D de 120 px y «Prospective™» en Sora 56 px;
+   en pantallas estrechas baja con clamp y cabe a 360. */
+.carga-escaner__logo {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  animation:
+    carga-logo-entra 250ms var(--ease-out) 2050ms both,
+    carga-logo-sale 300ms ease-in 2550ms forwards;
+}
+@keyframes carga-logo-entra {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes carga-logo-sale {
+  to { opacity: 0; transform: scale(1.02); }
+}
+.carga-escaner__marca {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(14px, 3vw, 22px);
+  max-width: 100%;
+  color: var(--foreground);
+}
+.carga-escaner__marca svg {
+  width: clamp(60px, 17vw, 120px);
+  height: clamp(60px, 17vw, 120px);
+}
+.carga-escaner__nombre {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.carga-escaner__producto {
+  font-family: var(--font-brand);
+  font-weight: 600;
+  font-size: clamp(28px, 8.5vw, 56px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.carga-escaner__producto sup {
+  font-size: 16px;
+  font-weight: 500;
+  margin-left: 1px;
+  color: var(--muted-foreground);
+}
+.carga-escaner__firma {
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+
+/* Pie: corte a la izquierda, «Saltar» en medio (44 px, foco visible) y el
+   porcentaje a la derecha; respeta la zona segura de abajo. */
+.carga-escaner__pie {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 24px max(20px, env(safe-area-inset-bottom));
+}
+.carga-escaner[data-modo="breve"] .carga-escaner__pie {
+  justify-content: center;
+}
+.carga-escaner[data-tramo="movil"] .carga-escaner__pie {
+  padding-inline: 16px;
+}
+.carga-escaner[data-tramo="movil"] .carga-escaner__hud--titulo {
+  top: 16px;
+  left: 16px;
+}
+.carga-escaner__saltar:focus-visible {
+  outline: 2px solid var(--data);
+  outline-offset: 3px;
+}

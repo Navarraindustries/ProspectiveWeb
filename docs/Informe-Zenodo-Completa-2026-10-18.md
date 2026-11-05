@@ -1745,6 +1745,81 @@ de la malla. La fusión del consenso con el sitio más cercano se midió aquí y
 siguen son de segmentación, no de orden: las 15 piezas > 60 cm³ con cráneo dentro del modelo (§4.18) y las 5
 lesiones fuera de la malla.
 
+### 4.21 Dos escalas de curvatura (2026-11-04/05): 71 / 80 / 24 / 96 / 59 → 71 / 80 / 36 / 96 / 59, y la detección a la mitad de tiempo
+
+**De dónde sale.** Cada limpieza del modelo cambiaba la detección sin tocar el detector: la envolvente bajó el primer
+puesto de 31 a 21 (§4.18) y la regla de la corteza, revertida el 01-11, bajó las lesiones entre 5 de 71 a 61. La causa
+es que la copia de curvatura se fija en vértices (tope de 80 000), no en milímetros. Medido sobre las 172 mallas de
+la envolvente: 146 pasan por el tope y la arista equivalente de la copia (raíz de área / vértices) va de 0,50 a
+0,99 mm entre los percentiles 5 y 95, con mediana 0,71; la de la malla completa, de 0,41 a 0,63 mm. Es decir, el
+mismo detector mira cada estudio a una escala distinta, y quitar superficie de la malla afina la copia.
+
+**Arista fija, sola: no entra.** Pasada real `zenodo_eval_edge071` (copia a área / 0,71² vértices, tope 160 000,
+calibre sin tocar, 172/172):
+
+| | Referencia (§4.20) | Arista 0,71 mm sola |
+|---|---|---|
+| Entre 5 / entre 10 | 71 / 80 | 68 / 74 |
+| En 1.º / en lista | 24 / 96 | 32 / 93 |
+| Estudios | 59 | 59 |
+
+Es el patrón de §4.9 y §4.13: la curvatura gruesa pone 1.º los sacos grandes (≥ 10 mm 16 → 24), que en la copia fina
+salen partidos o detrás de un trozo de vaso, y pierde los pequeños. Una sola escala no sirve a todos los tamaños.
+
+**Las dos listas.** Con las dos pasadas ya hechas se simularon, sin detectar, reglas que solo miran puestos, diámetros
+y posiciones. «Mejor puesto de las dos» pierde (67–71 entre 5, sin ganar primeros). Subir delante de la lista fina los
+primeros de la gruesa que miden al menos un umbral es lo que funciona:
+
+| Regla (primeros 2 de la gruesa) | Entre 5 | Entre 10 | 1.º | Lista | Estudios | Sitios nuevos en controles |
+|---|---|---|---|---|---|---|
+| ≥ 8 mm | 69 | 81 | 34 | 97 | 58 | no medido |
+| ≥ 10 mm | 72 | 81 | 38 | 97 | 60 | 19 de 450 |
+| **≥ 12 mm** | **71** | **80** | **36** | **96** | **59** | **9 de 450** |
+| ≥ 15 mm | 71 | 80 | 31 | 96 | 59 | no medido |
+
+Se elige 12 mm por los controles. Si un sitio de la gruesa coincide a ≤ 8 mm con uno de la fina, sube el de la fina,
+con su región (`promote_coarse`). Solo en el preset de TC (`coarse_edge_mm=0,71`, `coarse_max_vertices=120 000`,
+`coarse_promote_min_mm=12`, `coarse_promote_top=2`; `--set coarse_edge_mm=0` lo apaga). Calibre y cociente se calculan
+una vez y la segunda lista reutiliza sus picos (`geometric_cache`).
+
+**El coste, y lo que había debajo.** La primera versión subía la detección de 68 a 166 s de mediana. El perfil lo situó
+entero en `AneurysmDetector.detect` (40–94 s por llamada; el diezmado cuesta 1–4 s, y la idea inicial de sacar la copia
+gruesa de la fina no habría servido). Dentro, 35 de 38 s eran `vtkPolyDataConnectivityFilter` en modo de regiones
+especificadas, que recalcula todas las regiones en cada llamada: unas 2 300 veces por detección. Se etiqueta una vez y
+se reparten los triángulos (`_split_regions`): `detect()` pasa de 45 a 4 s en 001, sin cambiar nada. Comprobado bit a
+bit en 6 copias (puntos, celdas, curvaturas, regiones y contadores) y en los 120 estudios que la pasada lenta llegó a
+hacer antes de que se apagara el PC: las 40 posiciones y diámetros de la lista larga salen iguales. Una primera versión
+fallaba en 011 (el diezmado deja líneas sueltas en la zona de curvatura): con celdas que no son triángulos se vuelve al
+filtro, que es exacto. La mejora vale también para XA (Case 3, 24 → 9,5 s) y por sí sola.
+
+**Resultado real** (`zenodo_eval_dos_escalas_rapido`, 172/172, tabla por lesión en
+`docs/zenodo-dos-escalas-lesiones-2026-11-05.csv`):
+
+| | Referencia (§4.20) | **Dos escalas** |
+|---|---|---|
+| Entre 5 / entre 10 | 71 / 80 | **71 / 80** |
+| En 1.º | 24 | **36** |
+| En lista / estudios (de 82) | 96 / 59 | **96 / 59** |
+| Fuera de la malla | 5 | 5 |
+| Controles con 5 / hueso en controles (de 450) | 90 / 111 | 90 / **110** |
+| Hueso en estudios con lesión (de 410) | 83 | 83 |
+| Entre 5 por tamaño (< 5 / 5–10 / ≥ 10 mm) | 13 / 17 / 41 | 13 / 17 / 41 |
+| En 1.º por tamaño (< 5 / 5–10 / ≥ 10 mm) | 3 / 5 / 16 | 3 / 4 / **29** |
+| Detección, mediana / p90 / máximo (s) | 73 / 113 / 172 | **42 / 75** / 207 |
+
+Coincide con la simulación en las cinco cifras. Suben al 1.º 008_1, 021, 025, 026, 030_1, 088_1, 088_2, 102,
+105, 109_1, 110, 116_1, 130 y 154_1, casi todas del 2.º. Bajan sin salir de su tramo: 008_2 y 107 (1.º → 2.º), 024,
+030_2 y 161 (4.º → 5.º, en el límite). 088_2 (4,1 mm) cuenta 1.ª solo porque el candidato del saco vecino la cubre
+con su diámetro: sin ese efecto del banco serían +11. El máximo es 072, una malla muy grande; 011, por el camino
+exacto, tarda 27 s. En mallas grandes el proceso llega a 8–10 GB.
+
+**Veredicto.** Las dos ENTRAN, en commits separados (59b24ac la optimización, 5b35805 las dos escalas). Nueva referencia
+de detección: **71 / 80 / 36 / 96 / 59; 5 fuera**; controles 90/90 con 5; 155 tests y regresión XA sin diferencias.
+
+**Lo que no cambia, y conviene decir.** Es una mejora del orden, no de la detección: las 51 lesiones fuera de los 5
+siguen ahí. El umbral de 12 mm se eligió sobre estos mismos 172 estudios, aunque 10, 12 y 15 mm dan resultados
+parecidos. Y el orden sigue siendo frágil: no conviene prometer el primer puesto.
+
 ## 5. Código y datos de esta pasada
 
 - `backend/scripts/zenodo_lesiones.py`: tabla por lesión y recuentos de una pasada a partir

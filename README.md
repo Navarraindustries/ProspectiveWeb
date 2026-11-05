@@ -110,7 +110,8 @@ ProspectiveWeb/
 │
 ├── backend/
 │   ├── main.py             # FastAPI app: lifespan, CORS, static mounts, guarded routers
-│   ├── requirements.txt
+│   ├── requirements.txt          # dependencias directas
+│   ├── requirements-lock.txt     # versiones fijadas: de aquí se instala (CI, Docker, Makefile)
 │   ├── models/    (20)     # Pydantic request/response schemas
 │   ├── routers/   (23)     # Route handlers, one file per domain
 │   ├── services/  (40)     # Qt-free business logic, shared with the desktop app
@@ -227,8 +228,8 @@ cd ProspectiveWeb
 # Backend
 cd backend
 python -m venv .venv
-.venv\Scripts\pip install -r requirements.txt      # Windows
-# .venv/bin/pip install -r requirements.txt        # macOS / Linux
+.venv\Scripts\pip install -r requirements-lock.txt      # Windows
+# .venv/bin/pip install -r requirements-lock.txt        # macOS / Linux
 
 # Frontend
 cd ../frontend

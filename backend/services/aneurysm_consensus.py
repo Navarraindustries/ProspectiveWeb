@@ -255,7 +255,8 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
               top: int = 5, *,
               geometric_poly: vtk.vtkPolyData | None = None,
               curvature_result: "DetectionResult | None" = None,
-              tree_poly: vtk.vtkPolyData | None = None) -> list[ConsensusHit]:
+              tree_poly: vtk.vtkPolyData | None = None,
+              geometric_cache: dict | None = None) -> list[ConsensusHit]:
     """Los `top` sitios mejor puntuados por el consenso de los tres canales.
 
     La curvatura se busca sobre `poly`. Calibre y cociente, sobre
@@ -276,6 +277,12 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
     sobre `geometric_poly`, y una copia decimada a 40 000 vértices de una
     malla grande se fragmenta (Zenodo 026): la pieza mayor de la copia no es
     la de la malla entera.
+
+    `geometric_cache`, si se da, guarda los picos de calibre y cociente la
+    primera vez y los reutiliza después: la segunda escala de curvatura
+    (`routers.detect._detect_hits`) repite el consenso con otra copia de
+    curvatura pero la MISMA copia de calibre, y estos canales son la mitad del
+    tiempo de la detección.
     """
     hits: list[ConsensusHit] = []
     geo = poly if geometric_poly is None else geometric_poly
@@ -321,7 +328,13 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
     # entre los 5 de 5 a 13 (de 73) y bajó el hueso en controles de 112 a 79
     # candidatos de 415, a un 35 % más de tiempo. Lo que sigue apagándolos es
     # el tamaño de la copia y una pieza mayor demasiado pequeña.
-    if _geometric_channels_apply(geo, tree_poly):
+    if geometric_cache is not None and "peaks" in geometric_cache:
+        if geometric_cache.get("error"):
+            det.geometric_error = geometric_cache["error"]
+        for args in geometric_cache["peaks"]:
+            _merge(hits, *args)
+    elif _geometric_channels_apply(geo, tree_poly):
+        peaks: list[tuple] = []
         try:
             pts, rad = local_calibre(geo)
         except Exception as exc:  # noqa: BLE001 — sin calibre queda la curvatura
@@ -336,8 +349,15 @@ def consensus(poly: vtk.vtkPolyData, detector: AneurysmDetector,
             ratio = calibre_ratio(pts, rad, floor)
             for channel, value in ((CH_CALIBRE, rad), (CH_RATIO, ratio)):
                 for rank, i in enumerate(_peaks(pts, value, rad, floor), start=1):
-                    _merge(hits, tuple(float(v) for v in pts[i]), channel, rank,
-                           float(rad[i]), float(ratio[i]))
+                    peaks.append((tuple(float(v) for v in pts[i]), channel, rank,
+                                  float(rad[i]), float(ratio[i])))
+        for args in peaks:
+            _merge(hits, *args)
+        if geometric_cache is not None:
+            geometric_cache["peaks"] = peaks
+            geometric_cache["error"] = getattr(det, "geometric_error", "") or ""
+    elif geometric_cache is not None:
+        geometric_cache["peaks"] = []
 
     ordered = order_hits(hits)
     if getattr(detector, "small_sac_channel", False):
@@ -363,6 +383,43 @@ def _apply_small_sac_quota(ordered: list[ConsensusHit], quota: int) -> list[Cons
         return ordered
     out = list(ordered)
     out.insert(quota - 1, out.pop(k))
+    return out
+
+
+def promote_coarse(fine: list[ConsensusHit], coarse: list[ConsensusHit], *,
+                   min_diameter_mm: float, top: int) -> list[ConsensusHit]:
+    """La lista fina con los sacos grandes de la gruesa delante.
+
+    Los `top` primeros de `coarse` que miden al menos `min_diameter_mm` van al
+    principio, en su orden. Si la lista fina tiene un sitio a ≤ `AGREE_MM`, va
+    ESE sitio (su región es la de la copia fina, la que se pinta); si no, el
+    de la gruesa. Detrás, la lista fina en su orden, sin los sitios que ya
+    están delante (a ≤ `AGREE_MM` de uno de ellos).
+
+    Por qué: la curvatura sobre una copia de arista fija y gruesa (0,71 mm)
+    pone 1.º los sacos grandes, que en la copia fina salen partidos en varias
+    regiones y suelen quedar 2.º tras un trozo de vaso; pero pierde sacos
+    pequeños. Medido en los 172 de Zenodo (04-11, ver el preset de TC).
+    """
+    def near(h: ConsensusHit, lst: list[ConsensusHit]) -> ConsensusHit | None:
+        p = np.asarray(h.position)
+        for g in lst:
+            if float(np.linalg.norm(p - np.asarray(g.position))) <= AGREE_MM:
+                return g
+        return None
+
+    out: list[ConsensusHit] = []
+    for c in coarse[:max(0, top)]:
+        if hit_diameter_mm(c) < min_diameter_mm:
+            continue
+        h = near(c, fine) or c
+        if near(h, out) is None:
+            out.append(h)
+    if not out:
+        return list(fine)
+    for h in fine:
+        if near(h, out) is None:
+            out.append(h)
     return out
 
 

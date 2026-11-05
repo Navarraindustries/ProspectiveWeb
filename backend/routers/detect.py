@@ -246,6 +246,17 @@ def _detector_for_modality(modality: str) -> AneurysmDetector:
         # entre 10 70 → 74, estudios 53 → 55 en el banco; ninguna banda baja.
         small_sac_channel         = True,
         small_sac_quota           = 5,
+        # 04-11, dos escalas de curvatura. Con el tope de 80 000 vértices la
+        # arista de la copia de curvatura iba de 0,50 a 0,99 mm según el
+        # estudio (mediana 0,71), y cada limpieza de la segmentación la
+        # cambiaba. Pasada real con la copia a 0,71 mm en los 172 de Zenodo:
+        # en 1.º 24 → 32 (sacos ≥ 10 mm 16 → 24), pero entre 5 71 → 68 y
+        # entre 10 80 → 74 (las < 5 mm pierden). Con las dos listas, la fina
+        # de siempre y los 2 primeros de la gruesa que miden ≥ 12 mm delante
+        # (simulación sobre las dos pasadas): 71 / 80 / 36 en 1.º / 96 en
+        # lista / 59 estudios, ninguna banda baja entre los 5; 9 sitios nuevos
+        # en los 450 de los controles. Con ≥ 10 mm, 72 / 81 / 38 pero 19.
+        coarse_edge_mm            = 0.71,
     )
 
 
@@ -469,6 +480,11 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     80 000 (`_CURVATURE_MAX_VERTS`): a 40 000 perdía la región de la lesión y
     a 104 000 la dejaba 6.ª de su canal y tardaba el doble.
 
+    En TC hay además una segunda escala (`coarse_edge_mm` del preset): el
+    consenso se repite sobre una copia de arista fija de 0,71 mm con los
+    mismos picos de calibre, y sus sacos grandes pasan delante
+    (`promote_coarse`). Cuesta una curvatura más, no un calibre más.
+
     La región de un candidato de curvatura sale de esa copia, que el preset
     XA además suaviza y encoge: pintada tal cual quedaba por DENTRO de la
     malla del visor. `hit_patch` la pasa a triángulos de la malla completa
@@ -481,10 +497,10 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     de pruebas (`eval/detection_bench.py`) pide más de 5 para poder aplicar
     los vetos antes de cortar.
     """
-    from services.aneurysm_consensus import consensus
+    from services.aneurysm_consensus import consensus, promote_coarse
     from services.head_crop import crop_to_head
     from services.hu_floor import HuFloor, drop_air
-    from services.segmentation import decimate_to
+    from services.segmentation import decimate_to, decimate_to_edge
 
     if detector is None:
         detector = _detector_for_modality(modality)
@@ -527,14 +543,39 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     # Se piden el doble de sitios de los que se dan: el suelo de HU quita los
     # que están en aire y los siguientes de la misma lista ordenada ocupan su
     # sitio. Recortar la lista ya ordenada no cambia el puesto de nadie.
-    hits = consensus(curv, detector, top=2 * top,
-                     geometric_poly=small, curvature_result=det_result, tree_poly=poly)
+    geo_cache: dict = {}
+    hits = consensus(curv, detector, top=2 * top, geometric_poly=small,
+                     curvature_result=det_result, tree_poly=poly,
+                     geometric_cache=geo_cache)
     floor = HuFloor(applied=False)
-    if modality.upper().startswith("CT"):
+    is_ct = modality.upper().startswith("CT")
+    if is_ct:
         if volume is None and session_id:
             volume = _session_volume(session_id)
         if volume is not None:
             hits, floor = drop_air(hits, *volume)
+    coarse_edge = getattr(detector, "coarse_edge_mm", None)
+    if coarse_edge:
+        # Segunda escala de curvatura (ver el preset de TC y
+        # `promote_coarse`): la misma copia de calibre (sus picos, de la
+        # caché), otra de curvatura a arista fija. Sus sacos grandes van
+        # delante de la lista fina.
+        if session_id:
+            progress.update(session_id, "curvatura gruesa", 70)
+        coarse_poly = decimate_to_edge(poly, float(coarse_edge),
+                                       int(detector.coarse_max_vertices))
+        logger.info("Coarse curvature copy: %d vertices (edge %.2f mm)",
+                    coarse_poly.GetNumberOfPoints(), float(coarse_edge))
+        coarse_det = (det_result if coarse_poly.GetNumberOfPoints() == curv.GetNumberOfPoints()
+                      else detector.detect(coarse_poly))
+        coarse_hits = consensus(coarse_poly, detector, top=2 * top, geometric_poly=small,
+                                curvature_result=coarse_det, tree_poly=poly,
+                                geometric_cache=geo_cache)
+        if is_ct and volume is not None:
+            coarse_hits, _ = drop_air(coarse_hits, *volume)
+        hits = promote_coarse(hits, coarse_hits,
+                              min_diameter_mm=float(detector.coarse_promote_min_mm),
+                              top=int(detector.coarse_promote_top))
     hits = hits[:top]
     # Para el registro del banco y el diagnóstico, como `geometric_error`.
     det_result.head_crop = crop.as_dict()

@@ -860,6 +860,37 @@ def decimate_to(poly: vtk.vtkPolyData, max_vertices: int) -> vtk.vtkPolyData:
     return _with_normals(_decimate_surface(poly, 1.0 - max_vertices / float(n)))
 
 
+def surface_area_mm2(poly: vtk.vtkPolyData) -> float:
+    """Área de la superficie (mm²), triangulando antes: vtkMassProperties solo
+    cuenta triángulos y avisa (y los ignora) con cualquier otra celda."""
+    tri = vtk.vtkTriangleFilter()
+    tri.SetInputData(poly)
+    tri.PassLinesOff()
+    tri.PassVertsOff()
+    tri.Update()
+    mp = vtk.vtkMassProperties()
+    mp.SetInputData(tri.GetOutput())
+    mp.Update()
+    return float(mp.GetSurfaceArea())
+
+
+def decimate_to_edge(poly: vtk.vtkPolyData, edge_mm: float,
+                     max_vertices: int) -> vtk.vtkPolyData:
+    """La malla diezmada a una DENSIDAD: área / arista² vértices, como mucho
+    `max_vertices`; la misma si ya es más gruesa que eso.
+
+    `decimate_to` fija el número de vértices, así que la arista resultante
+    depende del tamaño de la pieza: con el tope de 80 000 la copia de
+    curvatura de los 172 de Zenodo iba de 0,50 a 0,99 mm según el estudio
+    (mediana 0,71). Con la arista fija la curvatura se mide a la misma escala
+    en todos, limpie o no la segmentación una parte de la malla.
+    """
+    if edge_mm <= 0 or poly.GetNumberOfPoints() == 0:
+        return poly
+    target = int(surface_area_mm2(poly) / (edge_mm * edge_mm))
+    return decimate_to(poly, max(1, min(max_vertices, target)))
+
+
 def surface_quality(poly: vtk.vtkPolyData) -> dict:
     fe = vtk.vtkFeatureEdges()
     fe.SetInputData(poly); fe.BoundaryEdgesOn(); fe.FeatureEdgesOff(); fe.NonManifoldEdgesOff(); fe.ManifoldEdgesOff(); fe.Update()

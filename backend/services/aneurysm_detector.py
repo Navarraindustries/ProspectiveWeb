@@ -325,6 +325,10 @@ class AneurysmDetector:
         small_sac_sphericity:      float = 0.6,
         small_sac_compactness:     float = 0.3,
         small_sac_pgf:             float = 0.7,
+        coarse_edge_mm:            float | None = None,
+        coarse_max_vertices:       int = 120_000,
+        coarse_promote_min_mm:     float = 12.0,
+        coarse_promote_top:        int = 2,
     ) -> None:
         self.min_mean_curv_radius      = min_mean_curv_radius
         self.gauss_percentile          = gauss_percentile
@@ -400,6 +404,20 @@ class AneurysmDetector:
         self.small_sac_sphericity      = small_sac_sphericity
         self.small_sac_compactness     = small_sac_compactness
         self.small_sac_pgf             = small_sac_pgf
+        #: Segunda escala de curvatura (04-11, pasada real de los 172 de Zenodo
+        #: con la copia a arista fija y simulación de la combinación): si se da,
+        #: `routers.detect._detect_hits` repite el consenso sobre una copia de
+        #: arista `coarse_edge_mm` (como mucho `coarse_max_vertices`) y los
+        #: `coarse_promote_top` primeros de esa lista que miden al menos
+        #: `coarse_promote_min_mm` pasan al principio de la lista fina
+        #: (`aneurysm_consensus.promote_coarse`). La curvatura gruesa pone 1.º
+        #: los sacos grandes; la fina conserva los pequeños, que la gruesa
+        #: pierde. Lo hace el detector y no el router para que el banco pueda
+        #: apagarlo con `--set coarse_edge_mm=0`.
+        self.coarse_edge_mm            = coarse_edge_mm
+        self.coarse_max_vertices       = coarse_max_vertices
+        self.coarse_promote_min_mm     = coarse_promote_min_mm
+        self.coarse_promote_top        = coarse_promote_top
 
     # ------------------------------------------------------------------ #
     # Public API                                                           #

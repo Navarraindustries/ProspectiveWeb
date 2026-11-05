@@ -147,3 +147,4 @@ backend/db_backups/
 PROSPECTIVE-brochure.pdf
 # Worktrees de Claude Code (copias enlazadas del repositorio)
 .claude/worktrees/
+PROSPECTIVE-brochure-tecnico.pdf

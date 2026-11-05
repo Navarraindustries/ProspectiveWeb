@@ -254,8 +254,9 @@ def _detector_for_modality(modality: str) -> AneurysmDetector:
         # entre 10 80 → 74 (las < 5 mm pierden). Con las dos listas, la fina
         # de siempre y los 2 primeros de la gruesa que miden ≥ 12 mm delante
         # (simulación sobre las dos pasadas): 71 / 80 / 36 en 1.º / 96 en
-        # lista / 59 estudios, ninguna banda baja entre los 5; 9 sitios nuevos
-        # en los 450 de los controles. Con ≥ 10 mm, 72 / 81 / 38 pero 19.
+        # lista / 59 estudios, ninguna banda baja entre los 5; 7 sitios nuevos
+        # en los 450 de los controles. Con ≥ 10 mm, 72 / 81 / 38 pero 17; con
+        # ≥ 14 mm, 71 / 80 / 33 y ninguno. Confirmado con pasada real.
         coarse_edge_mm            = 0.71,
     )
 

@@ -1773,8 +1773,8 @@ primeros de la gruesa que miden al menos un umbral es lo que funciona:
 | Regla (primeros 2 de la gruesa) | Entre 5 | Entre 10 | 1.º | Lista | Estudios | Sitios nuevos en controles |
 |---|---|---|---|---|---|---|
 | ≥ 8 mm | 69 | 81 | 34 | 97 | 58 | no medido |
-| ≥ 10 mm | 72 | 81 | 38 | 97 | 60 | 19 de 450 |
-| **≥ 12 mm** | **71** | **80** | **36** | **96** | **59** | **9 de 450** |
+| ≥ 10 mm | 72 | 81 | 38 | 97 | 60 | 17 de 450 |
+| **≥ 12 mm** | **71** | **80** | **36** | **96** | **59** | **7 de 450** |
 | ≥ 15 mm | 71 | 80 | 31 | 96 | 59 | no medido |
 
 Se elige 12 mm por los controles. Si un sitio de la gruesa coincide a ≤ 8 mm con uno de la fina, sube el de la fina,
@@ -1813,12 +1813,32 @@ Coincide con la simulación en las cinco cifras. Suben al 1.º 008_1, 021, 025, 
 con su diámetro: sin ese efecto del banco serían +11. El máximo es 072, una malla muy grande; 011, por el camino
 exacto, tarda 27 s. En mallas grandes el proceso llega a 8–10 GB.
 
+**Validación cruzada del umbral (05-11, sin detectar).** Con las dos listas ya calculadas, 21 reglas (umbrales de 8 a
+20 mm, primeros 1 a 3) y 2 000 repartos al azar de los 172 en dos mitades, estratificados por lesión y control. La
+regla adoptada, en la mitad que no se usó para nada: primeros puestos +6 de mediana sobre unos 12 (intervalo del 95 %,
++2 a +10), y entre 5 y entre 10 no cambian en ningún reparto. Bootstrap por estudio sobre los 172: +12 (+4 a +20).
+Eligiendo la regla en una mitad por más primeros sin bajar entre 5 ni entre 10, sale 10 mm en el 57 % de los repartos
+y 12 mm en el 36 %; llevada a la otra mitad gana lo mismo en primeros (+6), pero entre 5 baja en el 1,2 % de los
+repartos, y la de 12 mm en ninguno. La ganancia es estable y el umbral no es un pico: entre 10 y 14 mm hay una meseta.
+
+**Lo que cuesta en los controles.** En la pasada real entran 7 sitios nuevos entre los 5 de los 90 controles (intervalo
+por bootstrap, 2 a 12), uno por estudio: 6 sobre vaso y 1 sobre hueso, y 6 de ellos en primer puesto. Con 14 mm no entra
+ninguno y queda 71 / 80 / 33 / 96 / 59: tres primeros puestos menos. Se mantiene 12 mm, pero 14 mm es la alternativa
+si importa más no cambiar qué se enseña en un estudio sano. Todo esto es estabilidad dentro de este dataset, no una
+validación externa.
+
+**En la aplicación (05-11).** El banco no aplica los vetos que sí aplica `POST /detect`. Sobre las sesiones guardadas de
+015, 096 y 002, primero sin navegador con el mismo camino (`_detect_hits`, parches y vetos) y después en pantalla con
+«Re-detectar»: lesión 1.ª por los tres canales, a 0,6, 1,1 y 0,4 mm, y la misma lista de 5 con una y con dos escalas.
+Los sitios que suben desde la copia gruesa pasan por parches y vetos sin fallar. Estos tres casos no enseñan la mejora,
+porque ya eran primeros: falta verla en uno que suba al 1.º (105 o 130), cuyo DICOM hay que cargar.
+
 **Veredicto.** Las dos ENTRAN, en commits separados (59b24ac la optimización, 5b35805 las dos escalas). Nueva referencia
 de detección: **71 / 80 / 36 / 96 / 59; 5 fuera**; controles 90/90 con 5; 155 tests y regresión XA sin diferencias.
 
 **Lo que no cambia, y conviene decir.** Es una mejora del orden, no de la detección: las 51 lesiones fuera de los 5
-siguen ahí. El umbral de 12 mm se eligió sobre estos mismos 172 estudios, aunque 10, 12 y 15 mm dan resultados
-parecidos. Y el orden sigue siendo frágil: no conviene prometer el primer puesto.
+siguen ahí. El umbral de 12 mm se eligió sobre estos mismos 172 estudios (la validación cruzada de arriba dice que
+es estable, no que valga fuera). Y el orden sigue siendo frágil: no conviene prometer el primer puesto.
 
 ### 4.22 La regla de la corteza (2026-10-30 / 11-05): modelo más limpio, detección peor; no entra
 

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -156,6 +157,61 @@ def _clean_region(region: vtk.vtkPolyData) -> vtk.vtkPolyData:
     solo_polys.GetPointData().ShallowCopy(limpia.GetPointData())
     solo_polys.SetPolys(limpia.GetPolys())
     return solo_polys
+
+
+def _specified_region(high: vtk.vtkPolyData, i: int) -> vtk.vtkPolyData:
+    """La región `i` pedida al filtro: lenta (recalcula todas), pero admite de todo."""
+    sel = vtk.vtkPolyDataConnectivityFilter()
+    sel.SetInputData(high)
+    sel.SetExtractionModeToSpecifiedRegions()
+    sel.InitializeSpecifiedRegionList()
+    sel.AddSpecifiedRegion(i)
+    sel.Update()
+    return sel.GetOutput()
+
+
+def _split_regions(high: vtk.vtkPolyData, labelled: vtk.vtkPolyData,
+                   n_regions: int) -> Iterator[vtk.vtkPolyData]:
+    """Cada región de `high`, a partir de `labelled` (su conectividad con
+    `ColorRegionsOn`), una a una.
+
+    Pedir cada región a `vtkPolyDataConnectivityFilter` recalcula TODAS las
+    regiones en cada llamada: 2 300 regiones por detección en una angio-TC eran
+    35 de sus 38 s. Aquí se etiqueta una vez y se reparten los triángulos, en su
+    orden. Las regiones comparten puntos y arrays con `labelled`; `_clean_region`
+    deja solo los suyos, con el mismo resultado bit a bit.
+
+    Si hay algo que no sea triángulo (Zenodo 011: líneas que deja el diezmado),
+    se vuelve al filtro: esas celdas aportan puntos a su región y repartirlas a
+    mano sería otra forma de contarlos. Es raro y solo cuesta tiempo.
+    """
+    if n_regions == 0:
+        return
+    tris = ns.vtk_to_numpy(labelled.GetPolys().GetConnectivityArray())
+    n_cells = labelled.GetNumberOfCells()
+    if labelled.GetNumberOfPolys() != n_cells or len(tris) != 3 * n_cells:
+        for i in range(n_regions):
+            yield _specified_region(high, i)
+        return
+    tris = tris.reshape(-1, 3)
+    pd = labelled.GetPointData()
+    # La etiqueta va por punto; los tres de un triángulo son de la misma región.
+    labels = ns.vtk_to_numpy(pd.GetArray("RegionId"))[tris[:, 0]]
+    pd.RemoveArray("RegionId")
+    order = np.argsort(labels, kind="stable")          # dentro de cada región, su orden
+    cuts = np.searchsorted(labels[order], np.arange(n_regions + 1))
+    for i in range(n_regions):
+        mine = tris[order[cuts[i]:cuts[i + 1]]]
+        cells = vtk.vtkCellArray()
+        offsets = np.arange(0, 3 * len(mine) + 1, 3, dtype=np.int64)
+        cells.SetData(ns.numpy_to_vtk(offsets, deep=True, array_type=vtk.VTK_ID_TYPE),
+                      ns.numpy_to_vtk(np.ascontiguousarray(mine, dtype=np.int64).ravel(),
+                                      deep=True, array_type=vtk.VTK_ID_TYPE))
+        region = vtk.vtkPolyData()
+        region.SetPoints(labelled.GetPoints())
+        region.GetPointData().ShallowCopy(pd)
+        region.SetPolys(cells)
+        yield region
 
 
 def _dome_radius_mm(region: "vtk.vtkPolyData", area: float) -> tuple[float, str]:
@@ -513,7 +569,7 @@ class AneurysmDetector:
 
         mean_poly.GetPointData().SetActiveScalars("Gauss_Curvature")
 
-        def regions_above(floor: float) -> tuple["vtk.vtkPolyData", int]:
+        def regions_above(floor: float) -> tuple["vtk.vtkPolyData", "vtk.vtkPolyData", int]:
             """Los vértices con K ≥ `floor` y sus componentes conexas (4)."""
             thresh = vtk.vtkThreshold()
             thresh.SetInputData(mean_poly)
@@ -530,12 +586,13 @@ class AneurysmDetector:
             geom.Update()
             high = geom.GetOutput()
             if high.GetNumberOfPoints() == 0:
-                return high, 0
+                return high, high, 0
             conn = vtk.vtkPolyDataConnectivityFilter()
             conn.SetInputData(high)
             conn.SetExtractionModeToAllRegions()
+            conn.ColorRegionsOn()
             conn.Update()
-            return high, conn.GetNumberOfExtractedRegions()
+            return high, conn.GetOutput(), conn.GetNumberOfExtractedRegions()
 
         # ── 4. Connected components, en una o dos escalas ──────────────── #
         # La segunda escala (`gauss_floor_2`) añade sus regiones detrás de las
@@ -544,13 +601,13 @@ class AneurysmDetector:
         floors = [thresh_gauss]
         if self.gauss_floor_2 is not None and self.min_gauss_curvature is not None:
             floors.append(max(float(self.gauss_floor_2), 0.0))
-        work: list[tuple[float, "vtk.vtkPolyData", int]] = []
+        pools: list[tuple[float, "vtk.vtkPolyData", "vtk.vtkPolyData", int]] = []
         n_regions = 0
         for floor in floors:
-            high_gauss, n_at = regions_above(floor)
+            high_gauss, labelled, n_at = regions_above(floor)
             logger.info("Gauss floor %.4f: %d connected regions", floor, n_at)
             n_regions += n_at
-            work.extend((floor, high_gauss, i) for i in range(n_at))
+            pools.append((floor, high_gauss, labelled, n_at))
 
         if n_regions == 0:
             logger.info("No positive Gaussian curvature regions found")
@@ -571,15 +628,10 @@ class AneurysmDetector:
         traces: list[RegionTrace] = []
         trace_of: dict[int, RegionTrace] = {}     # id(candidate) -> su traza
 
-        for pool_floor, high_gauss, i in work:
-            sel = vtk.vtkPolyDataConnectivityFilter()
-            sel.SetInputData(high_gauss)
-            sel.SetExtractionModeToSpecifiedRegions()
-            sel.InitializeSpecifiedRegionList()
-            sel.AddSpecifiedRegion(i)
-            sel.Update()
-
-            region = _clean_region(sel.GetOutput())
+        work = ((floor, r) for floor, high_gauss, labelled, n_at in pools
+                for r in _split_regions(high_gauss, labelled, n_at))
+        for pool_floor, raw_region in work:
+            region = _clean_region(raw_region)
 
             n_pts = region.GetNumberOfPoints()
             bounds = region.GetBounds()

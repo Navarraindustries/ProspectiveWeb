@@ -1820,6 +1820,43 @@ de detección: **71 / 80 / 36 / 96 / 59; 5 fuera**; controles 90/90 con 5; 155 t
 siguen ahí. El umbral de 12 mm se eligió sobre estos mismos 172 estudios, aunque 10, 12 y 15 mm dan resultados
 parecidos. Y el orden sigue siendo frágil: no conviene prometer el primer puesto.
 
+### 4.22 La regla de la corteza (2026-10-30 / 11-05): modelo más limpio, detección peor; no entra
+
+**De dónde sale.** De las 15 piezas de más de 60 cm³ (§4.18), las que llevan cráneo dentro tienen un cráneo flojo: en
+los cortes nativos 084 no pasa de 650 HU y las tablas internas de 123 están a 530–620 HU, así que la máscara de hueso
+(componentes de más de 700 HU) no las ve. La regla de la corteza quitaba de la máscara lo que supera 300 HU en los 12 mm
+exteriores de la cabeza, sin depender del HU del hueso (commit dfd2ad7).
+
+**Medida original** (`zenodo_eval_shell`, pasada de segmentación completa, 31-10). La segmentación mejora: árbol
+169 → 172, pieza mayor mediana 21,6 → 19,1 cm³, máscara 34,3 → 29,0 cm³, ningún recubrimiento baja. La detección no:
+71 / 80 / 24 / 96 / 59 → 61 / 69 / 18 / 94 / 53, con las < 5 mm de 13 a 7 entre 5. **Revertida el 01-11** por decisión
+del usuario. El hueso en controles bajaba de 111 a 86.
+
+**Remedida con el detector de §4.21** (`zenodo_eval_shell_dos_escalas`, mismas mallas, 172/172, sin errores):
+
+| | Mallas de la envolvente | Con la corteza |
+|---|---|---|
+| Entre 5 / entre 10 | 71 / 80 | 61 / 69 |
+| En 1.º / en lista | 36 / 96 | 29 / 94 |
+| Estudios (de 82) / fuera de la malla | 59 / 5 | 53 / 5 |
+| Entre 5 por tamaño (< 5 / 5–10 / ≥ 10 mm) | 13 / 17 / 41 | 7 / 15 / 39 |
+| Hueso en controles (de 450) / con lesión (de 410) | 110 / 83 | 88 / 70 |
+| Detección, mediana (s) | 42 | 35 |
+
+Las dos escalas devuelven primeros puestos (18 → 29), pero entre 5, entre 10, lista y estudios quedan exactamente como
+estaban. Se esperaba que esta medida recuperase parte de las 71, y no lo hace: la escala gruesa solo reordena sitios
+grandes y la copia fina sigue con el tope de 80 000 vértices, de modo que **§4.21 no desacopla la limpieza del modelo de
+la lista fina**. Que la caída venga de esa copia es la hipótesis que queda; no está comprobada.
+
+**Solo en los 9 de cráneo flojo.** La otra opción (indicador de tejido denso bajo la tabla ≥ 0,2: 123, 180, 127, 174,
+188 y 072, controles; 084, 092 y 112, con lesión) se lee de esta misma pasada. Las tres lesiones no cambian (084 y 112
+siguen 1.ª, 092 sigue fuera de la lista), el modelo tiene un 34 % menos de vértices y el hueso entre los 5 de esos nueve
+estudios sube de 5 a 8 de 45. Es una mejora del modelo que se ve, no de la detección, y son solo 3 lesiones: no prueba
+que la regla sea inocua en un cráneo flojo cualquiera. Exigiría además llevar el indicador al programa.
+
+**Veredicto.** La regla global NO entra. Queda como opción, sin adoptar, aplicarla solo a cráneos flojos si importa cómo
+se ve el modelo. La referencia sigue siendo **71 / 80 / 36 / 96 / 59**.
+
 ## 5. Código y datos de esta pasada
 
 - `backend/scripts/zenodo_lesiones.py`: tabla por lesión y recuentos de una pasada a partir

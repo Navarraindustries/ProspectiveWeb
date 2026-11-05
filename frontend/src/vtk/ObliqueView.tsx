@@ -30,10 +30,12 @@ const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 type Voxel = { x: number; y: number; z: number };
 const degLabel = (d: number) => { const r = Math.round(d); return `${r < 0 ? "−" : ""}${Math.abs(r)}°`; };
 
-export function ObliqueView({ image, meta, wc, ww, onWindowLevel, onWindowLevelReset, active = false, registerCapture, registerFit, overlay, walk, onWalkChange, onStep }: {
+export function ObliqueView({ image, meta, wc, ww, onWindowLevel, onWindowLevelReset, active = false, compact = false, registerCapture, registerFit, overlay, walk, onWalkChange, onStep }: {
   image: vtkImageData; meta: VolumeMeta; wc: number; ww: number; onWindowLevel: (wc: number, ww: number) => void; active?: boolean;
   /** Doble clic en la lectura W/L: vuelve a la ventana del estudio. */
   onWindowLevelReset?: () => void;
+  /** Celda pequeña (`ViewerGrid`): la fila se queda en ENCUADRAR y AL PUNTO. */
+  compact?: boolean;
   /** Algo que va sobre la imagen (la barra del cine): dentro del área del
    *  corte, para que quede encima de su lectura y no de la fila de deslizadores. */
   overlay?: ReactNode;
@@ -273,11 +275,14 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, onWindowLevelR
           quedaba recortada y solo se podía cambiar con el botón derecho.
           `hud-controls`: es una fila de controles y se oculta en esencial y
           limpio como los grupos de botones; AZ · EL siguen en la lectura.
-          En la celda bajo el dock del quirófano sube su holgura (--hud-bl-extra). */}
-      <div className="hud-controls" style={{ flexShrink: 0, marginBottom: "var(--hud-bl-extra, 0px)", padding: "8px 16px", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", borderTop: "var(--hud-line) solid var(--hud-text-dim)", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--hud-text-dim)" }}>
-        {slider("AZIMUT", "Azimut", AZIMUTH_RANGE, freePlane.azimuthDeg, (v) => commitPlane({ ...freePlane, azimuthDeg: v }))}
-        {slider("ELEVACIÓN", "Elevación", ELEVATION_RANGE, freePlane.elevationDeg, (v) => commitPlane({ ...freePlane, elevationDeg: v }))}
-        {walk && onWalkChange && (
+          En la celda bajo el dock del quirófano sube su holgura (--hud-bl-extra).
+          En una celda compacta los deslizadores y RECORRIDO se comían la imagen
+          y la dejaban en una franja: se quedan los dos botones, y el plano se
+          sigue orientando con el arrastre y leyendo en AZ · EL. */}
+      <div className="hud-controls" style={{ flexShrink: 0, marginBottom: "var(--hud-bl-extra, 0px)", padding: compact ? "4px 8px" : "8px 16px", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", borderTop: "var(--hud-line) solid var(--hud-text-dim)", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--hud-text-dim)" }}>
+        {!compact && slider("AZIMUT", "Azimut", AZIMUTH_RANGE, freePlane.azimuthDeg, (v) => commitPlane({ ...freePlane, azimuthDeg: v }))}
+        {!compact && slider("ELEVACIÓN", "Elevación", ELEVATION_RANGE, freePlane.elevationDeg, (v) => commitPlane({ ...freePlane, elevationDeg: v }))}
+        {!compact && walk && onWalkChange && (
           <HudToggleGroup label="RECORRIDO ▸"
             options={[{ key: "plano", label: "PLANO", title: "El cine desplaza el plano libre" }, { key: "vaso", label: "VASO", title: "El cine recorre la línea central, con el corte perpendicular al vaso" }]}
             value={walk.mode} onChange={(k) => onWalkChange(k as "plano" | "vaso")} />

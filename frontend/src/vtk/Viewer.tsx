@@ -1856,7 +1856,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         body = (
           <Suspense fallback={<ViewerLoading label="Cargando visor…" />}>
             <ObliqueView image={clientVol.image} meta={meta} wc={mprWl?.wc ?? meta.wc} ww={mprWl?.ww ?? meta.ww}
-              onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} onWindowLevelReset={() => setMprWl(null)} active={isMain}
+              onWindowLevel={(wc, ww) => setMprWl({ wc, ww })} onWindowLevelReset={() => setMprWl(null)} active={isMain} compact={compact}
               registerCapture={registerMeshCapture} registerFit={regFit("scene")} overlay={cineBarFor("scene", compact)}
               walk={centerline ? { mode: obliqueWalk, index: walkIndex, count: centerline.points.length,
                                    diameterMm: 2 * (centerline.radiiMm[walkIndex] ?? 0) } : null}

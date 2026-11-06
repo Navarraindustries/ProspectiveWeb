@@ -4,21 +4,21 @@ import { glass } from "./glass";
 describe("helper de cristal", () => {
   it("el cristal normal usa los tokens y desenfoque de 30", () => {
     const s = glass();
-    expect(s.background).toBe("var(--glass)");
-    expect(s.backdropFilter).toBe("blur(var(--glass-blur)) saturate(130%)");
+    expect(s.background).toBe("var(--glass-luz), var(--glass)");
+    expect(s.backdropFilter).toBe("blur(var(--glass-blur)) saturate(150%)");
     expect(s.WebkitBackdropFilter).toBe(s.backdropFilter);
     expect(s.border).toBe("var(--glass-rim) solid var(--glass-border)");
     expect(String(s.boxShadow)).toContain("var(--glass-highlight)");
   });
   it("denso y visor", () => {
-    expect(glass("dense").background).toBe("var(--glass-dense)");
+    expect(glass("dense").background).toBe("var(--glass-luz), var(--glass-dense)");
     // El visor tiene su propio token: flota sobre la imagen sin --veil y pide más opacidad.
     expect(glass("viewer").background).toBe("var(--glass-viewer)");
-    expect(glass("viewer").backdropFilter).toBe("blur(var(--glass-blur-viewer)) saturate(130%)");
+    expect(glass("viewer").backdropFilter).toBe("blur(var(--glass-blur-viewer)) saturate(150%)");
   });
   it("plano: mismo fondo y borde que el normal, sin desenfoque propio", () => {
     const s = glass("flat");
-    expect(s.background).toBe("var(--glass)");
+    expect(s.background).toBe("var(--glass-luz), var(--glass)");
     expect(s.border).toBe("var(--glass-rim) solid var(--glass-border)");
     expect(s.boxShadow).toBe("var(--glass-highlight)");
     expect(s.backdropFilter).toBeUndefined();

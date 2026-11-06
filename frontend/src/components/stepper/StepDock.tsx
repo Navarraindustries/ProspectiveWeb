@@ -290,7 +290,7 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
                 border: active ? `2px solid var(--tramo-${tramoDePaso(i + 1)})` : "1px solid var(--glass-border)",
                 fontFamily: "var(--font-mono)", fontSize: active ? 18 : 14, fontWeight: 700,
                 cursor: locked ? "not-allowed" : "pointer", opacity: locked ? 0.4 : 1,
-                background: active ? `var(--tinte-${tramoDePaso(i + 1)}), var(--glass-solid)` : done ? "var(--success-bg)" : "var(--glass-hover)",
+                background: active ? "var(--glass-solid)" : done ? "var(--success-bg)" : "var(--glass-hover)",
                 color: done && !active ? "var(--success)" : "var(--foreground)",
               }}
             >

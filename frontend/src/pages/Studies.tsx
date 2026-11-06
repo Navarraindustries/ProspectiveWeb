@@ -25,7 +25,6 @@ import { AppShell } from "../components/shell/AppShell";
 import { LoadState, loadErrorText } from "../components/LoadState";
 
 import { STEP_LABELS } from "../pipeline/steps";
-import { pasoDeTarjeta, tramoDePaso } from "../lib/pacientes";
 import { conTransicion } from "../lib/viewTransition";
 import "../styles/office.css";
 import { PageBody } from "../components/shell/PageBody";
@@ -102,12 +101,6 @@ function Thumbnail({ study }: { study: StudyCard }) {
       {sobre}
     </div>
   );
-}
-
-/** El tramo del flujo del último paso de un estudio, para el color de su tarjeta. */
-function tramoDe(paso: number | null | undefined) {
-  const p = pasoDeTarjeta(paso ?? null);
-  return p ? tramoDePaso(p.n) : undefined;
 }
 
 export function StudyGallery({
@@ -254,7 +247,6 @@ export function StudyGallery({
               key={est.id}
               className="tarjeta-estudio tarjeta-lente"
               data-glass
-              data-tramo={tramoDe(est.last_step)}
               title={`${est.patient_name} · ${est.description}`}
               style={{
                 display: "flex", flexDirection: "column", textAlign: "left", padding: 0,

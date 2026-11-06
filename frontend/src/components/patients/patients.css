@@ -3,9 +3,9 @@
 .pt-card {
   display: flex;
   flex-direction: column;
-  background: var(--glass);
+  background: var(--glass-luz), var(--glass);
   border: var(--glass-rim) solid var(--glass-border);
-  box-shadow: var(--glass-highlight);
+  box-shadow: var(--glass-highlight), var(--shadow-md);
   border-radius: var(--radius-card-lg);
   overflow: hidden;
   cursor: pointer;
@@ -13,14 +13,8 @@
   color: var(--foreground);
   transition: scale var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
 }
-.pt-card:hover { border-color: var(--primary); box-shadow: var(--glass-highlight), var(--shadow-md); }
+.pt-card:hover { border-color: var(--primary); box-shadow: var(--glass-highlight), var(--shadow-lg); }
 .pt-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-/* El color del tramo del flujo en que quedó el caso, sobre el mismo cristal. */
-.pt-card[data-tramo="preparar"]    { background: var(--tinte-preparar), var(--glass); }
-.pt-card[data-tramo="detectar"]    { background: var(--tinte-detectar), var(--glass); }
-.pt-card[data-tramo="medir"]       { background: var(--tinte-medir), var(--glass); }
-.pt-card[data-tramo="dispositivo"] { background: var(--tinte-dispositivo), var(--glass); }
-.pt-card[data-tramo="informe"]     { background: var(--tinte-informe), var(--glass); }
 
 .pt-card-media {
   position: relative;

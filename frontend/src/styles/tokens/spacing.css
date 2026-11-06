@@ -19,9 +19,9 @@
   /* ---- Radii ---- */
   --radius-sm:   8px;    /* insignias, items de menu, casillas */
   --radius-md:   14px;   /* campos */
-  --radius-lg:   16px;   /* tarjetas */
-  --radius-xl:   24px;   /* ventanas, hojas, inspector */
-  --radius-card-lg: 20px; /* tarjeta de paciente */
+  --radius-lg:   20px;   /* tarjetas */
+  --radius-xl:   30px;   /* ventanas, hojas, inspector */
+  --radius-card-lg: 28px; /* tarjeta de paciente */
   --radius-full: 9999px; /* pill badges / avatars */
 
   /* ---- Shadows ---- */

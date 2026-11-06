@@ -110,12 +110,13 @@ export function RightPanelColumn({
         >
           <div
             style={{
-              flex: "none", padding: "14px 18px 12px", fontFamily: "var(--font-mono)",
-              background: `var(--tinte-${tramoDePaso(stepIndex + 1)})`,
+              flex: "none", display: "flex", alignItems: "center", gap: 8,
+              padding: "14px 18px 12px", fontFamily: "var(--font-mono)",
               fontSize: "var(--text-eyebrow)", letterSpacing: "var(--tracking-eyebrow)",
               color: "var(--foreground)",
             }}
           >
+            <span aria-hidden="true" style={{ width: 8, height: 8, flex: "none", borderRadius: "50%", background: `var(--tramo-${tramoDePaso(stepIndex + 1)})` }} />
             {`Paso ${stepIndex + 1} · ${stepLabel}`.toLocaleUpperCase("es")}
           </div>
           {/* Cruce en fundido entre pasos; el primer pintado no anima. */}

@@ -21,6 +21,12 @@ describe("cristal en el pipeline", () => {
     expect(opacos).toEqual([]);
   });
 
+  it("el color del tramo es solo acento: ninguna superficie lo lleva", () => {
+    const todo = ["components/patients/patients.css", "styles/office.css", "styles/tokens/colors.css",
+      "components/stepper/StepDock.tsx", "components/RightPanelColumn.tsx"].map(leer).join("\n");
+    expect(todo).not.toContain("--tinte-");
+  });
+
   it("el dock y la cabecera del panel llevan el color del tramo", () => {
     expect(leer("components/stepper/StepDock.tsx")).toContain("tramoDePaso(i + 1)");
     expect(leer("components/RightPanelColumn.tsx")).toContain("tramoDePaso(stepIndex + 1)");

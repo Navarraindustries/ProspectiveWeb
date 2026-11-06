@@ -140,12 +140,12 @@ describe("tokens de la dirección D", () => {
     expect(light).toMatch(/--veil:\s*rgba\(243, ?245, ?248, ?0\)/);
     expect(light).toMatch(/--veil-dense:\s*rgba\(243, ?245, ?248, ?0\)/);
     expect(dark).toMatch(/--glass:\s*linear-gradient\(rgba\(5, ?6, ?8, ?0?\.55\), rgba\(5, ?6, ?8, ?0?\.55\)\), rgba\(255, ?255, ?255, ?0?\.08\)/);
-    // Claro a 0,92: su peor fondo es el negro del quirófano (ver cristal.audit.test.ts).
-    expect(light).toMatch(/--glass:\s*rgba\(255, ?255, ?255, ?0?\.92\)/);
+    // Claro casi opaco: su peor fondo es el negro del quirófano, donde solo puede agrisarse.
+    expect(light).toMatch(/--glass:\s*rgba\(255, ?255, ?255, ?0?\.97\)/);
     expect(dark).toMatch(/--glass-dense:\s*linear-gradient\(rgba\(8, ?9, ?12, ?0?\.72\)/);
-    expect(light).toMatch(/--glass-dense:\s*rgba\(255, ?255, ?255, ?0?\.92\)/);
+    expect(light).toMatch(/--glass-dense:\s*rgba\(255, ?255, ?255, ?1\)/);
     expect(dark).toMatch(/--glass-viewer:\s*linear-gradient\(rgba\(8, ?9, ?12, ?0?\.80?\), rgba\(8, ?9, ?12, ?0?\.80?\)\), rgba\(255, ?255, ?255, ?0?\.08\)/);
-    expect(light).toMatch(/--glass-viewer:\s*rgba\(255, ?255, ?255, ?0?\.92\)/);
+    expect(light).toMatch(/--glass-viewer:\s*rgba\(255, ?255, ?255, ?0?\.97\)/);
     expect(dark).toMatch(/--glass-border:\s*rgba\(214, ?222, ?235, ?0?\.26\)/);
     expect(light).toMatch(/--glass-highlight:\s*inset 0 2px 1px rgba\(255, ?255, ?255, ?0?\.95\)/);
     expect(dark).toMatch(/--glass-hover:\s*rgba\(255, ?255, ?255, ?0?\.14\)/);
@@ -180,9 +180,9 @@ describe("tokens de la dirección D", () => {
     const spacing = readFileSync(join(__dirname, "tokens/spacing.css"), "utf8").replace(/\r\n/g, "\n");
     expect(spacing).toMatch(/--radius-sm:\s*8px/);
     expect(spacing).toMatch(/--radius-md:\s*14px/);
-    expect(spacing).toMatch(/--radius-lg:\s*16px/);
-    expect(spacing).toMatch(/--radius-xl:\s*24px/);
-    expect(spacing).toMatch(/--radius-card-lg:\s*20px/);
+    expect(spacing).toMatch(/--radius-lg:\s*20px/);
+    expect(spacing).toMatch(/--radius-xl:\s*30px/);
+    expect(spacing).toMatch(/--radius-card-lg:\s*28px/);
     expect(spacing).toMatch(/--radius-full:\s*9999px/);
     expect(spacing).toMatch(/--shadow-md:\s*0 14px 40px rgba\(0, ?0, ?0, ?0?\.5\)/);
     expect(spacing).toMatch(/--shadow-lg:\s*0 40px 90px rgba\(0, ?0, ?0, ?0?\.6\)/);

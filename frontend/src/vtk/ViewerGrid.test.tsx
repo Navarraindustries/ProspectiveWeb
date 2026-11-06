@@ -1,7 +1,7 @@
 // frontend/src/vtk/ViewerGrid.test.tsx
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_LAYOUT, setPreset, type PaneId, type ViewerLayout } from "./layout";
+import { DEFAULT_LAYOUT, enlarge, toggleEqual, togglePane, toggleSolo, type PaneId, type ViewerLayout } from "./layout";
 import { ViewerGrid } from "./ViewerGrid";
 
 const renderPane = (id: PaneId) => <span data-testid={`pane-${id}`}>{id}</span>;
@@ -32,25 +32,41 @@ describe("ViewerGrid", () => {
     expect(cell("scene").style.gridArea).toBe("s3");
   });
 
-  it("en «sola» las secundarias siguen montadas pero ocultas", () => {
-    const { cell } = setup(setPreset(DEFAULT_LAYOUT, "sola"));
+  it("con una sola vista las demás siguen montadas pero ocultas", () => {
+    const { cell } = setup(toggleSolo(DEFAULT_LAYOUT, "scene"));
     expect(screen.getByTestId("pane-axial")).toBeInTheDocument();
     expect(cell("axial").className).toContain("viewer-cell--hidden");
     expect(cell("scene").className).not.toContain("viewer-cell--hidden");
     expect(screen.queryByTestId("splitter")).toBeNull();
   });
 
-  it("doble clic en una secundaria la sube a principal", () => {
+  it("doble clic en una vista la deja sola, y otro doble clic devuelve las demás", () => {
     const { cell, onLayoutChange } = setup();
     fireEvent.doubleClick(cell("coronal"));
-    // Las pequeñas en el orden fijo 3D, AX, SAG, VOLUMEN (F1-111).
-    expect(onLayoutChange).toHaveBeenCalledWith({ ...DEFAULT_LAYOUT, main: "coronal", side: ["scene", "axial", "sagital", "mip"] });
+    const solo = toggleSolo(DEFAULT_LAYOUT, "coronal");
+    expect(onLayoutChange).toHaveBeenLastCalledWith(solo);
+    const otra = setup(solo);
+    fireEvent.doubleClick(otra.container.querySelector<HTMLElement>('[data-pane="coronal"]')!);
+    expect(otra.onLayoutChange).toHaveBeenLastCalledWith(toggleSolo(solo, "coronal"));
   });
 
-  it("doble clic en la celda principal no cambia nada", () => {
-    const { cell, onLayoutChange } = setup();
-    fireEvent.doubleClick(cell("scene"));
-    expect(onLayoutChange).not.toHaveBeenCalled();
+  it("cada vista ofrece agrandar y minimizar; la grande solo minimizar", () => {
+    const { onLayoutChange } = setup();
+    expect(screen.queryByRole("button", { name: "Agrandar 3D" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Agrandar AXIAL" }));
+    expect(onLayoutChange).toHaveBeenLastCalledWith(enlarge(DEFAULT_LAYOUT, "axial"));
+    fireEvent.click(screen.getByRole("button", { name: "Minimizar 3D" }));
+    expect(onLayoutChange).toHaveBeenLastCalledWith(togglePane(DEFAULT_LAYOUT, "scene"));
+  });
+
+  it("con Igualar también se puede agrandar la que va primera", () => {
+    setup(toggleEqual(DEFAULT_LAYOUT));
+    expect(screen.getByRole("button", { name: "Agrandar 3D" })).toBeInTheDocument();
+  });
+
+  it("con una sola vista no hay nada que agrandar ni minimizar", () => {
+    setup(toggleSolo(DEFAULT_LAYOUT, "scene"));
+    expect(screen.queryByRole("button", { name: /Minimizar/ })).toBeNull();
   });
 
   it("ninguna celda lleva botón «⤢»: se maximiza con doble clic", () => {
@@ -58,7 +74,7 @@ describe("ViewerGrid", () => {
     expect(container.querySelector(".viewer-maximize")).toBeNull();
   });
 
-  it("tras el doble clic el foco queda en la celda subida (su envoltorio) o en la rejilla", async () => {
+  it("tras el doble clic el foco queda en la celda (su envoltorio) o en la rejilla", async () => {
     // Una celda con envoltorio enfocable, como las de corte; la escena 3D no lo tiene.
     const withWrapper = (id: PaneId) => (id === "scene" ? <span>3d</span> : <div tabIndex={0} data-testid={`wrap-${id}`}>{id}</div>);
     const onLayoutChange = vi.fn();
@@ -76,7 +92,7 @@ describe("ViewerGrid", () => {
   });
 
   it("las celdas ocultas son inertes: Tab no entra en ellas", () => {
-    const { cell } = setup(setPreset(DEFAULT_LAYOUT, "sola"));
+    const { cell } = setup(toggleSolo(DEFAULT_LAYOUT, "scene"));
     // jsdom no implementa la propiedad `inert`: se mira el atributo que pone React.
     expect(cell("axial").hasAttribute("inert")).toBe(true);
     expect(cell("scene").hasAttribute("inert")).toBe(false);

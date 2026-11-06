@@ -1,8 +1,7 @@
 /* Banda del visor en el nivel «iconos»: pantallas táctiles (≤ 1024) y bandas
-   de menos de 800 px. A 44 px por objetivo los grupos de rótulos no caben, así
-   que la vista principal y la distribución van en dos desplegables (con los
-   nombres enteros: el desplegable ya da el sitio) y los conmutadores son
-   botones de icono o de texto corto.
+   de menos de 800 px. A 44 px por objetivo los grupos de rótulos no caben: las
+   vistas y sus mandos envuelven y los conmutadores son botones de icono o de
+   texto corto.
 
    En táctil no hay ratón encima: nada vive solo en `title`. Cada control lleva
    `aria-label` con su nombre entero; el título se queda para quien sí tenga
@@ -15,9 +14,8 @@
 
 import type { CSSProperties } from "react";
 import { Icon } from "../components/Icon";
-import { promote, setPreset, type PaneId, type ViewerLayout } from "./layout";
-import { mainOptions, presetOptions } from "./mainOptions";
 import type { ViewerHeaderProps } from "./ViewerHeader";
+import { ViewerLayoutControls } from "./ViewerLayoutControls";
 import { nextHudLevel } from "./viewerPrefs";
 
 export interface ViewerHeaderIconosProps extends ViewerHeaderProps {
@@ -46,17 +44,9 @@ export function ViewerHeaderIconos({
 
   return (
     <>
-      {/* Solo los dos desplegables: el grupo puede encoger y envolver, y cada
-          desplegable no pasa del ancho del grupo, así que a 360 no desborda. */}
+      {/* El grupo puede encoger y envolver: a 360 no desborda. */}
       <div data-banda="izq" style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", flex: "0 1 auto", minWidth: 0 }}>
-        <select aria-label="Vista principal" className="viewer-band-select" style={{ maxWidth: "100%" }}
-                value={layout.main} onChange={(e) => onLayoutChange(promote(layout, e.target.value as PaneId))}>
-          {mainOptions(true).map((o) => <option key={o.key} value={o.key} title={o.title}>{o.label}</option>)}
-        </select>
-        <select aria-label="Distribución" className="viewer-band-select" style={{ maxWidth: "100%" }}
-                value={layout.preset} onChange={(e) => onLayoutChange(setPreset(layout, e.target.value as ViewerLayout["preset"]))}>
-          {presetOptions(Number.POSITIVE_INFINITY).map((o) => <option key={o.key} value={o.key} title={o.title}>{o.label}</option>)}
-        </select>
+        <ViewerLayoutControls layout={layout} onLayoutChange={onLayoutChange} corto />
       </div>
       {/* `hud-toggle` da a los botones el estilo de los conmutadores del HUD
           (atenuado, subrayado si están pulsados, foco discontinuo). */}

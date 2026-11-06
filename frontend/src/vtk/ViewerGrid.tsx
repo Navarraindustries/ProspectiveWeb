@@ -4,8 +4,9 @@
    (layout.ts), la geometría (layoutGrid.ts) y el arrastre (paneDrag.ts) son
    puros; aquí solo se traducen eventos a esas llamadas. */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ALL_PANES, defaultFraction, promote, setMainFraction, swapPanes, type PaneId, type ViewerLayout } from "./layout";
+import { ALL_PANES, defaultFraction, enlarge, setMainFraction, swapPanes, toggleSolo, togglePane, visiblePanes, type PaneId, type ViewerLayout } from "./layout";
 import { dockCornerSlot, fractionFromPointer, gridFor, isCompact } from "./layoutGrid";
+import { MAIN_NAMES } from "./mainOptions";
 import { beginDrag, cancelDrag, endDrag, moveDrag, type DragState } from "./paneDrag";
 
 export interface PaneContext { compact: boolean; isMain: boolean }
@@ -26,8 +27,8 @@ export interface ViewerGridProps {
 }
 
 /** Tras soltar un arrastre de verdad el navegador puede rematar con un `click`
- *  o, si hubo un clic justo antes, con un `dblclick` que subiría la vista a
- *  principal. Durante este margen se tragan. */
+ *  o, si hubo un clic justo antes, con un `dblclick` que dejaría esa vista sola.
+ *  Durante este margen se tragan. */
 const SUPPRESS_CLICK_MS = 400;
 
 const paneUnder = (x: number, y: number): PaneId | null => {
@@ -134,7 +135,7 @@ export function ViewerGrid({ layout, onLayoutChange, renderPane, registerCell, m
     return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("blur", onBlur); };
   }, [dragging, setDragBoth]);
 
-  // Un intercambio no debe además subir a principal ni pasar un clic a la vista.
+  // Un intercambio no debe además dejarla sola ni pasar un clic a la vista.
   const swallowAfterDrag = (e: React.MouseEvent) => {
     if (performance.now() < suppressClickUntil.current) { e.preventDefault(); e.stopPropagation(); }
   };
@@ -156,50 +157,66 @@ export function ViewerGrid({ layout, onLayoutChange, renderPane, registerCell, m
   const onSplitUp = (e: React.PointerEvent) => { splitting.current = false; release(e.currentTarget, e.pointerId); };
 
   const dockSlot = dockCornerSlot(spec.areas);
+  const varias = visiblePanes(layout).length > 1;
+
+  // Al cambiar de sitio la vista enfocada, o al ocultarla, el foco caería al cuerpo
+  // y dejaría muertas Alt+1…5 y las teclas de corte. La celda nunca se remonta
+  // (clave = id), así que el foco vuelve a su envoltorio enfocable; la escena 3D
+  // no tiene, y va a la rejilla, que sigue dentro del contenedor del visor.
+  const refocus = (id: PaneId) => requestAnimationFrame(() => {
+    const el = cellEls.current.get(id);
+    const target = (el && !el.inert ? el.querySelector<HTMLElement>('[tabindex="0"]') : null) ?? rootRef.current;
+    target?.focus({ preventScroll: true });
+  });
 
   return (
     <div ref={rootRef} className="viewer-grid" tabIndex={-1} onKeyDown={onKeyDown}
          onClickCapture={swallowAfterDrag} onDoubleClickCapture={swallowAfterDrag}
          style={{ display: "grid", gridTemplateColumns: spec.columns, gridTemplateRows: spec.rows, gridTemplateAreas: spec.areas, width: "100%", height: "100%", position: "relative", background: "var(--hud-text-dim)" }}>
       {ALL_PANES.map((id) => {
-        const slot = spec.slotOf[id];
+        const slot = spec.slotOf[id] ?? null;
         const hidden = !spec.visible[id];
         const isMain = slot === "main";
         // Sin medida aún, no compacta: Infinity nunca es «estrecho».
         const size = sizes[id];
         const compact = isCompact(size?.w ?? Number.POSITIVE_INFINITY, size?.h ?? Number.POSITIVE_INFINITY);
         return (
-          // Oculta: sin gridArea y fuera del flujo (1×1 px), para que el lienzo
-          // WebGL siga vivo sin ocupar un hueco que en «sola» no existe.
-          // `inert`: una celda oculta (SOLA, la quinta en CUATRO) mide 1×1 px
-          // pero conserva su envoltorio enfocable; sin esto Tab entraría en
-          // ella y la haría la celda enfocada sin que se vea.
-          <div key={id} ref={cellRef(id)} data-pane={id} data-slot={slot} data-dock-corner={!hidden && slot === dockSlot ? "" : undefined} inert={hidden}
+          // Minimizada: sin gridArea y fuera del flujo (1×1 px), para que el lienzo
+          // WebGL siga vivo sin ocupar un hueco.
+          // `inert`: una celda minimizada conserva su envoltorio enfocable; sin
+          // esto Tab entraría en ella y la haría la celda enfocada sin que se vea.
+          <div key={id} ref={cellRef(id)} data-pane={id} data-slot={slot ?? undefined} data-dock-corner={!hidden && slot === dockSlot ? "" : undefined} inert={hidden}
                className={`viewer-cell${hidden ? " viewer-cell--hidden" : ""}${drag?.over === id ? " viewer-cell--over" : ""}`}
-               style={{ gridArea: hidden ? undefined : slot, position: hidden ? "absolute" : "relative", minWidth: 0, minHeight: 0, overflow: "hidden", background: "var(--viewer-bg)" }}
+               style={{ gridArea: slot ?? undefined, position: hidden ? "absolute" : "relative", minWidth: 0, minHeight: 0, overflow: "hidden", background: "var(--viewer-bg)" }}
                // En captura: los lienzos de vtk.js y la barra del cine cortan la
                // propagación del puntero, y la celda tiene que enterarse igual.
                onPointerDownCapture={() => onPaneFocus?.(id)} onFocusCapture={() => onPaneFocus?.(id)}
-               // Doble clic = hacer principal (ya no hay botón «⤢»). Al subir, la
-               // vista pierde el foco si lo tenía y caería al cuerpo, dejando
-               // muertas Alt+1…4 y las teclas de corte. La celda nunca se remonta
-               // (clave = id), así que el foco vuelve a su envoltorio enfocable;
-               // la escena 3D no tiene, y va a la rejilla, que sigue dentro del
-               // contenedor del visor.
-               onDoubleClick={() => {
-                 if (isMain) return;
-                 onLayoutChange(promote(layout, id));
-                 requestAnimationFrame(() => {
-                   const target = cellEls.current.get(id)?.querySelector<HTMLElement>('[tabindex="0"]') ?? rootRef.current;
-                   target?.focus({ preventScroll: true });
-                 });
-               }}>
+               // Doble clic: solo esta vista; otro doble clic devuelve las demás.
+               onDoubleClick={() => { onLayoutChange(toggleSolo(layout, id)); refocus(id); }}>
             {renderPane(id, { compact, isMain })}
             {isMain && mainOverlay}
             {!hidden && (
-              <div className="viewer-handle" title="Arrastrar para intercambiar · Doble clic para maximizar"
+              <div className="viewer-handle" title="Arrastrar para intercambiar · Doble clic: solo esta vista"
                    onPointerDown={onHandleDown(id)} onPointerMove={onHandleMove}
                    onPointerUp={onHandleUp} onPointerCancel={onHandleCancel} />
+            )}
+            {!hidden && varias && (
+              <div className="viewer-cell-tools" onDoubleClick={(e) => e.stopPropagation()}>
+                {(!isMain || layout.equal) && (
+                  <button type="button" className="viewer-cell-tool" title="Agrandar" aria-label={`Agrandar ${MAIN_NAMES[id]}`}
+                          onClick={() => { onLayoutChange(enlarge(layout, id)); refocus(id); }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                    </svg>
+                  </button>
+                )}
+                <button type="button" className="viewer-cell-tool" title="Minimizar" aria-label={`Minimizar ${MAIN_NAMES[id]}`}
+                        onClick={() => { onLayoutChange(togglePane(layout, id)); refocus(id); }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                    <path d="M5 12h14" />
+                  </svg>
+                </button>
+              </div>
             )}
           </div>
         );

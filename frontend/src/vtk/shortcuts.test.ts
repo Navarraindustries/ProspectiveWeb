@@ -60,7 +60,8 @@ describe("matchShortcut — bordes", () => {
     expect(matchShortcut(ev({ key: "Escape", code: "Escape" }), null)).toBe("escape");
     expect(matchShortcut(ev({ key: "9", code: "Digit9" }), null)).toBeNull();
     expect(matchShortcut(ev({ key: "1", code: "Digit1", altKey: true }), null)).toBe("preset-sola");
-    expect(matchShortcut(ev({ key: "5", code: "Digit5", altKey: true }), null)).toBeNull();
+    expect(matchShortcut(ev({ key: "5", code: "Digit5", altKey: true }), null)).toBe("preset-rotar");
+    expect(matchShortcut(ev({ key: "6", code: "Digit6", altKey: true }), null)).toBeNull();
   });
   it("teclado numérico: dígito con Bloq Num, tecla de corte sin él", () => {
     expect(matchShortcut(ev({ key: "8", code: "Numpad8" }), null)).toBe("step-8");

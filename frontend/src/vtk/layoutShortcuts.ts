@@ -1,17 +1,18 @@
-/* Atajos de teclado de la distribución del visor: Alt+1 sola, Alt+2 derecha,
-   Alt+3 abajo, Alt+4 cuatro. Con Alt porque los dígitos solos ya saltan de paso en el flujo
-   (Workspace): el mismo «2» no puede significar dos cosas. Puro para poder
-   probarlo sin montar el visor. */
-import type { LayoutPreset } from "./layout";
+/* Atajos de teclado de la distribución del visor: Alt+1 solo esa vista, Alt+2 la
+   grande a la izquierda, Alt+3 arriba, Alt+4 iguales y Alt+5 rotar. Con Alt porque
+   los dígitos solos ya saltan de paso en el flujo (Workspace): el mismo «2» no puede
+   significar dos cosas. Puro para poder probarlo sin montar el visor. */
+
+export type LayoutAction = "solo" | "derecha" | "abajo" | "iguales" | "rotar";
 
 // Por `KeyboardEvent.code` (la tecla física), no por `key`: en macOS
 // Option+1 escribe «¡» y el `key` ya no es «1»; en un teclado AZERTY la fila
 // de números da «&» sin mayúsculas. La tecla física es la misma en todos.
-const CODES: Record<string, LayoutPreset> = { Digit1: "sola", Digit2: "derecha", Digit3: "abajo", Digit4: "cuatro" };
+const CODES: Record<string, LayoutAction> = { Digit1: "solo", Digit2: "derecha", Digit3: "abajo", Digit4: "iguales", Digit5: "rotar" };
 
 /** Un atajo numérico nunca debe robarle la tecla a un campo donde se escribe:
  *  escribir en el umbral de segmentación no puede cambiar la distribución. */
-export function presetForKey(code: string, target: EventTarget | null, altKey: boolean): LayoutPreset | null {
+export function layoutActionForKey(code: string, target: EventTarget | null, altKey: boolean): LayoutAction | null {
   if (!altKey || isTextEntryTarget(target)) return null;
   return CODES[code] ?? null;
 }

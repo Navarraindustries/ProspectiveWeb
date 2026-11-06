@@ -1,8 +1,7 @@
-/* Banda de cabecera del visor: selector de la vista PRINCIPAL, presets de
-   distribución, el nivel de textos, los conmutadores PLANOS · VINCULAR · CALOR y «?».
+/* Banda de cabecera del visor: las vistas y sus mandos (ViewerLayoutControls), el
+   nivel de textos, los conmutadores PLANOS · VINCULAR · CALOR y «?».
 
-   Separada de Viewer para poder probarla sola (spec §6: el selector refleja
-   `layout.main` y cambia la distribución). Es presentacional: el estado vive
+   Separada de Viewer para poder probarla sola. Es presentacional: el estado vive
    en Viewer y aquí solo se pinta y se avisa. Lo único propio es el ancho de
    la banda, que solo ella usa para elegir su nivel (bandTier) y abreviar sus
    rótulos, y si el aviso de nivel está desplegado.
@@ -17,10 +16,11 @@ import { useCallback, useId, useRef, useState, type KeyboardEvent as ReactKeyboa
 import { Icon } from "../components/Icon";
 import { useMediaQuery } from "../hooks/useEstrecho";
 import { MQ_MOVIL, MQ_TACTIL } from "../pipeline/puntosCorte";
-import { promote, setPreset, type PaneId, type ViewerLayout } from "./layout";
+import type { ViewerLayout } from "./layout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
-import { bandTier, headerLabels, mainOptions, presetOptions } from "./mainOptions";
+import { bandTier } from "./mainOptions";
 import { ViewerHeaderIconos } from "./ViewerHeaderIconos";
+import { ViewerLayoutControls } from "./ViewerLayoutControls";
 import { HUD_LEVELS, type HudLevel } from "./viewerPrefs";
 
 const LEVEL_TITLES: Record<HudLevel, string> = {
@@ -32,7 +32,7 @@ const LEVEL_TITLES: Record<HudLevel, string> = {
 export interface ViewerHeaderProps {
   layout: ViewerLayout;
   onLayoutChange: (layout: ViewerLayout) => void;
-  /** Alt+1/2/3: las mismas teclas que la rejilla, para que el foco en un
+  /** Alt+1…5: las mismas teclas que la rejilla, para que el foco en un
    *  conmutador de la banda no las pierda. */
   onKeyDown?: (e: ReactKeyboardEvent) => void;
   planesHidden: boolean;
@@ -87,7 +87,6 @@ export function ViewerHeader(props: ViewerHeaderProps) {
   const touch = useMediaQuery(MQ_TACTIL);
   const movil = useMediaQuery(MQ_MOVIL);
   const tier = bandTier(bandWidth, touch);
-  const header = headerLabels(bandWidth);
   const compact = tier === "estrecho";
   // Aviso de nivel: desplegado o no (solo cuenta por debajo del nivel ancho).
   // Un aviso nuevo (o ninguno) llega plegado: lo desplegado era el anterior.
@@ -115,15 +114,7 @@ export function ViewerHeader(props: ViewerHeaderProps) {
           onToggleNote={() => setNoteOpen((o) => !o)} noteId={noteId} />
       ) : (<>
       <div data-banda="izq" style={{ display: "flex", gap: 10, alignItems: "center", flex: "0 0 auto", minHeight: 22 }}>
-        {/* PRINCIPAL elige qué vista ocupa el hueco grande; DISTRIBUCIÓN,
-            TEXTOS y VINCULAR dicen cómo se ve el visor, no qué hay en él. */}
-        <span style={{ color: "var(--hud-text-dim)", fontSize: 11, letterSpacing: ".08em" }} title="Vista principal">{header.mainCaption}</span>
-        <HudToggleGroup options={mainOptions()} value={layout.main}
-          onChange={(k) => onLayoutChange(promote(layout, k as PaneId))} />
-        <HudToggleGroup
-          options={presetOptions(bandWidth)}
-          value={layout.preset}
-          onChange={(k) => onLayoutChange(setPreset(layout, k as ViewerLayout["preset"]))} />
+        <ViewerLayoutControls layout={layout} onLayoutChange={onLayoutChange} corto={compact} />
       </div>
       <div data-banda="der" style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", columnGap: 10, rowGap: 0, alignItems: "center", flex: "1 1 auto", minWidth: 0, minHeight: 22 }}>
         <HudToggleGroup

@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_LAYOUT, FRACTION_MAX, FRACTION_MIN, promote, setPreset } from "./layout";
+import { ALL_PANES, DEFAULT_LAYOUT, FRACTION_MAX, FRACTION_MIN, setPreset, swapPanes, toggleEqual, togglePane, type PaneId, type ViewerLayout } from "./layout";
 import { COMPACT_MAX_WIDTH_PX, COMPACT_MIN_HEIGHT_PX, SPLITTER_PX, effectivePreset, fractionFromPointer, gridFor, isCompact } from "./layoutGrid";
+
+const solo = (id: PaneId): ViewerLayout => ({ ...DEFAULT_LAYOUT, main: id, side: ALL_PANES.filter((p) => p !== id) as ViewerLayout["side"], hidden: ALL_PANES.filter((p) => p !== id) });
+const hide = (l: ViewerLayout, ...ids: PaneId[]) => ids.reduce(togglePane, l);
 
 describe("effectivePreset", () => {
   it("derecha en una ventana vertical se pinta como abajo, sin tocar el estado", () => {
     expect(effectivePreset(DEFAULT_LAYOUT, true)).toBe("abajo");
     expect(effectivePreset(DEFAULT_LAYOUT, false)).toBe("derecha");
-    expect(effectivePreset(setPreset(DEFAULT_LAYOUT, "sola"), true)).toBe("sola");
   });
 });
 
@@ -27,8 +29,8 @@ describe("gridFor", () => {
     expect(g.areas).toBe('"main main main main" "gap gap gap gap" "s0 s1 s2 s3"');
     expect(g.splitter).toBe("y");
   });
-  it("sola: una celda y las demás ocultas", () => {
-    const g = gridFor(setPreset(DEFAULT_LAYOUT, "sola"), false);
+  it("una sola vista: todo el espacio y las demás minimizadas", () => {
+    const g = gridFor(solo("scene"), false);
     expect(g.areas).toBe('"main"');
     expect(g.visible).toEqual({ scene: true, axial: false, coronal: false, sagital: false, mip: false });
     expect(g.splitter).toBeNull();
@@ -66,34 +68,54 @@ describe("isCompact", () => {
   });
 });
 
-/** Qué vista se pinta en cada cuadrante, en orden de lectura. */
-function quadrants(g: ReturnType<typeof gridFor>): string[] {
+/** Qué vista se pinta en cada hueco, en orden de lectura y sin repetir. */
+function porOrden(g: ReturnType<typeof gridFor>): string[] {
   const byslot = Object.fromEntries(Object.entries(g.slotOf).map(([id, s]) => [s, id]));
-  return g.areas.replace(/"/g, "").split(/\s+/).map((s) => byslot[s]);
+  return [...new Set(g.areas.replace(/"/g, "").split(/\s+/))].filter((s) => s !== "gap").map((s) => byslot[s]);
 }
 
-describe("cuatro", () => {
-  it("cuatro es una rejilla 2×2 sin separador con VOLUMEN oculta", () => {
-    const g = gridFor({ ...DEFAULT_LAYOUT, preset: "cuatro" }, false);
-    expect(g.splitter).toBeNull();
-    expect(g.visible.mip).toBe(false); expect(g.visible.scene).toBe(true);
-    expect(quadrants(g)).toEqual(["axial", "coronal", "sagital", "scene"]);
-    expect(quadrants(gridFor({ ...DEFAULT_LAYOUT, preset: "cuatro" }, true))).toEqual(["axial", "coronal", "sagital", "scene"]);   // en vertical también 2×2
+describe("el espacio se reparte según las vistas encendidas", () => {
+  it("con menos vistas la columna tiene menos filas y ningún hueco vacío", () => {
+    const g3 = gridFor(hide(DEFAULT_LAYOUT, "sagital", "mip"), false);
+    expect(g3.rows).toBe("repeat(2, minmax(0, 1fr))");
+    expect(g3.areas).toBe('"main gap s0" "main gap s1"');
+    expect(g3.slotOf).toEqual({ scene: "main", axial: "s0", coronal: "s1" });
+    const g2 = gridFor(hide(DEFAULT_LAYOUT, "coronal", "sagital", "mip"), false);
+    expect(g2.rows).toBe("minmax(0, 1fr)");
+    expect(g2.areas).toBe('"main gap s0"');
   });
-  it("F1-112: CUATRO tras cambiar la principal da AX, COR, SAG, 3D", () => {
-    for (const main of ["axial", "coronal", "sagital", "scene", "mip"] as const) {
-      const l = setPreset(promote(promote(DEFAULT_LAYOUT, "sagital"), main), "cuatro");
-      const g = gridFor(l, false);
-      expect(quadrants(g), main).toEqual(["axial", "coronal", "sagital", "scene"]);
-      expect(g.visible, main).toEqual({ axial: true, coronal: true, sagital: true, scene: true, mip: false });
+  it("arriba: la franja de abajo tiene tantas columnas como vistas pequeñas", () => {
+    const g = gridFor(hide(setPreset(DEFAULT_LAYOUT, "abajo"), "sagital", "mip"), false);
+    expect(g.columns).toBe("repeat(2, minmax(0, 1fr))");
+    expect(g.areas).toBe('"main main" "gap gap" "s0 s1"');
+  });
+  it("cada número de vistas pinta exactamente sus huecos, con y sin igualar", () => {
+    const quitar: PaneId[][] = [[], ["mip"], ["mip", "sagital"], ["mip", "sagital", "coronal"]];
+    for (const ids of quitar) {
+      for (const l of [hide(DEFAULT_LAYOUT, ...ids), toggleEqual(hide(DEFAULT_LAYOUT, ...ids))]) {
+        const g = gridFor(l, false);
+        expect(porOrden(g)).toHaveLength(5 - ids.length);
+        expect(Object.keys(g.slotOf)).toHaveLength(5 - ids.length);
+      }
     }
   });
-  it("la principal sigue en su cuadrante; con VOLUMEN de principal, la 3D hace de principal", () => {
-    expect(gridFor(setPreset(promote(DEFAULT_LAYOUT, "coronal"), "cuatro"), false).slotOf.coronal).toBe("main");
-    // VOLUMEN no tiene cuadrante: el que recibe la pista y el selector de ventana
-    // de la principal tiene que verse, y la 3D es la vista más cercana a él.
-    const g = gridFor(setPreset(promote(DEFAULT_LAYOUT, "mip"), "cuatro"), false);
-    expect(g.slotOf.scene).toBe("main");
-    expect(g.slotOf.mip).not.toBe("main");
+  it("igualar no lleva separador", () => {
+    expect(gridFor(toggleEqual(DEFAULT_LAYOUT), false).splitter).toBeNull();
+  });
+  it("cuatro iguales son una rejilla 2×2; arrastrar cambia el cuadrante", () => {
+    const l = toggleEqual(hide(DEFAULT_LAYOUT, "mip"));
+    const g = gridFor(l, false);
+    expect(g.columns).toBe("repeat(2, minmax(0, 1fr))");
+    expect(g.rows).toBe("repeat(2, minmax(0, 1fr))");
+    expect(porOrden(g)).toEqual(["scene", "axial", "coronal", "sagital"]);
+    expect(porOrden(gridFor(swapPanes(l, "axial", "sagital"), false))).toEqual(["scene", "sagital", "coronal", "axial"]);
+  });
+  it("cinco iguales van tres arriba y dos abajo", () => {
+    expect(gridFor(toggleEqual(DEFAULT_LAYOUT), false).areas).toBe('"main main s0 s0 s1 s1" "s2 s2 s2 s3 s3 s3"');
+  });
+  it("dos iguales respetan el lado: en columnas o una sobre otra", () => {
+    const dos = toggleEqual(hide(DEFAULT_LAYOUT, "coronal", "sagital", "mip"));
+    expect(gridFor(dos, false).areas).toBe('"main s0"');
+    expect(gridFor({ ...dos, preset: "abajo" }, false).areas).toBe('"main" "s0"');
   });
 });

@@ -5,7 +5,7 @@
    Quién ejecuta cada cosa:
    - Workspace (manejador global): Esc, «?», P (el panel del paso), los dígitos de paso, y reenvía al
      visor S, L, H, C, espacio y +/− por el evento `viewer:shortcut`.
-   - Alt+1…4 siguen en su único camino, `presetForKey` (layoutShortcuts): aquí
+   - Alt+1…5 siguen en su único camino, `layoutActionForKey` (layoutShortcuts): aquí
      solo se listan; si Workspace también los atendiera, se dispararían dos veces.
    - Flechas, Re Pág/Av Pág, Inicio/Fin las atiende cada celda en su onKeyDown
      (necesitan saber qué celda tiene el foco); aquí se listan para la hoja.
@@ -28,10 +28,11 @@ const STEP_COUNT = 8;
 
 export const SHORTCUTS: Shortcut[] = [
   { id: "help", keys: "?", action: "Abrir o cerrar esta hoja de atajos", scope: "visor" },
-  { id: "preset-sola", keys: "Alt+1", action: "Distribución SOLA", scope: "visor" },
-  { id: "preset-derecha", keys: "Alt+2", action: "Distribución DERECHA", scope: "visor" },
-  { id: "preset-abajo", keys: "Alt+3", action: "Distribución ABAJO", scope: "visor" },
-  { id: "preset-cuatro", keys: "Alt+4", action: "Distribución CUATRO", scope: "visor" },
+  { id: "preset-sola", keys: "Alt+1", action: "Solo esta vista, u otra vez para volver", scope: "visor" },
+  { id: "preset-derecha", keys: "Alt+2", action: "Vista grande a la izquierda", scope: "visor" },
+  { id: "preset-abajo", keys: "Alt+3", action: "Vista grande arriba", scope: "visor" },
+  { id: "preset-cuatro", keys: "Alt+4", action: "Todas las vistas iguales", scope: "visor" },
+  { id: "preset-rotar", keys: "Alt+5", action: "Rotar: la siguiente vista pasa al sitio grande", scope: "visor" },
   { id: "sync", keys: "S", action: "Encender o apagar VINCULAR", scope: "visor" },
   { id: "center-lesion", keys: "L", action: "Centrar en la lesión (3D y cortes)", scope: "visor" },
   { id: "hud-cycle", keys: "H", action: "Nivel de textos: completo · esencial · limpio", scope: "visor" },
@@ -73,7 +74,7 @@ export const SHORTCUTS: Shortcut[] = [
 ];
 
 const PRESET_BY_CODE: Record<string, string> = {
-  Digit1: "preset-sola", Digit2: "preset-derecha", Digit3: "preset-abajo", Digit4: "preset-cuatro",
+  Digit1: "preset-sola", Digit2: "preset-derecha", Digit3: "preset-abajo", Digit4: "preset-cuatro", Digit5: "preset-rotar",
 };
 const CELL_KEYS: Record<string, string> = {
   ArrowUp: "slice-up", ArrowRight: "slice-up", ArrowDown: "slice-down", ArrowLeft: "slice-down",

@@ -142,5 +142,31 @@
 .viewer-cell--over { outline: 1px solid var(--primary); outline-offset: -1px; }
 .viewer-handle { position: absolute; top: 0; left: 0; right: 0; height: 14px; cursor: grab; touch-action: none; z-index: 7; }
 .viewer-handle:active { cursor: grabbing; }
+/* La asa se ve al pasar el cursor: tres puntos sobre el borde superior de la vista. */
+.viewer-handle::before { content: ""; position: absolute; top: 3px; left: 50%; width: 28px; height: 4px; margin-left: -14px; border-radius: var(--radius-full); background: var(--hud-text); opacity: 0; transition: opacity var(--dur-1) var(--ease-out); }
+.viewer-cell:hover > .viewer-handle::before { opacity: .55; }
+.viewer-handle:hover::before { opacity: 1; }
+/* Agrandar y minimizar, sobre cada vista: aparecen con el cursor o el foco. */
+.viewer-cell-tools { position: absolute; top: 16px; right: 22px; z-index: 8; display: flex; gap: 4px; opacity: 0; pointer-events: none; transition: opacity var(--dur-1) var(--ease-out); }
+.viewer-cell:hover > .viewer-cell-tools, .viewer-cell-tools:focus-within { opacity: 1; pointer-events: auto; }
+.viewer-cell-tool { width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 1px solid var(--hud-text-dim); border-radius: var(--radius-sm); background: var(--viewer-bg); color: var(--hud-text); cursor: pointer; transition: border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
+.viewer-cell-tool:hover { border-color: var(--primary); color: var(--primary); }
+.viewer-cell-tool:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
+/* Sin ratón no hay cursor que los enseñe. */
+@media (hover: none) {
+  .viewer-cell-tools { opacity: 1; pointer-events: auto; }
+  .viewer-cell-tool { width: 44px; height: 44px; }
+}
+/* Las vistas en la banda: pulsada, encendida; subrayada, la que va grande. */
+.viewer-vistas { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.viewer-vistas__corte { width: 1px; height: 14px; margin: 0 4px; background: var(--hud-text-dim); }
+.viewer-chip, .viewer-accion { min-height: 20px; padding: 1px 7px; border: 1px solid var(--hud-text-dim); border-radius: var(--radius-sm); background: none; color: var(--hud-text-dim); font: inherit; font-size: 11px; letter-spacing: .08em; cursor: pointer; transition: background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
+.viewer-accion { color: var(--hud-text); }
+.viewer-chip:hover, .viewer-accion:hover { border-color: var(--hud-text); color: var(--hud-text); }
+.viewer-chip[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.viewer-chip[data-grande] { box-shadow: 0 0 0 1px var(--viewer-bg), 0 0 0 2px var(--primary); }
+.viewer-accion[aria-pressed="true"] { border-color: var(--primary); color: var(--primary); }
+.viewer-chip:focus-visible, .viewer-accion:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
+[data-tactil="true"] .viewer-chip, [data-tactil="true"] .viewer-accion { min-width: 44px; min-height: 44px; }
 .viewer-splitter { background: var(--primary); opacity: .5; }
 .viewer-splitter:hover { background: var(--primary); opacity: 1; }

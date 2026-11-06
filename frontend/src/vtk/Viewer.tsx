@@ -32,10 +32,10 @@ import { lesionFrameRadiusMm } from "./lesionFrame";
 export { lesionFrameRadiusMm };
 import { ObliqueMprView } from "./ObliqueMprView";
 import { cameraHeading, effectiveDirection, mmToVoxel, voxelToMm, type Orientation, type Plane, type Vec3 } from "./geometry";
-import { promote, setPreset, type PaneId, type ViewerLayout } from "./layout";
+import { promote, rotate, setPreset, toggleEqual, toggleSolo, type PaneId, type ViewerLayout } from "./layout";
 import { ViewerGrid, type PaneContext } from "./ViewerGrid";
-import { presetForKey } from "./layoutShortcuts";
-import { gridFor, shortcutPane, shownMain } from "./layoutGrid";
+import { layoutActionForKey } from "./layoutShortcuts";
+import { gridFor, shortcutPane } from "./layoutGrid";
 import { flushSync } from "react-dom";
 import { api } from "../api/client";
 import { usePersistWindow } from "./windowPersist";
@@ -608,7 +608,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const panes: PaneShot[] = [];
     const anotar = (id: PaneId, el: HTMLElement) => panes.push({ id, rect: rel(el), capture: capturaDe(id), ...readPaneHud(el), shapes: readPaneShapes(el) });
     // Qué celdas se ven no depende de la orientación del visor (vertical solo
-    // cambia DERECHA por ABAJO, y ambas muestran las cinco): basta `false`.
+    // cambia el lado de la grande): basta `false`.
     const spec = gridFor(layout, false);
     for (const id of [layout.main, ...layout.side]) {
       const el = cellEls.current[id];
@@ -757,9 +757,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const onLayerLoaded = useCallback((id: string, url: string) => {
     if (id === "clip-field") setFieldMeshUrl(url);
   }, [setFieldMeshUrl]);
-  // «Enseñado» = la capa está en un 3D montado: con «SOLA» y otra vista
-  // principal la celda 3D no existe y no habrá aviso que esperar.
-  const sceneMounted = sceneHasMesh && (viewerLayout.preset !== "sola" || viewerLayout.main === "scene");
+  // «Enseñado» = la capa está en un 3D a la vista: con la 3D minimizada no habrá
+  // aviso que esperar.
+  const sceneMounted = sceneHasMesh && !viewerLayout.hidden.includes("scene");
   const fieldShown = showField && sceneMounted;
   useEffect(() => { setFieldMeshShown(fieldShown); }, [fieldShown, setFieldMeshShown]);
   const fieldStale = isStale(placedClips, fieldClips) || !fieldColoursOnScreen({
@@ -1085,8 +1085,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (focusedPane && !visible[focusedPane]) {
       setFocusedPane(null);
       // Después de soltarla: enfocar la principal la vuelve la celda enfocada.
-      // A la principal que se VE: en CUATRO con VOLUMEN de principal, la 3D.
-      refocusAfterHide(document.activeElement, cellEls.current[focusedPane], cellEls.current[shownMain(viewerLayout)], gridHostRef.current)
+      refocusAfterHide(document.activeElement, cellEls.current[focusedPane], cellEls.current[viewerLayout.main], gridHostRef.current)
         ?.focus({ preventScroll: true });
     }
     if (cineShouldStop(cineRef.current, { focusedPane, visible })) setCine(null);
@@ -1618,7 +1617,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // su celda se llame «scene».
   const sceneIsSlice = meshScene && !meshVisible && !!sessionId && !!meta;
   // La principal que se ve (en CUATRO con VOLUMEN de principal, la 3D).
-  const visibleMain = shownMain(viewerLayout);
+  const visibleMain = viewerLayout.main;
 
   // La pista del panel principal ocupaba la esquina para siempre; ahora aparece
   // 3 s cuando cambia lo que hay en él y se desvanece (la animación de
@@ -2027,18 +2026,15 @@ export function ViewerWorkspace({ step }: { step: string }) {
     );
   };
 
-  // F1-112: CUATRO no tiene cuadrante para VOLUMEN. Si era la principal, se
-  // dice al entrar; si no, VOLUMEN desaparecía sin explicación.
-  const changeLayout = (next: ViewerLayout) => {
-    if (next.preset === "cuatro" && viewerLayout.preset !== "cuatro" && next.main === "mip") {
-      showLevelHintText("VOLUMEN queda fuera en CUATRO", 2400);
-    }
-    setViewerLayout(next);
-  };
   const onLayoutKey = (e: ReactKeyboardEvent) => {
     if (e.ctrlKey || e.metaKey) return;
-    const p = presetForKey(e.code, e.target, e.altKey);
-    if (p) { e.preventDefault(); changeLayout(setPreset(viewerLayout, p)); }
+    const accion = layoutActionForKey(e.code, e.target, e.altKey);
+    if (!accion) return;
+    e.preventDefault();
+    if (accion === "solo") setViewerLayout(toggleSolo(viewerLayout, shortcutPane(focusedPane, viewerLayout)));
+    else if (accion === "rotar") setViewerLayout(rotate(viewerLayout));
+    else if (accion === "iguales") setViewerLayout(viewerLayout.equal ? viewerLayout : toggleEqual(viewerLayout));
+    else setViewerLayout(setPreset(viewerLayout, accion));
   };
 
   return (
@@ -2061,7 +2057,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           que la rejilla, para que el foco en un conmutador no las pierda.
           La banda vive en ViewerHeader, con su prueba. */}
       <ViewerHeader
-        layout={viewerLayout} onLayoutChange={changeLayout} onKeyDown={onLayoutKey}
+        layout={viewerLayout} onLayoutChange={setViewerLayout} onKeyDown={onLayoutKey}
         planesHidden={planesHidden} onPlanesHiddenChange={setPlanesHidden}
         hudLevel={hudLevel} onHudLevelChange={changeHudLevel}
         syncViews={syncViews} onSyncViewsChange={setSyncViews}

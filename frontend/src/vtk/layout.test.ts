@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  DEFAULT_LAYOUT, FRACTION_MAX, FRACTION_MIN, LAYOUT_KEY_V1, LAYOUT_KEY_V2, STRIP_HIDDEN_KEY_V1,
-  defaultFraction, isValidLayout, loadLayout, migrateV1, promote, saveLayout, setMainFraction, setPreset, swapPanes,
+  ALL_PANES, DEFAULT_LAYOUT, FRACTION_MAX, FRACTION_MIN, LAYOUT_KEY, LAYOUT_KEY_V1, LAYOUT_KEY_V2, STRIP_HIDDEN_KEY_V1,
+  defaultFraction, enlarge, flipSide, isValidLayout, loadLayout, migrateV1, migrateV2, promote, rotate, saveLayout, setMainFraction,
+  setPreset, showAll, swapPanes, toggleEqual, togglePane, toggleSolo, visiblePanes,
 } from "./layout";
 
 describe("intercambiar y subir", () => {
@@ -74,10 +75,11 @@ describe("validez", () => {
 describe("migración desde v1", () => {
   it("convierte {main, strip} en preset abajo con la fracción de la franja de antes", () => {
     const l = migrateV1({ main: "coronal", strip: ["axial", "scene", "sagital", "mip"] }, false);
-    expect(l).toEqual({ preset: "abajo", main: "coronal", side: ["axial", "scene", "sagital", "mip"], mainFraction: 0.74 });
+    expect(l).toEqual({ ...DEFAULT_LAYOUT, preset: "abajo", main: "coronal", side: ["axial", "scene", "sagital", "mip"], mainFraction: 0.74 });
   });
-  it("la franja oculta de antes se convierte en preset sola", () => {
-    expect(migrateV1({ main: "scene", strip: ["axial", "coronal", "sagital", "mip"] }, true)?.preset).toBe("sola");
+  it("la franja oculta de antes deja solo la principal", () => {
+    const l = migrateV1({ main: "scene", strip: ["axial", "coronal", "sagital", "mip"] }, true)!;
+    expect(visiblePanes(l)).toEqual(["scene"]);
   });
   it("devuelve null con basura", () => {
     expect(migrateV1({ main: "axial", strip: ["axial", "mip"] }, false)).toBeNull();
@@ -88,33 +90,33 @@ describe("migración desde v1", () => {
 describe("persistencia", () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => vi.restoreAllMocks());
-  it("solo la bandera de franja oculta, sin v1, da el defecto en preset sola y se persiste", () => {
+  it("solo la bandera de franja oculta, sin v1, deja la principal sola y se persiste", () => {
     localStorage.setItem(STRIP_HIDDEN_KEY_V1, "1");
     const l = loadLayout();
-    expect(l).toEqual({ ...DEFAULT_LAYOUT, preset: "sola" });
+    expect(l).toEqual({ ...DEFAULT_LAYOUT, hidden: DEFAULT_LAYOUT.side });
     expect(localStorage.getItem(STRIP_HIDDEN_KEY_V1)).toBeNull();
-    expect(JSON.parse(localStorage.getItem(LAYOUT_KEY_V2)!)).toEqual(l);
+    expect(JSON.parse(localStorage.getItem(LAYOUT_KEY)!)).toEqual(l);
   });
   it("una v1 corrupta se descarta: se borran las claves viejas y se respeta la franja oculta", () => {
     localStorage.setItem(LAYOUT_KEY_V1, "{no json");
     localStorage.setItem(STRIP_HIDDEN_KEY_V1, "1");
-    expect(loadLayout()).toEqual({ ...DEFAULT_LAYOUT, preset: "sola" });
+    expect(loadLayout()).toEqual({ ...DEFAULT_LAYOUT, hidden: DEFAULT_LAYOUT.side });
     expect(localStorage.getItem(LAYOUT_KEY_V1)).toBeNull();
     expect(localStorage.getItem(STRIP_HIDDEN_KEY_V1)).toBeNull();
   });
-  it("guarda y lee en la clave v2", () => {
+  it("guarda y lee en la clave v3", () => {
     saveLayout(promote(DEFAULT_LAYOUT, "coronal"));
     expect(loadLayout()).toEqual(promote(DEFAULT_LAYOUT, "coronal"));
-    expect(localStorage.getItem(LAYOUT_KEY_V2)).not.toBeNull();
+    expect(localStorage.getItem(LAYOUT_KEY)).not.toBeNull();
   });
-  it("sin v2, migra la v1 y la bandera de franja, y borra las claves viejas", () => {
+  it("sin v2 ni v3, migra la v1 y la bandera de franja, y borra las claves viejas", () => {
     localStorage.setItem(LAYOUT_KEY_V1, JSON.stringify({ main: "mip", strip: ["axial", "coronal", "sagital", "scene"] }));
     localStorage.setItem(STRIP_HIDDEN_KEY_V1, "1");
     const l = loadLayout();
-    expect(l).toEqual({ preset: "sola", main: "mip", side: ["axial", "coronal", "sagital", "scene"], mainFraction: 0.74 });
+    expect(visiblePanes(l)).toEqual(["mip"]);
     expect(localStorage.getItem(LAYOUT_KEY_V1)).toBeNull();
     expect(localStorage.getItem(STRIP_HIDDEN_KEY_V1)).toBeNull();
-    expect(JSON.parse(localStorage.getItem(LAYOUT_KEY_V2)!)).toEqual(l);
+    expect(JSON.parse(localStorage.getItem(LAYOUT_KEY)!)).toEqual(l);
   });
   it("con v2 inválida o sin nada vuelve al defecto", () => {
     localStorage.setItem(LAYOUT_KEY_V2, "{no json");
@@ -131,18 +133,105 @@ describe("persistencia", () => {
   });
 });
 
-describe("preset cuatro", () => {
+describe("migración desde v2", () => {
+  const v2 = { main: "scene", side: ["axial", "coronal", "sagital", "mip"], mainFraction: 0.72 };
   beforeEach(() => localStorage.clear());
-  it("cuatro oculta la quinta vista y deja VOLUMEN fuera salvo que sea la principal", () => {
-    const l = setPreset(DEFAULT_LAYOUT, "cuatro");
-    expect(l.preset).toBe("cuatro"); expect(l.side[3]).toBe("mip");
-    const m = setPreset({ ...DEFAULT_LAYOUT, main: "mip", side: ["axial", "coronal", "sagital", "scene"] }, "cuatro");
-    expect(m.main).toBe("mip"); expect(m.side[3]).toBe("scene");
+  it("SOLA es minimizar las demás", () => {
+    expect(visiblePanes(migrateV2({ ...v2, preset: "sola" })!)).toEqual(["scene"]);
   });
-  it("loadLayout acepta cuatro y sigue aceptando los presets anteriores", () => {
-    localStorage.setItem(LAYOUT_KEY_V2, JSON.stringify({ ...DEFAULT_LAYOUT, preset: "cuatro" }));
-    expect(loadLayout().preset).toBe("cuatro");
-    localStorage.setItem(LAYOUT_KEY_V2, JSON.stringify({ ...DEFAULT_LAYOUT, preset: "abajo" }));
-    expect(loadLayout().preset).toBe("abajo");
+  it("CUATRO son cuatro iguales sin VOLUMEN, y sin perder la grande si era VOLUMEN", () => {
+    const l = migrateV2({ ...v2, preset: "cuatro" })!;
+    expect(l.equal).toBe(true);
+    expect(l.hidden).toEqual(["mip"]);
+    const m = migrateV2({ ...v2, main: "mip", side: ["axial", "coronal", "sagital", "scene"], preset: "cuatro" })!;
+    expect(m.main).toBe("scene");
+    expect(isValidLayout(m)).toBe(true);
+  });
+  it("DERECHA y ABAJO conservan el lado y la fracción", () => {
+    expect(migrateV2({ ...v2, preset: "abajo", mainFraction: 0.6 })).toEqual({ ...DEFAULT_LAYOUT, preset: "abajo", mainFraction: 0.6 });
+  });
+  it("loadLayout la migra una vez y borra la clave vieja", () => {
+    localStorage.setItem(LAYOUT_KEY_V2, JSON.stringify({ ...v2, preset: "sola" }));
+    expect(visiblePanes(loadLayout())).toEqual(["scene"]);
+    expect(localStorage.getItem(LAYOUT_KEY_V2)).toBeNull();
+    expect(localStorage.getItem(LAYOUT_KEY)).not.toBeNull();
+  });
+});
+
+describe("encender y minimizar", () => {
+  it("minimizar una pequeña la saca de las visibles y encenderla la devuelve", () => {
+    const l = togglePane(DEFAULT_LAYOUT, "coronal");
+    expect(visiblePanes(l)).toEqual(["scene", "axial", "sagital", "mip"]);
+    expect(togglePane(l, "coronal").hidden).toEqual([]);
+  });
+  it("minimizar la grande la cede a la siguiente, que nunca queda oculta", () => {
+    const l = togglePane(DEFAULT_LAYOUT, "scene");
+    expect(l.main).toBe("axial");
+    expect(l.hidden).toEqual(["scene"]);
+    expect(isValidLayout(l)).toBe(true);
+  });
+  it("la última vista no se minimiza", () => {
+    const l = toggleSolo(DEFAULT_LAYOUT, "axial");
+    expect(togglePane(l, "axial")).toBe(l);
+  });
+  it("Todas devuelve las cinco", () => {
+    expect(visiblePanes(showAll(togglePane(DEFAULT_LAYOUT, "mip")))).toHaveLength(5);
+  });
+  it("subir a principal una vista minimizada la enciende", () => {
+    const l = promote(togglePane(DEFAULT_LAYOUT, "mip"), "mip");
+    expect(l.main).toBe("mip");
+    expect(l.hidden).toEqual([]);
+  });
+});
+
+describe("solo esta vista", () => {
+  it("el doble clic deja una y el siguiente devuelve lo que había, también lo minimizado", () => {
+    const antes = togglePane(DEFAULT_LAYOUT, "mip");
+    const solo = toggleSolo(antes, "coronal");
+    expect(visiblePanes(solo)).toEqual(["coronal"]);
+    const despues = toggleSolo(solo, "coronal");
+    expect(despues.hidden).toEqual(["mip"]);
+    expect(despues.soloFrom).toBeNull();
+    expect(isValidLayout(solo)).toBe(true);
+  });
+});
+
+describe("rotar", () => {
+  it("la siguiente vista encendida pasa al sitio grande y la vuelta completa regresa", () => {
+    const l = togglePane(DEFAULT_LAYOUT, "coronal");
+    const orden = [rotate(l)];
+    while (orden.length < 3) orden.push(rotate(orden[orden.length - 1]));
+    expect(orden.map((x) => x.main)).toEqual(["axial", "sagital", "mip"]);
+    expect(rotate(orden[2]).main).toBe("scene");
+  });
+  it("con una sola vista pasa a la siguiente de las cinco, de una en una", () => {
+    const solo = toggleSolo(DEFAULT_LAYOUT, "mip");
+    const next = rotate(solo);
+    expect(visiblePanes(next)).toEqual(["scene"]);
+    expect(isValidLayout(next)).toBe(true);
+  });
+  it("rotar nunca oculta ni enciende vistas", () => {
+    const l = togglePane(DEFAULT_LAYOUT, "sagital");
+    expect(new Set(visiblePanes(rotate(l)))).toEqual(new Set(visiblePanes(l)));
+  });
+});
+
+describe("lado y tamaños", () => {
+  it("el lado cambia y la fracción vuelve a su defecto", () => {
+    const l = flipSide({ ...DEFAULT_LAYOUT, mainFraction: 0.6 });
+    expect(l.preset).toBe("abajo");
+    expect(l.mainFraction).toBe(defaultFraction("abajo"));
+  });
+  it("agrandar deshace Igualar: si no, no se vería grande", () => {
+    const l = enlarge(toggleEqual(DEFAULT_LAYOUT), "axial");
+    expect(l.main).toBe("axial");
+    expect(l.equal).toBe(false);
+  });
+  it("todo estado alcanzable es válido", () => {
+    for (const id of ALL_PANES) {
+      expect(isValidLayout(togglePane(DEFAULT_LAYOUT, id))).toBe(true);
+      expect(isValidLayout(toggleSolo(DEFAULT_LAYOUT, id))).toBe(true);
+      expect(isValidLayout(rotate(toggleSolo(DEFAULT_LAYOUT, id)))).toBe(true);
+    }
   });
 });

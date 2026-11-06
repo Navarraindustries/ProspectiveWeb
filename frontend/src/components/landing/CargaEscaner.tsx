@@ -66,12 +66,14 @@ export type FaseCarga = "escaneo" | "lesion" | "logo" | "apertura" | "salto" | "
 
 const entre01 = (v: number) => Math.min(1, Math.max(0, v));
 
-/** Punto de la pantalla donde cae (fx, fy) de una imagen pintada con
-    `object-fit: cover` centrada en un rectángulo de `ancho` × `alto`. */
-export function puntoEnCover(
+/** Punto de la pantalla donde cae (fx, fy) del corte, centrado en un rectángulo de
+    `ancho` × `alto`: entero (`contain`) en horizontal y llenando (`cover`) en
+    vertical, como `.carga-escaner__corte`. */
+export function puntoEnCorte(
   ancho: number, alto: number, imgAncho: number, imgAlto: number, fx: number, fy: number,
 ): { x: number; y: number } {
-  const s = Math.max(ancho / imgAncho, alto / imgAlto);
+  const ajuste = alto > ancho ? Math.max : Math.min;
+  const s = ajuste(ancho / imgAncho, alto / imgAlto);
   const w = imgAncho * s;
   const h = imgAlto * s;
   return { x: (ancho - w) / 2 + fx * w, y: (alto - h) / 2 + fy * h };
@@ -107,7 +109,7 @@ export function rotuloCandidato(): string {
 function geometria() {
   const ancho = typeof window === "undefined" ? 1280 : window.innerWidth;
   const alto = typeof window === "undefined" ? 800 : window.innerHeight;
-  const { x, y } = puntoEnCover(ancho, alto, LADO_IMAGEN, LADO_IMAGEN, LESION_EN_IMAGEN.x, LESION_EN_IMAGEN.y);
+  const { x, y } = puntoEnCorte(ancho, alto, LADO_IMAGEN, LADO_IMAGEN, LESION_EN_IMAGEN.x, LESION_EN_IMAGEN.y);
   return { ancho, alto, x: Math.round(x), y: Math.round(y) };
 }
 

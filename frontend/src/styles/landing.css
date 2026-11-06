@@ -162,6 +162,20 @@
   object-fit: cover;
   object-position: 50% 40%;
 }
+/* Con la pasada de cortes, el cuadrado va a dos tercios del ancho, a la derecha y
+   centrado en vertical: se sale un poco por arriba y por abajo. A todo el ancho
+   se estiraba ×1,9 en 1920 px y se veía borroso; así ×1,25, y se ve el 84 % de su
+   altura. El máximo con el alto de la pantalla evita huecos en pantallas altas.
+   La máscara funde el borde izquierdo con el negro del visor. */
+.landing-stitch .hero-cortes:not(.hero-cortes--quieto) .hero-cortes__corte {
+  inset: 50% 0 auto auto;
+  width: max(66.67%, 100svh);
+  height: auto;
+  aspect-ratio: 1;
+  transform: translateY(-50%);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 30%);
+  mask-image: linear-gradient(90deg, transparent, #000 30%);
+}
 /* El render se escala como `cover` pero dentro de una caja con su proporción
    (1400 × 1000), para que las balizas en % caigan sobre lo que señalan. */
 .landing-stitch .hero-cortes__render {
@@ -1293,17 +1307,32 @@
   padding: 0 16px;
 }
 
-/* Escaneo: cada pasada descubre su fotograma de arriba abajo, al paso de la línea. */
+/* Escaneo: cada pasada descubre su fotograma de arriba abajo, al paso de la línea.
+   El cuadrado entero, ajustado al alto: llenando el ancho se estiraba ×1,9 en una
+   pantalla de 1920 px. El cráneo llega al borde de la imagen y se cortaba en seco:
+   la máscara funde los dos lados del cuadrado (mide 100vh, centrado).
+   En vertical llena la pantalla, donde `cover` no estira (`puntoEnCorte`). */
 .carga-escaner__corte {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: 50% 50%;
   animation:
     carga-corte 480ms linear calc(var(--k) * 480ms) both,
     carga-velar 375ms linear 2850ms forwards;
+}
+@media (orientation: landscape) {
+  .carga-escaner__corte {
+    --borde-izq: calc(50% - 50vh);
+    --borde-der: calc(50% + 50vh);
+    -webkit-mask-image: linear-gradient(90deg, transparent var(--borde-izq), #000 calc(var(--borde-izq) + 16vh), #000 calc(var(--borde-der) - 16vh), transparent var(--borde-der));
+    mask-image: linear-gradient(90deg, transparent var(--borde-izq), #000 calc(var(--borde-izq) + 16vh), #000 calc(var(--borde-der) - 16vh), transparent var(--borde-der));
+  }
+}
+@media (orientation: portrait) {
+  .carga-escaner__corte { object-fit: cover; }
 }
 @keyframes carga-corte {
   from { clip-path: inset(0 0 100% 0); }
@@ -1346,6 +1375,7 @@
   left: 24px;
 }
 .carga-escaner__hud--cifra {
+  justify-self: end;
   color: var(--foreground);
 }
 
@@ -1471,18 +1501,21 @@
 
 /* Pie: corte a la izquierda, «Saltar» en medio (44 px, foco visible) y el
    porcentaje a la derecha; respeta la zona segura de abajo. */
+/* Tres columnas, con los lados iguales: el botón queda en el centro y no se mueve.
+   Con `space-between` lo empujaban los textos, que cambian de ancho al avanzar. */
 .carga-escaner__pie {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 16px 24px max(20px, env(safe-area-inset-bottom));
 }
 .carga-escaner[data-modo="breve"] .carga-escaner__pie {
+  display: flex;
   justify-content: center;
 }
 .carga-escaner[data-tramo="movil"] .carga-escaner__pie {

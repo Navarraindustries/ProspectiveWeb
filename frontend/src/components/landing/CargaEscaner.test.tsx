@@ -10,7 +10,7 @@ import { tieneDeclaracion } from "../../test/cssReglas";
 import { simularPantalla } from "../../test/pantalla";
 import {
   BARRIDO_MS, BREVE_MS, CORTES_ESCANEO, CargaEscaner, FASES_MS, MIN_CONTADOR_MS, SALTO_MS,
-  LADO_ANILLO, LESION_EN_IMAGEN, corteMostrado, escalaDe, progresoMostrado, puntoEnCover, puntoFinal, radioApertura,
+  LADO_ANILLO, LESION_EN_IMAGEN, corteMostrado, escalaDe, progresoMostrado, puntoEnCorte, puntoFinal, radioApertura,
   rotuloCandidato,
 } from "./CargaEscaner";
 import { MANIFIESTO, reiniciarPrecargaHero, rutaFotograma } from "./heroFrames";
@@ -59,11 +59,14 @@ afterEach(() => {
 });
 
 describe("aritmética", () => {
-  it("la lesión en pantalla sale de la geometría de object-fit: cover", () => {
-    // Imagen cuadrada en 1920 × 1080: se escala al ancho y recorta arriba y abajo.
-    expect(puntoEnCover(1920, 1080, 1024, 1024, 0.49, 0.5)).toEqual({ x: 940.8, y: 540 });
+  it("la lesión en pantalla sale de cómo se pinta el corte", () => {
+    // En 1920 × 1080 el cuadrado va entero: mide 1080 y queda centrado.
+    expect(puntoEnCorte(1920, 1080, 1024, 1024, 0.5, 0.5)).toEqual({ x: 960, y: 540 });
+    const h = puntoEnCorte(1920, 1080, 1024, 1024, 0.25, 0.25);
+    expect(h.x).toBeCloseTo(420 + 270);
+    expect(h.y).toBeCloseTo(270);
     // En un móvil vertical se escala al alto y recorta los lados.
-    const p = puntoEnCover(360, 800, 1024, 1024, 0.49, 0.5);
+    const p = puntoEnCorte(360, 800, 1024, 1024, 0.49, 0.5);
     expect(p.x).toBeCloseTo(172);
     expect(p.y).toBeCloseTo(400);
   });
@@ -189,19 +192,19 @@ describe("CargaEscaner: secuencia completa", () => {
     expect(screen.getByText(/^50\s%$/)).toBeInTheDocument();
   });
 
-  it("coloca la lesión (la mancha medida en el fotograma 59) con la geometría de cover", () => {
+  it("coloca la lesión (la mancha medida en el fotograma 59) con la geometría del cuadrado entero", () => {
     expect(LESION_EN_IMAGEN).toEqual({ x: 0.485, y: 0.48 });
     simularPantalla(1920, 1080);
     montar();
-    // 0,485 × 1920 = 931,2; −420 + 0,48 × 1920 = 501,6.
-    expect(capa().style.getPropertyValue("--carga-x")).toBe("931px");
-    expect(capa().style.getPropertyValue("--carga-y")).toBe("502px");
+    // Cuadrado de 1080 centrado: 420 + 0,485 × 1080 = 943,8; 0,48 × 1080 = 518,4.
+    expect(capa().style.getPropertyValue("--carga-x")).toBe("944px");
+    expect(capa().style.getPropertyValue("--carga-y")).toBe("518px");
     // Sin maqueta (jsdom) no hay punto del icono que medir: ni viaje, y abre desde la lesión.
     expect(capa().style.getPropertyValue("--carga-dx")).toBe("0px");
     expect(capa().style.getPropertyValue("--carga-dy")).toBe("0px");
     expect(capa().style.getPropertyValue("--carga-punto")).toBe("0.18");
-    expect(capa().style.getPropertyValue("--carga-ax")).toBe("931px");
-    expect(capa().style.getPropertyValue("--carga-iris-fin")).toBe(`${radioApertura(1920, 1080, 931, 502)}px`);
+    expect(capa().style.getPropertyValue("--carga-ax")).toBe("944px");
+    expect(capa().style.getPropertyValue("--carga-iris-fin")).toBe(`${radioApertura(1920, 1080, 944, 518)}px`);
   });
 
   it("el punto viaja de la lesión al punto del icono D y la apertura sale de allí", () => {
@@ -225,8 +228,8 @@ describe("CargaEscaner: secuencia completa", () => {
       const fin = puntoFinal(caja(700, 480, 10.56, 10.56), caja(38.4, 21.6, 1843.2, 1036.8), 0.96);
       const ax = Math.round(fin.x);
       const ay = Math.round(fin.y);
-      expect(capa().style.getPropertyValue("--carga-dx")).toBe(`${ax - 931}px`);
-      expect(capa().style.getPropertyValue("--carga-dy")).toBe(`${ay - 502}px`);
+      expect(capa().style.getPropertyValue("--carga-dx")).toBe(`${ax - 944}px`);
+      expect(capa().style.getPropertyValue("--carga-dy")).toBe(`${ay - 518}px`);
       expect(capa().style.getPropertyValue("--carga-ax")).toBe(`${ax}px`);
       expect(capa().style.getPropertyValue("--carga-ay")).toBe(`${ay}px`);
       // El viajero llega con el tamaño del punto del icono (11 px de 64).

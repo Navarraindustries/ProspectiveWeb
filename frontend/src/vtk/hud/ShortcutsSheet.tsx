@@ -61,7 +61,7 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
   // la zona y la hoja quedaría bajo las pastillas, el dock y el inspector.
   return createPortal(
     <div data-testid="shortcuts-backdrop" onClick={onClose}
-         style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: movil ? 0 : 16 }}>
+         style={{ position: "fixed", inset: 0, zIndex: 50, background: "var(--scrim)", display: "flex", alignItems: "center", justifyContent: "center", padding: movil ? 0 : 16 }}>
       <div ref={cardRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Atajos" data-movil={movil ? "true" : undefined} onClick={(e) => e.stopPropagation()}
            style={{ background: "var(--viewer-bg)", border: movil ? "none" : "1px solid var(--hud-text-dim)", color: "var(--hud-text)", fontFamily: "var(--font-mono)", fontSize: tactil ? 13 : 11, letterSpacing: ".04em", padding: "14px 18px 16px", boxSizing: "border-box", width: "100%", ...(movil ? { height: "100%" } : { maxWidth: 920 }), maxHeight: "100%", overflow: "auto", outline: "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}>

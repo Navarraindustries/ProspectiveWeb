@@ -243,6 +243,27 @@ describe("tokens de la dirección D", () => {
     expect(rule).toMatch(/transition-property:\s*opacity, color, background-color !important/);
     expect(rule).toMatch(/scroll-behavior:\s*auto !important/);
   });
+  it("los componentes del visor no llevan colores a mano", () => {
+    /* Solo .tsx: lo que pinta el DOM usa tokens. Los .ts de vtk/ (actores, canvas de
+       capturas, planeColors) dan valores a WebGL y al canvas, que no leen CSS. */
+    const literal = /#[0-9a-f]{3,8}\b|rgba?\(/i;
+    /* Viewer.tsx: sus leyendas repiten el color de la malla y de los actores (riesgo por
+       calibre, cuello, domo), que salen del backend y de WebGL; cambiarlos aquí los separaría. */
+    const d = join(__dirname, "../vtk");
+    const dirs = [d, join(d, "hud")];
+    const archivos = dirs.flatMap((x) => readdirSync(x).filter((f) => f.endsWith(".tsx") && !f.includes(".test.") && f !== "Viewer.tsx").map((f) => join(x, f)));
+    expect(archivos.length).toBeGreaterThan(5);
+    for (const f of archivos) {
+      const src = readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\/|(^|\s)\/\/.*$/gm, "$1");
+      expect(src.match(literal), `${f} lleva un color escrito a mano`).toBeNull();
+    }
+  });
+  it("el cubo de orientación toma el verde y la fuente de su origen", () => {
+    const src = readFileSync(join(__dirname, "../vtk/OrientationInset.ts"), "utf8");
+    expect(src).not.toMatch(/"JetBrains Mono"/);
+    expect(src).not.toMatch(/#8CFF9E/i);
+    expect(src).toMatch(/getPropertyValue\("--font-mono"\)/);
+  });
   it("ninguna pantalla de gestión ni el shell usa un color literal", () => {
     /* Workspace.tsx no es una pantalla de gestión: es el visor, que pertenece a F3
        y conserva sus colores por ahora. */

@@ -1375,6 +1375,7 @@
   left: 24px;
 }
 .carga-escaner__hud--cifra {
+  justify-self: end;
   color: var(--foreground);
 }
 
@@ -1500,18 +1501,21 @@
 
 /* Pie: corte a la izquierda, «Saltar» en medio (44 px, foco visible) y el
    porcentaje a la derecha; respeta la zona segura de abajo. */
+/* Tres columnas, con los lados iguales: el botón queda en el centro y no se mueve.
+   Con `space-between` lo empujaban los textos, que cambian de ancho al avanzar. */
 .carga-escaner__pie {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 16px 24px max(20px, env(safe-area-inset-bottom));
 }
 .carga-escaner[data-modo="breve"] .carga-escaner__pie {
+  display: flex;
   justify-content: center;
 }
 .carga-escaner[data-tramo="movil"] .carga-escaner__pie {

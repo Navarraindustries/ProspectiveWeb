@@ -59,6 +59,12 @@ afterEach(() => {
 });
 
 describe("aritmética", () => {
+  it("«Saltar» va en una columna central fija: los textos no lo empujan", () => {
+    const pie = css.match(/\.carga-escaner__pie \{[^}]*\}/)?.[0] ?? "";
+    expect(pie).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\) auto minmax\(0, 1fr\)/);
+    expect(pie).not.toMatch(/space-between/);
+  });
+
   it("la lesión en pantalla sale de cómo se pinta el corte", () => {
     // En 1920 × 1080 el cuadrado va entero: mide 1080 y queda centrado.
     expect(puntoEnCorte(1920, 1080, 1024, 1024, 0.5, 0.5)).toEqual({ x: 960, y: 540 });

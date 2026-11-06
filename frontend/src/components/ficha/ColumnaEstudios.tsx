@@ -183,7 +183,7 @@ export function ColumnaEstudios({
             const n = sesiones.filter((s) => s.imaging_study_id === img.id).length;
             const detalle = [img.modality, img.acquired_at ? fechaDia(img.acquired_at) : "", img.n_slices > 0 ? `${img.n_slices} cortes` : ""].filter(Boolean).join(" · ");
             return (
-              <div key={img.id} className="fc-fila" data-elegida={elegido}>
+              <div key={img.id} className="fc-fila tarjeta-lente" data-elegida={elegido}>
                 <button type="button" className="fc-fila-boton" aria-pressed={elegido} onClick={() => onSeleccionar(img)}>
                   <span className="fc-fila-texto" style={{ flex: 1 }}>
                     <span className="fc-fila-titulo">{img.description || img.modality || "Estudio de imagen"}</span>

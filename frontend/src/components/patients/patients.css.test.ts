@@ -14,7 +14,10 @@ describe("contrato CSS de las tarjetas de paciente", () => {
     expect(regla(".pt-card")).not.toMatch(/backdrop-filter/);
   });
   it("el esqueleto no crece al pasar el cursor", () => {
-    expect(regla(".pt-card--skeleton:hover")).toMatch(/transform:\s*none/);
+    // Crece quien lleva .tarjeta-lente: la tarjeta real sí, el esqueleto no.
+    const pagina = readFileSync(join(__dirname, "../../pages/Patients.tsx"), "utf8");
+    expect(pagina).toContain('className="pt-card pt-card--skeleton"');
+    expect(css).not.toMatch(/\.pt-card[^{]*:hover \{[^}]*\bscale/);
   });
   it("la rejilla admite tarjetas de 220px (tres columnas a 1440 px con el inspector)", () => {
     expect(regla(".pt-grid")).toMatch(/grid-template-columns:\s*repeat\(auto-fill,\s*minmax\(220px,\s*1fr\)\)/);

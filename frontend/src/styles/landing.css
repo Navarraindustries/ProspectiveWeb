@@ -1113,7 +1113,7 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--border);
-  transition: border-color var(--dur-1) var(--ease-out);
+  transition: border-color var(--dur-1) var(--ease-out), scale var(--dur-2) var(--ease-out);
 }
 .landing-stitch .bento__tarjeta:hover {
   border-color: color-mix(in srgb, var(--primary) 45%, transparent);

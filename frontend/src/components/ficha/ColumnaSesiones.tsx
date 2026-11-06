@@ -118,7 +118,7 @@ export function ColumnaSesiones({
             const elegida = seleccionada === s.session_id;
             const diametro = s.max_diameter_mm != null ? ` · Ø ${mm(s.max_diameter_mm)}` : "";
             return (
-              <div key={s.session_id} className="fc-fila" data-guardada data-elegida={elegida}>
+              <div key={s.session_id} className="fc-fila tarjeta-lente" data-guardada data-elegida={elegida}>
                 <div className="fc-fila-cabeza">
                   {renaming === s.session_id ? (
                     <div style={{ flex: 1 }}>

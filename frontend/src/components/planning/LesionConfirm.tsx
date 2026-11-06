@@ -137,6 +137,7 @@ export function LesionConfirm() {
 
   return (
     <section
+      className="tarjeta-lente"
       aria-label="Confirmar lesión"
       style={{
         marginTop: 14, padding: "12px 14px", borderRadius: "var(--radius-lg)",

@@ -167,7 +167,7 @@ export function ColumnaCasos({
               [st.region_anatomica, st.lateralidad && `(${st.lateralidad})`].filter(Boolean).join(" "),
             ].filter(Boolean).join(" · ");
             return (
-              <div key={st.id} className="fc-fila" data-elegida={elegido}>
+              <div key={st.id} className="fc-fila tarjeta-lente" data-elegida={elegido}>
                 <div className="fc-fila-cabeza">
                   <button type="button" className="fc-fila-boton" aria-pressed={elegido} onClick={() => onSeleccionar(st.id)}>
                     <MiniaturaEstudio estudio={null} estudioId={ultima?.imaging_study_id ?? null} decorativa />

@@ -27,7 +27,7 @@ export function QueEs() {
         </div>
         <RevelarItem
           as="figure"
-          className="que-es__figura"
+          className="que-es__figura tarjeta-lente"
           data-glass
           style={{ ...glass("normal"), borderRadius: "var(--radius-xl)" }}
         >

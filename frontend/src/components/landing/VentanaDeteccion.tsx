@@ -40,7 +40,7 @@ const canalesTexto = (canales: readonly CanalDeteccion[]) =>
 export function VentanaDeteccion() {
   return (
     <>
-      <div data-glass className="hero-ventana" style={{ ...glass("dense"), borderRadius: "var(--radius-xl)" }}>
+      <div data-glass className="hero-ventana tarjeta-lente" style={{ ...glass("dense"), borderRadius: "var(--radius-xl)" }}>
         <div className="hero-ventana__cabecera">Detección · {DETECCION_CASE3.length} candidatos</div>
         <ol className="hero-ventana__filas">
           {DETECCION_CASE3.map((c) => (

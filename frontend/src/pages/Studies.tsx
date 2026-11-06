@@ -245,7 +245,7 @@ export function StudyGallery({
             return (
             <div
               key={est.id}
-              className="tarjeta-estudio"
+              className="tarjeta-estudio tarjeta-lente"
               data-glass
               title={`${est.patient_name} · ${est.description}`}
               style={{

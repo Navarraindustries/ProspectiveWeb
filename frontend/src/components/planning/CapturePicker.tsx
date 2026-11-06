@@ -101,7 +101,7 @@ export function CapturePicker({
           const pos = value.indexOf(c.id);
           const elegida = pos >= 0;
           return (
-            <label key={c.id}
+            <label key={c.id} className="tarjeta-lente"
               style={{
                 display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
                 padding: 6, borderRadius: "var(--radius-md)",

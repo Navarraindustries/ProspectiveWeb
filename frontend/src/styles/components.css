@@ -1,2 +1,12 @@
 /* Componentes base (identidad A). El anillo de foco es global (base.css,
    :focus-visible); aquí solo van reglas que los estilos en línea no pueden decir. */
+
+/* Lente de tarjeta: crece un 2 % con el cursor encima, como las fichas de los clips.
+   Va en la propiedad `scale`, no en `transform`, para no pisar lo que ya mueve la
+   tarjeta (el revelado de la landing, el centrado de la franja). Solo con ratón y
+   sin movimiento reducido. Una tarjeta dentro de otra no suma su crecimiento. */
+.tarjeta-lente { transition: scale var(--dur-2) var(--ease-out); }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .tarjeta-lente:hover { scale: 1.02; }
+  .tarjeta-lente .tarjeta-lente:hover { scale: none; }
+}

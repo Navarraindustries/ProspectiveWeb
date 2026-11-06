@@ -116,7 +116,7 @@ export function PatientCard({ patient: p, onOpen, onResume, onPlan }: Props) {
       role="article"
       tabIndex={0}
       aria-label={`${p.full_name}, ${hc}`}
-      className="pt-card"
+      className="pt-card tarjeta-lente"
       data-glass
       data-tramo={paso ? tramoDePaso(paso.n) : undefined}
       aria-busy={abriendo || undefined}

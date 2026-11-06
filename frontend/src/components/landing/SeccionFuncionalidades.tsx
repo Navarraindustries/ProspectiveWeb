@@ -45,7 +45,7 @@ export function Funcionalidades() {
             as="li"
             data-glass
             data-area={t.area}
-            className={`bento__tarjeta ${"imagen" in t ? "bento__tarjeta--grande" : "bento__tarjeta--pequena"}`}
+            className={`tarjeta-lente bento__tarjeta ${"imagen" in t ? "bento__tarjeta--grande" : "bento__tarjeta--pequena"}`}
             style={{ ...glass("normal"), borderRadius: "var(--radius-card-lg)" }}
           >
             {"imagen" in t ? (

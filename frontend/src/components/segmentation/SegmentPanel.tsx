@@ -492,6 +492,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             mejor umbral posible conservaría el 61 % del árbol dejando aún el
             4,9 % del hueso. Lo que sí los separa es que no se tocan. */}
         <label
+          className="tarjeta-lente"
           style={{
             display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer",
             padding: "10px 12px", marginBottom: 10, borderRadius: "var(--radius-md)",
@@ -518,6 +519,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         </label>
 
         <label
+          className="tarjeta-lente"
           style={{
             display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer",
             padding: "10px 12px", marginBottom: 10, borderRadius: "var(--radius-md)",

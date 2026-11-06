@@ -238,6 +238,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
           return (
             <div
               key={c.id}
+              className="tarjeta-lente"
               onClick={() => planning.setSelectedCandidate(i)}
               style={{
                 cursor: "pointer",
@@ -333,6 +334,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                 return (
                   <div
                     key={c.id}
+                    className="tarjeta-lente"
                     onClick={() => planning.setSelectedCandidate(idx)}
                     style={{
                       cursor: "pointer",

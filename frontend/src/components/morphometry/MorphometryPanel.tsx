@@ -251,7 +251,7 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
   // El bloque «Plano de cuello»: con una medida que refinar o, con un
   // candidato marcado a mano, sin ninguna todavía (*mr* = null).
   const neckBlock = (mr: MorphometryResult | null) => (
-    <div style={{ background: "var(--muted, rgba(120,130,140,0.08))", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "12px 14px", marginBottom: 12 }}>
+    <div className="tarjeta-lente" style={{ background: "var(--muted, rgba(120,130,140,0.08))", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "12px 14px", marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <Icon name="STEP_PLAN" size={15} color="var(--muted-foreground)" />
         <div style={{ fontSize: 12, fontWeight: 600 }}>

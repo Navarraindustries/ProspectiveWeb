@@ -28,7 +28,7 @@ export function FranjaCasos() {
         </picture>
       </motion.div>
       <div className="franja-casos__velo" />
-      <div className="franja-casos__texto" data-glass style={{ ...glass("dense"), borderRadius: "var(--radius-xl)" }}>
+      <div className="franja-casos__texto tarjeta-lente" data-glass style={{ ...glass("dense"), borderRadius: "var(--radius-xl)" }}>
         <div className="franja-casos__rotulo">CASOS REALES</div>
         <p className="franja-casos__frase">
           Cada pieza es un aneurisma real: el saco en rojo, el vaso que lo lleva en gris.

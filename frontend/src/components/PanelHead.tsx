@@ -88,7 +88,7 @@ export function Collapsible({
   };
 
   return (
-    <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", background: "transparent", overflow: "hidden" }}>
+    <div className="tarjeta-lente" style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", background: "transparent", overflow: "hidden" }}>
       <button
         type="button"
         onClick={toggle}
@@ -157,7 +157,7 @@ export function Card({ children, style, className, onClick }: {
 }) {
   return (
     <div
-      className={className}
+      className={className ? `tarjeta-lente ${className}` : "tarjeta-lente"}
       onClick={onClick}
       data-glass
       style={{

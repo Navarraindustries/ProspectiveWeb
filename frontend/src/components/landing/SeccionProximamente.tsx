@@ -19,7 +19,7 @@ export function Proximamente() {
             key={i.titulo}
             as="li"
             data-glass
-            className="proximo__tarjeta"
+            className="proximo__tarjeta tarjeta-lente"
             style={{ ...glass("normal"), borderRadius: "var(--radius-card-lg)" }}
           >
             <div className="proximo__cabecera">

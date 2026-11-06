@@ -46,6 +46,24 @@ describe("ComoFunciona", () => {
     for (const li of items) expect(li.querySelector(".riel__nodo svg")).not.toBeNull();
   });
 
+  it("en escritorio es un dial: el centro enseña el paso y no se lee dos veces", () => {
+    simularPantalla(1280);
+    const { container } = render(<ComoFunciona />);
+    const centro = container.querySelector(".riel__centro")!;
+    expect(centro).toHaveAttribute("aria-hidden", "true");
+    expect(centro.querySelector(".riel__centro-nombre")?.textContent).toBe(STEPS[0].label);
+    const marco = container.querySelector<HTMLElement>(".riel__marco")!;
+    expect(marco.style.getPropertyValue("--avance")).toBe("0");
+    const pasos = [...container.querySelectorAll<HTMLElement>(".riel__paso")];
+    expect(pasos.map((p) => p.style.getPropertyValue("--i"))).toEqual(STEPS.map((_, i) => String(i)));
+  });
+
+  it("en tableta no hay dial", () => {
+    simularPantalla(768);
+    const { container } = render(<ComoFunciona />);
+    expect(container.querySelector(".riel__centro")).toBeNull();
+  });
+
   it("sin avanzar, ningún paso encendido y el relleno a cero", () => {
     const { container } = render(<ComoFunciona />);
     const items = within(screen.getByRole("list")).getAllByRole("listitem");

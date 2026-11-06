@@ -40,8 +40,8 @@ describe("landing.css, base responsive", () => {
 });
 
 describe("landing.css, riel de «Cómo funciona»", () => {
-  it("horizontal en 8 columnas y vertical con nodo de 44 px", () => {
-    expect(tieneDeclaracion(css, '.landing-stitch .riel[data-disposicion="horizontal"]', "grid-template-columns: repeat(8, minmax(0, 1fr))")).toBe(true);
+  it("dial en círculo y vertical con nodo de 44 px", () => {
+    expect(tieneDeclaracion(css, '.landing-stitch .riel[data-disposicion="horizontal"] .riel__paso', "left: calc(50% + var(--radio) * sin(var(--i) * 45deg))")).toBe(true);
     expect(tieneDeclaracion(css, '.landing-stitch .riel[data-disposicion="vertical"] .riel__paso', "grid-template-columns: 44px minmax(0, 1fr)")).toBe(true);
   });
 });

@@ -630,33 +630,98 @@
 .landing-stitch .riel__linea {
   color: var(--muted-foreground);
 }
-.landing-stitch .riel[data-disposicion="horizontal"] {
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 8px;
-  text-align: center;
+/* Por encima de 1024 el riel es un dial: los ocho pasos en círculo (--i en cada
+   paso), un anillo que se llena con el scroll (--avance) y el paso actual en el
+   centro. Es la misma lista: el nombre se ve junto al nodo; número y detalle siguen
+   para el lector de pantalla y se enseñan en el centro. */
+.landing-stitch .riel__marco[data-disposicion="horizontal"] {
+  --radio: 232px;
+  position: relative;
+  width: 620px;
+  height: 620px;
+  margin-inline: auto;
+}
+.landing-stitch .riel__marco[data-disposicion="horizontal"]::before {
+  content: "";
+  position: absolute;
+  inset: 76px;
+  border-radius: 50%;
+  background: conic-gradient(var(--data) calc(var(--avance, 0) * 1turn), var(--glass-border) 0);
+  -webkit-mask-image: radial-gradient(closest-side, transparent calc(100% - 4px), black calc(100% - 3px));
+  mask-image: radial-gradient(closest-side, transparent calc(100% - 4px), black calc(100% - 3px));
 }
 .landing-stitch .riel__marco[data-disposicion="horizontal"] .riel__pista {
-  top: 22px;
-  left: calc(100% / 16);
-  right: calc(100% / 16);
-  height: 2px;
+  display: none;
 }
-.landing-stitch .riel__marco[data-disposicion="horizontal"] .riel__relleno {
-  transform-origin: left center;
+.landing-stitch .riel[data-disposicion="horizontal"] {
+  position: absolute;
+  inset: 0;
+  display: block;
+  text-align: center;
 }
 .landing-stitch .riel[data-disposicion="horizontal"] .riel__paso {
+  position: absolute;
+  left: calc(50% + var(--radio) * sin(var(--i) * 45deg));
+  top: calc(50% - var(--radio) * cos(var(--i) * 45deg));
+  width: 136px;
+  margin: -22px 0 0 -68px;
   justify-items: center;
   align-content: start;
   row-gap: 6px;
 }
-.landing-stitch .riel[data-disposicion="horizontal"] .riel__num {
-  margin-top: 8px;
-}
 .landing-stitch .riel[data-disposicion="horizontal"] .riel__nombre {
+  padding-inline: 6px;
+  border-radius: var(--radius-sm);
+  background: var(--background);
   font-size: 15px;
 }
+.landing-stitch .riel[data-disposicion="horizontal"] .riel__num,
 .landing-stitch .riel[data-disposicion="horizontal"] .riel__linea {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.landing-stitch .riel__centro {
+  position: absolute;
+  inset: 152px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  box-sizing: border-box;
+  padding: 24px;
+  border-radius: 50%;
+  border: var(--glass-rim) solid var(--glass-border);
+  background: var(--glass);
+  box-shadow: var(--glass-highlight), var(--shadow-md);
+  text-align: center;
+}
+.landing-stitch .riel__centro-rotulo {
+  font-family: var(--font-mono);
   font-size: 13px;
+  letter-spacing: var(--tracking-eyebrow);
+  color: var(--muted-foreground);
+}
+.landing-stitch .riel__centro-num {
+  font-family: var(--font-cifra);
+  font-size: 104px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--foreground);
+}
+.landing-stitch .riel__centro-nombre {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.landing-stitch .riel__centro-linea {
+  font-size: 15px;
+  color: var(--muted-foreground);
 }
 .landing-stitch .riel[data-disposicion="vertical"] {
   grid-template-columns: minmax(0, 1fr);

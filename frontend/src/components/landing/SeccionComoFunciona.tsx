@@ -1,8 +1,8 @@
-/* «Cómo funciona»: un riel de pasos con su icono, unidos por una línea que se
-   enciende al avanzar el scroll. Horizontal por encima de 1024 y vertical por
-   debajo. Con movimiento reducido la línea aparece entera y sin animación. */
+/* «Cómo funciona»: los pasos con su icono se encienden al avanzar el scroll. Por
+   encima de 1024 van en un dial, con el paso actual en el centro; por debajo, en un
+   riel vertical. Con movimiento reducido aparece todo encendido y sin animación. */
 
-import { useRef, useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { useTableta } from "../../hooks/useEstrecho";
 import { STEPS } from "../../pipeline/steps";
 import { Icon, type IconName } from "../Icon";
@@ -40,6 +40,7 @@ export function ComoFunciona() {
     if (!reducido) setEncendidos(pasosEncendidos(v, STEPS.length));
   });
   const total = reducido ? STEPS.length : encendidos;
+  const actual = STEPS[Math.max(total - 1, 0)];
   return (
     <Seccion
       id="como-funciona"
@@ -47,7 +48,8 @@ export function ComoFunciona() {
       titulo={`Del estudio al plan, en ${spell(STEPS.length)} pasos y en el orden de la cirugía`}
     >
       {/* La pista va en el marco, junto al <ol> y no dentro: una lista solo tiene <li>. */}
-      <div className="riel__marco" data-disposicion={disposicion}>
+      <div className="riel__marco" data-disposicion={disposicion}
+           style={vertical ? undefined : ({ "--avance": Math.max(total - 1, 0) / STEPS.length } as CSSProperties)}>
         <div className="riel__pista" aria-hidden="true">
           <motion.div
             className="riel__relleno"
@@ -60,6 +62,7 @@ export function ComoFunciona() {
               as="li"
               key={s.key}
               className="riel__paso"
+              style={{ "--i": i } as CSSProperties}
               data-encendido={i < total ? "true" : "false"}
             >
               <span className="riel__nodo">
@@ -71,6 +74,15 @@ export function ComoFunciona() {
             </RevelarItem>
           ))}
         </ol>
+        {/* Repite el paso encendido: la lista ya lo dice, así que no se lee dos veces. */}
+        {!vertical && (
+          <div className="riel__centro" aria-hidden="true">
+            <span className="riel__centro-rotulo">PASO</span>
+            <span className="riel__centro-num">{Math.max(total, 1)}</span>
+            <span className="riel__centro-nombre">{actual.label}</span>
+            <span className="riel__centro-linea">{LINEA_PASO[actual.key] ?? ""}</span>
+          </div>
+        )}
       </div>
     </Seccion>
   );

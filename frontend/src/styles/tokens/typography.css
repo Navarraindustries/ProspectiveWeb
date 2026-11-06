@@ -11,6 +11,7 @@
   /* ---- Families ---- */
   --font-sans: "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-cifra: "Doto", "JetBrains Mono", ui-monospace, monospace;   /* solo cifras grandes */
   --font-brand: "Sora", "Inter", system-ui, sans-serif;
   /* La landing ya no tiene tipografía de titulares propia: alias de la sans. */
   --font-display: var(--font-sans);

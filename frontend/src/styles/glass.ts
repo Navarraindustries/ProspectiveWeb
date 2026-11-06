@@ -10,7 +10,7 @@ export function glass(kind: GlassKind = "normal"): CSSProperties {
   if (kind === "flat") {
     return {
       background: "var(--glass)",
-      border: "1px solid var(--glass-border)",
+      border: "var(--glass-rim) solid var(--glass-border)",
       boxShadow: "var(--glass-highlight)",
     };
   }
@@ -21,7 +21,7 @@ export function glass(kind: GlassKind = "normal"): CSSProperties {
     background: fondo,
     backdropFilter: filter,
     WebkitBackdropFilter: filter,
-    border: "1px solid var(--glass-border)",
+    border: "var(--glass-rim) solid var(--glass-border)",
     boxShadow: "var(--glass-highlight), var(--shadow-md)",
   };
 }

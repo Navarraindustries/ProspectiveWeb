@@ -72,7 +72,7 @@
 .fila-nueva { animation: fila-nueva 1.2s var(--ease-out) 1; }
 
 .tarjeta-estudio {
-  background: var(--glass); border: 1px solid var(--glass-border); box-shadow: var(--glass-highlight);
+  background: var(--glass); border: var(--glass-rim) solid var(--glass-border); box-shadow: var(--glass-highlight);
   transition: transform var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
 }
 .tarjeta-estudio:hover { border-color: var(--primary); box-shadow: var(--glass-highlight), var(--shadow-md); transform: scale(1.02); }
@@ -90,7 +90,7 @@
 .nc-fila {
   display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
   padding: 10px 12px; border-radius: var(--radius-md); font-family: var(--font-sans);
-  background: var(--glass); border: 1px solid var(--glass-border); box-shadow: var(--glass-highlight);
+  background: var(--glass); border: var(--glass-rim) solid var(--glass-border); box-shadow: var(--glass-highlight);
   transition: border-color var(--dur-1) var(--ease-out);
 }
 .nc-fila:hover, .nc-fila:focus-visible { border-color: var(--primary); }
@@ -129,5 +129,5 @@
 .tl-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 12px; }
 .tl-tarjeta { padding: 16px 18px; border-radius: var(--radius-card-lg); display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
 .tl-pie { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.pista { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px 14px; font-size: 13px; line-height: 1.55; color: var(--muted-foreground); background: var(--glass); border: 1px solid var(--glass-border); border-radius: var(--radius-card-lg); }
+.pista { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px 14px; font-size: 13px; line-height: 1.55; color: var(--muted-foreground); background: var(--glass); border: var(--glass-rim) solid var(--glass-border); border-radius: var(--radius-card-lg); }
 .pista > svg, .pista > span:first-child { flex-shrink: 0; margin-top: 2px; }

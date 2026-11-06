@@ -172,7 +172,7 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
     const botonLado = {
       width: OBJETIVO_TACTIL_PX, height: OBJETIVO_TACTIL_PX, borderRadius: "50%", flexShrink: 0, padding: 0,
       display: "flex", alignItems: "center", justifyContent: "center",
-      border: "1px solid var(--glass-border)", background: "var(--glass-hover)", color: "var(--foreground)",
+      border: "var(--glass-rim) solid var(--glass-border)", background: "var(--glass-hover)", color: "var(--foreground)",
     } as const;
     return (
       <nav
@@ -318,7 +318,7 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
             title={`Paleta de mandos (${atajoPaleta()})`}
             onClick={() => openCommandPalette()}
             style={{
-              height: base, padding: "0 12px", borderRadius: "var(--radius-full)", border: "1px solid var(--glass-border)",
+              height: base, padding: "0 12px", borderRadius: "var(--radius-full)", border: "var(--glass-rim) solid var(--glass-border)",
               background: "transparent", color: "var(--muted-foreground)", cursor: "pointer",
               fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600,
             }}

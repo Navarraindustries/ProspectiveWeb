@@ -146,7 +146,7 @@ describe("tokens de la dirección D", () => {
     expect(light).toMatch(/--glass-dense:\s*rgba\(255, ?255, ?255, ?0?\.92\)/);
     expect(dark).toMatch(/--glass-viewer:\s*linear-gradient\(rgba\(8, ?9, ?12, ?0?\.80?\), rgba\(8, ?9, ?12, ?0?\.80?\)\), rgba\(255, ?255, ?255, ?0?\.08\)/);
     expect(light).toMatch(/--glass-viewer:\s*rgba\(255, ?255, ?255, ?0?\.92\)/);
-    expect(dark).toMatch(/--glass-border:\s*rgba\(255, ?255, ?255, ?0?\.2\)/);
+    expect(dark).toMatch(/--glass-border:\s*rgba\(214, ?222, ?235, ?0?\.26\)/);
     expect(light).toMatch(/--glass-highlight:\s*inset 0 1px 0 rgba\(255, ?255, ?255, ?0?\.9\)/);
     expect(dark).toMatch(/--glass-hover:\s*rgba\(255, ?255, ?255, ?0?\.14\)/);
     expect(light).toMatch(/--glass-hover:\s*rgba\(0, ?0, ?0, ?0?\.04\)/);

@@ -17,7 +17,7 @@
 .fc-miga {
   font-family: var(--font-mono); text-transform: uppercase; font-size: var(--text-eyebrow);
   letter-spacing: var(--tracking-eyebrow); color: var(--muted-foreground);
-  background: var(--glass); border: 1px solid var(--glass-border); border-radius: var(--radius-full);
+  background: var(--glass); border: var(--glass-rim) solid var(--glass-border); border-radius: var(--radius-full);
   padding: 4px 12px; cursor: pointer;
 }
 .fc-miga:hover { background: var(--glass-hover); color: var(--foreground); }
@@ -58,7 +58,7 @@
 .fc-datos-pie { border-top: 1px solid var(--glass-border); padding-top: 14px; }
 .fc-datos-aviso {
   display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
-  padding: 10px 12px; border: 1px solid var(--glass-border); border-radius: var(--radius-md);
+  padding: 10px 12px; border: var(--glass-rim) solid var(--glass-border); border-radius: var(--radius-md);
   background: var(--glass); font-size: 13px; line-height: 1.5; color: var(--muted-foreground);
 }
 
@@ -69,7 +69,7 @@
 .fc-vacio { font-size: 13px; line-height: 1.5; color: var(--muted-foreground); }
 .fc-fila {
   display: flex; flex-direction: column; gap: 6px; padding: 8px;
-  border-radius: var(--radius-md); border: 1px solid var(--glass-border); background: var(--glass);
+  border-radius: var(--radius-md); border: var(--glass-rim) solid var(--glass-border); background: var(--glass);
 }
 .fc-fila[data-elegida="true"] { background: var(--glass-hover); border-color: var(--ring); }
 .fc-fila-cabeza { display: flex; align-items: flex-start; gap: 6px; }

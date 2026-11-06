@@ -63,7 +63,7 @@ function Thumbnail({ study }: { study: StudyCard }) {
           data-insignia="modalidad"
           style={{
             position: "absolute", top: 8, left: 8, padding: "2px 8px", borderRadius: 6,
-            background: "var(--glass-solid)", color: "var(--foreground)", border: "1px solid var(--glass-border)",
+            background: "var(--glass-solid)", color: "var(--foreground)", border: "var(--glass-rim) solid var(--glass-border)",
             fontFamily: "var(--font-mono)",
           }}
         >
@@ -76,7 +76,7 @@ function Thumbnail({ study }: { study: StudyCard }) {
           data-insignia="riesgo"
           style={{
             position: "absolute", top: 8, right: 8, padding: 2, borderRadius: 8,
-            background: "var(--glass-solid)", border: "1px solid var(--glass-border)", color: "var(--foreground)",
+            background: "var(--glass-solid)", border: "var(--glass-rim) solid var(--glass-border)", color: "var(--foreground)",
           }}
         >
           <Badge variant={riskVariant(study.rupture_risk_label as never)}>{study.rupture_risk_label}</Badge>

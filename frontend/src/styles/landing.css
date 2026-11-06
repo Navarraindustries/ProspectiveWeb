@@ -173,8 +173,8 @@
   height: auto;
   aspect-ratio: 1;
   transform: translateY(-50%);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 30%);
-  mask-image: linear-gradient(90deg, transparent, #000 30%);
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 30%);
+  mask-image: linear-gradient(90deg, transparent, black 30%);
 }
 /* El render se escala como `cover` pero dentro de una caja con su proporción
    (1400 × 1000), para que las balizas en % caigan sobre lo que señalan. */
@@ -339,7 +339,7 @@
   border-radius: 9999px;
   font-size: 13px;
   color: var(--muted-foreground);
-  border: 1px solid var(--glass-border);
+  border: var(--glass-rim) solid var(--glass-border);
 }
 .landing-stitch .hero-ventana__nota {
   margin-left: auto;
@@ -608,7 +608,7 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 1px solid var(--glass-border);
+  border: var(--glass-rim) solid var(--glass-border);
   background: var(--background);
   color: var(--muted-foreground);
   transition: color var(--dur-2), border-color var(--dur-2), background-color var(--dur-2);
@@ -759,12 +759,12 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 1px solid var(--glass-border);
+  border: var(--glass-rim) solid var(--glass-border);
   color: var(--primary);
 }
 .landing-stitch .proximo__insignia {
   padding: 4px 10px;
-  border: 1px solid var(--glass-border);
+  border: var(--glass-rim) solid var(--glass-border);
   border-radius: 999px;
   color: var(--muted-foreground);
 }
@@ -882,7 +882,7 @@
   padding: 36px 40px;
   border-radius: var(--radius-xl);
   background: var(--glass);
-  border: 1px solid var(--glass-border);
+  border: var(--glass-rim) solid var(--glass-border);
   box-shadow: var(--glass-highlight);
 }
 .landing-stitch .contacto__acciones {
@@ -1327,8 +1327,8 @@
   .carga-escaner__corte {
     --borde-izq: calc(50% - 50vh);
     --borde-der: calc(50% + 50vh);
-    -webkit-mask-image: linear-gradient(90deg, transparent var(--borde-izq), #000 calc(var(--borde-izq) + 16vh), #000 calc(var(--borde-der) - 16vh), transparent var(--borde-der));
-    mask-image: linear-gradient(90deg, transparent var(--borde-izq), #000 calc(var(--borde-izq) + 16vh), #000 calc(var(--borde-der) - 16vh), transparent var(--borde-der));
+    -webkit-mask-image: linear-gradient(90deg, transparent var(--borde-izq), black calc(var(--borde-izq) + 16vh), black calc(var(--borde-der) - 16vh), transparent var(--borde-der));
+    mask-image: linear-gradient(90deg, transparent var(--borde-izq), black calc(var(--borde-izq) + 16vh), black calc(var(--borde-der) - 16vh), transparent var(--borde-der));
   }
 }
 @media (orientation: portrait) {

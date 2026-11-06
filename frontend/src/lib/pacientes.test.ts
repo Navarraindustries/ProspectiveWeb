@@ -171,3 +171,11 @@ describe("hayCompartidos", () => {
     expect(hayCompartidos([])).toBe(false);
   });
 });
+
+describe("tramoDePaso", () => {
+  it("agrupa los ocho pasos en cinco tramos", async () => {
+    const { tramoDePaso } = await import("./pacientes");
+    expect([1, 2, 3, 4, 5, 6, 7, 8].map(tramoDePaso)).toEqual(
+      ["preparar", "preparar", "detectar", "medir", "medir", "dispositivo", "dispositivo", "informe"]);
+  });
+});

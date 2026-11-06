@@ -262,7 +262,7 @@
   height: var(--control-sm);
   min-width: var(--control-sm);
   padding: 0 10px;
-  border: 1px solid var(--glass-border);
+  border: var(--glass-rim) solid var(--glass-border);
   border-radius: 999px;
   background: transparent;
   color: inherit;
@@ -536,7 +536,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--glass-border);
+  border: var(--glass-rim) solid var(--glass-border);
   border-right: none;
   border-radius: var(--radius-md) 0 0 var(--radius-md);
   background: var(--glass-dense);

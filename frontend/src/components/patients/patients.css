@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   background: var(--glass);
-  border: 1px solid var(--glass-border);
+  border: var(--glass-rim) solid var(--glass-border);
   box-shadow: var(--glass-highlight);
   border-radius: var(--radius-card-lg);
   overflow: hidden;
@@ -15,6 +15,12 @@
 }
 .pt-card:hover { border-color: var(--primary); box-shadow: var(--glass-highlight), var(--shadow-md); transform: scale(1.02); }
 .pt-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+/* El color del tramo del flujo en que quedó el caso, sobre el mismo cristal. */
+.pt-card[data-tramo="preparar"]    { background: var(--tinte-preparar), var(--glass); }
+.pt-card[data-tramo="detectar"]    { background: var(--tinte-detectar), var(--glass); }
+.pt-card[data-tramo="medir"]       { background: var(--tinte-medir), var(--glass); }
+.pt-card[data-tramo="dispositivo"] { background: var(--tinte-dispositivo), var(--glass); }
+.pt-card[data-tramo="informe"]     { background: var(--tinte-informe), var(--glass); }
 
 .pt-card-media {
   position: relative;
@@ -87,7 +93,8 @@
 .pt-side-stat { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; }
 .pt-side-stat dt { color: var(--muted-foreground); }
 .pt-side-stat dd { margin: 0; }
-.pt-side-value { font-family: var(--font-mono); font-weight: 600; }
+/* Cifras grandes en punteado: solo aquí, el HUD del visor sigue pequeño y en mono. */
+.pt-side-value { font-family: var(--font-cifra); font-size: 26px; font-weight: 700; line-height: 1; }
 
 .pt-side-pending {
   display: flex; justify-content: space-between; align-items: baseline; gap: 8px;

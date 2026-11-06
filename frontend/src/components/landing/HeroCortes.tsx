@@ -85,7 +85,7 @@ export function HeroCortes({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
 
         <div className="hero-cortes__render" style={{ opacity: verFinal ? 1 : 0 }}>
           <div className="hero-cortes__lienzo">
-            <img src="/media/landing/hero-3d.webp" alt="Malla 3D del árbol vascular de Case 3 (3DRA) con la lesión del tronco basilar marcada en rojo" />
+            <img src="/media/landing/hero-3d.webp" alt="Render 3D del árbol vascular de Case 3 (3DRA) con la lesión del tronco basilar marcada en rojo" />
           </div>
         </div>
 

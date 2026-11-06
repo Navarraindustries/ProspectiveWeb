@@ -68,6 +68,18 @@ export function pasoDeTarjeta(step: number | null): { n: number; label: string }
   return { n: i + 1, label: STEPS[i].label };
 }
 
+export type TramoFlujo = "preparar" | "detectar" | "medir" | "dispositivo" | "informe";
+
+/** El tramo del flujo de un paso (1–8): da el color de la tarjeta. No dice nada
+ *  del riesgo del caso, que va en sus insignias. */
+export function tramoDePaso(n: number): TramoFlujo {
+  if (n <= 2) return "preparar";
+  if (n === 3) return "detectar";
+  if (n <= 5) return "medir";
+  if (n <= 7) return "dispositivo";
+  return "informe";
+}
+
 /** Qué botón lleva la tarjeta. Sin sesión se planifica; en el último paso se
  *  abre el informe, porque reanudar allí no lleva a ningún sitio nuevo. */
 export function accionPrincipal(p: PatientSummary): AccionPrincipal {

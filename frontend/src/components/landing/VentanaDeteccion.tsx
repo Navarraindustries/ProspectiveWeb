@@ -2,9 +2,9 @@
    «Detección · 5 candidatos» con la salida real del detector para Case 3
    (`DETECCION_CASE3`), y la baliza de la lesión sobre su render 3D.
 
-   Solo la lesión lleva baliza: su posición sobre `hero-3d.webp` (1400 × 1000)
-   se conoce porque el saco está pintado en rojo en el render (centro en el
-   50 % / 50 %). De los candidatos 2–5 no hay posición en pantalla, así que
+   Solo la lesión lleva baliza: `hero-3d.webp` (proporción 1400 × 1000, render
+   cinemático de `render_cinematico_case3.py`) se encuadra con el saco en el
+   50 % / 50 %. De los candidatos 2–5 no hay posición en pantalla, así que
    aparecen en la lista y no se inventa dónde caen. */
 
 import { glass } from "../../styles/glass";

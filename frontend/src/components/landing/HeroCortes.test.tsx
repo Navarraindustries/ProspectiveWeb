@@ -101,7 +101,7 @@ describe("HeroCortes", () => {
     conConsultas(CONSULTA_HERO_QUIETO);
     const { container } = montar();
     esperarQuieto(container);
-    expect(screen.getByRole("img", { name: /Malla 3D del árbol vascular/ })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Render 3D del árbol vascular/ })).toBeInTheDocument();
   });
 
   it("con ahorro de datos es quieto y no precarga ningún corte", () => {
@@ -132,7 +132,7 @@ describe("HeroCortes", () => {
     const lista = screen.getByRole("list");
     expect(lista.querySelectorAll("li")).toHaveLength(5);
     expect(lista.querySelectorAll("li")[0].textContent).toContain("coincide con la lesión confirmada");
-    expect(screen.getByRole("img", { name: /Malla 3D del árbol vascular/ })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Render 3D del árbol vascular/ })).toBeInTheDocument();
   });
 
   it("la ventana es de cristal y lista los cinco candidatos reales de Case 3, la lesión primero", () => {

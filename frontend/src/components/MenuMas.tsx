@@ -134,7 +134,7 @@ export function MenuMas({ items, label = "Más acciones", tactil = false }: {
         onClick={() => (abierto ? cerrar(false) : abrir())}
         style={{
           display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          width: lado, height: lado, padding: 0, border: "1px solid var(--glass-border)",
+          width: lado, height: lado, padding: 0, border: "var(--glass-rim) solid var(--glass-border)",
           borderRadius: "var(--radius-full)", background: "transparent", color: "var(--foreground)", cursor: "pointer",
         }}
       >

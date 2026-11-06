@@ -7,7 +7,7 @@ describe("helper de cristal", () => {
     expect(s.background).toBe("var(--glass)");
     expect(s.backdropFilter).toBe("blur(var(--glass-blur)) saturate(130%)");
     expect(s.WebkitBackdropFilter).toBe(s.backdropFilter);
-    expect(s.border).toBe("1px solid var(--glass-border)");
+    expect(s.border).toBe("var(--glass-rim) solid var(--glass-border)");
     expect(String(s.boxShadow)).toContain("var(--glass-highlight)");
   });
   it("denso y visor", () => {
@@ -19,7 +19,7 @@ describe("helper de cristal", () => {
   it("plano: mismo fondo y borde que el normal, sin desenfoque propio", () => {
     const s = glass("flat");
     expect(s.background).toBe("var(--glass)");
-    expect(s.border).toBe("1px solid var(--glass-border)");
+    expect(s.border).toBe("var(--glass-rim) solid var(--glass-border)");
     expect(s.boxShadow).toBe("var(--glass-highlight)");
     expect(s.backdropFilter).toBeUndefined();
     expect(s.WebkitBackdropFilter).toBeUndefined();

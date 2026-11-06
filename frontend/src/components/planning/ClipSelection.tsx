@@ -355,7 +355,7 @@ export function ClipSelectionPanel({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Veredicto primero: lo que hay que saber antes de leer ninguna lista. */}
-      <Card style={{ background: "var(--muted)" }}>
+      <Card style={{ background: "var(--glass-hover)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <Badge variant={style.variant}>{style.label}</Badge>
           <Button size="sm" variant="ghost" onClick={load} style={{ marginLeft: "auto" }}>
@@ -451,7 +451,7 @@ export function ClipSelectionPanel({
       {sel.manufacture && (
         <div style={{
           fontSize: 11, lineHeight: 1.5, color: "var(--muted-foreground)",
-          padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--muted)",
+          padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--glass-hover)",
         }}>
           {/* Con un clip colocado, el servidor fija `manufacture` a esa pieza y
               la nombra en `piece_label`, que es el título de la ficha en

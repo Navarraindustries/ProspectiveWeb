@@ -5,8 +5,76 @@
    Va en la propiedad `scale`, no en `transform`, para no pisar lo que ya mueve la
    tarjeta (el revelado de la landing, el centrado de la franja). Solo con ratón y
    sin movimiento reducido. Una tarjeta dentro de otra no suma su crecimiento. */
-.tarjeta-lente { transition: scale var(--dur-2) var(--ease-out); }
+.tarjeta-lente { transition: scale var(--dur-2) var(--ease-out), filter var(--dur-2) var(--ease-out); }
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  .tarjeta-lente:hover { scale: 1.02; }
-  .tarjeta-lente .tarjeta-lente:hover { scale: none; }
+  .tarjeta-lente:hover { scale: 1.02; filter: brightness(1.07); }
+  .tarjeta-lente .tarjeta-lente:hover { scale: none; filter: none; }
+}
+
+/* Desplegable: nativo por dentro (teclado, lector de pantalla, móvil) y de cristal por
+   fuera donde el navegador deja dibujar la lista. Donde no, la lista la pinta el sistema. */
+.campo-select { appearance: none; -webkit-appearance: none; }
+@supports (appearance: base-select) {
+  .campo-select, .campo-select::picker(select) { appearance: base-select; }
+  .campo-select::picker-icon { display: none; }
+  .campo-select::picker(select) {
+    margin-block: 6px;
+    padding: 6px;
+    border: var(--glass-rim) solid var(--glass-border);
+    border-radius: var(--radius-md);
+    background: var(--glass-solid);
+    box-shadow: var(--glass-highlight), var(--shadow-md);
+  }
+  .campo-select option {
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    color: var(--foreground);
+    transition: background var(--dur-1) var(--ease-out);
+  }
+  .campo-select option:hover, .campo-select option:focus-visible { background: var(--glass-hover); }
+  .campo-select option:checked { font-weight: 600; }
+  .campo-select option::checkmark { color: var(--primary); }
+}
+
+/* Casillas y opciones: un solo dibujo en toda la aplicación, sobre el campo de cristal. */
+input[type="checkbox"], input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  display: inline-grid;
+  place-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  border: 1px solid var(--input);
+  border-radius: 5px;
+  background: var(--field-bg);
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+input[type="radio"] { border-radius: 50%; }
+input[type="checkbox"]:hover:not(:disabled), input[type="radio"]:hover:not(:disabled) { border-color: var(--primary); }
+input[type="checkbox"]:checked, input[type="radio"]:checked { border-color: var(--primary); background: var(--primary); }
+input[type="checkbox"]:checked::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: var(--primary-foreground);
+  clip-path: polygon(14% 44%, 0 60%, 40% 100%, 100% 22%, 84% 8%, 38% 68%);
+}
+input[type="radio"]:checked::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary-foreground);
+}
+input[type="checkbox"]:disabled, input[type="radio"]:disabled { opacity: .45; cursor: not-allowed; }
+input[type="range"] { accent-color: var(--primary); }
+
+/* Lo que se pulsa en un panel del quirófano responde al cursor. */
+@media (hover: hover) {
+  .ws-panel-body label:has(> input):hover { color: var(--foreground); }
+  .plegable__cabecera { transition: background var(--dur-1) var(--ease-out); }
+  .plegable__cabecera:hover { background: var(--glass-hover) !important; }
 }

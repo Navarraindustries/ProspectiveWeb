@@ -141,7 +141,7 @@ export function LesionConfirm() {
       aria-label="Confirmar lesión"
       style={{
         marginTop: 14, padding: "12px 14px", borderRadius: "var(--radius-lg)",
-        border: "1px solid var(--border)", background: "var(--card)",
+        border: "var(--glass-rim) solid var(--glass-border)", background: "var(--glass)",
       }}
     >
       <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>¿Cuál es la lesión?</div>

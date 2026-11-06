@@ -496,7 +496,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           style={{
             display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer",
             padding: "10px 12px", marginBottom: 10, borderRadius: "var(--radius-md)",
-            border: "1px solid var(--border)", background: "var(--card)",
+            border: "var(--glass-rim) solid var(--glass-border)", background: "var(--glass)",
           }}
         >
           <input
@@ -523,7 +523,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           style={{
             display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer",
             padding: "10px 12px", marginBottom: 10, borderRadius: "var(--radius-md)",
-            border: "1px solid var(--border)", background: "var(--card)",
+            border: "var(--glass-rim) solid var(--glass-border)", background: "var(--glass)",
           }}
         >
           <input
@@ -685,7 +685,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           {segmentation.main_tree_warning && (
             <div style={{
               fontSize: 11, lineHeight: 1.5, marginTop: 8, padding: "8px 10px",
-              borderRadius: "var(--radius-md)", background: "var(--muted)",
+              borderRadius: "var(--radius-md)", background: "var(--glass-hover)",
               borderLeft: "3px solid var(--warning)", color: "var(--foreground)",
             }}>
               <b>No se aisló la vasculatura principal.</b> {segmentation.main_tree_warning}

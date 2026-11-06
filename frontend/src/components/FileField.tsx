@@ -25,7 +25,7 @@ export function FileField({
         onClick={() => ref.current?.click()}
         style={{
           width: "100%", textAlign: "left", cursor: "pointer",
-          background: "var(--input, var(--card))", border: "1px solid var(--border)",
+          background: "var(--field-bg)", border: "1px solid var(--input)",
           borderRadius: "var(--radius-md)", padding: "9px 12px", fontSize: 13, minHeight: tableta ? "var(--control-md)" : undefined,
           color: file ? "var(--foreground)" : "var(--muted-foreground)",
           display: "flex", alignItems: "center", gap: 8,

@@ -242,8 +242,8 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
               onClick={() => planning.setSelectedCandidate(i)}
               style={{
                 cursor: "pointer",
-                border: `1px solid ${on ? "var(--primary)" : "var(--border)"}`,
-                background: on ? "var(--brand-subtle)" : "var(--card)",
+                border: `var(--glass-rim) solid ${on ? "var(--primary)" : "var(--glass-border)"}`,
+                background: on ? "var(--brand-subtle)" : "var(--glass)",
                 borderRadius: "var(--radius-lg)",
                 padding: "12px 14px",
                 transition: "all var(--dur-fast) var(--ease-out)",
@@ -406,7 +406,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
         return (
           <div style={{
             marginTop: 10, padding: "12px 14px", borderRadius: "var(--radius-md)",
-            border: "1px solid var(--border)", background: "var(--card)",
+            border: "var(--glass-rim) solid var(--glass-border)", background: "var(--glass)",
             fontSize: fs(12), lineHeight: 1.55, color: "var(--muted-foreground)",
           }}>
             <div style={{ fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>

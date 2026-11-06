@@ -635,7 +635,7 @@ function Reception({ order, onDone }: { order: ClipOrder; onDone: () => void }) 
   const [busy, setBusy] = useState(false);
 
   return (
-    <Card style={{ marginTop: 8, background: "var(--muted)" }}>
+    <Card style={{ marginTop: 8, background: "var(--glass-hover)" }}>
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8, lineHeight: 1.45 }}>
         Aquí la fuerza deja de ser un objetivo: hay que medirla en la pieza que llegó.
       </div>

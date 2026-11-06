@@ -8,6 +8,7 @@ import { useEffect, type ReactNode } from "react";
 import { Icon } from "./Icon";
 import { Tirador, useHojaInferior, type AlturaHoja } from "./BottomSheet";
 import { AnimatePresence, motion, panelSwap, panelTransition } from "../motion";
+import { tramoDePaso } from "../lib/pacientes";
 import { glass } from "../styles/glass";
 import { useCompacto } from "../hooks/useEstrecho";
 import { anchoInspector, BANDA_SUPERIOR, MARGEN_INSPECTOR } from "../pipeline/zonaLibre";
@@ -109,9 +110,10 @@ export function RightPanelColumn({
         >
           <div
             style={{
-              flex: "none", padding: "14px 18px 0", fontFamily: "var(--font-mono)",
+              flex: "none", padding: "14px 18px 12px", fontFamily: "var(--font-mono)",
+              background: `var(--tinte-${tramoDePaso(stepIndex + 1)})`,
               fontSize: "var(--text-eyebrow)", letterSpacing: "var(--tracking-eyebrow)",
-              color: "var(--muted-foreground)",
+              color: "var(--foreground)",
             }}
           >
             {`Paso ${stepIndex + 1} · ${stepLabel}`.toLocaleUpperCase("es")}

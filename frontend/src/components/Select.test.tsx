@@ -27,10 +27,10 @@ describe("Select", () => {
     expect(screen.getByLabelText("Sexo").style.opacity).toBe("0.4");
   });
 
-  it("usa appearance none y un chevron propio aria-hidden hermano", () => {
+  it("lleva la clase del cristal y un chevron propio aria-hidden hermano", () => {
     render(<Select label="Sexo" options={["Mujer", "Hombre"]} />);
     const select = screen.getByLabelText("Sexo");
-    expect(select.style.appearance).toBe("none");
+    expect(select).toHaveClass("campo-select");
     expect(select.parentElement!.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
   });
 

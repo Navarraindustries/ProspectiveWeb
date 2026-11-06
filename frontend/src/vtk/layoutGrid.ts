@@ -44,14 +44,15 @@ export function dockCornerSlot(areas: string): Slot {
   return (last || "main") as Slot;
 }
 
-/** Todas iguales. Con cinco no hay rejilla exacta: tres arriba y dos abajo. */
-function equalGrid(n: number, arriba: boolean, huecos: Slot[]): Pick<GridSpec, "columns" | "rows" | "areas"> {
+/** Todas iguales. Con cinco no hay rejilla exacta: tres arriba y dos abajo. Apiladas
+ *  solo si se pide: con tres en un visor apaisado saldrían tiras sin alto. */
+function equalGrid(n: number, apiladas: boolean, huecos: Slot[]): Pick<GridSpec, "columns" | "rows" | "areas"> {
   const [a, b, c, d, e] = huecos;
   if (n === 4) return { columns: pistas(2), rows: pistas(2), areas: `"${a} ${b}" "${c} ${d}"` };
   if (n === 5) {
     return { columns: pistas(6), rows: pistas(2), areas: `"${a} ${a} ${b} ${b} ${c} ${c}" "${d} ${d} ${d} ${e} ${e} ${e}"` };
   }
-  return arriba
+  return apiladas
     ? { columns: pistas(1), rows: pistas(n), areas: huecos.map((s) => `"${s}"`).join(" ") }
     : { columns: pistas(n), rows: pistas(1), areas: `"${huecos.join(" ")}"` };
 }
@@ -66,7 +67,7 @@ export function gridFor(l: ViewerLayout, portrait: boolean): GridSpec {
   const visible = Object.fromEntries(ALL_PANES.map((id) => [id, shown.includes(id)])) as Record<PaneId, boolean>;
   const base = { slotOf, visible };
   if (n === 1) return { ...base, columns: "1fr", rows: "1fr", areas: '"main"', splitter: null };
-  if (l.equal) return { ...base, ...equalGrid(n, preset === "abajo", huecos), splitter: null };
+  if (l.equal) return { ...base, ...equalGrid(n, n === 2 ? preset === "abajo" : portrait, huecos), splitter: null };
   const pequenas = huecos.slice(1);
   const f = l.mainFraction, g = 1 - l.mainFraction;
   if (preset === "derecha") {

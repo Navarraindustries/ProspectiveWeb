@@ -95,6 +95,12 @@
   --tinte-medir:        linear-gradient(160deg, rgba(122, 86, 214, 0.48), rgba(63, 42, 138, 0.32));
   --tinte-dispositivo:  linear-gradient(160deg, rgba(38, 150, 130, 0.46), rgba(15, 90, 82, 0.32));
   --tinte-informe:      linear-gradient(160deg, rgba(190, 130, 40, 0.42), rgba(110, 70, 16, 0.3));
+  /* El tono sólido de cada tramo: el aro del paso activo en el dock. */
+  --tramo-preparar:     #8FA3BF;
+  --tramo-detectar:     #5AA9FF;
+  --tramo-medir:        #A98BF0;
+  --tramo-dispositivo:  #3FC4AB;
+  --tramo-informe:      #E0A84A;
   --glass-hover:        rgba(255, 255, 255, 0.14);
   --glass-blur-viewer:  12px;
 
@@ -213,6 +219,11 @@
   --tinte-medir:        linear-gradient(160deg, rgba(122, 86, 214, 0.15), rgba(122, 86, 214, 0.05));
   --tinte-dispositivo:  linear-gradient(160deg, rgba(38, 150, 130, 0.16), rgba(38, 150, 130, 0.05));
   --tinte-informe:      linear-gradient(160deg, rgba(190, 130, 40, 0.16), rgba(190, 130, 40, 0.05));
+  --tramo-preparar:     #5C6F8A;
+  --tramo-detectar:     #2E77D0;
+  --tramo-medir:        #7A56D6;
+  --tramo-dispositivo:  #1F8473;
+  --tramo-informe:      #A86F1E;
   --glass-hover:        rgba(0, 0, 0, 0.04);
   --glass-blur-viewer:  12px;
 

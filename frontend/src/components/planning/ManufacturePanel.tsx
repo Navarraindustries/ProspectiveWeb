@@ -248,7 +248,7 @@ export function ManufacturePanel({ onNext }: { onNext: () => void }) {
       <div style={{
         fontSize: 11, lineHeight: 1.5, color: "var(--muted-foreground)",
         padding: "8px 10px", borderRadius: "var(--radius-md)",
-        background: "var(--muted)", marginBottom: 14,
+        background: "var(--glass-hover)", marginBottom: 14,
       }}>
         {/* Sin clips de inventario cargados, «la mayoría de los casos se
             resuelven con un clip del catálogo» era falso en esta instalación:

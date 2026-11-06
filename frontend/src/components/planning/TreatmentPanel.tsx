@@ -311,7 +311,7 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
               {t.notes.map((n, i) => (
                 <div key={i} style={{
                   fontSize: 12, lineHeight: 1.55, color: "var(--foreground)",
-                  background: "var(--muted)", borderRadius: "var(--radius-md)",
+                  background: "var(--glass-hover)", borderRadius: "var(--radius-md)",
                   borderLeft: "3px solid var(--warning)", padding: "8px 10px",
                 }}>
                   {n}

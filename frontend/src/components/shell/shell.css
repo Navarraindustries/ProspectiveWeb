@@ -197,8 +197,8 @@
   margin: 8px;
   padding: 8px 10px;
   border-radius: 10px;
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: var(--glass);
+  border: var(--glass-rim) solid var(--glass-border);
   overflow: hidden;
 }
 .shell-nav-user-text {
@@ -398,7 +398,7 @@
 }
 
 /* Se abre bajo el avatar de la barra superior, alineado a la derecha (hacia la
-   izquierda). Fondo sólido: el cristal queda para las cabeceras de barra. */
+   izquierda). El cristal lo pone glass("dense") en línea (UserMenu). */
 .shell-user-menu {
   /* La barra pone nowrap a sus hijos; el menú cuelga de ella y la línea del rol
      se salía de la caja (R6). */
@@ -411,10 +411,7 @@
   z-index: 300;
   width: 272px;
   padding: 8px;
-  background: var(--card);
-  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sheet);
 }
 
 .shell-user-head {

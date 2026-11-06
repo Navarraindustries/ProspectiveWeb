@@ -50,7 +50,7 @@ export function Slider({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
-        style={{ width: "100%", accentColor: "var(--brand-slate)" }}
+        style={{ width: "100%", accentColor: "var(--primary)" }}
       />
     </div>
   );

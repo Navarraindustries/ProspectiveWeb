@@ -402,7 +402,7 @@ export function MeshEditTools() {
   const toolBtn = (active: boolean): React.CSSProperties => ({
     flex: 1, padding: "6px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer",
     borderRadius: "var(--radius-md)", border: "1px solid var(--border)",
-    background: active ? "var(--brand-subtle)" : "var(--card)",
+    background: active ? "var(--brand-subtle)" : "var(--glass)",
     color: active ? "var(--brand-subtle-foreground)" : "var(--foreground)",
   });
 
@@ -725,7 +725,7 @@ export function MeshEditTools() {
                 key={`${st.at}-${i}`}
                 style={{
                   display: "flex", alignItems: "baseline", gap: 8, padding: "4px 8px",
-                  borderRadius: "var(--radius-sm)", background: "var(--muted)",
+                  borderRadius: "var(--radius-sm)", background: "var(--glass-hover)",
                   fontSize: 11, color: "var(--muted-foreground)",
                 }}
               >

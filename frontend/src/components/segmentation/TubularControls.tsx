@@ -22,7 +22,7 @@ export function TubularControls({ method, reclaimMm, onMethod, onReclaim }: {
 }) {
   const name = useId();
   const opt = (value: SegmentMethod, label: string, hint: string) => (
-    <label style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "8px 10px", borderRadius: "var(--radius-md)", border: "1px solid var(--border)", background: method === value ? "var(--brand-subtle)" : "var(--card)", cursor: "pointer", flex: 1 }}>
+    <label style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "8px 10px", borderRadius: "var(--radius-md)", border: "var(--glass-rim) solid var(--glass-border)", background: method === value ? "var(--brand-subtle)" : "var(--glass)", cursor: "pointer", flex: 1 }}>
       <input type="radio" name={name} value={value} checked={method === value} onChange={() => onMethod(value)} style={{ marginTop: 2 }} />
       <span style={{ minWidth: 0 }}>
         <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>{label}</span>

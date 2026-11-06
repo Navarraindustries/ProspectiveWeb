@@ -31,6 +31,7 @@ export function Select({ label, options, invalid, style, ...rest }: SelectProps)
       <div style={{ position: "relative", display: "flex", minWidth: 0 }}>
         <select
           id={id}
+          className="campo-select"
           {...selectRest}
           {...(invalid ? { "aria-invalid": true as const } : {})}
           onFocus={(e: FocusEvent<HTMLSelectElement>) => {
@@ -42,8 +43,6 @@ export function Select({ label, options, invalid, style, ...rest }: SelectProps)
             onBlur?.(e);
           }}
           style={{
-            appearance: "none",
-            WebkitAppearance: "none",
             width: "100%",
             height: "var(--field-h)",
             padding: "0 40px 0 14px",

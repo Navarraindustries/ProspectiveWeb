@@ -415,8 +415,8 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
     // CINE: la luz se dispersa por el volumen y da sombras y profundidad. Es una
     // forma de mirar, no una medida: el color y la sombra no son tejido medido.
     const cinematico = cine && volumeMode === "compuesto";
-    prop.setVolumetricScatteringBlending(cinematico ? 0.3 : 0);
-    prop.setGlobalIlluminationReach(cinematico ? 0.3 : 0);
+    prop.setVolumetricScatteringBlending(cinematico ? 0.6 : 0);
+    prop.setGlobalIlluminationReach(cinematico ? 0.25 : 0);
     s.mapper.setSampleDistance(Math.min(...image.getSpacing()) * (cinematico ? 1 : 1.2));
     prop.setRGBTransferFunction(0, ctf); prop.setScalarOpacity(0, otf);
     prop.setInterpolationTypeToLinear();

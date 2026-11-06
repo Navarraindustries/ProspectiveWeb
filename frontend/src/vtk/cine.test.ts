@@ -13,7 +13,7 @@ describe("CINE en el volumen", () => {
   });
   it("la dispersión se apaga en cuanto no toca", () => {
     expect(src).toMatch(/const cinematico = cine && volumeMode === "compuesto"/);
-    expect(src).toMatch(/setVolumetricScatteringBlending\(cinematico \? 0\.3 : 0\)/);
+    expect(src).toMatch(/setVolumetricScatteringBlending\(cinematico \? 0\.6 : 0\)/);
   });
   it("dice que no es una medida", () => {
     expect(src).toMatch(/No es una medida/);

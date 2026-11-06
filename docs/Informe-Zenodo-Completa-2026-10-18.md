@@ -1866,7 +1866,15 @@ del usuario. El hueso en controles bajaba de 111 a 86.
 Las dos escalas devuelven primeros puestos (18 → 29), pero entre 5, entre 10, lista y estudios quedan exactamente como
 estaban. Se esperaba que esta medida recuperase parte de las 71, y no lo hace: la escala gruesa solo reordena sitios
 grandes y la copia fina sigue con el tope de 80 000 vértices, de modo que **§4.21 no desacopla la limpieza del modelo de
-la lista fina**. Que la caída venga de esa copia es la hipótesis que queda; no está comprobada.
+la lista fina**.
+
+**¿Es el tope de vértices? No (05-11, medida 3).** Pasada `zenodo_eval_shell_fina_densidad` (172/172, sin errores): sobre las
+mallas de la corteza, la copia fina de cada estudio se diezma a la misma arista en mm que tuvo en su malla de la
+envolvente (`backend/data/exp_fina_densidad.py`). Si la caída viniese de ese tope, las lesiones volverían. No vuelven:
+61 / 72 / 33 / 91 / 54 frente a 71 / 80 / 36 / 96 / 59, y las < 5 mm entre 5 quedan en 5 (eran 13; con el tope, 7). Entre
+10 y en 1.º mejora algo respecto al tope (69 → 72, 29 → 33), pero entre 5 no se mueve. Con la misma resolución en mm la
+pérdida sigue: la causa está en lo que la regla quita de la malla, no en cómo se diezma. Que quite parte de lesiones
+pequeñas o vasos junto al cráneo es lo probable; no está medido.
 
 **Solo en los 9 de cráneo flojo.** La otra opción (indicador de tejido denso bajo la tabla ≥ 0,2: 123, 180, 127, 174,
 188 y 072, controles; 084, 092 y 112, con lesión) se lee de esta misma pasada. Las tres lesiones no cambian (084 y 112

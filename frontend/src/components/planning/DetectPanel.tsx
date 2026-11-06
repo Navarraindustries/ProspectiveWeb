@@ -249,7 +249,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                 transition: "all var(--dur-fast) var(--ease-out)",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: fs(12), fontWeight: 600, color: "var(--foreground)", whiteSpace: "nowrap" }}>{candidateName(c, false, i)}</span>
                 {/* Qué criterio lo encontró. Que coincidan varios es
                     información para el clínico; el orden no lo es. */}

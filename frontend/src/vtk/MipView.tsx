@@ -163,6 +163,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   const face = useRef<{ mapper: vtkImageResliceMapper; actor: vtkImageSlice; plane: vtkPlane } | null>(null);
   const [heading, setHeading] = useState<ReturnType<typeof cameraHeading> | null>(null);
   const [reverse, setReverse] = useState(false);
+  const [cine, setCine] = useState(false);
   // Contornos del corte actual sobre el MIP, un atributo `points` por plano
   // separados por «|»; null si la cámara mira el plano de canto.
   const [trace, setTrace] = useState<string | null>(null);
@@ -411,10 +412,16 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
       // 20 fps, la salida prevista es ×1,5 y sin sombreado.
       prop.setShade(true);
     }
+    // CINE: la luz se dispersa por el volumen y da sombras y profundidad. Es una
+    // forma de mirar, no una medida: el color y la sombra no son tejido medido.
+    const cinematico = cine && volumeMode === "compuesto";
+    prop.setVolumetricScatteringBlending(cinematico ? 0.3 : 0);
+    prop.setGlobalIlluminationReach(cinematico ? 0.3 : 0);
+    s.mapper.setSampleDistance(Math.min(...image.getSpacing()) * (cinematico ? 1 : 1.2));
     prop.setRGBTransferFunction(0, ctf); prop.setScalarOpacity(0, otf);
     prop.setInterpolationTypeToLinear();
     s.grw.getRenderWindow().render();
-  }, [lo, rlo, rhi, image, volumeMode, volumePreset, win.wc, win.ww, mipWin.wc, mipWin.ww]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lo, rlo, rhi, image, volumeMode, volumePreset, win.wc, win.ww, mipWin.wc, mipWin.ww, cine]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Planos de recorte: es lo que hace que el MIP «avance» con el corte.
   // vtk conserva el semiespacio (p − origen)·normal ≥ 0. En LIBRE la misma
@@ -691,6 +698,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
                 en MIP la fila es solo él, porque la rampa también tiene ventana. */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center", pointerEvents: "auto" }}>
               {volumeMode === "compuesto" && <HudToggleGroup options={presetOptions} value={volumePreset} onChange={(k) => setVolumePreset(k as VolumePreset)} style={{ flexWrap: "wrap" }} />}
+              {volumeMode === "compuesto" && <HudToggleGroup options={[{ key: "cine", label: "CINE", title: "Luz cinemática: sombras y profundidad. No es una medida; puede ir más lento" }]} value={cine ? "cine" : ""} onChange={() => setCine((c) => !c)} />}
               <HudToggleGroup options={[{ key: "reset", label: "RESTABLECER", title: volumeMode === "compuesto" ? "Volver a la ventana por defecto de este preajuste" : "Volver a la rampa del umbral" }]}
                 value="" onChange={resetWindow} />
             </div>

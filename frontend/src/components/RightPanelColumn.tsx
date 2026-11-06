@@ -9,7 +9,8 @@ import { Icon } from "./Icon";
 import { Tirador, useHojaInferior, type AlturaHoja } from "./BottomSheet";
 import { AnimatePresence, motion, panelSwap, panelTransition } from "../motion";
 import { glass } from "../styles/glass";
-import { BANDA_SUPERIOR, MARGEN_INSPECTOR } from "../pipeline/zonaLibre";
+import { useCompacto } from "../hooks/useEstrecho";
+import { anchoInspector, BANDA_SUPERIOR, MARGEN_INSPECTOR } from "../pipeline/zonaLibre";
 
 /** Plegado o no es una manera de trabajar de quien mira, como el nivel del HUD. */
 export const PREF_PANEL_COLLAPSED = "ws.panelCollapsed";
@@ -62,6 +63,7 @@ export function RightPanelColumn({
   onAltura?: (a: AlturaHoja) => void;
   children: ReactNode;
 }) {
+  const compacto = useCompacto();
   /* Un solo contenedor en los dos modos, siempre en el mismo sitio del árbol:
      solo cambia su estilo (panel flotante a la derecha o hoja inferior). El
      cuerpo no se desmonta ni se mueve, así que cruzar 1280 px conserva el
@@ -82,7 +84,7 @@ export function RightPanelColumn({
         style={estrecho ? hoja.style : {
           display: plegada ? "none" : "flex",
           position: "absolute", top: BANDA_SUPERIOR, right: MARGEN_INSPECTOR, bottom: MARGEN_INSPECTOR,
-          width: wide ? 520 : 380, zIndex: 2,
+          width: anchoInspector(wide, compacto), zIndex: 2,
           transition: "width var(--dur-2) var(--ease-out)",
         }}
       >

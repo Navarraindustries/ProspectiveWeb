@@ -19,10 +19,11 @@ import { atajoPaleta, rotuloPaleta, teclasPaleta } from "../../lib/plataforma";
 import { OBJETIVO_TACTIL_PX } from "../../pipeline/puntosCorte";
 import { TEXTO_OCULTO } from "../../styles/oculto";
 import { useEstrecho } from "../../hooks/useEstrecho";
+import { PUNTOS_CORTE } from "../../styles/puntosCorte";
 import "../shell/shell.css";
 
 /** Hasta este ancho los botones de acción de la píldora derecha enseñan solo el icono. */
-export const CONSULTA_SOLO_ICONO = "(max-width: 1366px)";
+export const CONSULTA_SOLO_ICONO = `(max-width: ${PUNTOS_CORTE.compacto}px)`;
 
 /** Rótulo de un botón de acción: con texto, o solo el icono con el texto como
  *  nombre accesible y, de tooltip, la explicación si la hay (o el texto). Se esparce sobre `<Button>`. */

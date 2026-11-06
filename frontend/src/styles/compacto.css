@@ -1,0 +1,70 @@
+/* Pantalla compacta: escritorio con poco sitio (hasta 1366 de ancho o 768 de alto,
+   lo normal en un portátil de 1366 × 768). Los tamaños del resto de hojas están
+   pensados para un monitor; aquí bajan sin cambiar la disposición. Va en su propia
+   hoja porque landing.css no admite consultas de anchura, y `:root` delante porque
+   las hojas de cada página se cargan después de esta. El texto no baja de 12 px.
+   La consulta es CONSULTA.compacto (styles/puntosCorte.ts). */
+
+@media (min-width: 1025px) and (max-width: 1366px), (min-width: 1025px) and (max-height: 768px) {
+  /* ---- Landing: portada ---- */
+  :root .landing-stitch .hero-cortes__contenido {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+    gap: 32px;
+    padding: 72px 24px 32px;
+  }
+  :root .landing-stitch .hero-cortes__antetitulo { margin-bottom: 12px; }
+  :root .landing-stitch .hero-cortes__titulo { font-size: clamp(34px, 4.2vw, 56px); }
+  :root .landing-stitch .hero-cortes__subtitulo { margin-top: 14px; font-size: 16px; line-height: 1.5; }
+  :root .landing-stitch .hero-cortes__acciones { margin-top: 20px; }
+  :root .landing-stitch .hero-cortes__notas { margin-top: 18px; }
+
+  /* ---- Landing: secciones ---- */
+  :root .landing-stitch .sec { padding: clamp(40px, 7vh, 72px) 24px; }
+  :root .landing-stitch .sec__cuerpo { max-width: 1040px; }
+  :root .landing-stitch .sec__cabecera { margin-bottom: 24px; }
+  :root .landing-stitch .sec__titulo { font-size: 32px; }
+  :root .landing-stitch .sec__subtitulo { font-size: 18px; }
+  :root .landing-stitch .sec__texto { font-size: 15px; }
+
+  /* ---- Landing: tarjetas ---- */
+  :root .landing-stitch .bento { grid-auto-rows: minmax(136px, auto); gap: 12px; }
+  :root .landing-stitch .bento__tarjeta { gap: 10px; padding: 14px; }
+  :root .landing-stitch .bento__imagen { aspect-ratio: 16 / 9; }
+  :root .landing-stitch .bento__icono { width: 32px; height: 32px; }
+  :root .landing-stitch .proximo__tarjeta { padding: 16px; }
+  :root .landing-stitch .franja-casos { height: clamp(300px, 34vw, 440px); }
+
+  /* ---- Landing: el dial de «Cómo funciona», al 80 % para que entre entero ---- */
+  :root .landing-stitch .riel__marco[data-disposicion="horizontal"] {
+    --radio: 186px;
+    width: 496px;
+    height: 496px;
+  }
+  :root .landing-stitch .riel__marco[data-disposicion="horizontal"]::before { inset: 61px; }
+  :root .landing-stitch .riel[data-disposicion="horizontal"] .riel__paso {
+    width: 116px;
+    margin: -22px 0 0 -58px;
+  }
+  :root .landing-stitch .riel[data-disposicion="horizontal"] .riel__nombre { font-size: 13px; }
+  :root .landing-stitch .riel__centro { inset: 122px; padding: 16px; }
+  :root .landing-stitch .riel__centro-num { font-size: 72px; }
+  :root .landing-stitch .riel__centro-nombre { font-size: 19px; }
+  :root .landing-stitch .riel__centro-linea { font-size: 13px; }
+
+  /* ---- Gestión y Pacientes ---- */
+  :root .page-body__ancho { padding: 14px 24px 24px; }
+  :root .pt-avisos { gap: 8px; margin-bottom: 10px; }
+  :root .pt-aviso { padding: 3px 8px 3px 4px; }
+  :root .pt-toolbar { margin-bottom: 10px; }
+  :root .pt-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  :root .pt-card-media { aspect-ratio: 21 / 9; }
+  :root .pt-card-body { gap: 4px; padding: 8px 12px 6px; }
+  :root .pt-card-foot { gap: 6px; padding: 6px 12px 10px; font-size: 12px; }
+  :root .pt-side { gap: 10px; padding: 14px; }
+}
+
+/* Por encima de 1280 Pacientes lleva el panel al lado: se estrecha. Por debajo ya va
+   debajo de las tarjetas y no hay que tocarlo. */
+@media (min-width: 1281px) and (max-width: 1366px), (min-width: 1281px) and (max-height: 768px) {
+  :root .pt-layout { grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; }
+}

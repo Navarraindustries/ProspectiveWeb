@@ -40,6 +40,11 @@ export function useTableta(): boolean {
   return useMediaQuery(CONSULTA.tableta);
 }
 
+/** Escritorio con poco sitio: ver styles/compacto.css. */
+export function useCompacto(): boolean {
+  return useMediaQuery(CONSULTA.compacto);
+}
+
 export function useGrande(): boolean {
   return useMediaQuery(CONSULTA.grande);
 }

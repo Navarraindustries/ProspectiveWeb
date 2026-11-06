@@ -8,13 +8,11 @@ import { PUNTOS_CORTE } from "./puntosCorte";
 
 const SRC = join(__dirname, "..");
 
-const ANCHOS = new Set([640, 641, 1024, 1025, 1280, 1281, 1920]); // N+1 para «mayor que»
+const ANCHOS = new Set([640, 641, 1024, 1025, 1280, 1281, 1366, 1920]); // N+1 para «mayor que»
 const ALTOS = new Set([600, 768, 900, 1080]); // altos de la matriz
 
 /** Números previos al módulo. Cada fase que migra uno lo quita de aquí. */
-const LEGADO: Record<string, number[]> = {
-  "components/stepper/QuirofanoBar.tsx": [1366], // fase 10
-};
+const LEGADO: Record<string, number[]> = {};
 
 function ficheros(dir: string, out: string[] = []): string[] {
   for (const n of readdirSync(dir)) {
@@ -60,8 +58,8 @@ describe("puntos de corte", () => {
   });
   it("breakpoints.css y PUNTOS_CORTE dicen lo mismo", () => {
     const css = readFileSync(join(__dirname, "tokens/breakpoints.css"), "utf8");
-    for (const [k, v] of Object.entries({ movil: 640, tableta: 1024, estrecho: 1280, grande: 1920 }))
+    for (const [k, v] of Object.entries({ movil: 640, tableta: 1024, estrecho: 1280, compacto: 1366, grande: 1920 }))
       expect(css).toMatch(new RegExp(`--bp-${k}:\\s*${v}px`));
-    expect(PUNTOS_CORTE).toEqual({ movil: 640, tableta: 1024, estrecho: 1280, grande: 1920 });
+    expect(PUNTOS_CORTE).toEqual({ movil: 640, tableta: 1024, estrecho: 1280, compacto: 1366, grande: 1920 });
   });
 });

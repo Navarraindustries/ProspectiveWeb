@@ -290,11 +290,11 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-        <Button variant="outline" size="sm" style={{ flex: 1 }} onClick={() => fileInput.current?.click()} disabled={busy}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
+        <Button variant="outline" size="sm" style={{ flex: 1, whiteSpace: "nowrap" }} onClick={() => fileInput.current?.click()} disabled={busy}>
           Seleccionar archivos
         </Button>
-        <Button variant="outline" size="sm" style={{ flex: 1 }} onClick={() => dirInput.current?.click()} disabled={busy}>
+        <Button variant="outline" size="sm" style={{ flex: 1, whiteSpace: "nowrap" }} onClick={() => dirInput.current?.click()} disabled={busy}>
           Seleccionar carpeta
         </Button>
       </div>

@@ -5,6 +5,7 @@
   --bp-movil: 640px;
   --bp-tableta: 1024px;
   --bp-estrecho: 1280px;
+  --bp-compacto: 1366px;
   --bp-grande: 1920px;
 }
 /* Pantalla grande (R27): el contenido deja de quedarse en 1280 y usa el tope ancho. */

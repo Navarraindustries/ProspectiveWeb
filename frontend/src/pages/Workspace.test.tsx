@@ -299,23 +299,31 @@ describe("dock por tamaño de pantalla", () => {
     try { localStorage.clear(); } catch { /* sin almacenamiento */ }
   });
   afterEach(() => { vi.unstubAllGlobals(); });
-  const MODO: Record<number, string> = { 360: "mini", 390: "mini", 768: "tactil", 1024: "tactil", 1280: "compacto",
-    1366: "completo", 1440: "completo", 1707: "completo", 1920: "completo", 2560: "completo" };
-  it.each(MATRIZ_ANCHOS)("a %i px el dock va en su modo, a cualquier alto", (w) => {
+  /* Con ratón el dock es compacto hasta 1366 de ancho y, en cualquier ancho, hasta 768 de alto. */
+  const modoDe = (w: number, h: number) =>
+    w <= 640 ? "mini" : w <= 1024 ? "tactil" : w <= 1366 || h <= 768 ? "compacto" : "completo";
+  it.each(MATRIZ_ANCHOS)("a %i px el dock va en su modo según el alto", (w) => {
     for (const h of MATRIZ_ALTOS) {
       simularPantalla(w, h);
       const { unmount } = montar();
-      expect(screen.getByRole("navigation", { name: "Flujo de planificación" })).toHaveAttribute("data-modo", MODO[w]);
+      expect(screen.getByRole("navigation", { name: "Flujo de planificación" })).toHaveAttribute("data-modo", modoDe(w, h));
       unmount();
     }
   });
   /* La lectura de abajo a la izquierda sube lo que tapa el dock de esa pantalla. */
-  const HOLGURA: Record<string, string> = { mini: "80px", tactil: "80px", compacto: "72px", completo: "96px" };
+  const holguraDe = (w: number, h: number) => {
+    const modo = modoDe(w, h);
+    if (modo === "completo") return "96px";
+    return modo === "compacto" && w <= 1280 ? "72px" : "80px"; // ≤ 1280 el dock va sobre la hoja
+  };
   it.each(MATRIZ_ANCHOS)("a %i px la holgura del dock sigue a su alto", (w) => {
-    simularPantalla(w);
-    montar();
-    const z = document.querySelector("[data-zona-libre]") as HTMLElement;
-    expect(z.style.getPropertyValue("--dock-holgura")).toBe(HOLGURA[MODO[w]]);
+    for (const h of MATRIZ_ALTOS) {
+      simularPantalla(w, h);
+      const { unmount } = montar();
+      const z = document.querySelector("[data-zona-libre]") as HTMLElement;
+      expect(z.style.getPropertyValue("--dock-holgura")).toBe(holguraDe(w, h));
+      unmount();
+    }
   });
 });
 

@@ -17,7 +17,7 @@ import { BANDA_SUPERIOR, HOJA_ASOMAR, zonaLibre } from "../pipeline/zonaLibre";
 import { MQ_MOVIL, MQ_TACTIL } from "../pipeline/puntosCorte";
 import { StepDock } from "../components/stepper/StepDock";
 import { Z_SOBRE_HOJA, type AlturaHoja } from "../components/BottomSheet";
-import { useEstrecho, useMediaQuery } from "../hooks/useEstrecho";
+import { useCompacto, useEstrecho, useMediaQuery } from "../hooks/useEstrecho";
 import { ToastStack, type ToastItem } from "../components/ToastStack";
 import { Collapsible } from "../components/PanelHead";
 import { UploadPanel } from "../components/upload/UploadPanel";
@@ -94,6 +94,7 @@ export function Workspace({
   // Al entrar en modo estrecho arranca a media altura, asomada en móvil (se deriva en el propio
   // render: así el primer pintado ya la enseña a media).
   const estrecho = useEstrecho();
+  const compacto = useCompacto();
   // Hasta 1366 px los botones de acción de la píldora derecha son solo icono.
   const soloIcono = useMediaQuery(CONSULTA_SOLO_ICONO);
   const movil = useMediaQuery(MQ_MOVIL);
@@ -102,7 +103,7 @@ export function Workspace({
   const tamAccion = modoBarra === "ancho" ? "sm" : "md";
   const estiloBoton = estiloAccion(tamAccion, soloIcono);
   const { theme, toggle: alternarTema } = useThemeContext();
-  const modoDock = movil ? "mini" : tactil ? "tactil" : estrecho ? "compacto" : "completo";
+  const modoDock = movil ? "mini" : tactil ? "tactil" : estrecho || compacto ? "compacto" : "completo";
   // En móvil (≤ 640) la hoja abre asomada (cabecera del paso a la vista): a
   // media altura dejaba ~150–190 px de visor a 360–390 (R18). La zona libre
   // ya reserva el alto asomado, así que el visor queda entero encima.
@@ -375,7 +376,7 @@ export function Workspace({
   }[step];
 
   const libre = zonaLibre({
-    estrecho, plegado: columnCollapsed, ancho: step === "treatment" || step === "report", hoja: alturaHoja,
+    estrecho, compacto, plegado: columnCollapsed, ancho: step === "treatment" || step === "report", hoja: alturaHoja,
   });
 
   // Un solo apilado: aquí van los avisos del pipeline y el global de App.
@@ -528,11 +529,12 @@ export function Workspace({
              isolation: "isolate",
              // Alto del dock: botón + 2×8 de relleno + 2 de borde. La lectura de la
              // esquina sube esta holgura sobre sus 22 px propios.
-             // Ancho: completo (activo de 60 → 78 px, a 20 del borde) llega a 98 → 96.
+             // Ancho: completo (activo de 60 → 78 px, a 20 del borde) llega a 98 → 96;
+             // compacto (36 → 54 px, a 20 del borde) llega a 74 → 80.
              // Estrecho (≤ 1280), la zona libre acaba en la hoja y el dock va 12 px
              // sobre ella: compacto (36 → 54 px) llega a 66 → 72; táctil y mini
              // (44 → 62 px, ≤ 1024) llegan a 74 → 80, el mismo aire.
-             "--dock-holgura": !estrecho ? "96px" : tactil ? "80px" : "72px",
+             "--dock-holgura": !estrecho ? (compacto ? "80px" : "96px") : tactil ? "80px" : "72px",
              top: libre.top, right: libre.right, bottom: libre.bottom, left: libre.left,
              transition: "right var(--dur-2) var(--ease-out), bottom var(--dur-2) var(--ease-out)",
            } as CSSProperties}>

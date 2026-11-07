@@ -7,7 +7,7 @@ import type { PatientSummary } from "../../api/types";
 import { useEnCurso } from "../../hooks/useEnCurso";
 import { useTableta } from "../../hooks/useEstrecho";
 import { fechaHora } from "../../lib/fecha";
-import { accionPrincipal, pasoDeTarjeta, tiempoRelativo, tramoDePaso } from "../../lib/pacientes";
+import { accionPrincipal, pasoDeTarjeta, tiempoRelativo } from "../../lib/pacientes";
 import { STEPS, clampStep } from "../../pipeline/steps";
 import { Badge, riskVariant } from "../Badge";
 import { Button } from "../Button";
@@ -118,7 +118,6 @@ export function PatientCard({ patient: p, onOpen, onResume, onPlan }: Props) {
       aria-label={`${p.full_name}, ${hc}`}
       className="pt-card tarjeta-lente"
       data-glass
-      data-tramo={paso ? tramoDePaso(paso.n) : undefined}
       aria-busy={abriendo || undefined}
       data-abriendo={abriendo || undefined}
       onClick={() => { if (!abriendo) onOpen(p); }}

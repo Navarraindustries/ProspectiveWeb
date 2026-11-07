@@ -170,7 +170,7 @@ export function AnnotationsPanel() {
                   style={{
                     padding: "8px 10px", borderRadius: "var(--radius-md)", cursor: "pointer",
                     border: `1px solid ${selected ? "var(--brand-deep)" : "var(--border)"}`,
-                    background: selected ? "var(--brand-subtle)" : "var(--card)",
+                    background: selected ? "var(--brand-subtle)" : "var(--glass)",
                     opacity: a.visible ? 1 : 0.6,
                   }}
                 >

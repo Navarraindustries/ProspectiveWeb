@@ -11,7 +11,7 @@ describe("lente de tarjeta", () => {
     const presets = leer("../motion/presets.ts");
     const ficha = presets.match(/lensCard = \{\s*whileHover: \{ scale: ([\d.]+) \}/)?.[1];
     expect(ficha).toBeDefined();
-    expect(css).toContain(`.tarjeta-lente:hover { scale: ${ficha}; }`);
+    expect(css).toContain(`.tarjeta-lente:hover { scale: ${ficha};`);
   });
 
   it("solo con ratón y sin movimiento reducido", () => {

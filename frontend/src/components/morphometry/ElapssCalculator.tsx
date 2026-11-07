@@ -87,7 +87,7 @@ export function ElapssCalculator({
         cuánto repetir la imagen. El tamaño se rellena desde la morfometría.
       </div>
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 14, lineHeight: 1.5,
-                    padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--muted)" }}>
+                    padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--glass-hover)" }}>
         Es una referencia poblacional, no una predicción para este paciente: fuera de sus
         cohortes discrimina mal, como PHASES. Otras poblaciones (p. ej. Latinoamérica) no
         estaban en las cohortes.
@@ -130,7 +130,7 @@ export function ElapssCalculator({
         <>
           <div style={{
             marginTop: 16, padding: "16px 18px", borderRadius: "var(--radius-lg)",
-            background: "var(--muted)", border: "1px solid var(--border)",
+            background: "var(--glass-hover)", border: "1px solid var(--border)",
             display: "flex", alignItems: "center", gap: 16,
           }}>
             <div style={{ textAlign: "center" }}>

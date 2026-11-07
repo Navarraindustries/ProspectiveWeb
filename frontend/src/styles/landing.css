@@ -1116,7 +1116,8 @@
   transition: border-color var(--dur-1) var(--ease-out), scale var(--dur-2) var(--ease-out);
 }
 .landing-stitch .bento__tarjeta:hover {
-  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  /* !important: el borde de cristal va en línea (glass). */
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent) !important;
 }
 .landing-stitch .bento__imagen {
   position: relative;

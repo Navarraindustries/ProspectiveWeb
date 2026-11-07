@@ -84,17 +84,19 @@
      para que --data y --destructive-text lleguen a 4,5:1 ahí (cristal.audit.test.ts). */
   --glass-viewer:       linear-gradient(rgba(8, 9, 12, 0.80), rgba(8, 9, 12, 0.80)), rgba(255, 255, 255, 0.08);
   --glass-solid:        #101217;                /* fondo opaco de reserva */
-  /* Cristal grueso: canto de 2 px con reflejo arriba y sombra abajo. */
-  --glass-rim:          2px;
+  /* Cristal grueso: canto de 3 px con reflejo arriba y sombra abajo, y la luz
+     diagonal de la opción A, que va como capa propia encima de --glass. */
+  --glass-rim:          3px;
   --glass-border:       rgba(214, 222, 235, 0.26);
-  --glass-highlight:    inset 0 2px 1px rgba(255, 255, 255, 0.42), inset 0 -2px 1px rgba(0, 0, 0, 0.42);
-  /* Un color por tramo del flujo. Oscuros: el texto gris sigue en 4,5:1 encima.
-     No significan riesgo: el riesgo sigue en sus insignias. */
-  --tinte-preparar:     linear-gradient(160deg, rgba(120, 140, 170, 0.24), rgba(120, 140, 170, 0.07));
-  --tinte-detectar:     linear-gradient(160deg, rgba(46, 119, 208, 0.52), rgba(18, 58, 122, 0.34));
-  --tinte-medir:        linear-gradient(160deg, rgba(122, 86, 214, 0.48), rgba(63, 42, 138, 0.32));
-  --tinte-dispositivo:  linear-gradient(160deg, rgba(38, 150, 130, 0.46), rgba(15, 90, 82, 0.32));
-  --tinte-informe:      linear-gradient(160deg, rgba(190, 130, 40, 0.42), rgba(110, 70, 16, 0.3));
+  --glass-highlight:    inset 0 2px 1px rgba(255, 255, 255, 0.5), inset 0 -2px 1px rgba(0, 0, 0, 0.42);
+  --glass-luz:          linear-gradient(155deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04) 42%, rgba(255, 255, 255, 0.02));
+  /* El cristal es neutro. El tramo del flujo solo se ve como acento: el aro del
+     paso activo y el punto de la etiqueta del panel. No significa riesgo. */
+  --tramo-preparar:     #8FA3BF;
+  --tramo-detectar:     #5AA9FF;
+  --tramo-medir:        #A98BF0;
+  --tramo-dispositivo:  #3FC4AB;
+  --tramo-informe:      #E0A84A;
   --glass-hover:        rgba(255, 255, 255, 0.14);
   --glass-blur-viewer:  12px;
 
@@ -192,9 +194,10 @@
 
   /* En el claro el peor fondo del cristal es el negro del quirófano (--viewer-bg):
      pastillas (--glass), inspector (--glass-dense), dock y hoja inferior
-     (--glass-viewer) flotan sobre él. Con 0,92 el fondo queda en #EBEBEB y el texto
-     llega a 4,5:1 (cristal.audit.test.ts); sobre el lienzo claro no se nota. */
-  --glass:              rgba(255, 255, 255, 0.92);
+     (--glass-viewer) flotan sobre él. Un cristal claro sobre negro solo puede
+     agrisarse: con 0,92 quedaba en #EBEBEB y el panel parecía sucio junto a su pie
+     blanco. Las pastillas van a 0,97 y el inspector, opaco. */
+  --glass:              rgba(255, 255, 255, 0.97);
   --veil:               rgba(243, 245, 248, 0);   /* sin imagen de fondo en el claro */
   --veil-dense:         rgba(243, 245, 248, 0);
   --ambient-glow-1:     rgba(10, 102, 255, 0.08);
@@ -202,17 +205,18 @@
   --ambient-grain-opacity: 0.03;
   --scrim:              rgba(11, 12, 15, 0.24);   /* las hojas sí necesitan velo en el claro */
   --scrim-dense:        rgba(11, 12, 15, 0.32);
-  --glass-dense:        rgba(255, 255, 255, 0.92);
-  --glass-viewer:       rgba(255, 255, 255, 0.92);
+  --glass-dense:        rgba(255, 255, 255, 1);
+  --glass-viewer:       rgba(255, 255, 255, 0.97);
   --glass-solid:        #FFFFFF;
-  --glass-rim:          2px;
+  --glass-rim:          3px;
   --glass-border:       rgba(0, 0, 0, 0.1);
   --glass-highlight:    inset 0 2px 1px rgba(255, 255, 255, 0.95), inset 0 -2px 1px rgba(0, 0, 0, 0.06);
-  --tinte-preparar:     linear-gradient(160deg, rgba(120, 140, 170, 0.14), rgba(120, 140, 170, 0.04));
-  --tinte-detectar:     linear-gradient(160deg, rgba(46, 119, 208, 0.16), rgba(46, 119, 208, 0.05));
-  --tinte-medir:        linear-gradient(160deg, rgba(122, 86, 214, 0.15), rgba(122, 86, 214, 0.05));
-  --tinte-dispositivo:  linear-gradient(160deg, rgba(38, 150, 130, 0.16), rgba(38, 150, 130, 0.05));
-  --tinte-informe:      linear-gradient(160deg, rgba(190, 130, 40, 0.16), rgba(190, 130, 40, 0.05));
+  --glass-luz:          linear-gradient(155deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0) 45%);
+  --tramo-preparar:     #5C6F8A;
+  --tramo-detectar:     #2E77D0;
+  --tramo-medir:        #7A56D6;
+  --tramo-dispositivo:  #1F8473;
+  --tramo-informe:      #A86F1E;
   --glass-hover:        rgba(0, 0, 0, 0.04);
   --glass-blur-viewer:  12px;
 

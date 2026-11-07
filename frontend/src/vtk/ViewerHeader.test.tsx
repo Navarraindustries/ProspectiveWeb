@@ -2,7 +2,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { anchoBanda, MATRIZ_ALTOS, MATRIZ_ANCHOS, simularPantalla } from "../test/pantalla";
-import { DEFAULT_LAYOUT, promote, setPreset, type ViewerLayout } from "./layout";
+import { DEFAULT_LAYOUT, flipSide, promote, rotate, showAll, toggleEqual, togglePane, toggleSolo } from "./layout";
 import type { BandTier } from "./mainOptions";
 import { ViewerHeader, type ViewerHeaderProps } from "./ViewerHeader";
 
@@ -38,47 +38,70 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("ViewerHeader — selector PRINCIPAL", () => {
-  it("marca como activa la vista que es principal en la distribución", () => {
-    const layout: ViewerLayout = promote(DEFAULT_LAYOUT, "coronal");
-    setup({ layout });
-    expect(screen.getByRole("button", { name: /^\[ COR \]$/ })).toHaveAttribute("aria-pressed", "true");
-    for (const label of ["3D", "AX", "SAG", "VOLUMEN"]) {
-      expect(screen.getByRole("button", { name: new RegExp(`^${label}$`) })).toHaveAttribute("aria-pressed", "false");
-    }
+describe("ViewerHeader — vistas", () => {
+  it("cada vista es una pastilla: pulsada si se ve", () => {
+    setup({ layout: togglePane(DEFAULT_LAYOUT, "mip") });
+    expect(screen.getByRole("button", { name: "Vista AXIAL" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Vista VOLUMEN" })).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("al pulsar AX sube el axial a principal con promote", () => {
+  it("la pastilla minimiza y enciende", () => {
     const { props } = setup();
-    fireEvent.click(screen.getByRole("button", { name: /^AX$/ }));
-    expect(props.onLayoutChange).toHaveBeenCalledWith(promote(DEFAULT_LAYOUT, "axial"));
+    fireEvent.click(screen.getByRole("button", { name: "Vista AXIAL" }));
+    expect(props.onLayoutChange).toHaveBeenCalledWith(togglePane(DEFAULT_LAYOUT, "axial"));
   });
 
-  it("los presets cambian la distribución con setPreset", () => {
+  it("se marca la que va grande, salvo con Igualar", () => {
+    const layout = promote(DEFAULT_LAYOUT, "coronal");
+    const { unmount } = setup({ layout });
+    expect(screen.getByRole("button", { name: "Vista CORONAL" })).toHaveAttribute("data-grande");
+    unmount();
+    setup({ layout: toggleEqual(layout) });
+    expect(screen.getByRole("button", { name: "Vista CORONAL" })).not.toHaveAttribute("data-grande");
+  });
+
+  it("Rotar, el lado e Igualar cambian la distribución", () => {
     const { props } = setup();
-    fireEvent.click(screen.getByRole("button", { name: /SOLA/ }));
-    expect(props.onLayoutChange).toHaveBeenCalledWith(setPreset(DEFAULT_LAYOUT, "sola"));
+    fireEvent.click(screen.getByRole("button", { name: "Rotar las vistas" }));
+    expect(props.onLayoutChange).toHaveBeenLastCalledWith(rotate(DEFAULT_LAYOUT));
+    fireEvent.click(screen.getByRole("button", { name: "Poner la vista grande arriba" }));
+    expect(props.onLayoutChange).toHaveBeenLastCalledWith(flipSide(DEFAULT_LAYOUT));
+    fireEvent.click(screen.getByRole("button", { name: "Igualar las vistas" }));
+    expect(props.onLayoutChange).toHaveBeenLastCalledWith(toggleEqual(DEFAULT_LAYOUT));
+  });
+
+  it("TODAS solo aparece con alguna minimizada", () => {
+    const { unmount } = setup();
+    expect(screen.queryByRole("button", { name: "Mostrar todas las vistas" })).toBeNull();
+    unmount();
+    const layout = togglePane(DEFAULT_LAYOUT, "mip");
+    const { props } = setup({ layout });
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar todas las vistas" }));
+    expect(props.onLayoutChange).toHaveBeenCalledWith(showAll(layout));
+  });
+
+  it("con una sola vista no hay lado ni Igualar, pero sí Rotar", () => {
+    setup({ layout: toggleSolo(DEFAULT_LAYOUT, "axial") });
+    expect(screen.getByRole("button", { name: "Rotar las vistas" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Igualar las vistas" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Poner la vista grande arriba" })).toBeNull();
   });
 });
 
 describe("ViewerHeader — ancho de la banda", () => {
-  it("con sitio rotula PRINCIPAL y los presets enteros", () => {
+  it("con sitio los mandos van enteros", () => {
     stubBandWidth(1200);
     setup();
-    expect(screen.getByTitle("Vista principal").textContent).toBe("PRINCIPAL");
-    expect(screen.getByRole("button", { name: /DERECHA/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /ABAJO/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Poner la vista grande arriba" })).toHaveTextContent("GRANDE IZQ");
+    expect(screen.getByRole("button", { name: "Igualar las vistas" })).toHaveTextContent("IGUALAR");
   });
 
-  it("estrecha (900 px, nivel estrecho) muestra «▸» y DER · ABA · 4 · SOLA", () => {
+  it("estrecha (900 px, nivel estrecho) los mandos se abrevian", () => {
     stubBandWidth(900);
     const { container } = setup();
     expect(container.querySelector('[data-banda="raiz"]')).toHaveAttribute("data-tier", "estrecho");
-    expect(screen.getByTitle("Vista principal").textContent).toBe("▸");
-    for (const label of ["DER", "ABA", "4", "SOLA"]) {
-      expect(screen.getByRole("button", { name: new RegExp(`^(\\[ )?${label}( \\])?$`) })).toBeInTheDocument();
-    }
-    expect(screen.queryByRole("button", { name: /DERECHA/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Poner la vista grande arriba" })).toHaveTextContent(/^IZQ$/);
+    expect(screen.getByRole("button", { name: "Igualar las vistas" })).toHaveTextContent(/^IGUAL$/);
   });
 
   // Nivel esperado por ancho de pantalla: la banda mide la pantalla menos el
@@ -165,9 +188,9 @@ describe("ViewerHeader — conmutadores y teclas", () => {
     expect(props.onShowClipFieldChange).toHaveBeenCalledWith(false);
   });
 
-  it("las teclas de la banda llegan al manejador de Alt+1/2/3", () => {
+  it("las teclas de la banda llegan al manejador de Alt+1…5", () => {
     const { props } = setup();
-    fireEvent.keyDown(screen.getByRole("button", { name: /^AX$/ }), { code: "Digit1", altKey: true });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Vista AXIAL" }), { code: "Digit1", altKey: true });
     expect(props.onKeyDown).toHaveBeenCalledTimes(1);
   });
 
@@ -257,30 +280,18 @@ describe("ViewerHeader — modo iconos (táctil ≤ 1024, móvil ≤ 640)", () =
     expect(raiz).toHaveAttribute("data-tactil", "true");
     if (w <= 640) expect(raiz).toHaveAttribute("data-movil", "true");
     else expect(raiz).not.toHaveAttribute("data-movil");
-    expect(screen.getByRole("combobox", { name: "Vista principal" })).toHaveValue(DEFAULT_LAYOUT.main);
-    expect(screen.getByRole("combobox", { name: "Distribución" })).toHaveValue(DEFAULT_LAYOUT.preset);
+    expect(screen.getByRole("button", { name: "Vista AXIAL" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Planos de corte en el 3D" })).toBeInTheDocument();
-    expect(screen.queryByText("PRINCIPAL")).toBeNull();
     if (w <= 640) expect(screen.queryByTitle("Atajos (?)")).toBeNull();
     else expect(screen.getByTitle("Atajos (?)")).toBeInTheDocument();
   });
 
-  it("los desplegables llevan los nombres enteros de vistas y distribuciones", () => {
-    simularPantalla(390); stubBandWidth(anchoBanda(390));
-    setup();
-    const opciones = (name: string) =>
-      [...screen.getByRole("combobox", { name }).querySelectorAll("option")].map((o) => o.textContent);
-    expect(opciones("Vista principal")).toEqual(["3D", "AXIAL", "CORONAL", "SAGITAL", "VOLUMEN"]);
-    expect(opciones("Distribución")).toEqual(["DERECHA", "ABAJO", "CUATRO", "SOLA"]);
-  });
-
-  it("en iconos, cambiar el desplegable de vista llama a promote y el de distribución a setPreset", () => {
+  it("en iconos los mandos van abreviados y las pastillas siguen funcionando", () => {
     simularPantalla(390); stubBandWidth(anchoBanda(390));
     const { props } = setup();
-    fireEvent.change(screen.getByRole("combobox", { name: "Vista principal" }), { target: { value: "axial" } });
-    expect(props.onLayoutChange).toHaveBeenLastCalledWith(promote(DEFAULT_LAYOUT, "axial"));
-    fireEvent.change(screen.getByRole("combobox", { name: "Distribución" }), { target: { value: "sola" } });
-    expect(props.onLayoutChange).toHaveBeenLastCalledWith(setPreset(DEFAULT_LAYOUT, "sola"));
+    fireEvent.click(screen.getByRole("button", { name: "Vista AXIAL" }));
+    expect(props.onLayoutChange).toHaveBeenLastCalledWith(togglePane(DEFAULT_LAYOUT, "axial"));
+    expect(screen.getByRole("button", { name: "Poner la vista grande arriba" })).toHaveTextContent(/^IZQ$/);
   });
 
   it("en iconos, TEXTOS rota completo → esencial → limpio → completo", () => {
@@ -337,15 +348,14 @@ describe("ViewerHeader — modo iconos (táctil ≤ 1024, móvil ≤ 640)", () =
   });
 
   // Revisión de la tarea 2 (a): el grupo izquierdo no puede desbordar a 360.
-  it("a 360 el grupo izquierdo de iconos lleva solo los dos desplegables y puede encoger y envolver", () => {
+  it("a 360 el grupo izquierdo de iconos lleva las vistas y puede encoger y envolver", () => {
     simularPantalla(360); stubBandWidth(anchoBanda(360));
     const { container } = setup({ onHelp: () => {}, hasClipField: true });
     const izq = container.querySelector('[data-banda="izq"]') as HTMLElement;
-    expect([...izq.children].map((c) => c.tagName)).toEqual(["SELECT", "SELECT"]);
+    expect(izq.querySelector(".viewer-vistas")).not.toBeNull();
     expect(izq.style.flexWrap).toBe("wrap");
     expect(izq.style.flexShrink).toBe("1");
     expect(izq.style.minWidth).toMatch(/^0(px)?$/);
-    for (const s of izq.querySelectorAll("select")) expect((s as HTMLElement).style.maxWidth).toBe("100%");
     // jsdom no maqueta: aquí solo se comprueba que el grupo puede encoger y
     // envolver. La medida real a 360 se verifica en el navegador (tarea 12).
   });

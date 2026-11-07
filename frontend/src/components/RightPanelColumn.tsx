@@ -8,6 +8,7 @@ import { useEffect, type ReactNode } from "react";
 import { Icon } from "./Icon";
 import { Tirador, useHojaInferior, type AlturaHoja } from "./BottomSheet";
 import { AnimatePresence, motion, panelSwap, panelTransition } from "../motion";
+import { tramoDePaso } from "../lib/pacientes";
 import { glass } from "../styles/glass";
 import { useCompacto } from "../hooks/useEstrecho";
 import { anchoInspector, BANDA_SUPERIOR, MARGEN_INSPECTOR } from "../pipeline/zonaLibre";
@@ -109,11 +110,13 @@ export function RightPanelColumn({
         >
           <div
             style={{
-              flex: "none", padding: "14px 18px 0", fontFamily: "var(--font-mono)",
+              flex: "none", display: "flex", alignItems: "center", gap: 8,
+              padding: "14px 18px 12px", fontFamily: "var(--font-mono)",
               fontSize: "var(--text-eyebrow)", letterSpacing: "var(--tracking-eyebrow)",
-              color: "var(--muted-foreground)",
+              color: "var(--foreground)",
             }}
           >
+            <span aria-hidden="true" style={{ width: 8, height: 8, flex: "none", borderRadius: "50%", background: `var(--tramo-${tramoDePaso(stepIndex + 1)})` }} />
             {`Paso ${stepIndex + 1} · ${stepLabel}`.toLocaleUpperCase("es")}
           </div>
           {/* Cruce en fundido entre pasos; el primer pintado no anima. */}

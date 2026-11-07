@@ -30,7 +30,7 @@ describe("AuthWindow: cristal normal y relleno por ancho (A15)", () => {
     render(<AuthWindow titulo="Iniciar sesión"><p>x</p></AuthWindow>);
     const v = screen.getByRole("region", { name: "Iniciar sesión" });
     expect(v).toHaveAttribute("data-glass");
-    expect(v.style.background).toBe("var(--glass)");
+    expect(v.style.background).toBe("var(--glass-luz), var(--glass)");
   });
 
   it.each([[390, "24px"], [768, "40px"], [1707, "40px"]])("a %i px el relleno es %s", (ancho, relleno) => {

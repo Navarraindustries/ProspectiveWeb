@@ -1,7 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
-import { mainOptions, presetOptions } from "./mainOptions";
 
 // Los botones de reencuadre se llaman igual en toda la app: ENCUADRAR (la vista
 // entera) y AL PUNTO (el plano vuelve al punto compartido). CENTRAR y AJUSTAR
@@ -68,15 +67,9 @@ describe("nombres de los botones", () => {
 });
 
 // Spec §4: «ninguna celda enseña dos grupos sin prefijo con las mismas
-// opciones». AX · COR aparecen en EJE (VOLUMEN), VISTA (3D) y PRINCIPAL
-// (cabecera): cada grupo que las lleve tiene que decir qué eje elige. El
-// prefijo va en `label=` (dentro del grupo, para que el nivel del HUD lo
-// oculte con los botones); la cabecera conserva «PRINCIPAL ▸» como rótulo
-// propio delante del grupo (spec §4: «se conserva»), fuera de `data-hud`.
-const OPTION_FNS: Record<string, () => { label: string }[]> = {
-  mainOptions: () => mainOptions(),
-  presetOptions: () => presetOptions(1200),
-};
+// opciones». AX · COR aparecen en EJE (VOLUMEN) y VISTA (3D): cada grupo que
+// las lleve tiene que decir qué eje elige. El prefijo va en `label=` (dentro del
+// grupo, para que el nivel del HUD lo oculte con los botones).
 function unprefixedAxisGroups(src: string): string[] {
   const strings = (t: string) => [...t.matchAll(/"([^"\\]*)"/g)].map((m) => m[1]);
   const bad: string[] = [];
@@ -88,10 +81,8 @@ function unprefixedAxisGroups(src: string): string[] {
       const def = src.match(new RegExp(`const ${name}\\b[^=]*=\\s*([\\s\\S]*?);\\r?\\n`));
       if (def) strings(def[1]).forEach((s) => labels.add(s));
     }
-    for (const [, fn] of group.matchAll(/\b(\w+)\(/g)) OPTION_FNS[fn]?.().forEach((o) => labels.add(o.label));
     if (!(labels.has("AX") && labels.has("COR"))) continue;
     if (/\blabel=/.test(group)) continue;
-    if (/mainCaption\}<\/span>\s*$/.test(src.slice(Math.max(0, m.index! - 160), m.index))) continue;
     bad.push(group.slice(0, 80));
   }
   return bad;
@@ -111,9 +102,8 @@ describe("grupos con las mismas opciones (spec §4)", () => {
     const src = 'const OPTS = [{ key: "axial", label: "AX" }, { key: "coronal", label: "COR" }];\n'
       + "<HudToggleGroup options={OPTS} value={v} onChange={f} />\n"
       + '<HudToggleGroup label="EJE ▸" options={OPTS} value={v} onChange={f} />\n'
-      + "<HudToggleGroup options={mainOptions()} value={v} onChange={f} />\n"
       + '<HudToggleGroup options={[{ key: "a", label: "MIP" }]} value={v} onChange={f} />\n';
-    expect(unprefixedAxisGroups(src)).toHaveLength(2);
+    expect(unprefixedAxisGroups(src)).toHaveLength(1);
   });
 });
 

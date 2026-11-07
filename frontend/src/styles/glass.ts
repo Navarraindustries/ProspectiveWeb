@@ -9,14 +9,14 @@ export type GlassKind = "normal" | "dense" | "viewer" | "flat";
 export function glass(kind: GlassKind = "normal"): CSSProperties {
   if (kind === "flat") {
     return {
-      background: "var(--glass)",
+      background: "var(--glass-luz), var(--glass)",
       border: "var(--glass-rim) solid var(--glass-border)",
       boxShadow: "var(--glass-highlight)",
     };
   }
   const blur = kind === "viewer" ? "var(--glass-blur-viewer)" : "var(--glass-blur)";
-  const filter = `blur(${blur}) saturate(130%)`;
-  const fondo = { normal: "var(--glass)", dense: "var(--glass-dense)", viewer: "var(--glass-viewer)" }[kind];
+  const filter = `blur(${blur}) saturate(150%)`;
+  const fondo = { normal: "var(--glass-luz), var(--glass)", dense: "var(--glass-luz), var(--glass-dense)", viewer: "var(--glass-viewer)" }[kind];
   return {
     background: fondo,
     backdropFilter: filter,

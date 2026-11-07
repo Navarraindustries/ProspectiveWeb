@@ -141,7 +141,7 @@ export function PhasesCalculator({
           series externas PHASES discrimina mal los aneurismas que se rompen de
           los que no (también ELAPSS y UIATS, serie de un centro, 2025). */}
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 14, lineHeight: 1.5,
-                    padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--muted)" }}>
+                    padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--glass-hover)" }}>
         Es una referencia poblacional, no una predicción para este paciente: fuera de la
         cohorte en que se desarrolló, PHASES distingue mal los aneurismas que acaban
         rompiéndose de los que no. Úsala para la conversación, no como umbral.

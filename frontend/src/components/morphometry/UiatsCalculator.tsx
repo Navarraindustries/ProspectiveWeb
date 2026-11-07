@@ -133,7 +133,7 @@ export function UiatsCalculator({
         Con 3 puntos o más de diferencia sugiere la mayor; con menos, cualquiera de las dos se puede defender.
       </div>
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 14, lineHeight: 1.5,
-                    padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--muted)" }}>
+                    padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--glass-hover)" }}>
         Es un consenso de 69 especialistas, no un modelo ajustado a desenlaces, y en series
         externas no discriminó de forma fiable: ordena la conversación, no decide.
       </div>

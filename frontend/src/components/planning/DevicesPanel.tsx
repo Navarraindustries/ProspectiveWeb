@@ -184,7 +184,7 @@ function NumField({ label, value, onChange, step = 1, min, max }: { label: strin
       <input
         type="number" value={Number.isFinite(value) ? value : 0} step={step} min={min} max={max}
         onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        style={{ width: "100%", fontSize: 12, fontFamily: "var(--font-mono)", padding: "4px 6px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)" }}
+        style={{ width: "100%", fontSize: 12, fontFamily: "var(--font-mono)", padding: "4px 6px", borderRadius: "var(--radius-sm)", border: "1px solid var(--input)", background: "var(--field-bg)", color: "var(--foreground)" }}
       />
     </label>
   );
@@ -616,7 +616,7 @@ function ClipsTab() {
           {customs.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12 }}>
               {customs.map((c) => (
-                <div key={c.clip_id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 10px", borderRadius: "var(--radius-md)", border: "1px solid var(--border)", background: "var(--card)" }}>
+                <div key={c.clip_id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 10px", borderRadius: "var(--radius-md)", border: "var(--glass-rim) solid var(--glass-border)", background: "var(--glass)" }}>
                   <Icon name="CLIPS" size={12} color="var(--muted-foreground)" />
                   <span className="truncate" style={{ flex: 1, fontSize: 12, color: "var(--foreground)" }}>{c.name}</span>
                   <button
@@ -648,7 +648,7 @@ function ClipsTab() {
           {/* Qué se está colocando, dicho aquí: en la otra pestaña se eligió, y
               sin repetirlo esta pantalla no dice sobre qué pieza se trabaja. */}
           {sel && (
-            <Card style={{ marginBottom: 12, background: "var(--muted)" }}>
+            <Card style={{ marginBottom: 12, background: "var(--glass-hover)" }}>
               {/* El nombre en su propia línea. Compartiendo el flex con dos
                   botones que no encogen se quedaba sin ancho y se partía por
                   palabras: «NAVARRO™ / T3 / Angulado 30° / 10.0 / mm», cinco
@@ -1056,7 +1056,7 @@ function CoilsTab() {
                       const v = Math.round(Number(e.target.value));
                       cambiarFila(f.key, { count: Math.min(MAX_POR_FILA, Math.max(1, Number.isFinite(v) ? v : 1)) });
                     }}
-                    style={{ width: "100%", fontSize: 12, fontFamily: "var(--font-mono)", padding: "4px 6px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)" }}
+                    style={{ width: "100%", fontSize: 12, fontFamily: "var(--font-mono)", padding: "4px 6px", borderRadius: "var(--radius-sm)", border: "1px solid var(--input)", background: "var(--field-bg)", color: "var(--foreground)" }}
                   />
                 </label>
                 <Button size="sm" variant="ghost" aria-label={`Quitar (fila ${n})`} onClick={() => quitarFila(f.key)}>
@@ -1625,7 +1625,7 @@ function CorridorReport({ c }: { c: CorridorAssessmentOut }) {
   return (
     <div style={{
       marginBottom: 10, padding: "10px 12px", borderRadius: "var(--radius-md)",
-      background: "var(--muted)", borderLeft: `3px solid ${v.color}`,
+      background: "var(--glass-hover)", borderLeft: `3px solid ${v.color}`,
     }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: v.color }}>{v.label}</div>
       <div style={{ fontSize: 12, color: "var(--foreground)", marginTop: 4, lineHeight: 1.5 }}>
@@ -1833,7 +1833,7 @@ export function TrajectoryTool() {
             <div style={{
               fontSize: 11, lineHeight: 1.5, color: "var(--muted-foreground)",
               padding: "8px 10px", borderRadius: "var(--radius-md)",
-              background: "var(--muted)", borderLeft: "3px solid var(--warning)",
+              background: "var(--glass-hover)", borderLeft: "3px solid var(--warning)",
             }}>
               {/* Sin ejes no se puede descartar un corredor por la órbita, y
                   proponer a ciegas es peor que no proponer. */}
@@ -1846,7 +1846,7 @@ export function TrajectoryTool() {
               {sugerencias.proposals.map((p, i) => (
                 <div key={i} style={{
                   padding: "8px 10px", marginBottom: 6,
-                  borderRadius: "var(--radius-md)", background: "var(--muted)",
+                  borderRadius: "var(--radius-md)", background: "var(--glass-hover)",
                   borderLeft: `3px solid ${p.corridor.verdict === "viable" ? "var(--success)" : "var(--warning)"}`,
                 }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>

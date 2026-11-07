@@ -91,6 +91,7 @@ export function Collapsible({
     <div className="tarjeta-lente" style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", background: "transparent", overflow: "hidden" }}>
       <button
         type="button"
+        className="plegable__cabecera"
         onClick={toggle}
         aria-expanded={open}
         style={{

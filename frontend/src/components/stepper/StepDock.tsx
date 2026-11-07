@@ -8,6 +8,7 @@
    Con ratón (`completo`, `compacto`) el motivo y
    el aviso siguen en el tooltip y en el nombre accesible. */
 
+import { tramoDePaso } from "../../lib/pacientes";
 import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { Icon } from "../Icon";
@@ -286,11 +287,11 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
                 position: "relative",
                 width: lado, height: lado, borderRadius: "50%", flexShrink: 0,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                border: "1px solid " + (active ? "transparent" : "var(--glass-border)"),
+                border: active ? `2px solid var(--tramo-${tramoDePaso(i + 1)})` : "1px solid var(--glass-border)",
                 fontFamily: "var(--font-mono)", fontSize: active ? 18 : 14, fontWeight: 700,
                 cursor: locked ? "not-allowed" : "pointer", opacity: locked ? 0.4 : 1,
-                background: active ? "var(--primary)" : done ? "var(--success-bg)" : "var(--glass-hover)",
-                color: active ? "var(--primary-foreground)" : done ? "var(--success)" : "var(--foreground)",
+                background: active ? "var(--glass-solid)" : done ? "var(--success-bg)" : "var(--glass-hover)",
+                color: done && !active ? "var(--success)" : "var(--foreground)",
               }}
             >
               {/* En táctil el hecho conserva su número (sin tooltip, el ✓ solo

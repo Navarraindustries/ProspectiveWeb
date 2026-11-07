@@ -7,6 +7,7 @@
    (fusiones 7 y 25). */
 
 import { useEffect, useRef, useState } from "react";
+import { glass } from "../../styles/glass";
 import { Icon } from "../Icon";
 import type { IconName } from "../Icon";
 import { ChangePasswordSheet } from "../ChangePasswordSheet";
@@ -33,6 +34,10 @@ function MenuItem({ icon, label, danger, onClick }: { icon: IconName; label: str
     </button>
   );
 }
+
+/* Cuelga de una barra de cristal: un backdrop-filter dentro de otro no ve la página y
+   el texto de detrás se leería a través. Por eso va sobre el fondo opaco del cristal. */
+const MENU = { ...glass("flat"), background: "var(--glass-solid)", boxShadow: "var(--glass-highlight), var(--shadow-md)" };
 
 export function UserMenu() {
   const { user, logout } = useAuth();
@@ -94,7 +99,7 @@ export function UserMenu() {
       </button>
 
       {open && (
-        <div role="menu" aria-label="Cuenta" className="shell-user-menu fade-rise">
+        <div role="menu" aria-label="Cuenta" className="shell-user-menu fade-rise" style={MENU}>
           <div className="shell-user-head">
             <Avatar url={photoUrl} initials={user.avatar_initials ?? ""} size={38} />
             <div className="shell-user-text">

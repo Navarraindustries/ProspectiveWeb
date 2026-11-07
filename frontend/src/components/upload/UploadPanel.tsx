@@ -326,7 +326,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
                 style={{
                   width: "100%", padding: "8px 10px", fontSize: 12,
                   fontFamily: "var(--font-sans)", color: "var(--foreground)",
-                  background: "var(--card)", border: "1px solid var(--border)",
+                  background: "var(--glass)", border: "var(--glass-rim) solid var(--glass-border)",
                   borderRadius: "var(--radius-md)", cursor: switching ? "wait" : "pointer",
                 }}
               >
@@ -415,7 +415,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
                   style={{
                     width: "100%", padding: "8px 10px", fontSize: 12, marginBottom: 10,
                     fontFamily: "var(--font-sans)", color: "var(--foreground)",
-                    background: "var(--card)", border: "1px solid var(--border)",
+                    background: "var(--glass)", border: "var(--glass-rim) solid var(--glass-border)",
                     borderRadius: "var(--radius-md)", cursor: "pointer",
                   }}
                 >

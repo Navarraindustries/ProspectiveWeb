@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { DEFAULT_LAYOUT, type ViewerLayout } from "./layout";
 import { dockCornerSlot, gridFor } from "./layoutGrid";
 
 const css = readFileSync(resolve(__dirname, "hud/hud.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -47,11 +48,12 @@ describe("texto del HUD", () => {
     expect(fila![1]).toMatch(/marginBottom:\s*"var\(--hud-bl-extra,\s*0px\)"/);
   });
   it("la celda bajo el dock es la de abajo a la izquierda de cada distribución", () => {
-    const L = (preset: string) => ({ preset, main: "axial", side: ["coronal", "sagital", "scene"], mainFraction: 0.7 }) as never;
-    expect(dockCornerSlot(gridFor(L("sola"), false).areas)).toBe("main");
-    expect(dockCornerSlot(gridFor(L("derecha"), false).areas)).toBe("main");
-    expect(dockCornerSlot(gridFor(L("abajo"), false).areas)).toBe("s0");
-    expect(dockCornerSlot(gridFor(L("cuatro"), false).areas)).toBe(gridFor(L("cuatro"), false).slotOf.sagital);
+    const L = (over: object) => ({ ...DEFAULT_LAYOUT, main: "axial", side: ["scene", "coronal", "sagital", "mip"], ...over }) as ViewerLayout;
+    expect(dockCornerSlot(gridFor(L({ hidden: ["scene", "coronal", "sagital", "mip"] }), false).areas)).toBe("main");
+    expect(dockCornerSlot(gridFor(L({}), false).areas)).toBe("main");
+    expect(dockCornerSlot(gridFor(L({ preset: "abajo" }), false).areas)).toBe("s0");
+    const iguales = gridFor(L({ equal: true, hidden: ["mip"] }), false);
+    expect(dockCornerSlot(iguales.areas)).toBe(iguales.slotOf.coronal);
   });
 });
 

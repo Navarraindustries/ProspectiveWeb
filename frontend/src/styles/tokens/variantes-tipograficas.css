@@ -1,0 +1,78 @@
+/* ============================================================================
+   UNI-135 · Variantes tipográficas PARA DECIDIR. No son la identidad.
+   Sin `data-tipografia` en <html> no cambia nada: la identidad sigue siendo
+   Inter + JetBrains Mono (typography.css). Se activan con `?tipografia=a|b|c`
+   (ver src/tipografia/variantes.ts) y se quitan con `?tipografia=actual`.
+
+   A · Helvetica como sans de interfaz. La original (Helvetica Neue / Neue Haas
+       Grotesk) es de pago para web y no se autoaloja aquí: se usa la que traiga
+       el sistema (macOS e iOS la traen). En Windows cae a Arial, que copia sus
+       métricas pero no su dibujo (R, G, t, a): para verla de verdad, mirar en un
+       Mac o autoalojar una libre cercana.
+   B · Numerales de matriz de puntos en los datos numéricos (todo lo que usa
+       --font-mono: HUD, ficha, medidas, puntuaciones, progreso). Solo cambian
+       las cifras y sus signos; las letras siguen en JetBrains Mono.
+   C · A + B.
+   ============================================================================ */
+
+/* Doto solo para cifras y los signos que van con ellas (, . % + − ± × /).
+   Misma fuente que --font-cifra, otra familia para poder recortarla a cifras. */
+@font-face {
+  font-family: "Doto Cifras";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../../assets/fonts/Doto-latin.woff2") format("woff2");
+  unicode-range: U+0025, U+002B-002F, U+0030-0039, U+00B1, U+00D7, U+2212;
+}
+
+:root[data-tipografia="a"],
+:root[data-tipografia="c"] {
+  --font-sans: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+}
+
+:root[data-tipografia="b"],
+:root[data-tipografia="c"] {
+  --font-mono: "Doto Cifras", "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* El selector flotante (src/tipografia/SelectorTipografia.tsx). Su propia letra
+   no cambia con la variante, para que no distraiga de lo que se compara. */
+.selector-tipografia {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-dense);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  color: var(--foreground);
+  font: 500 12px/1 system-ui, sans-serif;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+}
+.selector-tipografia button {
+  min-width: 32px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.selector-tipografia button:hover { background: var(--glass-hover); }
+.selector-tipografia button[aria-pressed="true"] {
+  border-color: var(--glass-border);
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.selector-tipografia button:focus-visible { outline: 2px solid var(--ring, var(--accent)); outline-offset: 1px; }
+.selector-tipografia__nombre { padding: 0 6px 0 4px; color: var(--muted-foreground); white-space: nowrap; }
+@media (max-width: 640px) { .selector-tipografia__nombre { display: none; } }

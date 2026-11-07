@@ -221,17 +221,30 @@ describe("tramos de pantalla (fase 8, tarea 12)", () => {
   afterEach(() => vi.unstubAllGlobals());
   const montar = () => render(<MemoryRouter><Login onLogin={() => {}} onSignup={() => {}} /></MemoryRouter>);
 
-  it("a 1707 el panel de marca ocupa el 62%", () => {
-    simularPantalla({ ancho: 1707 });
+  it.each([1707, 1280])("a %i px el vídeo cubre la pantalla y la ventana flota centrada encima (UNI-133)", (ancho) => {
+    simularPantalla({ ancho });
     const { container } = montar();
-    expect(container.querySelector<HTMLElement>(".login-media")!.style.flex).toBe("1 1 62%");
-    expect(container.querySelector<HTMLElement>(".login-form")!.style.minWidth).toBe("320px");
+    const capa = container.querySelector<HTMLElement>(".login-media")!;
+    expect(capa.style.position).toBe("fixed");
+    expect(capa.querySelector("video")).not.toBeNull();
+    // La ventana no está dentro del vídeo: va en la capa de encima, a todo el ancho.
+    const zona = container.querySelector<HTMLElement>(".login-form")!;
+    expect(capa.contains(zona)).toBe(false);
+    expect(zona.style.flex).toBe("1 1 100%");
+    expect(zona).toContainElement(screen.getByRole("region", { name: "Iniciar sesión" }));
+    expect((zona.parentElement as HTMLElement).style.zIndex).toBe("1");
   });
 
-  it("a 1280 cede al 45 %", () => {
-    simularPantalla({ ancho: 1280 });
+  it("sobre el vídeo, el logotipo va arriba a la izquierda con «por SkullApp», y la barra y el pie con el tema oscuro", () => {
+    simularPantalla({ ancho: 1707 });
     const { container } = montar();
-    expect(container.querySelector<HTMLElement>(".login-media")!.style.flex).toBe("1 1 45%");
+    const zona = container.querySelector<HTMLElement>(".login-form")!;
+    const marca = within(zona).getByText("por SkullApp");
+    expect(marca.style.color).toBe("var(--on-media-muted)");
+    expect(marca.closest("[data-theme]")).toHaveAttribute("data-theme", "dark");
+    expect(screen.getByText("Prospective™ Web — Laboratorio de Imagen Médica").closest("[data-theme]")).toHaveAttribute("data-theme", "dark");
+    // La ventana no: sigue el tema de la aplicación.
+    expect(screen.getByRole("region", { name: "Iniciar sesión" }).closest("[data-theme]")).toBeNull();
   });
 
   it.each([1024, 768, 390, 360])("a %i px no hay panel de vídeo: el logotipo va sobre la ventana y nada fuerza ancho mínimo", (ancho) => {

@@ -210,17 +210,15 @@ describe("tramos de pantalla (fase 8, tarea 12)", () => {
   afterEach(() => vi.unstubAllGlobals());
   const montar = () => render(<MemoryRouter><Signup onBack={() => {}} onDone={() => {}} /></MemoryRouter>);
 
-  it("a 1707 el panel de marca ocupa el 56%", () => {
-    simularPantalla({ ancho: 1707 });
+  it.each([1707, 1280])("a %i px el vídeo cubre la pantalla, fijo, y la ventana desplaza encima (UNI-133)", (ancho) => {
+    simularPantalla({ ancho });
     const { container } = montar();
-    expect(container.querySelector<HTMLElement>(".login-media")!.style.flex).toBe("1 1 56%");
-    expect(container.querySelector<HTMLElement>(".login-form")!.style.minWidth).toBe("340px");
-  });
-
-  it("a 1280 cede al 45 %", () => {
-    simularPantalla({ ancho: 1280 });
-    const { container } = montar();
-    expect(container.querySelector<HTMLElement>(".login-media")!.style.flex).toBe("1 1 45%");
+    const capa = container.querySelector<HTMLElement>(".login-media")!;
+    expect(capa.style.position).toBe("fixed");
+    const zona = container.querySelector<HTMLElement>(".login-form")!;
+    expect(capa.contains(zona)).toBe(false);
+    expect(zona.style.flex).toBe("1 1 100%");
+    expect(within(zona).getByText("por SkullApp").closest("[data-theme]")).toHaveAttribute("data-theme", "dark");
   });
 
   it.each([1024, 768, 390, 360])("a %i px no hay panel de vídeo: el logotipo va sobre la ventana y nada fuerza ancho mínimo", (ancho) => {

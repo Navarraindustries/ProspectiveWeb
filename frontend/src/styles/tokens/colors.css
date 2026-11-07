@@ -110,6 +110,9 @@
   --media-track:        rgba(255, 255, 255, 0.18);
   --logo-dot:           #FFFFFF;   /* punto del icono «app» sobre el cuadrado primario */
   --media-vignette:     radial-gradient(120% 100% at 30% 20%, rgba(11, 12, 15, 0.15) 0%, rgba(11, 12, 15, 0.45) 60%, rgba(5, 9, 15, 0.78) 100%);
+  /* Atenuación uniforme del vídeo de marca a pantalla completa (UNI-133): con ella
+     la ventana de cristal que va encima cumple AA aunque el fotograma sea blanco. */
+  --media-atenuacion:   rgba(5, 9, 15, 0.55);
   --media-vignette-centro: radial-gradient(120% 100% at 50% 40%, rgba(11, 12, 15, 0.3), rgba(5, 9, 15, 0.8));
   --glass-blur:         30px;
 
@@ -230,6 +233,9 @@
   --media-track:        rgba(255, 255, 255, 0.18);
   --logo-dot:           #FFFFFF;   /* punto del icono «app» sobre el cuadrado primario */
   --media-vignette:     radial-gradient(120% 100% at 30% 20%, rgba(11, 12, 15, 0.15) 0%, rgba(11, 12, 15, 0.45) 60%, rgba(5, 9, 15, 0.78) 100%);
+  /* Atenuación uniforme del vídeo de marca a pantalla completa (UNI-133): con ella
+     la ventana de cristal que va encima cumple AA aunque el fotograma sea blanco. */
+  --media-atenuacion:   rgba(5, 9, 15, 0.55);
   --media-vignette-centro: radial-gradient(120% 100% at 50% 40%, rgba(11, 12, 15, 0.3), rgba(5, 9, 15, 0.8));
   --glass-blur:         30px;
 

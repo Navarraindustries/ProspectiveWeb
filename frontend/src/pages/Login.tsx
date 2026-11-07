@@ -1,4 +1,5 @@
-/* Login — panel de marca + formulario. Autenticación real con JWT. */
+/* Login — el vídeo de marca a pantalla completa y la ventana del formulario
+   encima (UNI-133). Autenticación real con JWT. */
 
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -7,8 +8,8 @@ import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Icon } from "../components/Icon";
 import { Logo } from "../components/shell/Logo";
-import { useTableta, useEstrecho } from "../hooks/useEstrecho";
-import { AuthBrand } from "../components/shell/AuthBrand";
+import { useTableta } from "../hooks/useEstrecho";
+import { AuthBrand, BARRA_SOBRE_VIDEO } from "../components/shell/AuthBrand";
 import { AuthWindow } from "../components/shell/AuthWindow";
 import { Ambiente } from "../components/Ambiente";
 import { ThemeToggle } from "../components/ThemeToggle";
@@ -47,7 +48,6 @@ export function loginErrorMessage(err: unknown): string {
 export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSignup: () => void; notice?: string | null }) {
   const { login } = useAuth();
   const tableta = useTableta();
-  const estrecho = useEstrecho();
   const navigate = useNavigate();
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
@@ -81,16 +81,30 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
 
   return (
     <Ambiente>
-      <div style={{ display: "flex", minHeight: "100dvh" }}>
-        {!tableta && <AuthBrand flex={estrecho ? "1 1 45%" : "1 1 62%"} />}
-
-        {/* Zona del formulario: la ventana de cristal, centrada sobre el Ambiente. */}
-        <div className="login-form" style={{ flex: tableta ? "1 1 100%" : "1 1 38%", display: "flex", flexDirection: "column", padding: "0 16px", minWidth: tableta ? "0px" : 320 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 24 }}>
-            <Button variant="ghost" size={tableta ? "md" : "sm"} leadingIcon={<Icon name="BACK" />} onClick={() => navigate("/")}>
-              Página principal
-            </Button>
-            <ThemeToggle size={tableta ? "lg" : "md"} />
+      {/* Desde 1024 px el vídeo cubre la pantalla, fijo, por debajo de todo; en
+          tableta y móvil no se pinta y la ventana va sobre el Ambiente. */}
+      {!tableta && <AuthBrand />}
+      <div style={{ position: "relative", zIndex: 1, display: "flex", minHeight: "100dvh" }}>
+        {/* Zona del formulario: la ventana de cristal, centrada. */}
+        <div className="login-form" style={{ flex: "1 1 100%", display: "flex", flexDirection: "column", padding: tableta ? "0 16px" : "0 32px", minWidth: "0px" }}>
+          {/* Sobre el vídeo, la barra va con los tokens del tema oscuro en los dos temas. */}
+          <div {...(tableta ? {} : BARRA_SOBRE_VIDEO)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, paddingTop: 24 }}>
+            {!tableta && (
+              <button
+                type="button"
+                onClick={() => navigate("/")}
+                title="Ir a la página principal"
+                style={{ display: "inline-flex", alignItems: "center", background: "transparent", border: "none", cursor: "pointer", padding: 0, color: "var(--on-media)" }}
+              >
+                <Logo variante="linea" size={34} tono="media" />
+              </button>
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: tableta ? 1 : undefined, justifyContent: "space-between" }}>
+              <Button variant="ghost" size={tableta ? "md" : "sm"} leadingIcon={<Icon name="BACK" />} onClick={() => navigate("/")}>
+                Página principal
+              </Button>
+              <ThemeToggle size={tableta ? "lg" : "md"} />
+            </div>
           </div>
           {tableta && (
             <div style={{ display: "flex", justifyContent: "center", paddingTop: 16 }}>
@@ -148,7 +162,7 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
               </AuthWindow>
             </div>
           </div>
-          <div style={{ textAlign: "center", paddingBottom: 24, fontSize: 13, color: "var(--muted-foreground)" }}>
+          <div {...(tableta ? {} : BARRA_SOBRE_VIDEO)} style={{ textAlign: "center", paddingBottom: 24, fontSize: 13, color: "var(--muted-foreground)" }}>
             Prospective™ Web — Laboratorio de Imagen Médica
           </div>
         </div>

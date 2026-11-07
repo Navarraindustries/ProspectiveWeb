@@ -149,6 +149,7 @@ Componente nuevo: ventana de cristal centrada de 640 px que entra desenfocándos
 Tablero de referencia: `D-Entrar.dc.html`.
 
 - Entrar y Crear cuenta: `intro.mp4` sin cambiar el fichero como panel de marca (con el velo actual `--media-vignette`), lema «Planificación neurovascular con datos» y «Del DICOM al clip, en un solo espacio de trabajo.»; formulario en una ventana de cristal denso a la derecha sobre el `Entorno` («Iniciar sesión», Usuario, Contraseña, «Entrar», «¿No tienes cuenta? Crear cuenta», aviso de que un administrador puede restablecer la contraseña). Se conservan los comportamientos actuales de error, comprobando y bloqueo, y los textos que prueban `Login.test.tsx` y `Signup.test.tsx`. `ForcePasswordChange` usa la misma ventana.
+  - **Cambio 07-11 (UNI-133):** desde 1024 px el vídeo ya no es un panel: cubre toda la pantalla, fijo (`object-fit: cover`), bajo `--media-atenuacion` y el viñeteado, y la ventana de cristal flota centrada encima. Logotipo arriba a la izquierda; lema y frase abajo a la izquierda, sin llegar nunca debajo de la ventana. Lo que va sobre el vídeo (barra, lema, pie) usa los tokens del tema oscuro en los dos temas; la ventana sigue el tema. Movimiento reducido: primer fotograma fijo. Por debajo de 1024 px, como antes: sin vídeo, sobre el Ambiente.
 - Pantalla de carga (`LoadingScreen.tsx`): `loading.mp4` igual que hoy, con la marca, la barra y el texto en una pastilla de cristal; al terminar, la ventana de la oficina entra con `glide`.
 
 ### 5.8 Landing

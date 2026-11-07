@@ -47,12 +47,12 @@
 ## Overview
 
 PROSPECTIVE Web is a clinical decision-support system for neurosurgical planning
-of cerebral aneurysms. A clinician uploads a DICOM study and walks a seven-step
+of cerebral aneurysms. A clinician uploads a DICOM study and walks an eight-step
 pipeline, with every step rendered live in 3D:
 
 ```
 1 DICOM upload  →  2 Segmentation  →  3 Detection  →  4 Morphometry
-      →  5 Treatment decision  →  6 Devices  →  7 Report
+      →  5 Treatment decision  →  6 Devices  →  7 Manufacture  →  8 Report
 ```
 
 All medical image processing runs on the server (VTK + SimpleITK); the browser
@@ -76,9 +76,9 @@ approval, and a tamper-evident audit chain.
 
 | | |
 |---|---|
-| Backend tests | **1594 passing** (`pytest`, 105 files) |
-| Frontend tests | **459 passing** (`vitest`, 65 files) · `tsc -b` clean · production build clean |
-| REST endpoints | **160** operations (30 routers), all authenticated except login/signup/logout; `/docs` and `/openapi.json` also require a session |
+| Backend tests | **2306** (`pytest`, 165 files) |
+| Frontend tests | **2799** (`vitest`, 259 files) · `tsc -b` clean · production build clean |
+| REST endpoints | **168** operations (30 routers), all authenticated except login/signup/logout; `/docs` and `/openapi.json` also require a session |
 | Feature parity with desktop | **Complete** |
 
 ---
@@ -111,10 +111,10 @@ ProspectiveWeb/
 ├── backend/
 │   ├── main.py             # FastAPI app: lifespan, CORS, static mounts, guarded routers
 │   ├── requirements.txt
-│   ├── models/    (20)     # Pydantic request/response schemas
-│   ├── routers/   (23)     # Route handlers, one file per domain
-│   ├── services/  (40)     # Qt-free business logic, shared with the desktop app
-│   ├── test_*.py  (39)     # pytest suites
+│   ├── models/    (25)     # Pydantic request/response schemas
+│   ├── routers/   (30)     # Route handlers, one file per domain
+│   ├── services/  (83)     # Qt-free business logic, shared with the desktop app
+│   ├── test_*.py  (165)    # pytest suites
 │   ├── data/               # PUBLIC static mount — sessions, meshes, reports
 │   ├── clip_library/       # PRIVATE: institutional clips + templates (gitignored)
 │   ├── study_files/        # PRIVATE archive: DICOM of archived studies (gitignored)
@@ -128,7 +128,7 @@ ProspectiveWeb/
     │   ├── components/     # Design-system primitives + one panel per pipeline step
     │   ├── vtk/            # MeshView · VolumeView · MprView · ObliqueMprView · Viewer
     │   ├── store/          # planning · auth · nav · theme contexts
-    │   ├── *.test.*  (8)   # vitest + Testing Library suites
+    │   ├── **/*.test.* (259) # vitest + Testing Library suites, next to their code
     │   └── styles/tokens/  # Design tokens (light/dark via [data-theme])
     └── public/media/       # Intro / loading / landing videos
 ```
@@ -3631,9 +3631,6 @@ clinician.
 - **Recordings run at up to 30 fps only while the tab is visible.** In a
   background tab the browser throttles timers to about once a second, so the
   video keeps going but with few frames.
-- **CSRF relies on `SameSite=Lax`.** The auth cookie is not sent on cross-site
-  requests, and the API only accepts JSON, but there is no anti-CSRF token. Add
-  one before serving the app from a domain that also hosts untrusted content.
 
 **Clinical accuracy** (needs annotated ground truth, not a patch)
 

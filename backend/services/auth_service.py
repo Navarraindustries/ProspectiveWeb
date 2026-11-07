@@ -1,7 +1,8 @@
 """JWT authentication helpers + FastAPI dependencies — Session D.
 
 Token format: Bearer JWT (HS256).
-Secret key: env var JWT_SECRET or auto-generated and persisted to data/jwt_secret.txt.
+Secret key: env var JWT_SECRET or auto-generated and persisted to secrets/jwt_secret.txt
+(outside the public /data mount; an old data/jwt_secret.txt is migrated, see below).
 
 Dependencies (for use in FastAPI endpoint signatures)
 -----------------------------------------------------

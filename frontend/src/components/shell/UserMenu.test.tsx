@@ -97,3 +97,52 @@ describe("UserMenu", () => {
     p.restaurar();
   });
 });
+
+describe("UserMenu con teclado (UNI-85, patrón menu button)", () => {
+  const items = () => screen.getAllByRole("menuitem");
+  const tecla = (key: string) => fireEvent.keyDown(document.activeElement!, { key });
+
+  it("al abrir, el foco va al primer elemento", () => {
+    abrir();
+    expect(document.activeElement).toBe(items()[0]);
+  });
+
+  it("↑ y ↓ recorren en círculo; Inicio y Fin van a los extremos", () => {
+    abrir();
+    const [primero, ultimo] = [items()[0], items()[items().length - 1]];
+    tecla("ArrowDown");
+    expect(document.activeElement).toBe(ultimo);
+    tecla("ArrowDown");
+    expect(document.activeElement).toBe(primero);
+    tecla("ArrowUp");
+    expect(document.activeElement).toBe(ultimo);
+    tecla("Home");
+    expect(document.activeElement).toBe(primero);
+    tecla("End");
+    expect(document.activeElement).toBe(ultimo);
+  });
+
+  it("Esc cierra y devuelve el foco al botón", () => {
+    abrir();
+    tecla("Escape");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Menú de usuario" }));
+  });
+
+  it("Tab cierra y devuelve el foco al botón", () => {
+    abrir();
+    tecla("Tab");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Menú de usuario" }));
+  });
+
+  it("un clic fuera cierra sin robar el foco", () => {
+    render(<><button type="button">otro</button><UserMenu /></>);
+    fireEvent.click(screen.getByRole("button", { name: "Menú de usuario" }));
+    const otro = screen.getByRole("button", { name: "otro" });
+    otro.focus();
+    fireEvent.mouseDown(otro);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(otro);
+  });
+});

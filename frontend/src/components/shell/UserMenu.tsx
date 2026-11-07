@@ -4,9 +4,13 @@
    «Cambiar contraseña» y «Cerrar sesión».
 
    Las secciones ya no están aquí: viven en la barra lateral, un solo sitio
-   (fusiones 7 y 25). */
+   (fusiones 7 y 25).
 
-import { useEffect, useRef, useState } from "react";
+   Teclado (UNI-85, patrón «menu button» de ARIA): al abrir, el foco va al primer
+   elemento; ↑/↓ recorren en círculo, Inicio/Fin van al primero y al último; Esc
+   y Tab cierran y devuelven el foco al botón. */
+
+import { useEffect, useRef, useState, type KeyboardEvent as KeyboardEventReact } from "react";
 import { glass } from "../../styles/glass";
 import { Icon } from "../Icon";
 import type { IconName } from "../Icon";
@@ -46,6 +50,8 @@ export function UserMenu() {
   const [pwOpen, setPwOpen] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const botonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   // En tableta el botón mide 44: el avatar sube a 34 y la inicial a 13 px (R31).
   const tableta = useTableta();
 
@@ -61,13 +67,18 @@ export function UserMenu() {
     return () => { alive = false; if (created) URL.revokeObjectURL(created); };
   }, [user?.has_photo]);
 
-  // Se cierra con un clic fuera o con Escape.
+  // Al abrir, el foco va al primer elemento del menú.
+  useEffect(() => {
+    if (open) elementos()[0]?.focus();
+  }, [open]);
+
+  // Se cierra con un clic fuera o con Escape; Escape devuelve el foco al botón.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") cerrarAlBoton(); };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -75,6 +86,27 @@ export function UserMenu() {
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
+
+  function elementos(): HTMLElement[] {
+    return [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+  }
+
+  function cerrarAlBoton() {
+    setOpen(false);
+    botonRef.current?.focus();
+  }
+
+  const onMenuKey = (e: KeyboardEventReact<HTMLDivElement>) => {
+    const items = elementos();
+    if (!items.length) return;
+    const i = items.indexOf(document.activeElement as HTMLElement);
+    const ir = (j: number) => { e.preventDefault(); items[(j + items.length) % items.length].focus(); };
+    if (e.key === "ArrowDown") ir(i + 1);
+    else if (e.key === "ArrowUp") ir(i < 0 ? items.length - 1 : i - 1);
+    else if (e.key === "Home") ir(0);
+    else if (e.key === "End") ir(items.length - 1);
+    else if (e.key === "Tab") { e.preventDefault(); cerrarAlBoton(); }
+  };
 
   if (!user) return null;
 
@@ -87,6 +119,7 @@ export function UserMenu() {
   return (
     <div ref={ref} className="shell-user">
       <button
+        ref={botonRef}
         type="button"
         className="shell-user-btn"
         aria-label="Menú de usuario"
@@ -99,7 +132,7 @@ export function UserMenu() {
       </button>
 
       {open && (
-        <div role="menu" aria-label="Cuenta" className="shell-user-menu fade-rise" style={MENU}>
+        <div ref={menuRef} role="menu" aria-label="Cuenta" className="shell-user-menu fade-rise" style={MENU} onKeyDown={onMenuKey}>
           <div className="shell-user-head">
             <Avatar url={photoUrl} initials={user.avatar_initials ?? ""} size={38} />
             <div className="shell-user-text">

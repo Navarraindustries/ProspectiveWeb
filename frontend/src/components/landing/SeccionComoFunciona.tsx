@@ -1,13 +1,19 @@
 /* «Cómo funciona»: los pasos con su icono se encienden al avanzar el scroll. Por
    encima de 1024 van en un dial, con el paso actual en el centro; por debajo, en un
-   riel vertical. Con movimiento reducido aparece todo encendido y sin animación. */
+   riel vertical. Con movimiento reducido aparece todo encendido y sin animación.
 
-import { useRef, useState, type CSSProperties } from "react";
+   UNI-132: en escritorio el dial se queda fijo bajo la nav mientras el scroll lo
+   avanza, y se suelta en el último paso (ver fijado.ts). En tableta y móvil el
+   riel vertical sigue como antes; con movimiento reducido no se fija nada. */
+
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTableta } from "../../hooks/useEstrecho";
 import { STEPS } from "../../pipeline/steps";
 import { Icon, type IconName } from "../Icon";
 import { motion, useMotionValueEvent, useReducedMotion, useScroll } from "../../motion";
 import { pasosEncendidos } from "./riel";
+import { ALTO_FIJO, OFFSET_FIJADO, altoRecorrido, escalaDial } from "./fijado";
+import { DESFASE_NAV } from "./desplazamiento";
 import { RevelarItem, Seccion } from "./Seccion";
 
 /* La portada decía «siete pasos» sobre una lista que ya tenía ocho: los
@@ -29,13 +35,34 @@ const LINEA_PASO: Record<string, string> = {
 
 const ICONO_PASO: Record<string, IconName> = { manufacture: "WORKSHOP" };
 
+/** Escala del dial según el alto de la pantalla (cabe en el tramo fijo). */
+function useEscalaDial(activo: boolean): number {
+  const [escala, setEscala] = useState(() => (activo ? escalaDial(window.innerHeight) : 1));
+  useEffect(() => {
+    if (!activo) return;
+    const medir = () => setEscala(escalaDial(window.innerHeight));
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, [activo]);
+  return activo ? escala : 1;
+}
+
 export function ComoFunciona() {
   const reducido = useReducedMotion() ?? false;
   const vertical = useTableta();
   const disposicion = vertical ? "vertical" : "horizontal";
   const olRef = useRef<HTMLOListElement>(null);
+  const recorridoRef = useRef<HTMLDivElement>(null);
+  // El dial se fija en escritorio; el riel vertical y el movimiento reducido, no.
+  const fijado = !vertical && !reducido;
+  const escala = useEscalaDial(fijado);
   const [encendidos, setEncendidos] = useState(reducido ? STEPS.length : 0);
-  const { scrollYProgress } = useScroll({ target: olRef, offset: ["start 75%", "end 55%"] });
+  // Fijado: el progreso va de 0 a 1 justo en el tramo en que el dial está fijo.
+  // Sin fijar (riel vertical): sobre la lista, como siempre.
+  const { scrollYProgress } = useScroll(fijado
+    ? { target: recorridoRef, offset: [...OFFSET_FIJADO] }
+    : { target: olRef, offset: ["start 75%", "end 55%"] });
   useMotionValueEvent(scrollYProgress, "change", (v) => {
     if (!reducido) setEncendidos(pasosEncendidos(v, STEPS.length));
   });
@@ -47,9 +74,10 @@ export function ComoFunciona() {
       rotulo="Cómo funciona"
       titulo={`Del estudio al plan, en ${spell(STEPS.length)} pasos y en el orden de la cirugía`}
     >
+      <Fijador activo={fijado} refRecorrido={recorridoRef}>
       {/* La pista va en el marco, junto al <ol> y no dentro: una lista solo tiene <li>. */}
       <div className="riel__marco" data-disposicion={disposicion}
-           style={vertical ? undefined : ({ "--avance": Math.max(total - 1, 0) / STEPS.length } as CSSProperties)}>
+           style={vertical ? undefined : ({ "--avance": Math.max(total - 1, 0) / STEPS.length, ...(escala < 1 ? { zoom: escala } : {}) } as CSSProperties)}>
         <div className="riel__pista" aria-hidden="true">
           <motion.div
             className="riel__relleno"
@@ -84,6 +112,33 @@ export function ComoFunciona() {
           </div>
         )}
       </div>
+      </Fijador>
     </Seccion>
+  );
+}
+
+/** El contenedor alto y el tramo fijo del dial; sin fijar, el dial tal cual. */
+function Fijador({ activo, refRecorrido, children }: {
+  activo: boolean;
+  refRecorrido: React.RefObject<HTMLDivElement | null>;
+  children: React.ReactNode;
+}) {
+  if (!activo) return <>{children}</>;
+  return (
+    <div ref={refRecorrido} className="riel__recorrido" style={{ position: "relative", height: altoRecorrido(STEPS.length) }}>
+      <div
+        className="riel__fijo"
+        style={{
+          position: "sticky",
+          top: DESFASE_NAV,
+          height: ALTO_FIJO,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {children}
+      </div>
+    </div>
   );
 }

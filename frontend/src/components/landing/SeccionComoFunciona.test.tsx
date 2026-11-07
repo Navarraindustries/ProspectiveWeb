@@ -73,6 +73,32 @@ describe("ComoFunciona", () => {
     expect(relleno.style.transform).toMatch(/scaleX\(0\)/);
   });
 
+  it("en escritorio el dial va fijo bajo la nav dentro de un recorrido alto (UNI-132)", () => {
+    simularPantalla(1280);
+    const { container } = render(<ComoFunciona />);
+    const recorrido = container.querySelector<HTMLElement>(".riel__recorrido")!;
+    expect(recorrido.style.height).toBe("415vh");
+    const fijo = recorrido.querySelector<HTMLElement>(":scope > .riel__fijo")!;
+    expect(fijo.style.position).toBe("sticky");
+    expect(fijo.style.top).toBe("96px");
+    expect(fijo).toContainElement(container.querySelector<HTMLElement>(".riel__marco"));
+  });
+
+  it("en tableta y móvil el riel vertical no se fija", () => {
+    simularPantalla(768);
+    const { container } = render(<ComoFunciona />);
+    expect(container.querySelector(".riel__recorrido")).toBeNull();
+    expect(container.querySelector(".riel__fijo")).toBeNull();
+  });
+
+  it("con movimiento reducido no hay fijado: todos los pasos encendidos a la vista", () => {
+    reducida.valor = true;
+    simularPantalla(1280);
+    const { container } = render(<ComoFunciona />);
+    expect(container.querySelector(".riel__recorrido")).toBeNull();
+    for (const li of within(screen.getByRole("list")).getAllByRole("listitem")) expect(li).toHaveAttribute("data-encendido", "true");
+  });
+
   it("con movimiento reducido, todo encendido y sin transformación", () => {
     reducida.valor = true;
     const { container } = render(<ComoFunciona />);

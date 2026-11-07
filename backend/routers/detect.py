@@ -497,11 +497,13 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     una sola instancia por petición. *top* es el tope del consenso: el banco
     de pruebas (`eval/detection_bench.py`) pide más de 5 para poder aplicar
     los vetos antes de cortar.
+
+    Si el detector trae `curvature_caps` (dos topes o más), todo lo anterior
+    se repite con cada tope y las listas se combinan por puesto mediano
+    (`combine_caps`); los diagnósticos son los del tope central.
     """
-    from services.aneurysm_consensus import consensus, promote_coarse
+    from services.aneurysm_consensus import combine_caps
     from services.head_crop import crop_to_head
-    from services.hu_floor import HuFloor, drop_air
-    from services.segmentation import decimate_to, decimate_to_edge
 
     if detector is None:
         detector = _detector_for_modality(modality)
@@ -510,8 +512,57 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
     # ninguna de las 122 lesiones (services/head_crop.py). En 3DRA y cabeza
     # sola la malla no llega a los 140 mm y es el mismo objeto.
     poly, crop = crop_to_head(poly)
+    caps = _curvature_caps(detector)
+    if len(caps) < 2:
+        hits, det_result = _detect_hits_cap(poly, modality, detector, session_id, top,
+                                            volume, caps[0] if caps else _CURVATURE_MAX_VERTS)
+    else:
+        long = max(top, _CAPS_LONG)
+        shared: dict = {}
+        lists, results = [], []
+        for cap in caps:
+            h, d = _detect_hits_cap(poly, modality, detector, session_id, long, volume, cap,
+                                    shared=shared)
+            lists.append(h)
+            results.append(d)
+        logger.info("Combined list of %d curvature caps: %s", len(caps), caps)
+        hits = combine_caps(lists, absent=long + 1)[:top]
+        det_result = results[len(results) // 2]
+    # Para el registro del banco y el diagnóstico, como `geometric_error`.
+    det_result.head_crop = crop.as_dict()
+    return hits, det_result
+
+
+#: Cuántos sitios de cada tope entran en la lista combinada: los 40 de la
+#: lista larga del banco, con los que se simuló (`combine_caps`). Un sitio que
+#: un tope no trae cuenta como puesto 41.
+_CAPS_LONG: int = 40
+
+
+def _curvature_caps(detector: AneurysmDetector) -> list[int]:
+    """Los topes de `detector.curvature_caps` («78000,80000,82000»), en orden."""
+    raw = str(getattr(detector, "curvature_caps", "") or "")
+    caps = sorted({int(float(t)) for t in raw.replace(";", ",").split(",") if t.strip()})
+    if any(c < 1_000 for c in caps):
+        raise ValueError(f"curvature_caps inválido: {raw!r}")
+    return caps
+
+
+def _detect_hits_cap(poly: "vtk.vtkPolyData", modality: str, detector: AneurysmDetector,
+                     session_id: str | None, top: int,
+                     volume: "tuple[np.ndarray, tuple[float, float, float]] | None",
+                     cap: int, shared: dict | None = None):
+    """`_detect_hits` con UN tope de curvatura, sobre la malla ya recortada.
+
+    *shared*, si se da, guarda lo que no depende del tope (la copia gruesa y
+    su curvatura) para la siguiente llamada con otro tope.
+    """
+    from services.aneurysm_consensus import consensus, promote_coarse
+    from services.hu_floor import HuFloor, drop_air
+    from services.segmentation import decimate_to, decimate_to_edge
+
     n = poly.GetNumberOfPoints()
-    curv = decimate_to(poly, _CURVATURE_MAX_VERTS)
+    curv = decimate_to(poly, cap)
     # Por debajo del tope no se toca: la copia ES la malla (mismo objeto), y el
     # resultado es exactamente el de antes de existir esta función.
     if n <= _DETECT_MAX_VERTS:
@@ -550,9 +601,13 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
                      geometric_cache=geo_cache)
     floor = HuFloor(applied=False)
     is_ct = modality.upper().startswith("CT")
+    if shared is None:
+        shared = {}
     if is_ct:
         if volume is None and session_id:
-            volume = _session_volume(session_id)
+            if "volume" not in shared:
+                shared["volume"] = _session_volume(session_id)
+            volume = shared["volume"]
         if volume is not None:
             hits, floor = drop_air(hits, *volume)
     coarse_edge = getattr(detector, "coarse_edge_mm", None)
@@ -563,12 +618,20 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
         # delante de la lista fina.
         if session_id:
             progress.update(session_id, "curvatura gruesa", 70)
-        coarse_poly = decimate_to_edge(poly, float(coarse_edge),
-                                       int(detector.coarse_max_vertices))
-        logger.info("Coarse curvature copy: %d vertices (edge %.2f mm)",
-                    coarse_poly.GetNumberOfPoints(), float(coarse_edge))
-        coarse_det = (det_result if coarse_poly.GetNumberOfPoints() == curv.GetNumberOfPoints()
-                      else detector.detect(coarse_poly))
+        # La copia gruesa sale de la malla, no del tope: con varios topes se
+        # hace una vez. Su curvatura también, salvo que coincida con la fina.
+        if "coarse_poly" not in shared:
+            shared["coarse_poly"] = decimate_to_edge(poly, float(coarse_edge),
+                                                     int(detector.coarse_max_vertices))
+            logger.info("Coarse curvature copy: %d vertices (edge %.2f mm)",
+                        shared["coarse_poly"].GetNumberOfPoints(), float(coarse_edge))
+        coarse_poly = shared["coarse_poly"]
+        if coarse_poly.GetNumberOfPoints() == curv.GetNumberOfPoints():
+            coarse_det = det_result
+        else:
+            if "coarse_det" not in shared:
+                shared["coarse_det"] = detector.detect(coarse_poly)
+            coarse_det = shared["coarse_det"]
         coarse_hits = consensus(coarse_poly, detector, top=2 * top, geometric_poly=small,
                                 curvature_result=coarse_det, tree_poly=poly,
                                 geometric_cache=geo_cache)
@@ -578,8 +641,6 @@ def _detect_hits(poly: "vtk.vtkPolyData", modality: str,
                               min_diameter_mm=float(detector.coarse_promote_min_mm),
                               top=int(detector.coarse_promote_top))
     hits = hits[:top]
-    # Para el registro del banco y el diagnóstico, como `geometric_error`.
-    det_result.head_crop = crop.as_dict()
     det_result.hu_floor = floor.as_dict()
     return hits, det_result
 

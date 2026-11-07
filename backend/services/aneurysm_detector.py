@@ -329,6 +329,7 @@ class AneurysmDetector:
         coarse_max_vertices:       int = 120_000,
         coarse_promote_min_mm:     float = 12.0,
         coarse_promote_top:        int = 2,
+        curvature_caps:            str = "",
     ) -> None:
         self.min_mean_curv_radius      = min_mean_curv_radius
         self.gauss_percentile          = gauss_percentile
@@ -418,6 +419,16 @@ class AneurysmDetector:
         self.coarse_max_vertices       = coarse_max_vertices
         self.coarse_promote_min_mm     = coarse_promote_min_mm
         self.coarse_promote_top        = coarse_promote_top
+        #: Lista combinada de varios topes de la copia de curvatura (07-11).
+        #: Vacío = un solo tope, el de siempre. Con «78000,80000,82000»,
+        #: `routers.detect._detect_hits` hace la detección entera con cada tope
+        #: y ordena los sitios por su puesto MEDIANO
+        #: (`aneurysm_consensus.combine_caps`). Un cambio del 2,5 % en el tope
+        #: movía hasta 10 lesiones dentro y fuera de los 5 (informe §4.22);
+        #: la mediana de tres se queda con lo que dicen dos de ellas. Cuesta
+        #: una detección por tope. Es texto para que el banco lo pase con
+        #: `--set curvature_caps=78000,80000,82000`.
+        self.curvature_caps            = curvature_caps
 
     # ------------------------------------------------------------------ #
     # Public API                                                           #

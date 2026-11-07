@@ -423,6 +423,57 @@ def promote_coarse(fine: list[ConsensusHit], coarse: list[ConsensusHit], *,
     return out
 
 
+#: Radio mínimo con el que dos sitios de topes distintos son el mismo: el
+#: mismo suelo que usa el banco para decir que un sitio acierta una lesión
+#: (`scripts/bench_detector.py`, `MIN_MATCH_MM`).
+CAP_MERGE_MIN_MM: float = 5.0
+
+
+def combine_caps(lists: list[list[ConsensusHit]], absent: int) -> list[ConsensusHit]:
+    """Una lista de las listas que dan varios topes de la copia de curvatura.
+
+    Cada sitio de cada lista se junta con el sitio más cercano ya visto de
+    OTRA lista si está a ≤ max(su radio, el del otro), con radio
+    max(`CAP_MERGE_MIN_MM`, diámetro). Cada lista aporta como mucho un sitio
+    a cada grupo. Un grupo se ordena por la MEDIANA de sus puestos (puesto
+    `absent` en las listas donde no sale) y, a igualdad, por su mejor puesto.
+    Representa al grupo el sitio de su mejor puesto: es el que se pinta y se
+    mide.
+
+    Por qué la mediana y no la media: con tres topes, la mediana es lo que
+    dicen dos de ellos, y un tope que pierde la región (puesto `absent`) no
+    hunde al sitio. Simulado sobre los registros de cinco topes de los 172 de
+    Zenodo (07-11): entre los 5, de 62–72 con un tope a 64–69 con la mediana
+    de tres (61–68 con la media).
+    """
+    groups: list[dict] = []
+    for i, lst in enumerate(lists):
+        for rank, h in enumerate(lst, start=1):
+            r = max(CAP_MERGE_MIN_MM, hit_diameter_mm(h))
+            p = np.asarray(h.position, dtype=float)
+            best, best_d = None, float("inf")
+            for g in groups:
+                if i in g["ranks"]:
+                    continue
+                d = float(np.linalg.norm(p - g["pos"]))
+                if d <= max(r, g["radius"]) and d < best_d:
+                    best, best_d = g, d
+            if best is None:
+                groups.append({"pos": p, "radius": r, "hit": h, "ranks": {i: rank}})
+                continue
+            others = min(best["ranks"].values())
+            best["ranks"][i] = rank
+            if rank < others:
+                best["pos"], best["radius"], best["hit"] = p, r, h
+    n = len(lists)
+
+    def key(g: dict) -> tuple[float, int]:
+        rs = [g["ranks"].get(i, absent) for i in range(n)]
+        return float(np.median(rs)), min(rs)
+
+    return [g["hit"] for g in sorted(groups, key=key)]
+
+
 def order_hits(hits: list[ConsensusHit]) -> list[ConsensusHit]:
     """El orden de la lista corta: borde al final; mejor puesto; más canales;
     menor suma; y el orden de los canales.

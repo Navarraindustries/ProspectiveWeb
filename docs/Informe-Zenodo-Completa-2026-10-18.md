@@ -1873,8 +1873,69 @@ mallas de la corteza, la copia fina de cada estudio se diezma a la misma arista 
 envolvente (`backend/data/exp_fina_densidad.py`). Si la caída viniese de ese tope, las lesiones volverían. No vuelven:
 61 / 72 / 33 / 91 / 54 frente a 71 / 80 / 36 / 96 / 59, y las < 5 mm entre 5 quedan en 5 (eran 13; con el tope, 7). Entre
 10 y en 1.º mejora algo respecto al tope (69 → 72, 29 → 33), pero entre 5 no se mueve. Con la misma resolución en mm la
-pérdida sigue: la causa está en lo que la regla quita de la malla, no en cómo se diezma. Que quite parte de lesiones
-pequeñas o vasos junto al cráneo es lo probable; no está medido.
+pérdida sigue. De ahí se dedujo que la causa estaba en lo que la regla quita de la malla, y que lo probable era que se
+llevase parte de lesiones pequeñas o vasos junto al cráneo. **Esa explicación era falsa en lo que toca a las lesiones**:
+ver las dos medidas siguientes.
+
+**¿Quita superficie de las lesiones? No (06-11).** Comparando lesión a lesión las mallas de la envolvente y las de la
+corteza, el recubrimiento baja más de 0,15 en 0 de 122. De las 17 que salen de los 5, 12 salen por orden y 5 porque se
+quedan sin región; entran 7. La superficie de la lesión sigue intacta y aun así su región de curvatura cambia: en 004 pasa
+de 51 a 5 puntos y en 083 de 16 a 206. Lo que cambia es la región que forma el detector, no lo que queda de la lesión.
+
+**¿Cuánto se mueve la cifra sin tocar la malla? (06-11, `zenodo_eval_perturba_78000`).** Mismas mallas de la envolvente,
+mismo detector, 172/172 sin errores; lo único distinto es el tope de la copia de curvatura, 78 000 en vez de 80 000
+(−2,5 %, sin sentido clínico; `backend/data/exp_perturba.py`).
+
+| | Referencia (tope 80 000) | Tope 78 000, misma malla | Corteza |
+|---|---|---|---|
+| Entre 5 / entre 10 | 71 / 80 | 65 / 74 | 61 / 69 |
+| En 1.º / en lista | 36 / 96 | 37 / 91 | 29 / 94 |
+| Estudios (de 82) / fuera de la malla | 59 / 5 | 57 / 5 | 53 / 5 |
+| Entre 5 por tamaño (< 5 / 5–10 / ≥ 10 mm) | 13 / 17 / 41 | 10 / 15 / 40 | 7 / 15 / 39 |
+| Hueso en controles (de 450) | 110 | 110 | 88 |
+| Salen de los 5 / entran | — | 9 / 3 | 17 / 7 |
+
+Salen 9 (6 por orden, 3 sin región) y entran 3, sin que cambie ni un vértice de la malla. Cinco de esas 9 también salen
+con la corteza (126_2, 126_3, 035_4, 033_2 y 024). Tres lecturas con ese único tope, que el bloque siguiente completa:
+
+- Seis de los 10 puestos que pierde la corteza entre 5 caben en lo que mueve un cambio de tope sin sentido clínico: **no se
+  puede atribuir a la regla toda la caída**. Lo que queda por encima (4 entre 5 y 7 primeros puestos) es una sola
+  comparación y no tiene aún barra de error.
+- La cifra de 71 tiene un margen que no conocemos. Es **una** repetición, y salen tres veces más de las que entran, que es
+  lo que se esperaría si el 71 estuviese en la parte alta de lo que da el detector en estas mallas (el tope de 80 000 se
+  conservó tras medir 40 000, 60 000, 160 000 y 240 000 sobre estos mismos estudios). Es una hipótesis: con una sola
+  repetición no se puede separar de la casualidad.
+- Las diferencias de pocas lesiones entre medidas adoptadas (67 → 68, 68 → 71) quedan dentro de esa oscilación. No las
+  invalida, porque cada una se adoptó también por lo que hacía lesión a lesión, pero una cifra sola no las demuestra. La
+  subida de fondo (4 → 71) está muy por encima de cualquier oscilación medida.
+
+**Cinco topes: el rango real (06-11, `zenodo_eval_perturba_76000`, `_79000` y `_82000`).** Mismas mallas, mismo detector,
+172/172 sin errores en cada pasada; solo cambia el tope de la copia de curvatura.
+
+| Tope | Entre 5 | Entre 10 | En 1.º | En lista | Estudios | Entre 5 por tamaño | Hueso en controles (de 450) |
+|---|---|---|---|---|---|---|---|
+| 76 000 | 62 | 74 | 32 | 90 | 53 | 10 / 15 / 37 | 108 |
+| 78 000 | 65 | 74 | 37 | 91 | 57 | 10 / 15 / 40 | 110 |
+| 79 000 | 72 | 81 | 37 | 96 | 59 | 14 / 18 / 40 | 109 |
+| **80 000 (referencia)** | **71** | **80** | **36** | **96** | **59** | 13 / 17 / 41 | 110 |
+| 82 000 | 65 | 74 | 33 | 98 | 56 | 10 / 14 / 41 | 112 |
+
+- **Rango:** entre 5, de 62 a 72 (mediana 65); entre 10, de 74 a 81; en 1.º, de 32 a 37; en lista, de 90 a 98; estudios, de 53
+  a 59. No baja de forma suave: 79 000 y 80 000 forman una meseta estrecha y a los dos lados se cae a 65.
+- **Lo estable:** 53 lesiones entran entre 5 con los cinco topes, 78 con alguno y 25 bailan. El hueso en controles apenas se
+  mueve (108–112) y el recubrimiento no baja más de 0,15 en ninguna de las 122 lesiones con ningún tope.
+- **Por qué salen:** sumando los cuatro topes frente a la referencia salen 31 veces: 22 por orden y 9 porque la lesión se
+  queda sin región. Las dos cosas dependen de la copia diezmada, no de la malla.
+- **Por qué 71 puede estar alto:** todas las medidas se ajustaron y adoptaron con el tope en 80 000. Parte del 71 puede venir
+  de ese ajuste; es una hipótesis sin medir. Cambiar a 79 000 por un punto de más sería repetir el mismo sesgo, así que el
+  tope se queda en 80 000.
+- **La corteza:** su 61 queda justo por debajo del rango de la referencia, pero se midió con un solo tope y también oscilaría.
+  No se puede afirmar que pierda 10 lesiones; tampoco que no pierda ninguna. Sigue sin entrar.
+- **Límite de esta medida:** son cinco topes sobre los mismos 172 estudios. Da un rango, no un intervalo de confianza.
+
+**Cifra que se comunica desde el 06-11 (decidido por el usuario):** 71 de 122 con la configuración actual; entre 62 y 72 según
+el tope, y 53 salen siempre. Siguiente frente: que la lista no dependa de ese tope, antes de adoptar más medidas de pocas
+lesiones.
 
 **Solo en los 9 de cráneo flojo.** La otra opción (indicador de tejido denso bajo la tabla ≥ 0,2: 123, 180, 127, 174,
 188 y 072, controles; 084, 092 y 112, con lesión) se lee de esta misma pasada. Las tres lesiones no cambian (084 y 112
@@ -1883,7 +1944,8 @@ estudios sube de 5 a 8 de 45. Es una mejora del modelo que se ve, no de la detec
 que la regla sea inocua en un cráneo flojo cualquiera. Exigiría además llevar el indicador al programa.
 
 **Veredicto.** La regla global NO entra. Queda como opción, sin adoptar, aplicarla solo a cráneos flojos si importa cómo
-se ve el modelo. La referencia sigue siendo **71 / 80 / 36 / 96 / 59**.
+se ve el modelo. La referencia sigue siendo **71 / 80 / 36 / 96 / 59**, con la salvedad del 06-11: es la cifra de un tope
+concreto; entre 5 va de 62 a 72 según el tope y 53 lesiones salen siempre.
 
 ## 5. Código y datos de esta pasada
 

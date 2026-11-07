@@ -3575,6 +3575,8 @@ components attached to the tube by the neck is step 2 of the plan.
 
 **Skull-shell rule (2026-10-30 to 11-05, report §4.22, not adopted):** removing everything above 300 HU in the outer 12 mm of the head takes weak skulls (< 700 HU) out of the model (tree 169 → 172, mask median 34.3 → 29.0 cm³) but costs detection: 61 in the top 5 and 69 in the top 10, also with the two-scale detector of §4.21 (`zenodo_eval_shell_dos_escalas`: 61 / 69 / first 29 / 94 / 53 against 71 / 80 / 36 / 96 / 59; bone in controls 110 → 88 of 450). The two scales only return first places: the fine copy keeps its 80,000-vertex cap, so §4.21 does not decouple mesh cleaning from the fine list. Reverted on 2026-11-01. Limited to the 9 weak-skull studies the 3 lesions do not move and the mesh loses 34 % of its vertices, an option for how the model looks, not for detection.
 
+**How much the figure moves without touching the mesh (2026-11-06, report §4.22):** same meshes and detector, only the cap of the curvature copy changes. Top 5 / top 10 / first / listed / studies: 76,000 → 62 / 74 / 32 / 90 / 53; 78,000 → 65 / 74 / 37 / 91 / 57; 79,000 → 72 / 81 / 37 / 96 / 59; 80,000 (reference) → 71 / 80 / 36 / 96 / 59; 82,000 → 65 / 74 / 33 / 98 / 56. 53 lesions are in the top 5 at all five caps, 78 at some cap; bone in controls stays at 108–112 of 450 and no lesion loses coverage. **Read the reference as 71 of 122 with the current settings, 62 to 72 depending on the cap, 53 always in.** The cap stays at 80,000: all measures were tuned there, so 71 may be high, and moving to the best cap would repeat that bias. Differences of a few lesions between measures sit inside this range.
+
 ---
 
 ## Relationship to the Desktop App

@@ -19,3 +19,17 @@ export function localBox(center: Vec3, diameterMm: number, volume: Bounds6): Bou
   }
   return out;
 }
+
+/** LOCAL solo se aplica con el recorte por eje (vtk.js admite seis planos de
+    recorte): con RECORTE LIBRE el botón no puede decir que está puesto (UNI-89). */
+export function localAplicado(mipLocal: boolean, libre: boolean): boolean {
+  return mipLocal && !libre;
+}
+
+/** Si al cambiar LOCAL hay que reencuadrar: al encenderlo, para que la lesión no
+    quede en un punto; al apagarlo, para volver a la proyección completa, siempre
+    que hubiera caja que quitar (UNI-89). Con RECORTE LIBRE la caja no se aplica. */
+export function reencuadrarAlCambiarLocal(antes: boolean, ahora: boolean, libre: boolean, conLesion: boolean): boolean {
+  if (libre) return false;
+  return ahora || (antes !== ahora && conLesion);
+}

@@ -39,6 +39,12 @@ export function DiameterChart({ arc, diameters, meanDiameter, onPick, cursorArcM
   const sx = (v: number) => P.l + ((v - x0) / (x1 - x0 || 1)) * iw;
   const sy = (v: number) => P.t + (1 - (v - yLo) / (yHi - yLo || 1)) * ih;
 
+  // La línea central puede seguir más allá de la primera o la última muestra de
+  // calibre (UNI-89): fuera de ellas no hay cursor que pintar; dentro del margen
+  // de encaje se pega al extremo para no salirse del trazado.
+  const cursorEn = cursorArcMm !== null && cursorArcMm >= x0 - SNAP_MM && cursorArcMm <= x1 + SNAP_MM
+    ? Math.min(x1, Math.max(x0, cursorArcMm)) : null;
+
   const path = diameters.map((d, i) => `${i === 0 ? "M" : "L"}${sx(arc[i]).toFixed(1)},${sy(d).toFixed(1)}`).join(" ");
   const minIdx = diameters.indexOf(dMin);
 
@@ -87,7 +93,7 @@ export function DiameterChart({ arc, diameters, meanDiameter, onPick, cursorArcM
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} role={onPick ? "slider" : "img"} aria-label="Perfil de diámetro"
-      aria-valuemin={x0} aria-valuemax={x1} aria-valuenow={cursorArcMm ?? undefined}
+      aria-valuemin={x0} aria-valuemax={x1} aria-valuenow={cursorEn ?? undefined}
       tabIndex={onPick ? 0 : undefined} onKeyDown={onKey}
       onPointerDown={onPick ? onPointerDown : undefined} onPointerMove={onPick ? onPointerMove : undefined}
       onClick={onPick ? onClick : undefined}
@@ -121,8 +127,8 @@ export function DiameterChart({ arc, diameters, meanDiameter, onPick, cursorArcM
       </text>
 
       {/* El punto compartido sobre el vaso. */}
-      {cursorArcMm !== null && (
-        <line data-t="cursor" x1={sx(cursorArcMm)} y1={P.t} x2={sx(cursorArcMm)} y2={P.t + ih} stroke="var(--primary)" strokeWidth={1.5} strokeDasharray="2 2" />
+      {cursorEn !== null && (
+        <line data-t="cursor" x1={sx(cursorEn)} y1={P.t} x2={sx(cursorEn)} y2={P.t + ih} stroke="var(--primary)" strokeWidth={1.5} strokeDasharray="2 2" />
       )}
     </svg>
   );

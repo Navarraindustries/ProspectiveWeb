@@ -61,6 +61,34 @@ describe("DiameterChart", () => {
     fireEvent.keyDown(svg, { key: "ArrowRight" });
     expect(onPick).toHaveBeenLastCalledWith(1);
   });
+  it("la primera flecha tras un clic avanza desde donde quedó el cursor (UNI-89)", () => {
+    // El clic en 24 deja el cursor en el punto de la línea central más cercano
+    // (24,2); → va a la muestra siguiente (30) y ← a la anterior (20).
+    const onPick = vi.fn();
+    const props = { arc, diameters: d, meanDiameter: 2.9, onPick };
+    const { container, rerender } = render(<DiameterChart {...props} cursorArcMm={null} />);
+    const svg = container.querySelector("svg")!;
+    svg.getBoundingClientRect = () => ({ left: 0, top: 0, width: 320, height: 150, right: 320, bottom: 150, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.click(svg, { clientX: 30 + 0.6 * 280, clientY: 60 });
+    expect(onPick.mock.calls[0][0]).toBeCloseTo(24, 5);
+    rerender(<DiameterChart {...props} cursorArcMm={24.2} />);
+    fireEvent.keyDown(svg, { key: "ArrowRight" });
+    expect(onPick).toHaveBeenLastCalledWith(30);
+    rerender(<DiameterChart {...props} cursorArcMm={24.2} />);
+    fireEvent.keyDown(svg, { key: "ArrowLeft" });
+    expect(onPick).toHaveBeenLastCalledWith(20);
+  });
+  it("el cursor no se dibuja fuera de la primera y la última muestra (UNI-89)", () => {
+    // La línea central puede seguir más allá de la última muestra de calibre: un
+    // punto compartido en 45 mm (la última es 40) no se pinta fuera del trazado.
+    const fuera = chart(vi.fn(), 45).svg;
+    expect(fuera.querySelector('[data-t="cursor"]')).toBeNull();
+    expect(fuera.getAttribute("aria-valuenow")).toBeNull();
+    // Dentro del margen de encaje (0,5 mm) se pinta pegado a la última muestra.
+    const borde = chart(vi.fn(), 40.3).svg;
+    expect(Number(borde.querySelector('[data-t="cursor"]')!.getAttribute("x1"))).toBeCloseTo(310, 5);
+    expect(borde.getAttribute("aria-valuenow")).toBe("40");
+  });
   it("arrastrar sobre el trazado va llamando a onPick", () => {
     const { svg, onPick } = chart();
     fireEvent.pointerDown(svg, { clientX: 30, clientY: 60, button: 0, buttons: 1, pointerId: 1 });

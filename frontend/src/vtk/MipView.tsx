@@ -60,7 +60,7 @@ import { planeCorners, toPixels, tracePolygon, traceVisible, traceVisibleForNorm
 import { clampOffsetToBox, clipPolygon, normalOf, originOf, type FreePlane } from "./freePlane";
 import { wheelOffset } from "./obliqueGestures";
 import { rotationCenterMm, visibleBounds, visiblePoints, type Bounds6, type ClipState } from "./orbit";
-import { localBox } from "./localBox";
+import { localAplicado, localBox, reencuadrarAlCambiarLocal } from "./localBox";
 import { axisClipPlanes } from "./mipClipPlanes";
 
 type Vec3 = [number, number, number];
@@ -584,8 +584,15 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   // render; por ref, la función publicada una vez usa siempre la última.
   const fitRef = useRef(fit);
   fitRef.current = fit;
-  // Al encender LOCAL se encuadra una vez: la caja entera dejaba la lesión en un punto.
-  useEffect(() => { if (mipLocal && !libre) fitRef.current(); }, [mipLocal]);   // eslint-disable-line react-hooks/exhaustive-deps
+  // Al encender LOCAL se encuadra una vez: la caja entera dejaba la lesión en un
+  // punto. Al apagarlo se vuelve a encuadrar la proyección completa (UNI-89),
+  // solo si había caja que quitar (con lesión y recorte por eje).
+  const localPrevio = useRef(mipLocal);
+  useEffect(() => {
+    const antes = localPrevio.current;
+    localPrevio.current = mipLocal;
+    if (reencuadrarAlCambiarLocal(antes, mipLocal, libre, !!lesion)) fitRef.current();
+  }, [mipLocal]);   // eslint-disable-line react-hooks/exhaustive-deps
   const registerFitRef = useRef(registerFit);
   registerFitRef.current = registerFit;
   useEffect(() => {
@@ -659,9 +666,9 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
                 del HUD y se quedaba flotando en esencial y limpio. */}
             <HudToggleGroup label="RECORTE ▸" options={CLIP_OPTIONS} value={clipMode} onChange={(k) => setClipMode(k as "eje" | "libre")} />
             {lesion && (
-              <HudToggleGroup options={[{ key: "local", label: mipLocal ? "LOCAL ●" : "LOCAL ○",
+              <HudToggleGroup options={[{ key: "local", label: localAplicado(mipLocal, libre) ? "LOCAL ●" : "LOCAL ○",
                                           title: libre ? "Solo con RECORTE EJE (vtk.js admite seis planos de recorte)" : "Acotar la proyección a la lesión y lo que la rodea" }]}
-                value={mipLocal && !libre ? "local" : ""} onChange={() => { if (!libre) setMipLocal(!mipLocal); }} style={libre ? { opacity: 0.45 } : undefined} />
+                value={localAplicado(mipLocal, libre) ? "local" : ""} onChange={() => { if (!libre) setMipLocal(!mipLocal); }} style={libre ? { opacity: 0.45 } : undefined} />
             )}
             {libre && (
               <HudToggleGroup options={[{ key: "cara", label: cutFaceVisible ? "CARA ●" : "CARA ○",

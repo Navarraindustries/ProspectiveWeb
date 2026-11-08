@@ -60,7 +60,7 @@ import { planeCorners, toPixels, tracePolygon, traceVisible, traceVisibleForNorm
 import { clampOffsetToBox, clipPolygon, normalOf, originOf, type FreePlane } from "./freePlane";
 import { wheelOffset } from "./obliqueGestures";
 import { rotationCenterMm, visibleBounds, visiblePoints, type Bounds6, type ClipState } from "./orbit";
-import { localAplicado, localBox, reencuadrarAlCambiarLocal } from "./localBox";
+import { localAplicado, localBox, reencuadrarAlCambiarCaja } from "./localBox";
 import { axisClipPlanes } from "./mipClipPlanes";
 
 type Vec3 = [number, number, number];
@@ -529,9 +529,11 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   // acumulado al principio del recorrido o en una lámina fina, la caja entera
   // dejaba lo visible como una franja pequeña. En LIBRE además devuelve el
   // plano al crosshair (offset 0), así que el encuadre se calcula con ese plano.
-  const fit = () => {
-    const fp = libre ? { ...freeRef.current, offsetMm: 0 } : freeRef.current;
-    if (libre) commitFree(fp);
+  // Con `conservarPlano` (reencuadre automático, no pedido) el plano no se toca.
+  const fit = (conservarPlano = false) => {
+    const devolver = libre && !conservarPlano;
+    const fp = devolver ? { ...freeRef.current, offsetMm: 0 } : freeRef.current;
+    if (devolver) commitFree(fp);
     const s = scene.current; if (!s) return;
     const acumulado = mipMode === "acumulado";
     const clip: ClipState = libre
@@ -584,15 +586,16 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   // render; por ref, la función publicada una vez usa siempre la última.
   const fitRef = useRef(fit);
   fitRef.current = fit;
-  // Al encender LOCAL se encuadra una vez: la caja entera dejaba la lesión en un
-  // punto. Al apagarlo se vuelve a encuadrar la proyección completa (UNI-89),
-  // solo si había caja que quitar (con lesión y recorte por eje).
-  const localPrevio = useRef(mipLocal);
+  // Al ponerse la caja LOCAL se encuadra una vez: la caja entera dejaba la lesión
+  // en un punto. Al quitarse (LOCAL apagado o paso a RECORTE LIBRE) se vuelve a
+  // encuadrar lo visible, sin mover el plano libre (UNI-89): antes la cámara se
+  // quedaba mirando de cerca una caja que ya no estaba.
+  const cajaPrevia = useRef(localAplicado(mipLocal, libre));
   useEffect(() => {
-    const antes = localPrevio.current;
-    localPrevio.current = mipLocal;
-    if (reencuadrarAlCambiarLocal(antes, mipLocal, libre, !!lesion)) fitRef.current();
-  }, [mipLocal]);   // eslint-disable-line react-hooks/exhaustive-deps
+    const antes = cajaPrevia.current, ahora = localAplicado(mipLocal, libre);
+    cajaPrevia.current = ahora;
+    if (reencuadrarAlCambiarCaja(antes, ahora, !!lesion)) fitRef.current(true);
+  }, [mipLocal, libre]);   // eslint-disable-line react-hooks/exhaustive-deps
   const registerFitRef = useRef(registerFit);
   registerFitRef.current = registerFit;
   useEffect(() => {
@@ -668,12 +671,12 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
             {lesion && (
               <HudToggleGroup options={[{ key: "local", label: localAplicado(mipLocal, libre) ? "LOCAL ●" : "LOCAL ○",
                                           title: libre ? "Solo con RECORTE EJE (vtk.js admite seis planos de recorte)" : "Acotar la proyección a la lesión y lo que la rodea" }]}
-                value={localAplicado(mipLocal, libre) ? "local" : ""} onChange={() => { if (!libre) setMipLocal(!mipLocal); }} style={libre ? { opacity: 0.45 } : undefined} />
+                value={localAplicado(mipLocal, libre) ? "local" : ""} onChange={() => { if (!libre) setMipLocal(!mipLocal); }} style={libre ? { opacity: 0.45 } : undefined} anchoFijo />
             )}
             {libre && (
               <HudToggleGroup options={[{ key: "cara", label: cutFaceVisible ? "CARA ●" : "CARA ○",
                                           title: cutFaceVisible ? "Ocultar el corte en gris sobre la cara" : "Pintar el corte en gris sobre la cara" }]}
-                value={cutFaceVisible ? "cara" : ""} onChange={() => setCutFaceVisible(!cutFaceVisible)} />
+                value={cutFaceVisible ? "cara" : ""} onChange={() => setCutFaceVisible(!cutFaceVisible)} anchoFijo />
             )}
             <HudToggleGroup options={RENDER_OPTIONS} value={volumeMode} onChange={(k) => setVolumeMode(k as "mip" | "compuesto")} />
           </div>
@@ -726,7 +729,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
               // `.hud-toggle`: el deslizador es un control como los botones y
               // se oculta con ellos en esencial y limpio.
               : <span className="hud-toggle"><input type="range" min={2} max={40} value={mipSlabMm} onChange={(e) => setMipSlabMm(Number(e.target.value))} style={{ width: 90, accentColor: "var(--hud-text)" }} title="Grosor de la lámina" /></span>}
-            <HudToggleGroup options={[{ key: "fit", label: "ENCUADRAR", title: "Encuadrar lo visible (C)" }]} value="" onChange={fit} />
+            <HudToggleGroup options={[{ key: "fit", label: "ENCUADRAR", title: "Encuadrar lo visible (C)" }]} value="" onChange={() => fit()} />
           </div>
         )}
       </HudFrame>

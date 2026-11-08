@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localAplicado, localBox, reencuadrarAlCambiarLocal } from "./localBox";
+import { localAplicado, localBox, reencuadrarAlCambiarCaja } from "./localBox";
 import { lesionFrameRadiusMm } from "./lesionFrame";
 
 const vol: [number, number, number, number, number, number] = [0, 100, 0, 80, 0, 60];
@@ -26,19 +26,26 @@ describe("LOCAL en el MIP (UNI-89)", () => {
     expect(localAplicado(true, true)).toBe(false);
     expect(localAplicado(false, false)).toBe(false);
   });
-  it("encenderlo reencuadra; apagarlo también, si había lesión", () => {
-    expect(reencuadrarAlCambiarLocal(false, true, false, true)).toBe(true);
-    expect(reencuadrarAlCambiarLocal(true, false, false, true)).toBe(true);
+  // reencuadrarAlCambiarCaja recibe si la caja se aplicaba antes y ahora.
+  const caja = (local: boolean, libre: boolean) => localAplicado(local, libre);
+  it("encender LOCAL reencuadra; apagarlo también, si había lesión", () => {
+    expect(reencuadrarAlCambiarCaja(caja(false, false), caja(true, false), true)).toBe(true);
+    expect(reencuadrarAlCambiarCaja(caja(true, false), caja(false, false), true)).toBe(true);
   });
-  it("apagarlo sin lesión no mueve la cámara: no había caja", () => {
-    expect(reencuadrarAlCambiarLocal(true, false, false, false)).toBe(false);
+  it("pasar a RECORTE LIBRE con LOCAL puesto reencuadra: la caja se quita", () => {
+    expect(reencuadrarAlCambiarCaja(caja(true, false), caja(true, true), true)).toBe(true);
+    // Y volver a EJE con LOCAL pedido vuelve a encuadrar la caja.
+    expect(reencuadrarAlCambiarCaja(caja(true, true), caja(true, false), true)).toBe(true);
   });
-  it("con RECORTE LIBRE nunca reencuadra", () => {
-    expect(reencuadrarAlCambiarLocal(false, true, true, true)).toBe(false);
-    expect(reencuadrarAlCambiarLocal(true, false, true, true)).toBe(false);
+  it("cambiar de recorte con LOCAL apagado no mueve la cámara", () => {
+    expect(reencuadrarAlCambiarCaja(caja(false, false), caja(false, true), true)).toBe(false);
+    expect(reencuadrarAlCambiarCaja(caja(false, true), caja(false, false), true)).toBe(false);
   });
-  it("al montar con LOCAL puesto se encuadra, como antes; sin él, no", () => {
-    expect(reencuadrarAlCambiarLocal(true, true, false, true)).toBe(true);
-    expect(reencuadrarAlCambiarLocal(false, false, false, true)).toBe(false);
+  it("quitar la caja sin lesión no mueve la cámara: no había caja", () => {
+    expect(reencuadrarAlCambiarCaja(true, false, false)).toBe(false);
+  });
+  it("al montar con la caja puesta se encuadra, como antes; sin ella, no", () => {
+    expect(reencuadrarAlCambiarCaja(true, true, true)).toBe(true);
+    expect(reencuadrarAlCambiarCaja(false, false, true)).toBe(false);
   });
 });

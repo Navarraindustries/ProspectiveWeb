@@ -269,6 +269,46 @@ async def get_my_photo(
     return FileResponse(current_user.photo_path)
 
 
+_IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp"}
+
+
+def _sniff_image(head: bytes) -> str | None:
+    """Extensión canónica según los primeros bytes (PNG, JPEG, WebP); None si no es una imagen permitida."""
+    if head.startswith(bytes.fromhex("89504e470d0a1a0a")):
+        return ".png"
+    if head.startswith(bytes.fromhex("ffd8ff")):
+        return ".jpg"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return ".webp"
+    return None
+
+
+def _store_profile_image(data: bytes, user_id: int) -> str:
+    """Guarda una foto de perfil validada por contenido; 413 si pesa de más, 415 si no es PNG/JPEG/WebP."""
+    if len(data) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="El archivo supera el máximo de 6 MB.")
+    ext = _sniff_image(data[:12])
+    if ext is None:
+        raise HTTPException(status_code=415, detail="La foto debe ser PNG, JPEG o WebP.")
+    dest_dir = _USER_FILES / "profile_photos"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / f"{user_id}{ext}"
+    dest.write_bytes(data)
+    return str(dest)
+
+
+def _profile_photo_response(path: str) -> FileResponse:
+    """Sirve la foto con tipo explícito y nosniff; si el contenido no es imagen permitida, 404."""
+    try:
+        with open(path, "rb") as f:
+            ext = _sniff_image(f.read(12))
+    except OSError:
+        ext = None
+    if ext is None:
+        raise HTTPException(status_code=404, detail="Sin foto de perfil.")
+    return FileResponse(path, media_type=_IMAGE_TYPES[ext], headers={"X-Content-Type-Options": "nosniff"})
+
+
 def _unlink_profile_photo(path: str | None, keep: str = "") -> None:
     """Borra el fichero de foto de perfil (nunca el del registro, que vive en `photos/`)."""
     if path and path != keep:
@@ -326,17 +366,13 @@ async def post_my_profile_photo(
         src = Path(user.photo_path) if user.photo_path else None
         if src is None or not src.exists():
             raise HTTPException(status_code=404, detail="No hay foto del registro que copiar.")
-        dest_dir = _USER_FILES / "profile_photos"
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        dest = dest_dir / f"{user.id}{src.suffix.lower()[:10]}"
-        dest.write_bytes(src.read_bytes())
-        new_path = str(dest)
+        new_path = _store_profile_image(src.read_bytes(), user.id)
     elif ctype.startswith("multipart/form-data"):
         form = await request.form()
         photo = form.get("photo")
         if photo is None or not hasattr(photo, "read"):
             raise HTTPException(status_code=422, detail="Falta el campo «photo».")
-        new_path = await _save_user_upload(photo, "profile_photos", user.id)
+        new_path = _store_profile_image(await photo.read(), user.id)
     else:
         raise HTTPException(status_code=415, detail="Se espera multipart con «photo» o JSON.")
     user.profile_photo_path = new_path
@@ -376,7 +412,7 @@ async def get_my_profile_photo(
     pp = current_user.profile_photo_path
     if not pp or not Path(pp).exists():
         raise HTTPException(status_code=404, detail="Sin foto de perfil.")
-    return FileResponse(pp)
+    return _profile_photo_response(pp)
 
 
 @router.get(
@@ -393,7 +429,7 @@ async def get_user_profile_photo(
     pp = u.profile_photo_path if u else ""
     if u is None or u.avatar_mode != "foto" or not pp or not Path(pp).exists():
         raise HTTPException(status_code=404, detail="Sin foto de perfil.")
-    return FileResponse(pp)
+    return _profile_photo_response(pp)
 
 
 # ── Self-registration (public) ─────────────────────────────────────────────── #

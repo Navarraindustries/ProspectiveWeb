@@ -144,3 +144,42 @@ def test_foto_de_perfil_mayor_de_6mb_413():
                     files={"photo": ("big.png", big, "image/png")})
     assert r.status_code == 413
     assert not _row("pf_grande").profile_photo_path
+
+
+def test_subir_html_o_svg_como_foto_415():
+    _make_user("pf_xss")
+    h = _h("pf_xss")
+    for nombre, datos, ctype in (
+        ("x.html", b"<script>alert(1)</script>", "text/html"),
+        ("x.svg", b"<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>", "image/svg+xml"),
+        ("falsa.png", b"<script>alert(1)</script>", "image/png"),
+    ):
+        r = client.post("/api/auth/me/profile-photo", headers=h, files={"photo": (nombre, datos, ctype)})
+        assert r.status_code == 415, (nombre, r.status_code)
+    assert not _row("pf_xss").profile_photo_path
+
+
+def test_copiar_registro_que_no_es_imagen_415():
+    uid = _make_user("pf_regmal")
+    db = SessionLocal()
+    p = Path(_tmp) / "reg_malo.html"
+    p.write_bytes(b"<script>alert(1)</script>")
+    db.query(User).filter_by(id=uid).one().photo_path = str(p)
+    db.commit()
+    db.close()
+    r = client.post("/api/auth/me/profile-photo", headers=_h("pf_regmal"), json={"desde_registro": True})
+    assert r.status_code == 415
+    assert not _row("pf_regmal").profile_photo_path
+
+
+def test_get_sirve_image_png_con_nosniff_en_ambos_endpoints():
+    uid = _make_user("pf_ok", modo="foto")
+    h = _h("pf_ok")
+    r = client.post("/api/auth/me/profile-photo", headers=h, files={"photo": ("a.png", PERFIL, "text/html")})
+    assert r.status_code == 200, r.text
+    _make_user("pf_ver")
+    for url in ("/api/auth/me/profile-photo", f"/api/auth/users/{uid}/profile-photo"):
+        g = client.get(url, headers=h if "me/" in url else _h("pf_ver"))
+        assert g.status_code == 200, url
+        assert g.headers["content-type"] == "image/png", url
+        assert g.headers["x-content-type-options"] == "nosniff", url

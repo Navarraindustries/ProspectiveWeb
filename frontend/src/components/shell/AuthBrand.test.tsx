@@ -65,7 +65,7 @@ describe("ColumnaMarca", () => {
     const lema = screen.getByText("Planificación neurovascular con datos");
     expect(lema.style.color).toBe("var(--on-media)");
     expect(screen.getByText("Del DICOM al clip, en un solo espacio de trabajo.").style.color).toBe("var(--on-media-muted)");
-    expect(screen.getByText("por SkullApp")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "SkullApp" })).toBeInTheDocument();
     const pasos = screen.getByText(PASOS_MARCA);
     expect(pasos.textContent).toBe(STEP_LABELS.map((p) => p.toUpperCase()).join(" · "));
     expect(pasos.style.fontFamily).toBe("var(--font-mono)");

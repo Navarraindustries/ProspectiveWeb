@@ -377,9 +377,11 @@ describe("Sora autoalojada para la marca", () => {
     }
     expect(statSync(join(dir, "OFL-Sora.txt")).size).toBeGreaterThan(0);
   });
-  it("--logo-dot es blanco en los dos temas", () => {
-    expect(block(DARK)).toContain("--logo-dot:           #FFFFFF");
-    expect(block('[data-theme="light"]')).toContain("--logo-dot:           #FFFFFF");
+  it("el icono «app» de SkullApp es monocromo: marca clara sobre fondo oscuro en los dos temas", () => {
+    expect(block(DARK)).toContain("--logo-app-marca:     #F5F7FA");
+    expect(block(DARK)).toContain("--logo-app-fondo:     #16181E");
+    expect(block('[data-theme="light"]')).toContain("--logo-app-marca:     #FFFFFF");
+    expect(block('[data-theme="light"]')).toContain("--logo-app-fondo:     #24232B");
   });
 });
 

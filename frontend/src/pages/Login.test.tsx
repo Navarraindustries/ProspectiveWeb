@@ -255,7 +255,8 @@ describe("tramos de pantalla (fase 8, tarea 12)", () => {
     simularPantalla({ ancho: 1707 });
     const { container } = montar();
     const zona = container.querySelector<HTMLElement>(".login-form")!;
-    const marca = within(zona).getByText("por SkullApp");
+    const marca = zona.querySelector<HTMLElement>("[data-firma-linea]")!;
+    expect(within(marca).getByRole("img", { name: "SkullApp" })).toBeInTheDocument();
     expect(marca.style.color).toBe("var(--on-media-muted)");
     expect(marca.closest("[data-theme]")).toHaveAttribute("data-theme", "dark");
     expect(screen.getByText("Prospective™ Web — Laboratorio de Imagen Médica").closest("[data-theme]")).toHaveAttribute("data-theme", "dark");

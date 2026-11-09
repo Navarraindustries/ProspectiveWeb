@@ -1311,9 +1311,11 @@
    visor y tokens oscuros en los dos temas (data-theme="dark" acotado a ella).
    Toda la coreografía va aquí, con los tiempos de CargaEscaner.tsx: escaneo
    0–2400 ms (cinco pasadas de 480 ms), lesión 2400–3000 (cortes y rótulos se
-   apagan a casi negro entre 2850 y 3225), logo 3000–3750 (el anillo se encoge
-   y viaja de 3225 a 3675 hasta el punto del icono, que toma el relevo) y
-   apertura 3750–4500 desde ese punto; al saltar, apertura rápida de 240 ms. */
+   apagan a casi negro entre 2850 y 3225), logo 3000–4600 (el anillo se apaga
+   sobre la lesión, el icono de SkullApp se pinta de 3050 a 4050 —la pincelada
+   la temporiza Logo.tsx—, el nombre entra de 3750 a 4200 y la firma de 4000 a
+   4300) y apertura 4600–5350 desde el centro del icono; al saltar, apertura
+   rápida de 240 ms. */
 @property --carga-iris {
   syntax: "<length>";
   inherits: false;
@@ -1330,14 +1332,14 @@
   color: var(--foreground);
   font-family: var(--font-sans);
 }
-/* La apertura: un agujero circular que crece desde el punto donde acaba el
-   viajero, el del icono (--carga-ax/--carga-ay, medidos en CargaEscaner.tsx;
-   sin medida, la lesión), hasta la esquina más lejana (--carga-iris-fin).
+/* La apertura: un agujero circular que crece desde el centro del icono
+   (--carga-ax/--carga-ay, medidos en CargaEscaner.tsx; sin medida, la
+   lesión), hasta la esquina más lejana (--carga-iris-fin).
    Antes de abrir, el radio es negativo y la máscara lo tapa todo. */
 .carga-escaner[data-modo="completo"] {
   -webkit-mask-image: radial-gradient(circle at var(--carga-ax) var(--carga-ay), transparent var(--carga-iris), var(--viewer-bg) calc(var(--carga-iris) + 1px));
   mask-image: radial-gradient(circle at var(--carga-ax) var(--carga-ay), transparent var(--carga-iris), var(--viewer-bg) calc(var(--carga-iris) + 1px));
-  animation: carga-iris 750ms cubic-bezier(0.65, 0, 0.35, 1) 3750ms both;
+  animation: carga-iris 750ms cubic-bezier(0.65, 0, 0.35, 1) 4600ms both;
 }
 .carga-escaner[data-modo="completo"][data-fase="salto"] {
   animation: carga-iris-salto 240ms cubic-bezier(0.65, 0, 0.35, 1) both;
@@ -1445,10 +1447,8 @@
   color: var(--foreground);
 }
 
-/* Lesión: el anillo cae sobre ella, se encoge hasta un punto azul del tamaño
-   del punto del icono (--carga-punto) y viaja hasta él (--carga-dx/--carga-dy,
-   FLIP medido en CargaEscaner.tsx). Al llegar se apaga y el punto del icono,
-   oculto hasta entonces, toma el relevo. */
+/* Lesión: el anillo cae sobre ella y, al empezar la fase del logo, se encoge y
+   se apaga ahí mismo: el icono de SkullApp no tiene un punto al que viajar. */
 .carga-escaner__anillo {
   position: absolute;
   left: var(--carga-x);
@@ -1462,29 +1462,14 @@
   box-shadow: 0 0 0 10px color-mix(in srgb, var(--destructive) 16%, transparent);
   animation:
     carga-anillo-entra 150ms var(--ease-out) 2400ms both,
-    carga-anillo-punto 150ms var(--ease-out) 3000ms forwards,
-    carga-anillo-viaja 450ms cubic-bezier(0.65, 0, 0.35, 1) 3225ms forwards,
-    carga-apagar 40ms linear 3675ms forwards;
+    carga-anillo-sale 250ms ease-in 3000ms forwards;
 }
 @keyframes carga-anillo-entra {
   from { opacity: 0; transform: scale(2.2); }
   to { opacity: 1; transform: scale(1); }
 }
-@keyframes carga-anillo-punto {
-  to {
-    transform: scale(var(--carga-punto));
-    background: var(--data);
-    border-color: var(--data);
-    box-shadow: 0 0 0 0 transparent;
-  }
-}
-@keyframes carga-anillo-viaja {
-  from { transform: translate(0, 0) scale(var(--carga-punto)); }
-  to { transform: translate(var(--carga-dx), var(--carga-dy)) scale(var(--carga-punto)); }
-}
-/* El punto del icono no se ve hasta que llega el viajero. */
-.carga-escaner__logo svg g > circle:last-of-type {
-  animation: carga-encender 1ms linear 3675ms both;
+@keyframes carga-anillo-sale {
+  to { opacity: 0; transform: scale(0.4); }
 }
 .carga-escaner__rotulo {
   position: absolute;
@@ -1509,8 +1494,10 @@
   transform: translateX(-50%);
 }
 
-/* La marca grande, centrada: icono D de 120 px y «Prospective™» en Sora 56 px;
-   en pantallas estrechas baja con clamp y cabe a 360. */
+/* La marca grande, centrada: icono de SkullApp de 120 px y «Prospective™» en
+   Sora 56 px; en pantallas estrechas baja con clamp y cabe a 360. El icono se
+   pinta (pincelada, Logo.tsx), el nombre entra de izquierda a derecha y la
+   firma se asienta debajo. */
 .carga-escaner__logo {
   position: absolute;
   inset: 0;
@@ -1519,12 +1506,26 @@
   justify-content: center;
   padding: 0 16px;
   animation:
-    carga-logo-entra 375ms var(--ease-out) 3075ms both,
-    carga-logo-sale 450ms ease-in 3825ms forwards;
+    carga-logo-entra 200ms var(--ease-out) 3000ms both,
+    carga-logo-sale 450ms ease-in 4675ms forwards;
 }
 @keyframes carga-logo-entra {
-  from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.carga-escaner[data-modo="completo"] .carga-escaner__producto {
+  animation: carga-nombre 450ms cubic-bezier(0.16, 1, 0.3, 1) 3750ms both;
+}
+@keyframes carga-nombre {
+  from { clip-path: inset(0 100% 0 0); transform: translateX(-8px); }
+  to { clip-path: inset(0 -10% 0 0); transform: translateX(0); }
+}
+.carga-escaner[data-modo="completo"] .carga-escaner__firma {
+  animation: carga-firma 300ms ease-out 4000ms both;
+}
+@keyframes carga-firma {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 @keyframes carga-logo-sale {
   to { opacity: 0; transform: scale(1.02); }
@@ -1536,7 +1537,7 @@
   max-width: 100%;
   color: var(--foreground);
 }
-.carga-escaner__marca svg {
+.carga-escaner__marca > svg {
   width: clamp(60px, 17vw, 120px);
   height: clamp(60px, 17vw, 120px);
 }
@@ -1561,6 +1562,10 @@
   color: var(--muted-foreground);
 }
 .carga-escaner__firma {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  align-self: flex-end;
   font-size: 14px;
   color: var(--muted-foreground);
 }

@@ -62,7 +62,7 @@ describe("NavPildora", () => {
   it.each([1024, 768])("a %i: plegada, marca completa y accesos de 44 px", (ancho) => {
     simularPantalla(ancho);
     montar();
-    expect(screen.getByText("por SkullApp")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "SkullApp" })).toBeInTheDocument();
     for (const n of ["Entrar", "Crear cuenta", "Menú"])
       expect(screen.getByRole("button", { name: n })).toHaveAttribute("data-size", "md");
     expect(screen.queryByRole("link", { name: "Qué es" })).toBeNull();
@@ -71,7 +71,7 @@ describe("NavPildora", () => {
   it("a 390: marca compacta, «Entrar» y menú de icono; «Crear cuenta» dentro del panel", () => {
     simularPantalla(390);
     montar();
-    expect(screen.queryByText("por SkullApp")).toBeNull();
+    expect(screen.queryByRole("img", { name: "SkullApp" })).toBeNull();
     expect(screen.getByRole("img", { name: "Prospective" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Crear cuenta" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Menú" }));

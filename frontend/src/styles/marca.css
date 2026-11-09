@@ -1,0 +1,54 @@
+/* Movimiento del icono de SkullApp (components/shell/Logo.tsx).
+
+   - .logo-tramo: cada tramo de la máscara de la pincelada; Logo.tsx le pone su
+     retraso y su duración (curva seno sobre la longitud del trazo). El guion
+     escondido empieza en 1,05 y no en 1: con el extremo justo en 0, el remate
+     redondo pintaba un punto al principio de cada tramo.
+   - .logo-latido: doble pulso con halo azul, en bucle; --latido-retraso lo deja
+     empezar tras la pincelada y --latido-halo escala el halo con el icono.
+   - .logo-destello: un reflejo cruza el icono al pasar el ratón por el logo o
+     al llegarle el foco.
+   Con movimiento reducido Logo.tsx no los pone; estas reglas lo garantizan. */
+
+.logo-tramo {
+  stroke-dasharray: 1 1.1;
+  stroke-dashoffset: 1.05;
+  animation-name: logo-tramo;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+@keyframes logo-tramo {
+  from { stroke-dashoffset: 1.05; }
+  to { stroke-dashoffset: 0; }
+}
+
+.logo-latido {
+  transform-origin: 50% 55%;
+  animation: logo-latido 1.5s cubic-bezier(0.3, 0, 0.3, 1) var(--latido-retraso, 0ms) infinite;
+}
+@keyframes logo-latido {
+  0% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); }
+  12% { transform: scale(1.07); filter: drop-shadow(0 0 var(--latido-halo, 6px) color-mix(in srgb, var(--primary) 75%, transparent)); }
+  26% { transform: scale(1); filter: drop-shadow(0 0 1px color-mix(in srgb, var(--primary) 25%, transparent)); }
+  38% { transform: scale(1.04); filter: drop-shadow(0 0 calc(var(--latido-halo, 6px) * 0.6) color-mix(in srgb, var(--primary) 55%, transparent)); }
+  56%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); }
+}
+
+.logo-brillo {
+  transform: translateX(-70px);
+}
+[data-logo]:hover .logo-destello .logo-brillo,
+.logo-destello:hover .logo-brillo,
+:focus-visible .logo-destello .logo-brillo {
+  animation: logo-brillo 900ms cubic-bezier(0.45, 0, 0.55, 1) both;
+}
+@keyframes logo-brillo {
+  from { transform: translateX(-70px); }
+  to { transform: translateX(140px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-tramo { animation: none; stroke-dashoffset: 0; }
+  .logo-latido { animation: none; }
+  .logo-brillo { display: none; }
+}

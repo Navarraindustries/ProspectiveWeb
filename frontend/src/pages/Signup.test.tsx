@@ -218,7 +218,7 @@ describe("tramos de pantalla (fase 8, tarea 12)", () => {
     const zona = container.querySelector<HTMLElement>(".login-form")!;
     expect(capa.contains(zona)).toBe(false);
     expect(zona.style.flex).toBe("1 1 100%");
-    expect(within(zona).getByText("por SkullApp").closest("[data-theme]")).toHaveAttribute("data-theme", "dark");
+    expect(within(zona).getByRole("img", { name: "SkullApp" }).closest("[data-theme]")).toHaveAttribute("data-theme", "dark");
   });
 
   it.each([1024, 768, 390, 360])("a %i px no hay panel de vídeo: el logotipo va sobre la ventana y nada fuerza ancho mínimo", (ancho) => {

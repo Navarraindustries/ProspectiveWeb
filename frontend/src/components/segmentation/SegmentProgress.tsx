@@ -70,7 +70,7 @@ export function SegmentProgress({
         <span aria-live="polite">{headline}</span>
         <span style={{ fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>{pct} %</span>
       </div>
-      <ProgressBar value={state ? state.pct : undefined} />
+      <ProgressBar marca value={state ? state.pct : undefined} />
       {/* Las fases vistas: las anteriores con marca y su mensaje, la actual con
           punto. Sustituye al «Fases» plegado: la espera enseña qué ocurre. */}
       <ol

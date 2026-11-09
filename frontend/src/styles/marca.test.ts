@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { it, expect } from "vitest";
+import { MARCA_D } from "../components/shell/marcaSkullApp";
 
 const raiz = join(__dirname, "../..");
 const png = (f: string) => { const b = readFileSync(join(raiz, "public", f)); return { firma: b.subarray(1, 4).toString(), ancho: b.readUInt32BE(16), alto: b.readUInt32BE(20) }; };
@@ -16,10 +17,11 @@ it("los PNG existen con su tamaño", () => {
   expect(png("favicon-32.png")).toEqual({ firma: "PNG", ancho: 32, alto: 32 });
   expect(png("apple-touch-icon.png")).toEqual({ firma: "PNG", ancho: 180, alto: 180 });
 });
-it("el SVG es el icono app simplificado y se retiraron los PNG viejos", () => {
+it("el SVG es el icono de SkullApp en blanco sobre el cuadrado oscuro y se retiraron los PNG viejos", () => {
   const svg = readFileSync(join(raiz, "public/favicon.svg"), "utf8");
-  expect(svg).toContain('scale(0.8125)');
-  expect(svg).toContain('r="6"');
+  expect(svg).toContain(MARCA_D);
+  expect(svg).toContain('fill="#16181E"');
+  expect(svg).not.toContain("<circle");
   expect(existsSync(join(raiz, "src/assets/logo.png"))).toBe(false);
   expect(existsSync(join(raiz, "public/icon.png"))).toBe(false);
 });

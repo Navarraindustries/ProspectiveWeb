@@ -200,7 +200,7 @@ describe("Landing D: secciones del tablero", () => {
     const { container } = show();
     const pie = within(container.querySelector("footer")!);
     expect(pie.getByText("Prospective")).toBeInTheDocument();
-    expect(pie.getByText("por SkullApp")).toBeInTheDocument();
+    expect(pie.getByRole("img", { name: "SkullApp" })).toBeInTheDocument();
   });
 
   it("el pie lleva el aviso clínico exacto", () => {

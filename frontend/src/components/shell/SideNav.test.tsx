@@ -48,7 +48,9 @@ describe("SideNav", () => {
     const { container } = render(<Host />);
     const svg = container.querySelector(".shell-nav-head svg")!;
     expect(svg.getAttribute("width")).toBe("32");
-    expect(svg.querySelector('rect[fill="var(--primary)"]')).not.toBeNull();
+    // La marca de SkullApp suelta, en el color del texto: sin cuadrado de fondo.
+    expect(svg.querySelector('rect[fill="var(--logo-app-fondo)"]')).toBeNull();
+    expect(svg.querySelector("path")!.getAttribute("fill")).toBe("currentColor");
     expect(screen.queryByText("Prospective")).toBeNull();
     // Plegada no hay texto, pero el icono dice la marca.
     expect(screen.getByRole("img", { name: "Prospective" })).toBe(svg);

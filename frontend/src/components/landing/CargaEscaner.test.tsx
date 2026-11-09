@@ -9,10 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { tieneDeclaracion } from "../../test/cssReglas";
 import { simularPantalla } from "../../test/pantalla";
 import {
-  BARRIDO_MS, BREVE_MS, CORTES_ESCANEO, CargaEscaner, FASES_MS, MIN_CONTADOR_MS, SALTO_MS,
-  LADO_ANILLO, LESION_EN_IMAGEN, corteMostrado, escalaDe, progresoMostrado, puntoEnCorte, puntoFinal, radioApertura,
+  BARRIDO_MS, BREVE_MS, CORTES_ESCANEO, CargaEscaner, FASES_MS, MIN_CONTADOR_MS, PINCELADA_INTRO, SALTO_MS,
+  LESION_EN_IMAGEN, corteMostrado, escalaDe, progresoMostrado, puntoEnCorte, puntoFinal, radioApertura,
   rotuloCandidato,
 } from "./CargaEscaner";
+import { TRAMOS } from "../shell/marcaSkullApp";
 import { MANIFIESTO, reiniciarPrecargaHero, rutaFotograma } from "./heroFrames";
 
 const css = readFileSync(join(__dirname, "../../styles/landing.css"), "utf8").replace(/\r\n/g, "\n");
@@ -116,11 +117,12 @@ describe("aritmética", () => {
     expect(rotuloCandidato()).toBe("CANDIDATO 1 · ≈3,7 MM");
   });
 
-  it("cinco pasadas, la última en el corte de la lesión, y todo en 3 s", () => {
+  it("cinco pasadas, la última en el corte de la lesión, y todo en menos de 5,5 s", () => {
     expect(CORTES_ESCANEO).toEqual([0, 15, 30, 45, 59]);
     expect(CORTES_ESCANEO.at(-1)).toBe(MANIFIESTO.lesionFrame);
     expect(BARRIDO_MS * CORTES_ESCANEO.length).toBe(FASES_MS.lesion);
-    expect(FASES_MS.fin).toBeLessThanOrEqual(4500);
+    // La pincelada del icono de SkullApp y la entrada del nombre alargan la fase del logo (08-11).
+    expect(FASES_MS.fin).toBeLessThanOrEqual(5500);
     expect(SALTO_MS).toBeLessThanOrEqual(250);
     expect(BREVE_MS.fin).toBeLessThanOrEqual(700);
   });
@@ -146,7 +148,7 @@ describe("CargaEscaner: secuencia completa", () => {
     expect(capa().querySelector(".carga-escaner__barrido")).not.toBeNull();
   });
 
-  it("pasa por escaneo, lesión, logo y apertura, y termina a los 4500 ms", () => {
+  it("pasa por escaneo, lesión, logo y apertura, y termina en FASES_MS.fin", () => {
     const { onFin, onAbrir } = montar();
     expect(capa()).toHaveAttribute("data-fase", "escaneo");
     avanzar(FASES_MS.lesion);
@@ -154,8 +156,12 @@ describe("CargaEscaner: secuencia completa", () => {
     expect(screen.getByText("CANDIDATO 1 · ≈3,7 MM")).toBeInTheDocument();
     avanzar(FASES_MS.logo - FASES_MS.lesion);
     expect(capa()).toHaveAttribute("data-fase", "logo");
-    expect(capa().querySelector(".carga-escaner__logo")).toHaveTextContent("Prospective");
-    expect(capa().querySelector(".carga-escaner__logo")).toHaveTextContent("por SkullApp");
+    const marca = capa().querySelector(".carga-escaner__logo")!;
+    expect(marca).toHaveTextContent("Prospective");
+    // Firmado «por» + el logotipo de SkullApp; el icono se pinta con la pincelada.
+    expect(marca.querySelector(".carga-escaner__firma")).toHaveTextContent("por");
+    expect(marca.querySelector('.carga-escaner__firma svg[aria-label="SkullApp"]')).not.toBeNull();
+    expect(marca.querySelectorAll(".carga-escaner__marca > svg mask .logo-tramo")).toHaveLength(TRAMOS.length);
     expect(onAbrir).not.toHaveBeenCalled();
     avanzar(FASES_MS.apertura - FASES_MS.logo);
     expect(capa()).toHaveAttribute("data-fase", "apertura");
@@ -205,23 +211,20 @@ describe("CargaEscaner: secuencia completa", () => {
     // Cuadrado de 1080 centrado: 420 + 0,485 × 1080 = 943,8; 0,48 × 1080 = 518,4.
     expect(capa().style.getPropertyValue("--carga-x")).toBe("944px");
     expect(capa().style.getPropertyValue("--carga-y")).toBe("518px");
-    // Sin maqueta (jsdom) no hay punto del icono que medir: ni viaje, y abre desde la lesión.
-    expect(capa().style.getPropertyValue("--carga-dx")).toBe("0px");
-    expect(capa().style.getPropertyValue("--carga-dy")).toBe("0px");
-    expect(capa().style.getPropertyValue("--carga-punto")).toBe("0.18");
+    // Sin maqueta (jsdom) no hay icono que medir: abre desde la lesión.
     expect(capa().style.getPropertyValue("--carga-ax")).toBe("944px");
     expect(capa().style.getPropertyValue("--carga-iris-fin")).toBe(`${radioApertura(1920, 1080, 944, 518)}px`);
   });
 
-  it("el punto viaja de la lesión al punto del icono D y la apertura sale de allí", () => {
+  it("la apertura sale del centro del icono de SkullApp", () => {
     simularPantalla(1920, 1080);
     const original = Element.prototype.getBoundingClientRect;
-    // La marca entra escalada (0,96); el punto del icono se mide así y se deshace la escala.
+    // Si la marca está escalada al medir (0,96), se deshace la escala desde su centro.
     const caja = (left: number, top: number, width: number, height: number) =>
       ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
     Element.prototype.getBoundingClientRect = function (this: Element) {
       if (this.classList.contains("carga-escaner__logo")) return caja(38.4, 21.6, 1843.2, 1036.8);
-      if (this.matches("svg g > circle:last-of-type")) return caja(700, 480, 10.56, 10.56);
+      if (this.matches(".carga-escaner__marca > svg")) return caja(700, 480, 115.2, 115.2);
       return caja(0, 0, 0, 0);
     };
     const computado = window.getComputedStyle.bind(window);
@@ -231,16 +234,14 @@ describe("CargaEscaner: secuencia completa", () => {
         : computado(el, pseudo));
     try {
       montar();
-      const fin = puntoFinal(caja(700, 480, 10.56, 10.56), caja(38.4, 21.6, 1843.2, 1036.8), 0.96);
+      const fin = puntoFinal(caja(700, 480, 115.2, 115.2), caja(38.4, 21.6, 1843.2, 1036.8), 0.96);
       const ax = Math.round(fin.x);
       const ay = Math.round(fin.y);
-      expect(capa().style.getPropertyValue("--carga-dx")).toBe(`${ax - 944}px`);
-      expect(capa().style.getPropertyValue("--carga-dy")).toBe(`${ay - 518}px`);
       expect(capa().style.getPropertyValue("--carga-ax")).toBe(`${ax}px`);
       expect(capa().style.getPropertyValue("--carga-ay")).toBe(`${ay}px`);
-      // El viajero llega con el tamaño del punto del icono (11 px de 64).
-      expect(capa().style.getPropertyValue("--carga-punto")).toBe(String(Math.round((11 / LADO_ANILLO) * 1000) / 1000));
       expect(capa().style.getPropertyValue("--carga-iris-fin")).toBe(`${radioApertura(1920, 1080, ax, ay)}px`);
+      // Ya no hay punto viajero.
+      expect(capa().style.getPropertyValue("--carga-dx")).toBe("");
     } finally {
       Element.prototype.getBoundingClientRect = original;
       estilo.mockRestore();
@@ -388,7 +389,8 @@ describe("CargaEscaner: fuente y estilos", () => {
     expect(tieneDeclaracion(css, ".carga-escaner__barrido", `carga-apagar 120ms linear ${FASES_MS.lesion}ms forwards`)).toBe(true);
     expect(tieneDeclaracion(css, ".carga-escaner__corte", `carga-corte ${BARRIDO_MS}ms linear calc(var(--k) * ${BARRIDO_MS}ms) both`)).toBe(true);
     expect(tieneDeclaracion(css, ".carga-escaner__anillo", `carga-anillo-entra 150ms var(--ease-out) ${FASES_MS.lesion}ms both`)).toBe(true);
-    expect(tieneDeclaracion(css, ".carga-escaner__anillo", `carga-anillo-punto 150ms var(--ease-out) ${FASES_MS.logo}ms forwards`)).toBe(true);
+    expect(tieneDeclaracion(css, ".carga-escaner__anillo", `carga-anillo-sale 250ms ease-in ${FASES_MS.logo}ms forwards`)).toBe(true);
+    expect(tieneDeclaracion(css, ".carga-escaner__logo", `carga-logo-sale 450ms ease-in ${FASES_MS.apertura + 75}ms forwards`)).toBe(true);
   });
 
   it("fase logo: cortes a casi negro y rótulos de esquina apagados entre 2850 y 3225 ms", () => {
@@ -398,12 +400,19 @@ describe("CargaEscaner: fuente y estilos", () => {
     expect(Number(velar![1])).toBeLessThanOrEqual(0.12);
     expect(tieneDeclaracion(css, ".carga-escaner__hud", "animation: carga-apagar 375ms linear 2850ms forwards")).toBe(true);  });
 
-  it("el punto viaja 300 ms hasta el del icono, que toma el relevo, y la apertura sale de allí", () => {
-    expect(tieneDeclaracion(css, ".carga-escaner__anillo", "carga-anillo-viaja 450ms cubic-bezier(0.65, 0, 0.35, 1) 3225ms forwards")).toBe(true);
-    expect(tieneDeclaracion(css, ".carga-escaner__anillo", "carga-apagar 40ms linear 3675ms forwards")).toBe(true);
-    expect(css).toMatch(/@keyframes carga-anillo-viaja \{\s*from \{ transform: translate\(0, 0\) scale\(var\(--carga-punto\)\); \}\s*to \{ transform: translate\(var\(--carga-dx\), var\(--carga-dy\)\) scale\(var\(--carga-punto\)\); \}/);
-    expect(tieneDeclaracion(css, ".carga-escaner__logo svg g > circle:last-of-type", "animation: carga-encender 1ms linear 3675ms both")).toBe(true);
-    expect(tieneDeclaracion(css, '.carga-escaner[data-modo="completo"]', "mask-image: radial-gradient(circle at var(--carga-ax) var(--carga-ay)")).toBe(true);  });
+  it("fase logo: el icono se pinta, luego entra el nombre y se asienta la firma, todo antes de abrir", () => {
+    const finPincelada = PINCELADA_INTRO.retrasoMs! + PINCELADA_INTRO.duracionMs!;
+    expect(PINCELADA_INTRO.retrasoMs).toBeGreaterThanOrEqual(FASES_MS.logo);
+    expect(tieneDeclaracion(css, '.carga-escaner[data-modo="completo"] .carga-escaner__producto', "animation: carga-nombre 450ms cubic-bezier(0.16, 1, 0.3, 1) 3750ms both")).toBe(true);
+    expect(tieneDeclaracion(css, '.carga-escaner[data-modo="completo"] .carga-escaner__firma', "animation: carga-firma 300ms ease-out 4000ms both")).toBe(true);
+    // El nombre entra cuando la pincelada va por la cola; la firma acaba antes de abrir.
+    expect(3750).toBeLessThan(finPincelada);
+    expect(4000 + 300).toBeLessThanOrEqual(FASES_MS.apertura);
+    expect(finPincelada).toBeLessThanOrEqual(FASES_MS.apertura);
+    // Sin punto al que viajar: nada del viajero en el CSS.
+    expect(css).not.toMatch(/carga-anillo-viaja|--carga-punto|circle:last-of-type/);
+    expect(tieneDeclaracion(css, '.carga-escaner[data-modo="completo"]', "mask-image: radial-gradient(circle at var(--carga-ax) var(--carga-ay)")).toBe(true);
+  });
 
   it("rótulos mono en mayúsculas y gris atenuado; en móvil el rótulo de la lesión va debajo", () => {
     expect(tieneDeclaracion(css, ".carga-escaner__hud", "font-family: var(--font-mono)")).toBe(true);
@@ -413,7 +422,7 @@ describe("CargaEscaner: fuente y estilos", () => {
   });
 
   it("la marca grande baja con clamp para caber a 360", () => {
-    expect(tieneDeclaracion(css, ".carga-escaner__marca svg", "width: clamp(60px, 17vw, 120px)")).toBe(true);
+    expect(tieneDeclaracion(css, ".carga-escaner__marca > svg", "width: clamp(60px, 17vw, 120px)")).toBe(true);
     expect(tieneDeclaracion(css, ".carga-escaner__producto", "font-size: clamp(28px, 8.5vw, 56px)")).toBe(true);
     // A 360: icono (17 vw) + hueco + «Prospective™» (≈ 6,9 em de 8,5 vw) caben en 360 − 2 × 16.
     const vw = 3.6;

@@ -1,32 +1,40 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import { Logo, LogoIcono, trazoIcono } from "./Logo";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-describe("Logo", () => {
-  it("trazoIcono sigue el lienzo por tamaño", () => {
-    expect(trazoIcono(48)).toEqual({ trazo: 3.5, punto: 4.4, detalle: true });
-    expect(trazoIcono(33)).toEqual({ trazo: 3.5, punto: 4.4, detalle: true });
-    expect(trazoIcono(32)).toEqual({ trazo: 4, punto: 5, detalle: false });
-    expect(trazoIcono(17)).toEqual({ trazo: 4, punto: 5, detalle: false });
-    expect(trazoIcono(16)).toEqual({ trazo: 5, punto: 6, detalle: false });
+const { reducido } = vi.hoisted(() => ({ reducido: { valor: false } }));
+vi.mock("../../motion", () => ({ useReducedMotion: () => reducido.valor }));
+
+import { Logo, LogoIcono, PINCELADA_MS, tiempoPincelada, tiemposTramos } from "./Logo";
+import { FIRMA_PROPORCION, MARCA_D, TRAMOS } from "./marcaSkullApp";
+
+afterEach(() => { reducido.valor = false; });
+
+describe("Logo · icono de SkullApp", () => {
+  it("el icono es la marca de SkullApp, una sola pieza, sin el icono D", () => {
+    const { container } = render(<LogoIcono size={48} variante="linea" />);
+    const paths = container.querySelectorAll("path");
+    expect(paths).toHaveLength(1);
+    expect(paths[0].getAttribute("d")).toBe(MARCA_D);
+    expect(container.querySelector("ellipse, circle")).toBeNull();
   });
-  it("app grande: cuadrado primario, icono a 2/3 y tres puntos", () => {
-    const { container } = render(<LogoIcono size={48} variante="app" />);
-    expect(container.querySelector("rect")!.getAttribute("fill")).toBe("var(--primary)");
-    expect(container.querySelector("g")!.getAttribute("transform")).toBe("translate(8 8) scale(0.666667)");
-    expect(container.querySelectorAll("circle")).toHaveLength(3);
-    expect(container.querySelector('circle[r="4.4"]')!.getAttribute("fill")).toBe("var(--logo-dot)");
+  it("línea: monocromo con currentColor; sobre vídeo, --on-media", () => {
+    const { container, rerender } = render(<LogoIcono size={38} variante="linea" />);
+    expect(container.querySelector("rect")).toBeNull();
+    expect(container.querySelector("path")!.getAttribute("fill")).toBe("currentColor");
+    rerender(<LogoIcono size={38} variante="linea" tono="media" />);
+    expect(container.querySelector("path")!.getAttribute("fill")).toBe("var(--on-media)");
+  });
+  it("app: cuadrado monocromo (--logo-app-*) con la marca dentro, no el cuadrado azul", () => {
+    const { container } = render(<LogoIcono size={32} variante="app" />);
+    const rect = container.querySelector("rect")!;
+    expect(rect.getAttribute("fill")).toBe("var(--logo-app-fondo)");
+    expect(rect.getAttribute("stroke")).toBe("var(--logo-app-borde)");
+    expect(container.querySelector("path")!.getAttribute("fill")).toBe("var(--logo-app-marca)");
+    expect(container.querySelector("g")!.getAttribute("transform")).toBe("translate(14 14) scale(0.72)");
   });
   it("la raíz lleva data-logo", () => {
     const { container } = render(<Logo />);
     expect(container.firstElementChild).toHaveAttribute("data-logo");
-  });
-  it("app de 32: simplificado, sin los puntos pequeños", () => {
-    const { container } = render(<LogoIcono size={32} variante="app" />);
-    expect(container.querySelector("g")!.getAttribute("transform")).toBe("translate(7.5 7.5) scale(0.6875)");
-    expect(container.querySelectorAll("circle")).toHaveLength(1);
-    expect(container.querySelector("circle")!.getAttribute("r")).toBe("5");
-    expect(container.querySelector("g")!.getAttribute("stroke-width")).toBe("4");
   });
   it("el icono suelto es decorativo salvo que lleve etiqueta", () => {
     const { container, rerender } = render(<LogoIcono size={32} />);
@@ -36,40 +44,86 @@ describe("Logo", () => {
     expect(container.querySelector("svg")).not.toHaveAttribute("aria-hidden");
     expect(container.querySelector("svg")).toHaveAttribute("role", "img");
   });
-  it("app de 16: trazo 5, punto 6 y escala 0.8125", () => {
-    const { container } = render(<LogoIcono size={16} variante="app" />);
-    expect(container.querySelector("g")!.getAttribute("transform")).toBe("translate(4.5 4.5) scale(0.8125)");
-    expect(container.querySelector("circle")!.getAttribute("r")).toBe("6");
-  });
-  it("línea: sin cuadrado, trazo currentColor y punto --data; con tono media, --brand-mist", () => {
-    const { container, rerender } = render(<LogoIcono size={38} variante="linea" />);
-    expect(container.querySelector("rect")).toBeNull();
-    expect(container.querySelector("ellipse")!.closest("[stroke]")!.getAttribute("stroke")).toBe("currentColor");
-    expect(container.querySelector('circle[r="4.4"]')!.getAttribute("fill")).toBe("var(--data)");
-    rerender(<LogoIcono size={38} variante="linea" tono="media" />);
-    expect(container.querySelector('circle[r="4.4"]')!.getAttribute("fill")).toBe("var(--brand-mist)");
-  });
-  it("completo: «Prospective» en Sora 600 con ™ y la firma", () => {
-    render(<Logo size={38} />);
+});
+
+describe("Logo · nombre y firma", () => {
+  it("«Prospective» en Sora 600 con ™, firmado «por» + el logotipo de SkullApp", () => {
+    const { container } = render(<Logo size={38} />);
     const nombre = screen.getByText("Prospective");
     expect(nombre.style.fontFamily).toBe("var(--font-brand)");
     expect(nombre.style.fontWeight).toBe("600");
-    expect(nombre.style.letterSpacing).toBe("-0.02em");
     expect(nombre.style.fontSize).toBe("24px");
-    expect(nombre.querySelector("sup")!.textContent).toBe("™");
     expect(nombre.querySelector("sup")).toHaveAttribute("aria-hidden", "true");
-    expect(screen.getByText("por SkullApp").style.fontSize).toBe("12px");
+    const firma = screen.getByRole("img", { name: "SkullApp" });
+    expect(firma).toHaveAttribute("data-firma");
+    expect(firma.querySelector("path")!.getAttribute("fill")).toBe("currentColor");
+    const linea = container.querySelector<HTMLElement>("[data-firma-linea]")!;
+    expect(linea.textContent!.trim()).toBe("por");
+    expect(linea.style.fontSize).toBe("12px");
+    // El logotipo va a la altura de la letra y con su proporción.
+    expect(Number(firma.getAttribute("height"))).toBe(13);
+    expect(Number(firma.getAttribute("width"))).toBe(Math.round(13 * FIRMA_PROPORCION));
   });
   it("sin firma y compacto", () => {
     const { container, rerender } = render(<Logo firma={false} />);
-    expect(screen.queryByText("por SkullApp")).toBeNull();
+    expect(screen.queryByRole("img", { name: "SkullApp" })).toBeNull();
     rerender(<Logo compact />);
     expect(container.textContent).toBe("");
-    // Sin texto visible, pero la barra plegada sigue diciendo la marca.
     expect(screen.getByRole("img", { name: "Prospective" })).toBe(container.querySelector("svg"));
   });
-  it("tono media: firma en --on-media-muted", () => {
-    render(<Logo tono="media" />);
-    expect(screen.getByText("por SkullApp").style.color).toBe("var(--on-media-muted)");
+  it("tono media: la firma en --on-media-muted", () => {
+    const { container } = render(<Logo tono="media" />);
+    expect(container.querySelector<HTMLElement>("[data-firma-linea]")!.style.color).toBe("var(--on-media-muted)");
+  });
+});
+
+describe("Logo · movimiento", () => {
+  it("la curva de la pincelada arranca y acaba suave y nunca retrocede", () => {
+    expect(tiempoPincelada(0)).toBe(0);
+    expect(tiempoPincelada(1)).toBeCloseTo(1, 6);
+    expect(tiempoPincelada(0.5)).toBeCloseTo(0.5, 6);
+    // Al principio va despacio: el 10 % del trazo se lleva más del 10 % del tiempo.
+    expect(tiempoPincelada(0.1)).toBeGreaterThan(0.1);
+    const ts = TRAMOS.map((t) => tiempoPincelada(t.desde));
+    for (let i = 1; i < ts.length; i++) expect(ts[i]).toBeGreaterThan(ts[i - 1]);
+  });
+  it("los tramos se encadenan: cada uno empieza donde acaba el anterior y el último acaba a su hora", () => {
+    const t = tiemposTramos({ retrasoMs: 100, duracionMs: 1000 });
+    expect(t[0].retraso).toBe(100);
+    for (let i = 1; i < t.length; i++) expect(Math.abs(t[i].retraso - (t[i - 1].retraso + t[i - 1].duracion))).toBeLessThanOrEqual(1);
+    const ultimo = t[t.length - 1];
+    expect(Math.abs(ultimo.retraso + ultimo.duracion - 1100)).toBeLessThanOrEqual(1);
+  });
+  it("pincelada: la marca va enmascarada por los 14 tramos, cada uno con su retraso", () => {
+    const { container } = render(<LogoIcono size={120} variante="linea" pincelada />);
+    const tramos = container.querySelectorAll<SVGPathElement>("mask .logo-tramo");
+    expect(tramos).toHaveLength(TRAMOS.length);
+    expect(tramos[0].style.animationDelay).toBe("0ms");
+    const t = tiemposTramos();
+    expect(tramos[13].style.animationDelay).toBe(`${t[13].retraso}ms`);
+    expect(t[13].retraso + t[13].duracion).toBeLessThanOrEqual(PINCELADA_MS + 1);
+    const marca = container.querySelector(`path[d="${MARCA_D}"]`)!;
+    expect(marca.getAttribute("mask")).toMatch(/^url\(#pincel-/);
+  });
+  it("latido: clase en bucle con el retraso y el halo según el tamaño", () => {
+    const { container } = render(<LogoIcono size={100} variante="linea" latido={{ retrasoMs: 1300 }} />);
+    const svg = container.querySelector<SVGSVGElement>("svg")!;
+    expect(svg.classList.contains("logo-latido")).toBe(true);
+    expect(svg.style.getPropertyValue("--latido-retraso")).toBe("1300ms");
+    expect(svg.style.getPropertyValue("--latido-halo")).toBe("12px");
+  });
+  it("destello: el reflejo va recortado por la marca", () => {
+    const { container } = render(<LogoIcono size={26} variante="linea" destello />);
+    expect(container.querySelector("svg")!.classList.contains("logo-destello")).toBe(true);
+    const brillo = container.querySelector(".logo-brillo")!;
+    expect(brillo.closest("[clip-path]")!.getAttribute("clip-path")).toMatch(/^url\(#marca-/);
+  });
+  it("con movimiento reducido no hay pincelada, latido ni destello: la marca entera y quieta", () => {
+    reducido.valor = true;
+    const { container } = render(<LogoIcono size={100} variante="linea" pincelada latido destello />);
+    expect(container.querySelector("mask")).toBeNull();
+    expect(container.querySelector(".logo-brillo")).toBeNull();
+    expect(container.querySelector("svg")!.getAttribute("class")).toBeNull();
+    expect(container.querySelector("path")!.getAttribute("mask")).toBeNull();
   });
 });

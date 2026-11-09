@@ -304,7 +304,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
           <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 6 }}>
             Subiendo {nFiles} archivo{nFiles === 1 ? "" : "s"} y detectando series…
           </div>
-          <ProgressBar />
+          <ProgressBar marca />
         </div>
       )}
       <ErrorNote>{error}</ErrorNote>

@@ -508,6 +508,15 @@ async def restore_session(
         except ValueError:
             return 0
 
+    def _float_state(key: str) -> float | None:
+        """None si no está o no es un número finito (sesiones de antes)."""
+        raw = read_state(new_sid, key, "")
+        try:
+            v = float(raw) if raw else None
+        except ValueError:
+            return None
+        return v if v is not None and math.isfinite(v) else None
+
     stamp = int(datetime.now().timestamp() * 1000)
     mesh_url = f"{mesh_url_for(new_sid, 'vessel_tree.vtp')}?v={stamp}" if has_seg else ""
 
@@ -537,6 +546,7 @@ async def restore_session(
         downsample_factor=_int_state("seg.downsample_factor"),
         method=read_state(new_sid, "seg.method", "") or "",
         fallback_note=read_state(new_sid, "seg.fallback_note", "") or "",
+        threshold_lower=_float_state("seg.threshold_lower") if has_seg else None,
         modality=read_state(new_sid, "dicom.modality", "") or "",
         patient_id=ps.patient_id,
         study_id=ps.study_id,

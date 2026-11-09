@@ -9411,6 +9411,18 @@
       "title": "Study Label",
       "type": "string"
      },
+     "threshold_lower": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Umbral inferior con el que se hizo la malla (HU); null = desconocido",
+      "title": "Threshold Lower"
+     },
      "trajectory": {
       "anyOf": [
        {

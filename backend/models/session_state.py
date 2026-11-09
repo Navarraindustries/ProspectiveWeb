@@ -123,6 +123,11 @@ class SessionRestoreResult(BaseModel):
     fallback_note: str = Field(
         "", description="Por qué el servidor bajó a media resolución, si lo hizo"
     )
+    # Sin él, el MIP de la sesión reanudada caía al 60 % del rango en vez de
+    # anclarse a la banda de la segmentación (UNI-88).
+    threshold_lower: float | None = Field(
+        None, description="Umbral inferior con el que se hizo la malla (HU); null = desconocido"
+    )
     centerline_mesh_url: str = Field(
         "",
         description=(

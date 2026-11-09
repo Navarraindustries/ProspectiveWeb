@@ -19,5 +19,8 @@ export function restoredSegmentation(r: SessionRestoreResult): SegmentResult {
     downsample_factor: r.downsample_factor || 1,
     method: r.method === "tubular" || r.method === "threshold" ? r.method : undefined,
     fallback_note: r.fallback_note || "",
+    // El MIP ancla su rampa a este umbral; sin él caía al 60 % del rango (UNI-88).
+    ...(typeof r.threshold_lower === "number" && Number.isFinite(r.threshold_lower)
+      ? { threshold_lower: r.threshold_lower } : {}),
   };
 }

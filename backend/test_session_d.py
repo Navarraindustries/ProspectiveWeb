@@ -370,6 +370,36 @@ class TestSessionState:
                     json={"session_id": sid, "label": "Old", "current_step": 2})
         data = client.post(f"/api/sessions/{sid}/restore").json()
         assert data["downsample_factor"] == 0 and data["method"] == "" and data["fallback_note"] == ""
+        assert data["threshold_lower"] is None
+
+    def test_restore_brings_the_segmentation_threshold_back(self):
+        """UNI-88: sin el umbral, el MIP de la sesión reanudada caía al 60 %
+        del rango (UMBRAL 2141 en Case 3) en vez de anclarse a la banda."""
+        from services.sessions import session_subdir, write_state
+
+        sid = _make_session()
+        meshes = session_subdir(sid, "meshes")
+        meshes.mkdir(parents=True, exist_ok=True)
+        (meshes / "vessel_tree.vtp").write_bytes(b"<VTKFile/>")
+        write_state(sid, "seg.threshold_lower", "245.5")
+        client.post("/api/sessions/save",
+                    json={"session_id": sid, "label": "Con umbral", "current_step": 2})
+        data = client.post(f"/api/sessions/{sid}/restore").json()
+        assert data["has_segmentation"] is True
+        assert data["threshold_lower"] == pytest.approx(245.5)
+
+    def test_restore_ignores_a_threshold_that_is_not_a_number(self):
+        from services.sessions import session_subdir, write_state
+
+        sid = _make_session()
+        meshes = session_subdir(sid, "meshes")
+        meshes.mkdir(parents=True, exist_ok=True)
+        (meshes / "vessel_tree.vtp").write_bytes(b"<VTKFile/>")
+        write_state(sid, "seg.threshold_lower", "nan")
+        client.post("/api/sessions/save",
+                    json={"session_id": sid, "label": "Umbral roto", "current_step": 2})
+        data = client.post(f"/api/sessions/{sid}/restore").json()
+        assert data["threshold_lower"] is None
 
     def test_restore_without_centerline_reports_none(self):
         sid = _make_session()

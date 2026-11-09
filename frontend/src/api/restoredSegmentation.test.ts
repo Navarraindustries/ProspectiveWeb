@@ -26,5 +26,11 @@ describe("restoredSegmentation", () => {
     expect(s.downsample_factor).toBe(1);
     expect(s.method).toBeUndefined();
     expect(s.fallback_note).toBe("");
+    expect(s.threshold_lower).toBeUndefined();
+  });
+
+  it("trae el umbral de la segmentación para que el MIP arranque en la banda (UNI-88)", () => {
+    expect(restoredSegmentation({ ...base, threshold_lower: 245.5 }).threshold_lower).toBe(245.5);
+    expect(restoredSegmentation({ ...base, threshold_lower: null }).threshold_lower).toBeUndefined();
   });
 });

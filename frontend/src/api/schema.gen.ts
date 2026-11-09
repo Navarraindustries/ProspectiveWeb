@@ -9235,6 +9235,11 @@ export interface components {
              * @default
              */
             study_label: string;
+            /**
+             * Threshold Lower
+             * @description Umbral inferior con el que se hizo la malla (HU); null = desconocido
+             */
+            threshold_lower?: number | null;
             /** @description La trayectoria guardada con su ángulo, profundidad y corredor */
             trajectory?: components["schemas"]["TrajectoryResult"] | null;
             /** @description La recomendación guardada, igual que la devolvió el motor */

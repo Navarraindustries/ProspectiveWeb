@@ -1652,6 +1652,8 @@ export interface SessionRestoreResult {
   downsample_factor?: number;
   method?: string;                  // "tubular" | "threshold" | "" (desconocido)
   fallback_note?: string;           // por qué se bajó a media resolución
+  /** Umbral inferior con que se hizo la malla (HU); null en sesiones de antes (UNI-88). */
+  threshold_lower?: number | null;
   centerline_mesh_url: string;      // "" when the session had no centreline
   centerline_arc_mm: number;
   /* Lo hecho después de detectar (familia S); null = no se hizo. */

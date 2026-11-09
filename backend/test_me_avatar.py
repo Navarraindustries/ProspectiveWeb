@@ -129,3 +129,24 @@ def test_users_brief_incluye_avatar_y_modo():
     assert mine["avatar_config"] == CONFIG
     assert mine["avatar_mode"] == "avatar"
     assert mine["has_profile_photo"] is False
+
+
+def test_listas_coinciden_con_el_cliente():
+    import json
+    from pathlib import Path
+
+    import pytest
+
+    from services import avatar_config as ac
+
+    ruta = Path(__file__).resolve().parent.parent / "frontend" / "src" / "avatar" / "listas.json"
+    if not ruta.exists():
+        pytest.skip("frontend/src/avatar/listas.json no está en este despliegue")
+    j = json.loads(ruta.read_text(encoding="utf-8"))
+    assert tuple(j["pieles"]) == ac.PIELES
+    assert tuple(j["peinados"]) == ac.PEINADOS
+    assert tuple(j["coloresPelo"]) == ac.COLORES_PELO
+    assert tuple(j["cabezas"]) == ac.CABEZAS
+    assert tuple(j["ojos"]) == ac.OJOS
+    assert tuple(j["pijamas"]) == ac.PIJAMAS
+    assert tuple(j["fondos"]) == ac.FONDOS

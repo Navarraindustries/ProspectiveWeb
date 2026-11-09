@@ -12,6 +12,33 @@ export interface UserInfo {
   has_photo?: boolean;
   /** La cuenta lleva la contraseña inicial: hay que cambiarla antes de seguir. */
   must_change_password?: boolean;
+  avatar_config?: AvatarConfig | null;
+  avatar_mode?: "avatar" | "foto";
+  has_profile_photo?: boolean;
+  onboarding?: OnboardingState;
+}
+
+/** Avatar por piezas de listas cerradas (backend/services/avatar_config.py). */
+export interface AvatarConfig {
+  v: 1;
+  /** Índice 0-5 en la lista de pieles. */
+  piel: number;
+  peinado: string;
+  /** Color hexadecimal de la lista cerrada. */
+  pelo: string;
+  cabeza: string;
+  ojos: string;
+  mascarilla: boolean;
+  pijama: string;
+  fondo: string;
+}
+
+export interface OnboardingState {
+  estado: "pendiente" | "invitado" | "completado" | "saltado";
+  fecha?: string | null;
+  pistas_vistas?: number[];
+  pistas_activas?: boolean;
+  tarjeta_cerrada?: boolean;
 }
 
 export interface LoginResponse {
@@ -61,9 +88,15 @@ export interface UserBrief {
   username: string;
   full_name: string;
   role: string;
+  avatar_config?: AvatarConfig | null;
+  avatar_mode?: "avatar" | "foto";
+  has_profile_photo?: boolean;
 }
 
 export interface UserAdminInfo {
+  avatar_config?: AvatarConfig | null;
+  avatar_mode?: "avatar" | "foto";
+  has_profile_photo?: boolean;
   id: number;
   username: string;
   full_name: string;

@@ -269,6 +269,133 @@ async def get_my_photo(
     return FileResponse(current_user.photo_path)
 
 
+def _unlink_profile_photo(path: str | None, keep: str = "") -> None:
+    """Borra el fichero de foto de perfil (nunca el del registro, que vive en `photos/`)."""
+    if path and path != keep:
+        try:
+            Path(path).unlink(missing_ok=True)
+        except OSError:
+            logger.warning("No se pudo borrar la foto de perfil %s", path)
+
+
+@router.post(
+    "/me/profile-photo",
+    response_model=UserInfo,
+    summary="Subir la foto de perfil propia",
+    description=(
+        "Multipart con `photo`, o JSON `{\"desde_registro\": true}` para copiar la foto del "
+        "registro. La foto del registro nunca se modifica."
+    ),
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "multipart/form-data": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {"photo": {"type": "string", "format": "binary"}},
+                        "required": ["photo"],
+                    }
+                },
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {"desde_registro": {"type": "boolean"}},
+                        "required": ["desde_registro"],
+                    }
+                },
+            },
+        }
+    },
+)
+async def post_my_profile_photo(
+    request: Request,
+    current_user: Annotated[User, Depends(require_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> UserInfo:
+    user = db.get(User, current_user.id)
+    old = user.profile_photo_path
+    ctype = (request.headers.get("content-type") or "").lower()
+    if ctype.startswith("application/json"):
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(status_code=422, detail="JSON no válido.")
+        if not isinstance(body, dict) or body.get("desde_registro") is not True:
+            raise HTTPException(status_code=422, detail="Falta «desde_registro»: true.")
+        src = Path(user.photo_path) if user.photo_path else None
+        if src is None or not src.exists():
+            raise HTTPException(status_code=404, detail="No hay foto del registro que copiar.")
+        dest_dir = _USER_FILES / "profile_photos"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / f"{user.id}{src.suffix.lower()[:10]}"
+        dest.write_bytes(src.read_bytes())
+        new_path = str(dest)
+    elif ctype.startswith("multipart/form-data"):
+        form = await request.form()
+        photo = form.get("photo")
+        if photo is None or not hasattr(photo, "read"):
+            raise HTTPException(status_code=422, detail="Falta el campo «photo».")
+        new_path = await _save_user_upload(photo, "profile_photos", user.id)
+    else:
+        raise HTTPException(status_code=415, detail="Se espera multipart con «photo» o JSON.")
+    user.profile_photo_path = new_path
+    db.commit()
+    db.refresh(user)
+    _unlink_profile_photo(old, keep=new_path)
+    return _user_to_info(user)
+
+
+@router.delete(
+    "/me/profile-photo",
+    response_model=UserInfo,
+    summary="Borrar la foto de perfil propia",
+    description="Borra solo la foto de perfil (no la del registro) y vuelve al modo avatar.",
+)
+async def delete_my_profile_photo(
+    current_user: Annotated[User, Depends(require_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> UserInfo:
+    user = db.get(User, current_user.id)
+    old = user.profile_photo_path
+    user.profile_photo_path = ""
+    user.avatar_mode = "avatar"
+    db.commit()
+    db.refresh(user)
+    _unlink_profile_photo(old)
+    return _user_to_info(user)
+
+
+@router.get(
+    "/me/profile-photo",
+    summary="Descargar la foto de perfil propia",
+)
+async def get_my_profile_photo(
+    current_user: Annotated[User, Depends(require_user)],
+) -> FileResponse:
+    pp = current_user.profile_photo_path
+    if not pp or not Path(pp).exists():
+        raise HTTPException(status_code=404, detail="Sin foto de perfil.")
+    return FileResponse(pp)
+
+
+@router.get(
+    "/users/{user_id}/profile-photo",
+    summary="Foto de perfil de otro usuario (solo si eligió mostrarla)",
+    description="404 salvo que ese usuario tenga `avatar_mode == 'foto'` y foto de perfil. Nunca sirve la del registro.",
+)
+async def get_user_profile_photo(
+    user_id: int,
+    _current: Annotated[User, Depends(require_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> FileResponse:
+    u = db.get(User, user_id)
+    pp = u.profile_photo_path if u else ""
+    if u is None or u.avatar_mode != "foto" or not pp or not Path(pp).exists():
+        raise HTTPException(status_code=404, detail="Sin foto de perfil.")
+    return FileResponse(pp)
+
+
 # ── Self-registration (public) ─────────────────────────────────────────────── #
 
 @router.post(

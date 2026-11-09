@@ -187,6 +187,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/me/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Guardar el avatar propio
+         * @description `config` con piezas de listas cerradas (o null) y `modo` avatar|foto.
+         */
+        put: operations["put_my_avatar_api_auth_me_avatar_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/me/onboarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Guardar el estado del onboarding propio */
+        put: operations["put_my_onboarding_api_auth_me_onboarding_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/me/photo": {
         parameters: {
             query?: never;
@@ -202,6 +239,31 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/me/profile-photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Descargar la foto de perfil propia */
+        get: operations["get_my_profile_photo_api_auth_me_profile_photo_get"];
+        put?: never;
+        /**
+         * Subir la foto de perfil propia
+         * @description Multipart con `photo`, o JSON `{"desde_registro": true}` para copiar la foto del registro. La foto del registro nunca se modifica.
+         */
+        post: operations["post_my_profile_photo_api_auth_me_profile_photo_post"];
+        /**
+         * Borrar la foto de perfil propia
+         * @description Borra solo la foto de perfil (no la del registro) y vuelve al modo avatar.
+         */
+        delete: operations["delete_my_profile_photo_api_auth_me_profile_photo_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -394,6 +456,26 @@ export interface paths {
         put?: never;
         /** Replace a user's profile photo (admin) */
         post: operations["set_user_photo_api_auth_users__user_id__photo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/users/{user_id}/profile-photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Foto de perfil de otro usuario (solo si eligió mostrarla)
+         * @description 404 salvo que ese usuario tenga `avatar_mode == 'foto'` y foto de perfil. Nunca sirve la del registro.
+         */
+        get: operations["get_user_profile_photo_api_auth_users__user_id__profile_photo_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3256,6 +3338,65 @@ export interface components {
              * @description Fraction of voxels captured by [lower, upper] in the full volume (0–1). Null when the DICOM volume has not been loaded yet. Values > 0.15 usually indicate the threshold is too permissive.
              */
             voxel_fraction?: number | null;
+        };
+        /**
+         * AvatarConfig
+         * @description Avatar construido con piezas de listas cerradas (`services/avatar_config.py`).
+         */
+        AvatarConfig: {
+            /**
+             * Cabeza
+             * @enum {string}
+             */
+            cabeza: "nada" | "gorro" | "gorro_amplio";
+            /**
+             * Fondo
+             * @enum {string}
+             */
+            fondo: "#12141A" | "#10233D" | "#241A3D" | "#0F2E28" | "#DCE3EC";
+            /** Mascarilla */
+            mascarilla: boolean;
+            /**
+             * Ojos
+             * @enum {string}
+             */
+            ojos: "nada" | "gafas" | "lupas";
+            /**
+             * Peinado
+             * @enum {string}
+             */
+            peinado: "corto" | "largo" | "mono" | "rapado" | "rizado" | "coleta";
+            /**
+             * Pelo
+             * @enum {string}
+             */
+            pelo: "#2B1D16" | "#121212" | "#6B4226" | "#D8B26E" | "#A4492A" | "#C9CCD2";
+            /**
+             * Piel
+             * @description Índice en PIELES
+             */
+            piel: number;
+            /**
+             * Pijama
+             * @enum {string}
+             */
+            pijama: "#3FC4AB" | "#5AA9FF" | "#A98BF0" | "#B5485A" | "#E0A84A" | "#4A5263";
+            /**
+             * V
+             * @default 1
+             * @constant
+             */
+            v: 1;
+        };
+        /** AvatarUpdate */
+        AvatarUpdate: {
+            config?: components["schemas"]["AvatarConfig"] | null;
+            /**
+             * Modo
+             * @default avatar
+             * @enum {string}
+             */
+            modo: "avatar" | "foto";
         };
         /** Body_add_library_clip_api_clip_library_post */
         Body_add_library_clip_api_clip_library_post: {
@@ -6929,6 +7070,29 @@ export interface components {
              */
             summary: string;
         };
+        /** OnboardingState */
+        OnboardingState: {
+            /**
+             * Estado
+             * @default pendiente
+             * @enum {string}
+             */
+            estado: "pendiente" | "invitado" | "completado" | "saltado";
+            /** Fecha */
+            fecha?: string | null;
+            /**
+             * Pistas Activas
+             * @default true
+             */
+            pistas_activas: boolean;
+            /** Pistas Vistas */
+            pistas_vistas?: number[];
+            /**
+             * Tarjeta Cerrada
+             * @default false
+             */
+            tarjeta_cerrada: boolean;
+        };
         /**
          * OrderIn
          * @description The form. Everything the system cannot work out on its own.
@@ -10117,6 +10281,13 @@ export interface components {
          * @description Full user record for the admin user-management panel.
          */
         UserAdminInfo: {
+            avatar_config?: components["schemas"]["AvatarConfig"] | null;
+            /**
+             * Avatar Mode
+             * @default avatar
+             * @enum {string}
+             */
+            avatar_mode: "avatar" | "foto";
             /**
              * Created At
              * @default
@@ -10134,6 +10305,11 @@ export interface components {
              * @default false
              */
             has_photo: boolean;
+            /**
+             * Has Profile Photo
+             * @default false
+             */
+            has_profile_photo: boolean;
             /**
              * Hospital
              * @default
@@ -10188,8 +10364,20 @@ export interface components {
          *     cualquier profesional necesita ver nombre y rol de los demás, nada más.
          */
         UserBrief: {
+            avatar_config?: components["schemas"]["AvatarConfig"] | null;
+            /**
+             * Avatar Mode
+             * @default avatar
+             * @enum {string}
+             */
+            avatar_mode: "avatar" | "foto";
             /** Full Name */
             full_name: string;
+            /**
+             * Has Profile Photo
+             * @default false
+             */
+            has_profile_photo: boolean;
             /** Id */
             id: number;
             /**
@@ -10205,11 +10393,18 @@ export interface components {
          * @description Public user data returned after login and in /me endpoint.
          */
         UserInfo: {
+            avatar_config?: components["schemas"]["AvatarConfig"] | null;
             /**
              * Avatar Initials
              * @description Two-letter initials for the avatar widget (e.g. 'JN')
              */
             avatar_initials: string;
+            /**
+             * Avatar Mode
+             * @default avatar
+             * @enum {string}
+             */
+            avatar_mode: "avatar" | "foto";
             /** Full Name */
             full_name: string;
             /**
@@ -10218,6 +10413,12 @@ export interface components {
              * @default false
              */
             has_photo: boolean;
+            /**
+             * Has Profile Photo
+             * @description Hay foto de perfil propia del avatar (no la del alta)
+             * @default false
+             */
+            has_profile_photo: boolean;
             /** Id */
             id: number;
             /**
@@ -10232,6 +10433,7 @@ export interface components {
              * @default false
              */
             must_change_password: boolean;
+            onboarding?: components["schemas"]["OnboardingState"];
             /**
              * Role
              * @enum {string}
@@ -10803,6 +11005,72 @@ export interface operations {
             };
         };
     };
+    put_my_avatar_api_auth_me_avatar_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AvatarUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserInfo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_my_onboarding_api_auth_me_onboarding_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingState"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserInfo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_my_photo_api_auth_me_photo_get: {
         parameters: {
             query?: never;
@@ -10819,6 +11087,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_my_profile_photo_api_auth_me_profile_photo_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    post_my_profile_photo_api_auth_me_profile_photo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    desde_registro: boolean;
+                };
+                "multipart/form-data": {
+                    /** Format: binary */
+                    photo: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserInfo"];
+                };
+            };
+        };
+    };
+    delete_my_profile_photo_api_auth_me_profile_photo_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserInfo"];
                 };
             };
         };
@@ -11176,6 +11514,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserAdminInfo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_user_profile_photo_api_auth_users__user_id__profile_photo_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

@@ -566,6 +566,131 @@
     "title": "AutoThresholdResult",
     "type": "object"
    },
+   "AvatarConfig": {
+    "additionalProperties": false,
+    "description": "Avatar construido con piezas de listas cerradas (`services/avatar_config.py`).",
+    "properties": {
+     "cabeza": {
+      "enum": [
+       "nada",
+       "gorro",
+       "gorro_amplio"
+      ],
+      "title": "Cabeza",
+      "type": "string"
+     },
+     "fondo": {
+      "enum": [
+       "#12141A",
+       "#10233D",
+       "#241A3D",
+       "#0F2E28",
+       "#DCE3EC"
+      ],
+      "title": "Fondo",
+      "type": "string"
+     },
+     "mascarilla": {
+      "title": "Mascarilla",
+      "type": "boolean"
+     },
+     "ojos": {
+      "enum": [
+       "nada",
+       "gafas",
+       "lupas"
+      ],
+      "title": "Ojos",
+      "type": "string"
+     },
+     "peinado": {
+      "enum": [
+       "corto",
+       "largo",
+       "mono",
+       "rapado",
+       "rizado",
+       "coleta"
+      ],
+      "title": "Peinado",
+      "type": "string"
+     },
+     "pelo": {
+      "enum": [
+       "#2B1D16",
+       "#121212",
+       "#6B4226",
+       "#D8B26E",
+       "#A4492A",
+       "#C9CCD2"
+      ],
+      "title": "Pelo",
+      "type": "string"
+     },
+     "piel": {
+      "description": "Índice en PIELES",
+      "maximum": 5.0,
+      "minimum": 0.0,
+      "title": "Piel",
+      "type": "integer"
+     },
+     "pijama": {
+      "enum": [
+       "#3FC4AB",
+       "#5AA9FF",
+       "#A98BF0",
+       "#B5485A",
+       "#E0A84A",
+       "#4A5263"
+      ],
+      "title": "Pijama",
+      "type": "string"
+     },
+     "v": {
+      "const": 1,
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "piel",
+     "peinado",
+     "pelo",
+     "cabeza",
+     "ojos",
+     "mascarilla",
+     "pijama",
+     "fondo"
+    ],
+    "title": "AvatarConfig",
+    "type": "object"
+   },
+   "AvatarUpdate": {
+    "properties": {
+     "config": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/AvatarConfig"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "modo": {
+      "default": "avatar",
+      "enum": [
+       "avatar",
+       "foto"
+      ],
+      "title": "Modo",
+      "type": "string"
+     }
+    },
+    "title": "AvatarUpdate",
+    "type": "object"
+   },
    "Body_add_library_clip_api_clip_library_post": {
     "properties": {
      "closing_force_g": {
@@ -6265,6 +6390,53 @@
     "title": "OcclusionOut",
     "type": "object"
    },
+   "OnboardingState": {
+    "properties": {
+     "estado": {
+      "default": "pendiente",
+      "enum": [
+       "pendiente",
+       "invitado",
+       "completado",
+       "saltado"
+      ],
+      "title": "Estado",
+      "type": "string"
+     },
+     "fecha": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Fecha"
+     },
+     "pistas_activas": {
+      "default": true,
+      "title": "Pistas Activas",
+      "type": "boolean"
+     },
+     "pistas_vistas": {
+      "items": {
+       "maximum": 8.0,
+       "minimum": 1.0,
+       "type": "integer"
+      },
+      "title": "Pistas Vistas",
+      "type": "array"
+     },
+     "tarjeta_cerrada": {
+      "default": false,
+      "title": "Tarjeta Cerrada",
+      "type": "boolean"
+     }
+    },
+    "title": "OnboardingState",
+    "type": "object"
+   },
    "OrderIn": {
     "description": "The form. Everything the system cannot work out on its own.",
     "properties": {
@@ -10901,6 +11073,25 @@
    "UserAdminInfo": {
     "description": "Full user record for the admin user-management panel.",
     "properties": {
+     "avatar_config": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/AvatarConfig"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "avatar_mode": {
+      "default": "avatar",
+      "enum": [
+       "avatar",
+       "foto"
+      ],
+      "title": "Avatar Mode",
+      "type": "string"
+     },
      "created_at": {
       "default": "",
       "title": "Created At",
@@ -10918,6 +11109,11 @@
      "has_photo": {
       "default": false,
       "title": "Has Photo",
+      "type": "boolean"
+     },
+     "has_profile_photo": {
+      "default": false,
+      "title": "Has Profile Photo",
       "type": "boolean"
      },
      "hospital": {
@@ -10994,9 +11190,33 @@
    "UserBrief": {
     "description": "Una cuenta activa, lo justo para elegir con quién compartir un paciente.\n\n`/users` es solo del administrador y trae el perfil entero; para compartir,\ncualquier profesional necesita ver nombre y rol de los demás, nada más.",
     "properties": {
+     "avatar_config": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/AvatarConfig"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "avatar_mode": {
+      "default": "avatar",
+      "enum": [
+       "avatar",
+       "foto"
+      ],
+      "title": "Avatar Mode",
+      "type": "string"
+     },
      "full_name": {
       "title": "Full Name",
       "type": "string"
+     },
+     "has_profile_photo": {
+      "default": false,
+      "title": "Has Profile Photo",
+      "type": "boolean"
      },
      "id": {
       "title": "Id",
@@ -11029,9 +11249,28 @@
    "UserInfo": {
     "description": "Public user data returned after login and in /me endpoint.",
     "properties": {
+     "avatar_config": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/AvatarConfig"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
      "avatar_initials": {
       "description": "Two-letter initials for the avatar widget (e.g. 'JN')",
       "title": "Avatar Initials",
+      "type": "string"
+     },
+     "avatar_mode": {
+      "default": "avatar",
+      "enum": [
+       "avatar",
+       "foto"
+      ],
+      "title": "Avatar Mode",
       "type": "string"
      },
      "full_name": {
@@ -11042,6 +11281,12 @@
       "default": false,
       "description": "A profile photo is available at /api/auth/me/photo",
       "title": "Has Photo",
+      "type": "boolean"
+     },
+     "has_profile_photo": {
+      "default": false,
+      "description": "Hay foto de perfil propia del avatar (no la del alta)",
+      "title": "Has Profile Photo",
       "type": "boolean"
      },
      "id": {
@@ -11059,6 +11304,9 @@
       "description": "La cuenta lleva la contraseña inicial: hay que cambiarla antes de seguir",
       "title": "Must Change Password",
       "type": "boolean"
+     },
+     "onboarding": {
+      "$ref": "#/components/schemas/OnboardingState"
      },
      "role": {
       "enum": [
@@ -12021,6 +12269,99 @@
     ]
    }
   },
+  "/api/auth/me/avatar": {
+   "put": {
+    "description": "`config` con piezas de listas cerradas (o null) y `modo` avatar|foto.",
+    "operationId": "put_my_avatar_api_auth_me_avatar_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AvatarUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UserInfo"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Guardar el avatar propio",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/auth/me/onboarding": {
+   "put": {
+    "operationId": "put_my_onboarding_api_auth_me_onboarding_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/OnboardingState"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UserInfo"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Guardar el estado del onboarding propio",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
   "/api/auth/me/photo": {
    "get": {
     "description": "Serves the authenticated user's own profile photo (404 if none).",
@@ -12041,6 +12382,112 @@
      }
     ],
     "summary": "Download the current user's profile photo",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/auth/me/profile-photo": {
+   "delete": {
+    "description": "Borra solo la foto de perfil (no la del registro) y vuelve al modo avatar.",
+    "operationId": "delete_my_profile_photo_api_auth_me_profile_photo_delete",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UserInfo"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Borrar la foto de perfil propia",
+    "tags": [
+     "auth"
+    ]
+   },
+   "get": {
+    "operationId": "get_my_profile_photo_api_auth_me_profile_photo_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Descargar la foto de perfil propia",
+    "tags": [
+     "auth"
+    ]
+   },
+   "post": {
+    "description": "Multipart con `photo`, o JSON `{\"desde_registro\": true}` para copiar la foto del registro. La foto del registro nunca se modifica.",
+    "operationId": "post_my_profile_photo_api_auth_me_profile_photo_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "properties": {
+         "desde_registro": {
+          "type": "boolean"
+         }
+        },
+        "required": [
+         "desde_registro"
+        ],
+        "type": "object"
+       }
+      },
+      "multipart/form-data": {
+       "schema": {
+        "properties": {
+         "photo": {
+          "format": "binary",
+          "type": "string"
+         }
+        },
+        "required": [
+         "photo"
+        ],
+        "type": "object"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UserInfo"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Subir la foto de perfil propia",
     "tags": [
      "auth"
     ]
@@ -12612,6 +13059,52 @@
      }
     ],
     "summary": "Replace a user's profile photo (admin)",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/auth/users/{user_id}/profile-photo": {
+   "get": {
+    "description": "404 salvo que ese usuario tenga `avatar_mode == 'foto'` y foto de perfil. Nunca sirve la del registro.",
+    "operationId": "get_user_profile_photo_api_auth_users__user_id__profile_photo_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Foto de perfil de otro usuario (solo si eligió mostrarla)",
     "tags": [
      "auth"
     ]

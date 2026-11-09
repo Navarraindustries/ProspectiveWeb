@@ -3,7 +3,8 @@
    superior, components/shell); el espacio de trabajo conserva su barra superior propia. */
 
 import { ForcePasswordChange } from "./components/ForcePasswordChange";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
+import { OnboardingProvider } from "./onboarding/OnboardingProvider";
 import { glide, glideTransition, motion, useReducedMotion } from "./motion";
 import { glass } from "./styles/glass";
 import { useBlocker, useLocation, useNavigate } from "react-router-dom";
@@ -331,7 +332,11 @@ function Router() {
       />
     );
 
+  // El onboarding solo envuelve la app con sesión y ya sin cambio de contraseña
+  // pendiente (la puerta de arriba devuelve antes); con la sesión cerrada, no.
+  const Onboarding = user ? OnboardingProvider : Fragment;
   return (
+    <Onboarding>
     <NavProvider value={{
       // La ficha cuenta como «Pacientes» para el resalte de la barra lateral.
       screen: effective === "patient" ? "patients" : effective,
@@ -430,6 +435,7 @@ function Router() {
       )}
     </div>
     </NavProvider>
+    </Onboarding>
   );
 }
 

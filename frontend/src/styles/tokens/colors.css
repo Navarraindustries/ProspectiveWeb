@@ -113,6 +113,8 @@
   /* Atenuación uniforme del vídeo de marca a pantalla completa (UNI-133): con ella
      la ventana de cristal que va encima cumple AA aunque el fotograma sea blanco. */
   --media-atenuacion:   rgba(5, 9, 15, 0.55);
+  /* Oscurece el lado de la columna de marca del login, que va sobre el vídeo. */
+  --media-columna:      linear-gradient(90deg, rgba(5, 9, 15, 0.55) 0%, rgba(5, 9, 15, 0) 60%);
   --media-vignette-centro: radial-gradient(120% 100% at 50% 40%, rgba(11, 12, 15, 0.3), rgba(5, 9, 15, 0.8));
   --glass-blur:         30px;
 
@@ -236,6 +238,8 @@
   /* Atenuación uniforme del vídeo de marca a pantalla completa (UNI-133): con ella
      la ventana de cristal que va encima cumple AA aunque el fotograma sea blanco. */
   --media-atenuacion:   rgba(5, 9, 15, 0.55);
+  /* Oscurece el lado de la columna de marca del login, que va sobre el vídeo. */
+  --media-columna:      linear-gradient(90deg, rgba(5, 9, 15, 0.55) 0%, rgba(5, 9, 15, 0) 60%);
   --media-vignette-centro: radial-gradient(120% 100% at 50% 40%, rgba(11, 12, 15, 0.3), rgba(5, 9, 15, 0.8));
   --glass-blur:         30px;
 

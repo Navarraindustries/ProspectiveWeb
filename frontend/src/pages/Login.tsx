@@ -1,5 +1,6 @@
-/* Login — el vídeo de marca a pantalla completa y la ventana del formulario
-   encima (UNI-133). Autenticación real con JWT. */
+/* Login — el vídeo de marca a pantalla completa (UNI-133) y, encima, la columna
+   de marca a la izquierda y la ventana del formulario a la derecha, centradas
+   juntas. Autenticación real con JWT. */
 
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -9,7 +10,7 @@ import { Input } from "../components/Input";
 import { Icon } from "../components/Icon";
 import { Logo } from "../components/shell/Logo";
 import { useTableta } from "../hooks/useEstrecho";
-import { AuthBrand, BARRA_SOBRE_VIDEO } from "../components/shell/AuthBrand";
+import { AuthBrand, BARRA_SOBRE_VIDEO, ColumnaMarca, REJILLA_MARCA } from "../components/shell/AuthBrand";
 import { AuthWindow } from "../components/shell/AuthWindow";
 import { Ambiente } from "../components/Ambiente";
 import { ThemeToggle } from "../components/ThemeToggle";
@@ -87,18 +88,9 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
       <div style={{ position: "relative", zIndex: 1, display: "flex", minHeight: "100dvh" }}>
         {/* Zona del formulario: la ventana de cristal, centrada. */}
         <div className="login-form" style={{ flex: "1 1 100%", display: "flex", flexDirection: "column", padding: tableta ? "0 16px" : "0 32px", minWidth: "0px" }}>
-          {/* Sobre el vídeo, la barra va con los tokens del tema oscuro en los dos temas. */}
-          <div {...(tableta ? {} : BARRA_SOBRE_VIDEO)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, paddingTop: 24 }}>
-            {!tableta && (
-              <button
-                type="button"
-                onClick={() => navigate("/")}
-                title="Ir a la página principal"
-                style={{ display: "inline-flex", alignItems: "center", background: "transparent", border: "none", cursor: "pointer", padding: 0, color: "var(--on-media)" }}
-              >
-                <Logo variante="linea" size={34} tono="media" />
-              </button>
-            )}
+          {/* Sobre el vídeo, la barra va con los tokens del tema oscuro en los dos
+              temas. En escritorio el logotipo no va aquí: encabeza la columna de marca. */}
+          <div {...(tableta ? {} : BARRA_SOBRE_VIDEO)} style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, paddingTop: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flex: tableta ? 1 : undefined, justifyContent: "space-between" }}>
               <Button variant="ghost" size={tableta ? "md" : "sm"} leadingIcon={<Icon name="BACK" />} onClick={() => navigate("/")}>
                 Página principal
@@ -112,6 +104,9 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
             </div>
           )}
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 0" }}>
+            {/* Escritorio: la columna de marca a la izquierda y la ventana a la derecha. */}
+            <div style={tableta ? { width: "100%", display: "flex", justifyContent: "center" } : { ...REJILLA_MARCA, alignItems: "center" }}>
+            {!tableta && <ColumnaMarca alLogo={() => navigate("/")} />}
             <div className={shake ? "shake" : undefined} style={{ width: "100%", maxWidth: 440 }}>
               <AuthWindow titulo="Iniciar sesión" subtitulo="Accede con tu cuenta de Prospective.">
                 {notice && (
@@ -160,6 +155,7 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
                   <Button type="button" variant="link" onClick={onSignup}>Crear cuenta</Button>
                 </div>
               </AuthWindow>
+            </div>
             </div>
           </div>
           <div {...(tableta ? {} : BARRA_SOBRE_VIDEO)} style={{ textAlign: "center", paddingBottom: 24, fontSize: 13, color: "var(--muted-foreground)" }}>

@@ -1,16 +1,18 @@
 /* El fondo de marca de «Entrar» y «Crear cuenta» (UNI-133): el vídeo de la casa
    a pantalla completa, fijo, con una atenuación que garantiza el contraste de
-   la ventana que va encima, y el lema en blanco sobre él. */
+   la ventana que va encima; y la columna de marca (logotipo, lema, frase y
+   pasos) que cada página pone a la izquierda de su ventana. */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const { reducido } = vi.hoisted(() => ({ reducido: { valor: false } }));
 vi.mock("../../motion", () => ({ useReducedMotion: () => reducido.valor }));
 
 import { ratio } from "../../styles/contraste";
-import { AuthBrand, VIDEO_MARCA } from "./AuthBrand";
+import { AuthBrand, ColumnaMarca, PASOS_MARCA, REJILLA_MARCA, VIDEO_MARCA } from "./AuthBrand";
+import { STEP_LABELS } from "../../pipeline/steps";
 
 afterEach(() => { reducido.valor = false; });
 
@@ -49,19 +51,56 @@ describe("AuthBrand", () => {
     expect(container.querySelector(".login-media")).toHaveAttribute("data-theme", "dark");
   });
 
-  it("lleva el lema único y su frase en blanco y gris sobre el vídeo, sin librerías", () => {
+  it("la capa del vídeo no lleva texto: el lema va en la columna de marca", () => {
     const { container } = render(<AuthBrand />);
+    expect(container.textContent).toBe("");
+    const capas = [...container.querySelectorAll<HTMLElement>(".login-media > div")].map((d) => d.style.background);
+    expect(capas.some((b) => b.includes("var(--media-columna)"))).toBe(true);
+  });
+});
+
+describe("ColumnaMarca", () => {
+  it("lleva logotipo, lema, frase y los pasos reales, en blanco y gris sobre el vídeo, sin librerías", () => {
+    const { container } = render(<ColumnaMarca />);
     const lema = screen.getByText("Planificación neurovascular con datos");
     expect(lema.style.color).toBe("var(--on-media)");
     expect(screen.getByText("Del DICOM al clip, en un solo espacio de trabajo.").style.color).toBe("var(--on-media-muted)");
+    expect(screen.getByText("por SkullApp")).toBeInTheDocument();
+    const pasos = screen.getByText(PASOS_MARCA);
+    expect(pasos.textContent).toBe(STEP_LABELS.map((p) => p.toUpperCase()).join(" · "));
+    expect(pasos.style.fontFamily).toBe("var(--font-mono)");
     expect(container.textContent).not.toMatch(/VTK|SimpleITK|SKULLAPP/);
   });
 
-  it("el lema no se mete debajo de la ventana centrada (440 px)", () => {
-    render(<AuthBrand />);
-    const bloque = screen.getByText("Planificación neurovascular con datos").parentElement!;
-    expect(bloque.style.maxWidth).toBe("min(460px, calc(50vw - 300px))");
+  it("va con los tokens del tema oscuro en los dos temas, como todo lo que va sobre el vídeo", () => {
+    render(<ColumnaMarca />);
+    expect(screen.getByRole("region", { name: "Prospective" })).toHaveAttribute("data-theme", "dark");
   });
+
+  it("con alLogo el logotipo es un botón a la página principal; sin él, no", () => {
+    const alLogo = vi.fn();
+    const { unmount } = render(<ColumnaMarca alLogo={alLogo} />);
+    fireEvent.click(screen.getByRole("button", { name: /Prospective/ }));
+    expect(alLogo).toHaveBeenCalledTimes(1);
+    unmount();
+    render(<ColumnaMarca />);
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("pegada se queda fija arriba mientras desplaza un formulario largo", () => {
+    render(<ColumnaMarca pegada />);
+    const col = screen.getByRole("region", { name: "Prospective" });
+    expect(col.style.position).toBe("sticky");
+    expect(col.style.top).toBe("120px");
+  });
+
+  it("la rejilla junta columna y ventana (440 px) en un ancho máximo", () => {
+    expect(REJILLA_MARCA.gridTemplateColumns).toBe("minmax(0, 1fr) minmax(0, 440px)");
+    expect(REJILLA_MARCA.maxWidth).toBe(1200);
+  });
+});
+
+describe("AuthBrand · contraste", () => {
 
   it("la atenuación deja el texto de la ventana con contraste AA aunque el fotograma sea blanco", () => {
     // Peor caso: fotograma blanco puro, sin el viñeteado (que solo oscurece),

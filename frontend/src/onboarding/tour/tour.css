@@ -1,0 +1,29 @@
+.tour-foco { position: fixed; inset: 0; z-index: 1000; pointer-events: none; }
+.tour-velo { background: var(--scrim); pointer-events: auto; }
+.tour-tira { position: absolute; pointer-events: auto; background: transparent;
+  transition: all 450ms cubic-bezier(.2, .8, .2, 1); }
+.tour-hueco { position: absolute; pointer-events: none; border-radius: var(--radius-md, 10px);
+  border: 2px solid var(--primary); box-shadow: 0 0 0 100vmax var(--scrim);
+  transition: left 450ms cubic-bezier(.2, .8, .2, 1), top 450ms cubic-bezier(.2, .8, .2, 1),
+    width 450ms cubic-bezier(.2, .8, .2, 1), height 450ms cubic-bezier(.2, .8, .2, 1); }
+
+.tour-burbuja { position: fixed; z-index: 1001; box-sizing: border-box; width: min(360px, calc(100vw - 24px));
+  padding: 16px 18px; border-radius: 16px; color: var(--foreground);
+  transition: left 450ms cubic-bezier(.2, .8, .2, 1), top 450ms cubic-bezier(.2, .8, .2, 1); }
+.tour-burbuja[data-variante="hoja"] { left: 0; right: 0; bottom: 0; top: auto; width: 100%;
+  border-radius: 18px 18px 0 0; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transition: none; }
+.tour-burbuja:focus { outline: none; }
+.tour-titulo { margin: 0 0 8px; font-size: 16px; font-weight: 700; }
+.tour-linea { margin: 0 0 6px; font-size: 14px; line-height: 1.4; }
+.tour-etiqueta { display: inline-block; min-width: 56px; margin-right: 6px; font-size: 11px; font-weight: 600;
+  letter-spacing: .04em; text-transform: uppercase; color: var(--primary); }
+.tour-puntos { display: flex; gap: 6px; margin: 12px 0; }
+.tour-punto { width: 8px; height: 8px; border-radius: 50%; background: var(--glass-border); }
+.tour-punto[data-activo="true"] { background: var(--primary); }
+.tour-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tour-acciones > .tour-saltar { margin-left: auto; }
+.tour-solo-lectores { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-tira, .tour-hueco, .tour-burbuja { transition: none; }
+}

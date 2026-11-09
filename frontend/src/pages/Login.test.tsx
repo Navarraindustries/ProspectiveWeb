@@ -235,7 +235,23 @@ describe("tramos de pantalla (fase 8, tarea 12)", () => {
     expect((zona.parentElement as HTMLElement).style.zIndex).toBe("1");
   });
 
-  it("sobre el vídeo, el logotipo va arriba a la izquierda con «por SkullApp», y la barra y el pie con el tema oscuro", () => {
+  it("la columna de marca va a la izquierda de la ventana, en la misma rejilla y centrada con ella", () => {
+    simularPantalla({ ancho: 1707 });
+    const { container } = montar();
+    const columna = container.querySelector<HTMLElement>(".columna-marca")!;
+    const ventana = screen.getByRole("region", { name: "Iniciar sesión" });
+    const rejilla = columna.parentElement as HTMLElement;
+    expect(rejilla.style.display).toBe("grid");
+    expect(rejilla.style.alignItems).toBe("center");
+    expect(rejilla).toContainElement(ventana);
+    expect(columna.compareDocumentPosition(ventana) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(columna).getByText("Planificación neurovascular con datos")).toBeInTheDocument();
+    // El logotipo de la columna lleva a la página principal; la barra ya no lo repite.
+    expect(within(columna).getByRole("button", { name: /Prospective/ })).toHaveAttribute("title", "Ir a la página principal");
+    expect(container.querySelectorAll("svg[data-logo]")).toHaveLength(1);
+  });
+
+  it("sobre el vídeo, el logotipo va con «por SkullApp», y la barra y el pie con el tema oscuro", () => {
     simularPantalla({ ancho: 1707 });
     const { container } = montar();
     const zona = container.querySelector<HTMLElement>(".login-form")!;

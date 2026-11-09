@@ -14,7 +14,7 @@ import { Select } from "../components/Select";
 import { Icon } from "../components/Icon";
 import { Logo } from "../components/shell/Logo";
 import { useTableta } from "../hooks/useEstrecho";
-import { AuthBrand, BARRA_SOBRE_VIDEO } from "../components/shell/AuthBrand";
+import { AuthBrand, BARRA_SOBRE_VIDEO, ColumnaMarca, REJILLA_MARCA } from "../components/shell/AuthBrand";
 import { AuthWindow } from "../components/shell/AuthWindow";
 import { Ambiente } from "../components/Ambiente";
 import { ThemeToggle } from "../components/ThemeToggle";
@@ -137,9 +137,8 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
 
         {/* Zona del formulario: ventana de cristal; el formulario es largo y es la página la que desplaza (el vídeo queda fijo). */}
         <div className="login-form" style={{ flex: "1 1 100%", display: "flex", flexDirection: "column", minWidth: "0px", padding: tableta ? "0 16px" : "0 32px" }}>
-          <div {...(tableta ? {} : BARRA_SOBRE_VIDEO)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, paddingTop: 24 }}>
-            {/* El aro del logotipo pinta con currentColor: blanco sobre el vídeo. */}
-            {!tableta && <span style={{ display: "inline-flex", color: "var(--on-media)" }}><Logo variante="linea" size={34} tono="media" /></span>}
+          {/* En escritorio el logotipo encabeza la columna de marca, no la barra. */}
+          <div {...(tableta ? {} : BARRA_SOBRE_VIDEO)} style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, paddingTop: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flex: tableta ? 1 : undefined, justifyContent: "space-between" }}>
             <Button variant="ghost" size={tableta ? "md" : "sm"} leadingIcon={<Icon name="BACK" />} onClick={onBack}>
               Volver a Entrar
@@ -154,6 +153,9 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
           )}
 
           <div style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "24px 0 40px" }}>
+            {/* Escritorio: columna de marca fija a la izquierda mientras desplaza el formulario. */}
+            <div style={tableta ? { width: "100%", display: "flex", justifyContent: "center" } : { ...REJILLA_MARCA, alignItems: "start" }}>
+            {!tableta && <ColumnaMarca pegada />}
             <AuthWindow titulo="Crear cuenta" subtitulo="Regístrate para acceder a Prospective.">
               <form onSubmit={submit}>
                 <div style={GROUP_LABEL}>Tus datos</div>
@@ -206,6 +208,7 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
                 Prospective™ Web — Laboratorio de Imagen Médica
               </div>
             </AuthWindow>
+            </div>
           </div>
         </div>
       </div>

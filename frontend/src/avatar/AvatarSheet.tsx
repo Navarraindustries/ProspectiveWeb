@@ -25,6 +25,9 @@ export function AvatarSheet({ open, onClose }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [desdeFoto, setDesdeFoto] = useState(false);
+  /** Foto elegida en «Desde mi foto»: no sale del navegador hasta «Guardar». */
+  const [pendiente, setPendiente] = useState<{ foto: Blob | null; usarRegistro: boolean } | null>(null);
+  const [vistaPendiente, setVistaPendiente] = useState<string | null>(null);
 
   const tieneFoto = !!user?.has_profile_photo;
 
@@ -35,14 +38,28 @@ export function AvatarSheet({ open, onClose }: {
     setModo(user.avatar_mode === "foto" && user.has_profile_photo ? "foto" : "avatar");
     setError(null);
     setDesdeFoto(false);
+    setPendiente(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  useEffect(() => {
+    if (!pendiente?.foto || typeof URL.createObjectURL !== "function") { setVistaPendiente(null); return; }
+    const u = URL.createObjectURL(pendiente.foto);
+    setVistaPendiente(u);
+    return () => URL.revokeObjectURL?.(u);
+  }, [pendiente]);
 
   if (!user || !config) return <Sheet open={false} onClose={onClose} title="Tu avatar">{null}</Sheet>;
 
   const guardar = async () => {
     setBusy(true); setError(null);
     try {
+      // La foto debe existir antes de guardar el modo «foto».
+      if (modo === "foto" && pendiente) {
+        if (pendiente.usarRegistro) await api.copyRegistroPhoto();
+        else if (pendiente.foto) await api.uploadProfilePhoto(pendiente.foto);
+        setPendiente(null);
+      }
       await api.saveAvatar(config, modo);
       await refreshUser();
       onClose();
@@ -53,20 +70,9 @@ export function AvatarSheet({ open, onClose }: {
     }
   };
 
-  const aplicarDesdeFoto = async (r: ResultadoFoto) => {
-    setConfig(r.config); setModo(r.mostrar); setDesdeFoto(false);
-    if (r.mostrar !== "foto") return;
-    setBusy(true); setError(null);
-    try {
-      if (r.usarRegistro) await api.copyRegistroPhoto();
-      else if (r.foto) await api.uploadProfilePhoto(r.foto);
-      await refreshUser();
-    } catch (e) {
-      setModo("avatar");
-      setError(e instanceof Error ? e.message : "No se pudo subir la foto");
-    } finally {
-      setBusy(false);
-    }
+  const aplicarDesdeFoto = (r: ResultadoFoto) => {
+    setConfig(r.config); setModo(r.mostrar); setDesdeFoto(false); setError(null);
+    setPendiente(r.mostrar === "foto" ? { foto: r.foto, usarRegistro: !!r.usarRegistro } : null);
   };
 
   const quitarFoto = async () => {
@@ -84,7 +90,7 @@ export function AvatarSheet({ open, onClose }: {
 
   return (
     <Sheet open={open} onClose={onClose} title="Tu avatar" width={460}
-      footer={
+      footer={desdeFoto ? null : (
         <>
           {error && <div style={{ flexBasis: "100%" }}><ErrorNote>{error}</ErrorNote></div>}
           <Button onClick={() => void guardar()} disabled={busy} leadingIcon={<Icon name="SAVE" size={14} />}>
@@ -92,13 +98,16 @@ export function AvatarSheet({ open, onClose }: {
           </Button>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
         </>
-      }>
+      )}>
       {desdeFoto ? (
-        <DesdeMiFoto base={config} onListo={(r) => void aplicarDesdeFoto(r)} onCancel={() => setDesdeFoto(false)} />
+        <DesdeMiFoto base={config} onListo={aplicarDesdeFoto} onCancel={() => setDesdeFoto(false)} />
       ) : (
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         <div style={{ display: "flex", justifyContent: "center" }}>
-          {modo === "foto" && tieneFoto
+          {modo === "foto" && vistaPendiente
+            ? <img src={vistaPendiente} alt="Vista previa de tu foto" width={160} height={160}
+                style={{ borderRadius: "50%", objectFit: "cover" }} />
+            : modo === "foto" && tieneFoto
             ? <UserAvatar user={{ ...user, avatar_mode: "foto" }} self size={160} />
             : <AvatarSvg config={config} size={160} title="Vista previa de tu avatar" />}
         </div>
@@ -107,8 +116,8 @@ export function AvatarSheet({ open, onClose }: {
           <span style={{ fontSize: 13, color: "var(--muted-foreground)" }}>Mostrar:</span>
           <button type="button" aria-pressed={modo === "avatar"} onClick={() => setModo("avatar")}
             style={pildora(modo === "avatar", false)}>Mi avatar</button>
-          <button type="button" aria-pressed={modo === "foto"} disabled={!tieneFoto} onClick={() => setModo("foto")}
-            style={pildora(modo === "foto", !tieneFoto)}>Mi foto</button>
+          <button type="button" aria-pressed={modo === "foto"} disabled={!tieneFoto && !pendiente} onClick={() => setModo("foto")}
+            style={pildora(modo === "foto", !tieneFoto && !pendiente)}>Mi foto</button>
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

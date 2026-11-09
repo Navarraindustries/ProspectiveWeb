@@ -98,19 +98,65 @@ describe("AvatarSheet", () => {
     await waitFor(() => expect(api.saveAvatar).toHaveBeenCalledWith({ ...cfg, piel: 4 }, "avatar"));
   });
 
-  it("«Desde mi foto» con «Mi foto»: sube el recorte y refresca", async () => {
-    render(<AvatarSheet open onClose={() => {}} />);
+  const entrarFoto = (que: string) => {
     fireEvent.click(screen.getByRole("button", { name: "Desde mi foto" }));
-    fireEvent.click(screen.getByRole("button", { name: "fake-foto" }));
-    await waitFor(() => expect(api.uploadProfilePhoto).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(refreshUser).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: que }));
+  };
+
+  it("«Mi foto» no sube nada hasta «Guardar»; «Cancelar» no sube ni copia", () => {
+    const onClose = vi.fn();
+    render(<AvatarSheet open onClose={onClose} />);
+    entrarFoto("fake-foto");
+    expect(api.uploadProfilePhoto).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(onClose).toHaveBeenCalled();
+    expect(api.uploadProfilePhoto).not.toHaveBeenCalled();
+    expect(api.copyRegistroPhoto).not.toHaveBeenCalled();
   });
 
-  it("«Desde mi foto» con la foto del registro: la copia en vez de subir", async () => {
+  it("«Mi foto» y luego «Mi avatar» antes de guardar: no sube, guarda 'avatar'", async () => {
     render(<AvatarSheet open onClose={() => {}} />);
-    fireEvent.click(screen.getByRole("button", { name: "Desde mi foto" }));
-    fireEvent.click(screen.getByRole("button", { name: "fake-registro" }));
-    await waitFor(() => expect(api.copyRegistroPhoto).toHaveBeenCalled());
+    entrarFoto("fake-foto");
+    fireEvent.click(screen.getByRole("button", { name: "Mi avatar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(api.saveAvatar).toHaveBeenCalledWith(cfg, "avatar"));
     expect(api.uploadProfilePhoto).not.toHaveBeenCalled();
+  });
+
+  it("«Mi foto» + «Guardar»: sube una vez, luego saveAvatar 'foto', luego refreshUser", async () => {
+    render(<AvatarSheet open onClose={() => {}} />);
+    entrarFoto("fake-foto");
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(refreshUser).toHaveBeenCalled());
+    expect(api.uploadProfilePhoto).toHaveBeenCalledTimes(1);
+    expect(api.saveAvatar).toHaveBeenCalledWith(cfg, "foto");
+    const orden = [
+      vi.mocked(api.uploadProfilePhoto).mock.invocationCallOrder[0],
+      vi.mocked(api.saveAvatar).mock.invocationCallOrder[0],
+      refreshUser.mock.invocationCallOrder[0],
+    ];
+    expect(orden).toEqual([...orden].sort((a, b) => a - b));
+  });
+
+  it("foto del registro + «Guardar»: copia en vez de subir", async () => {
+    render(<AvatarSheet open onClose={() => {}} />);
+    entrarFoto("fake-registro");
+    expect(api.copyRegistroPhoto).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(api.saveAvatar).toHaveBeenCalledWith(cfg, "foto"));
+    expect(api.copyRegistroPhoto).toHaveBeenCalledTimes(1);
+    expect(api.uploadProfilePhoto).not.toHaveBeenCalled();
+  });
+
+  it("si la subida falla: error, no cierra, no guarda y el borrador sigue", async () => {
+    vi.mocked(api.uploadProfilePhoto).mockRejectedValueOnce(new Error("Subida fallida"));
+    const onClose = vi.fn();
+    render(<AvatarSheet open onClose={onClose} />);
+    entrarFoto("fake-foto");
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    expect(await screen.findByText("Subida fallida")).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(api.saveAvatar).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Mi foto" })).toHaveAttribute("aria-pressed", "true");
   });
 });

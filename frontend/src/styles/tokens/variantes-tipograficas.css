@@ -50,11 +50,14 @@
   border-radius: 12px;
   border: 1px solid var(--glass-border);
   background: var(--glass-dense);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
   color: var(--foreground);
   font: 500 12px/1 system-ui, sans-serif;
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+}
+/* El desenfoque va con [data-glass], como todo cristal (auditoría de cristal). */
+.selector-tipografia[data-glass] {
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
 }
 .selector-tipografia button {
   min-width: 32px;

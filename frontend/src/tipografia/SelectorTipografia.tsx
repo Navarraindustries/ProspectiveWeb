@@ -8,7 +8,7 @@ export function SelectorTipografia({ inicial }: { inicial: Variante | null }) {
   const [activa, setActiva] = useState<Variante | null>(inicial);
   if (activa === null) return null;
   return (
-    <div className="selector-tipografia" role="group" aria-label="Variante tipográfica (UNI-135)">
+    <div className="selector-tipografia" data-glass role="group" aria-label="Variante tipográfica (UNI-135)">
       {VARIANTES.map((v) => (
         <button
           key={v}

@@ -77,7 +77,7 @@ approval, and a tamper-evident audit chain.
 | | |
 |---|---|
 | Backend tests | **2306** (`pytest`, 165 files) |
-| Frontend tests | **2799** (`vitest`, 259 files) · `tsc -b` clean · production build clean |
+| Frontend tests | **2837** (`vitest`, 266 files) · `tsc -b` clean · production build clean |
 | REST endpoints | **168** operations (30 routers), all authenticated except login/signup/logout; `/docs` and `/openapi.json` also require a session |
 | Feature parity with desktop | **Complete** |
 

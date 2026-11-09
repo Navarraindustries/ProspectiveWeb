@@ -1,6 +1,18 @@
-/* ProgressBar — thin bar, determinate (0–100) or indeterminate sweep. */
+/* ProgressBar — thin bar, determinate (0–100) or indeterminate sweep.
+   Con `marca`, el icono de SkullApp late a su izquierda: para las esperas
+   largas (segmentar, detectar, extraer la línea central, cargar el DICOM). */
 
-export function ProgressBar({ value }: { value?: number }) {
+import { LogoIcono } from "./shell/Logo";
+
+export function ProgressBar({ value, marca = false }: { value?: number; marca?: boolean }) {
+  if (marca) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <LogoIcono size={18} variante="linea" latido />
+        <div style={{ flex: 1, minWidth: 0 }}><ProgressBar value={value} /></div>
+      </div>
+    );
+  }
   const indeterminate = value === undefined;
   return (
     <div

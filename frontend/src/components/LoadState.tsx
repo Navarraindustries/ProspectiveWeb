@@ -18,6 +18,7 @@
 
 import { NO_RESPONDE, SIN_CONEXION } from "../api/connectionText";
 import { Button } from "./Button";
+import { LogoIcono } from "./shell/Logo";
 
 export type LoadStatus = "cargando" | "error" | "vacio";
 
@@ -50,7 +51,8 @@ export function LoadState({
 }) {
   if (state === "cargando") {
     return (
-      <div role="status" style={{ padding: "24px 16px", textAlign: "center", fontSize: 13, color: "var(--muted-foreground)" }}>
+      <div role="status" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "24px 16px", fontSize: 13, color: "var(--muted-foreground)" }}>
+        <LogoIcono size={18} variante="linea" latido />
         Cargando…
       </div>
     );

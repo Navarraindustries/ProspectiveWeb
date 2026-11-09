@@ -126,9 +126,9 @@ export function NavPildora({ onEntrar, onCrearCuenta }: { onEntrar: () => void; 
       >
         {movil ? (
           // El icono compacto ya se anuncia «Prospective».
-          <Logo variante="linea" size={26} compact />
+          <Logo variante="linea" size={26} compact destello />
         ) : (
-          <Logo variante="linea" size={26} />
+          <Logo variante="linea" size={26} destello />
         )}
         {!estrecho && <div style={{ display: "flex", gap: 2, margin: "0 8px" }}>{enlaces}</div>}
         <Button variant="secondary" size={tamano} onClick={onEntrar}>Entrar</Button>

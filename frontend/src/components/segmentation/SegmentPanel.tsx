@@ -566,7 +566,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           {/* Sin conexión no se sabe la fase ni el porcentaje: volver a
               «preparando 0 %» parecería que el trabajo retrocede. */}
           {progressLost
-            ? <div style={{ marginTop: 18 }}><ProgressBar /></div>
+            ? <div style={{ marginTop: 18 }}><ProgressBar marca /></div>
             : <SegmentProgress state={progress} />}
           {progressLost && (
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>

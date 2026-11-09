@@ -48,7 +48,8 @@ describe("SideNav", () => {
     const { container } = render(<Host />);
     const svg = container.querySelector(".shell-nav-head svg")!;
     expect(svg.getAttribute("width")).toBe("32");
-    expect(svg.querySelector('rect[fill="var(--primary)"]')).not.toBeNull();
+    // Icono «app» de SkullApp: cuadrado monocromo (ya no el azul primario).
+    expect(svg.querySelector('rect[fill="var(--logo-app-fondo)"]')).not.toBeNull();
     expect(screen.queryByText("Prospective")).toBeNull();
     // Plegada no hay texto, pero el icono dice la marca.
     expect(screen.getByRole("img", { name: "Prospective" })).toBe(svg);

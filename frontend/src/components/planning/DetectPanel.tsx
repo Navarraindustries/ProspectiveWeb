@@ -184,7 +184,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
       {busy && (
         <div style={{ marginBottom: 14 }}>
           {progress === CONNECTION_LOST
-            ? <ProgressBar />
+            ? <ProgressBar marca />
             : <SegmentProgress
                 state={progress}
                 headline="Detectando… suele tardar alrededor de un minuto"

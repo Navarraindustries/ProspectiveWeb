@@ -108,7 +108,10 @@
   --on-media-muted:     rgba(255, 255, 255, 0.72);
   --on-media-shadow:    0 2px 18px rgba(0, 0, 0, 0.5);
   --media-track:        rgba(255, 255, 255, 0.18);
-  --logo-dot:           #FFFFFF;   /* punto del icono «app» sobre el cuadrado primario */
+  /* Icono de SkullApp en su versión «app» (cuadrado): monocromo, como la marca. */
+  --logo-app-fondo:     #16181E;
+  --logo-app-borde:     rgba(214, 222, 235, 0.22);
+  --logo-app-marca:     #F5F7FA;
   --media-vignette:     radial-gradient(120% 100% at 30% 20%, rgba(11, 12, 15, 0.15) 0%, rgba(11, 12, 15, 0.45) 60%, rgba(5, 9, 15, 0.78) 100%);
   /* Atenuación uniforme del vídeo de marca a pantalla completa (UNI-133): con ella
      la ventana de cristal que va encima cumple AA aunque el fotograma sea blanco. */
@@ -233,7 +236,10 @@
   --on-media-muted:     rgba(255, 255, 255, 0.72);
   --on-media-shadow:    0 2px 18px rgba(0, 0, 0, 0.5);
   --media-track:        rgba(255, 255, 255, 0.18);
-  --logo-dot:           #FFFFFF;   /* punto del icono «app» sobre el cuadrado primario */
+  /* Icono de SkullApp en su versión «app» (cuadrado): grafito con la marca blanca. */
+  --logo-app-fondo:     #24232B;
+  --logo-app-borde:     #24232B;
+  --logo-app-marca:     #FFFFFF;
   --media-vignette:     radial-gradient(120% 100% at 30% 20%, rgba(11, 12, 15, 0.15) 0%, rgba(11, 12, 15, 0.45) 60%, rgba(5, 9, 15, 0.78) 100%);
   /* Atenuación uniforme del vídeo de marca a pantalla completa (UNI-133): con ella
      la ventana de cristal que va encima cumple AA aunque el fotograma sea blanco. */

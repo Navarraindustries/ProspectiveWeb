@@ -253,7 +253,7 @@ export function CenterlinePanel() {
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 6 }}>
             Voxelizando y trazando el eje medial… (puede tardar según el tamaño del vaso)
           </div>
-          <ProgressBar />
+          <ProgressBar marca />
         </div>
       )}
       <ErrorNote>{error}</ErrorNote>

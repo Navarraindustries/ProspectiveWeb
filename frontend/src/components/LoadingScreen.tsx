@@ -1,7 +1,8 @@
 /* LoadingScreen — transición de marca tras entrar con éxito: el vídeo
    quirúrgico de carga (`loading.mp4`, en bucle y silenciado) atenuado bajo un
    viñeteado, el logotipo, una barra indeterminada y «Preparando el espacio de
-   trabajo…»; se funde a los 2,2 s.
+   trabajo…»; se funde a los 2,2 s. El icono de SkullApp se pinta al entrar
+   (pincelada) y después late hasta el fundido.
 
    F2-12 la había quitado porque no espera a nada (la lista de pacientes ya
    está debajo). El dueño la pidió de vuelta con la misma duración de antes:
@@ -14,6 +15,9 @@ import { glass } from "../styles/glass";
 
 export const SHOW_MS = 2200;
 export const FADE_MS = 450;
+/** La pincelada del icono: empieza enseguida y acaba antes de la mitad. */
+export const PINCELADA_RETRASO_MS = 150;
+export const PINCELADA_DURACION_MS = 1100;
 const VIDEO_SRC = "/media/loading.mp4";
 
 export function LoadingScreen({ onDone, onFading, label = "Preparando el espacio de trabajo…" }: {
@@ -78,7 +82,12 @@ export function LoadingScreen({ onDone, onFading, label = "Preparando el espacio
           color: "var(--on-media)",
         }}
       >
-        <Logo variante="linea" tono="media" firma={false} size={movil ? 28 : 34} />
+        {/* El icono se pinta al entrar y luego late mientras dura la transición. */}
+        <Logo
+          variante="linea" tono="media" firma={false} size={movil ? 28 : 34}
+          pincelada={{ retrasoMs: PINCELADA_RETRASO_MS, duracionMs: PINCELADA_DURACION_MS }}
+          latido={{ retrasoMs: PINCELADA_RETRASO_MS + PINCELADA_DURACION_MS + 100 }}
+        />
 
         {/* Barra indeterminada: barre con el azul de identidad. */}
         <div style={{ position: "relative", width: 220, height: 4, borderRadius: "var(--radius-full)", background: "var(--media-track)", overflow: "hidden" }}>

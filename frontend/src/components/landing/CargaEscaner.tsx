@@ -2,7 +2,7 @@
    landing cada vez que se entra en ella (también al recargar o con #ancla; no
    se guarda nada).
 
-   Secuencia, siempre en 3 s como mucho:
+   Secuencia, en 5,35 s como mucho (y «Saltar» siempre a mano):
      1. Escaneo (0–1,6 s): una línea azul barre la pantalla cinco veces y cada
         pasada descubre un fotograma real del hero de Case 3; el último es el
         corte de la lesión. Abajo, el corte que se enseña y el porcentaje de la
@@ -11,12 +11,15 @@
         con el tiempo, así que la secuencia nunca espera a la red.
      2. Lesión (1,6–2,0 s): anillo rojo sobre la lesión y el rótulo del 1.er
         candidato que devolvió el detector.
-     3. Logo (2,0–2,5 s): cortes y rótulos se apagan a casi negro, aparece la
-        marca grande centrada y el anillo, encogido en un punto azul, viaja de
-        la lesión al punto del icono D (FLIP: se mide dónde queda), que toma el
-        relevo al llegar.
-     4. Apertura (2,5–3,0 s): un círculo se abre desde ese punto y descubre la
-        landing real; al acabar, la capa avisa (`onFin`) y la página la quita.
+     3. Logo (3,0–4,6 s): cortes y rótulos se apagan a casi negro, el anillo se
+        apaga sobre la lesión y el icono de SkullApp se pinta en el centro
+        (pincelada, del gancho a la punta de la cola); luego entra
+        «Prospective™» de izquierda a derecha y se asienta la firma «por
+        SkullApp». Con el icono D, el anillo viajaba a su punto; el icono de
+        SkullApp no tiene punto (cambio de marca del 08-11).
+     4. Apertura (4,6–5,35 s): un círculo se abre desde el centro del icono
+        (se mide dónde queda) y descubre la landing real; al acabar, la capa
+        avisa (`onFin`) y la página la quita.
 
    Cualquier clic, toque, rueda o tecla (y el botón «Saltar») hace la apertura
    rápida. Con movimiento reducido o ahorro de datos: solo la marca sobre
@@ -34,14 +37,16 @@ import { cifra } from "../../lib/numero";
 import { EASE, fundido, motion, useReducedMotion } from "../../motion";
 import { TEXTO_OCULTO } from "../../styles/oculto";
 import { Button } from "../Button";
-import { LogoIcono } from "../shell/Logo";
+import { FirmaSkullApp, LogoIcono, type Pincelada } from "../shell/Logo";
 import {
   CONSULTA_HERO_QUIETO, DETECCION_CASE3, MANIFIESTO, fotogramasListos, pideAhorroDatos, rutaFotograma,
   suscribirPrecargaHero,
 } from "./heroFrames";
 
 /** Comienzo de cada fase, en ms desde que se monta la capa. `fin` es el total. */
-export const FASES_MS = { lesion: 2400, logo: 3000, apertura: 3750, fin: 4500 } as const;
+export const FASES_MS = { lesion: 2400, logo: 3000, apertura: 4600, fin: 5350 } as const;
+/** La pincelada del icono en la fase del logo (ms desde que se monta la capa). */
+export const PINCELADA_INTRO: Pincelada = { retrasoMs: 3050, duracionMs: 1000 };
 /** La apertura rápida al saltar. */
 export const SALTO_MS = 240;
 /** El porcentaje no llega al 100 % antes de esto aunque la precarga vuele. */
@@ -55,10 +60,6 @@ export const BARRIDO_MS = FASES_MS.lesion / CORTES_ESCANEO.length;
 /** Dónde cae la lesión en el fotograma 59, en fracción de la imagen (cuadrada):
     el centro de la mancha medida en el propio fotograma. */
 export const LESION_EN_IMAGEN = { x: 0.485, y: 0.48 } as const;
-/** Lado del anillo en px (landing.css): el punto viajero es el anillo escalado. */
-export const LADO_ANILLO = 64;
-/** Escala del punto si no se pudo medir el del icono. */
-const ESCALA_PUNTO = 0.18;
 const LADO_IMAGEN = 1024;
 const TICK_MS = 50;
 
@@ -115,9 +116,9 @@ function geometria() {
 
 export interface Caja { left: number; top: number; width: number; height: number }
 
-/** Dónde quedará el punto del icono cuando la marca esté entera: la caja de la
-    marca se escala desde su centro (entra de 0,96 a 1), así que se deshace la
-    escala `escala` que tenga al medir. Devuelve centro y diámetro. */
+/** Dónde quedará una caja de la marca (el icono) cuando la marca esté entera:
+    si la marca está escalada desde su centro al medir, se deshace la escala
+    `escala`. Devuelve centro y diámetro. */
 export function puntoFinal(punto: Caja, marca: Caja, escala: number): { x: number; y: number; d: number } {
   const s = escala > 0 ? escala : 1;
   const cx = marca.left + marca.width / 2;
@@ -135,28 +136,30 @@ export function escalaDe(transform: string): number {
   return m ? Math.hypot(Number(m[1]), Number(m[2])) : 1;
 }
 
-/* El punto de la lesión del icono D: el último círculo del dibujo (Logo.tsx). */
-const SELECTOR_PUNTO_ICONO = "svg g > circle:last-of-type";
+/* El icono de SkullApp: el primer svg de la marca (el segundo es la firma). */
+export const SELECTOR_ICONO = ".carga-escaner__marca > svg";
 
-function medirPuntoIcono(logo: HTMLElement | null) {
-  const punto = logo?.querySelector(SELECTOR_PUNTO_ICONO);
-  if (!logo || !punto) return null;
-  const caja = punto.getBoundingClientRect();
+function medirCentroIcono(logo: HTMLElement | null) {
+  const icono = logo?.querySelector(SELECTOR_ICONO);
+  if (!logo || !icono) return null;
+  const caja = icono.getBoundingClientRect();
   if (!caja.width) return null; // sin maquetar (jsdom, display: none)
   return puntoFinal(caja, logo.getBoundingClientRect(), escalaDe(getComputedStyle(logo).transform));
 }
 
-/* La marca grande: icono D de 120 px y «Prospective™» en Sora 56 px, con la
-   firma debajo. Los tamaños bajan con clamp en landing.css para caber a 360. */
-function MarcaGrande() {
+/* La marca grande: icono de SkullApp de 120 px y «Prospective™» en Sora 56 px,
+   con la firma «por SkullApp» (su logotipo) debajo. Los tamaños bajan con
+   clamp en landing.css para caber a 360. En la secuencia completa el icono se
+   pinta; en la breve aparece entero. */
+function MarcaGrande({ pincelada }: { pincelada?: Pincelada }) {
   return (
     <span className="carga-escaner__marca" data-logo="">
-      <LogoIcono size={120} variante="linea" />
+      <LogoIcono size={120} variante="linea" pincelada={pincelada} />
       <span className="carga-escaner__nombre">
         <span className="carga-escaner__producto">
           Prospective<sup aria-hidden="true">™</sup>
         </span>
-        <span className="carga-escaner__firma">por SkullApp</span>
+        <span className="carga-escaner__firma">por <FirmaSkullApp alto={15} /></span>
       </span>
     </span>
   );
@@ -280,16 +283,15 @@ export function CargaEscaner({ onAbrir, onFin }: CargaEscanerProps) {
     return () => window.removeEventListener("resize", alCambiar);
   }, []);
 
-  // El punto viajero (FLIP): se mide dónde quedará el punto del icono con la
-  // marca entera y el anillo, ya encogido, viaja de la lesión hasta allí. Se
-  // vuelve a medir al cambiar la pantalla y cuando llegan las fuentes (Sora
-  // mueve el nombre y con él el icono).
+  // La apertura sale del centro del icono: se mide dónde queda con la marca
+  // entera. Se vuelve a medir al cambiar la pantalla y cuando llegan las
+  // fuentes (Sora mueve el nombre y con él el icono).
   const logo = useRef<HTMLDivElement>(null);
   const [destino, setDestino] = useState<{ x: number; y: number; d: number } | null>(null);
   useLayoutEffect(() => {
     if (breve) return;
     let vivo = true;
-    const medir = () => { if (vivo) setDestino(medirPuntoIcono(logo.current)); };
+    const medir = () => { if (vivo) setDestino(medirCentroIcono(logo.current)); };
     medir();
     document.fonts?.ready.then(medir, () => {});
     return () => { vivo = false; };
@@ -308,15 +310,11 @@ export function CargaEscaner({ onAbrir, onFin }: CargaEscanerProps) {
   };
 
   const pct = Math.floor(progresoMostrado(ms, real) * 100);
-  // La apertura sale del punto donde acaba el viajero (el del icono); sin
-  // medida, de la lesión.
+  // La apertura sale del centro del icono; sin medida, de la lesión.
   const ancla = destino ? { x: Math.round(destino.x), y: Math.round(destino.y) } : { x: geo.x, y: geo.y };
   const estilo = {
     "--carga-x": `${geo.x}px`,
     "--carga-y": `${geo.y}px`,
-    "--carga-dx": `${ancla.x - geo.x}px`,
-    "--carga-dy": `${ancla.y - geo.y}px`,
-    "--carga-punto": destino ? String(Math.round((destino.d / LADO_ANILLO) * 1000) / 1000) : String(ESCALA_PUNTO),
     "--carga-ax": `${ancla.x}px`,
     "--carga-ay": `${ancla.y}px`,
     "--carga-iris-fin": `${radioApertura(geo.ancho, geo.alto, ancla.x, ancla.y)}px`,
@@ -365,7 +363,7 @@ export function CargaEscaner({ onAbrir, onFin }: CargaEscanerProps) {
           <span className="carga-escaner__hud carga-escaner__hud--titulo">PROSPECTIVE · CASE 3 · 3DRA</span>
           <div className="carga-escaner__anillo" />
           <span className="carga-escaner__rotulo">{rotuloCandidato()}</span>
-          <div className="carga-escaner__logo" ref={logo}><MarcaGrande /></div>
+          <div className="carga-escaner__logo" ref={logo}><MarcaGrande pincelada={PINCELADA_INTRO} /></div>
         </div>
       )}
 

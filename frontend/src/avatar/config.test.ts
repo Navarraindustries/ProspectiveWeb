@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import listas from "./listas.json";
 import {
-  PIELES, PEINADOS, COLORES_PELO, CABEZAS, OJOS, PIJAMAS, FONDOS, ETIQUETAS, ETIQUETAS_PIEL,
+  PIELES, PEINADOS, COLORES_PELO, CABEZAS, OJOS, PIJAMAS, FONDOS, ETIQUETAS,
   configPorDefecto, configAleatoria,
 } from "./config";
 
@@ -15,10 +15,21 @@ describe("listas", () => {
     expect([...PIJAMAS]).toEqual(listas.pijamas);
     expect([...FONDOS]).toEqual(listas.fondos);
   });
-  it("todas las opciones tienen etiqueta", () => {
-    for (const l of [PEINADOS, CABEZAS, OJOS, COLORES_PELO, PIJAMAS, FONDOS])
-      for (const v of l) expect(ETIQUETAS[v]).toBeTruthy();
-    expect(ETIQUETAS_PIEL).toHaveLength(PIELES.length);
+  it("cada valor de cada sección tiene etiqueta no vacía", () => {
+    const secciones: [Record<string, string>, readonly string[]][] = [
+      [ETIQUETAS.peinado, PEINADOS], [ETIQUETAS.pelo, COLORES_PELO], [ETIQUETAS.cabeza, CABEZAS],
+      [ETIQUETAS.ojos, OJOS], [ETIQUETAS.pijama, PIJAMAS], [ETIQUETAS.fondo, FONDOS],
+    ];
+    for (const [et, lista] of secciones) {
+      expect(Object.keys(et).sort()).toEqual([...lista].sort());
+      for (const v of lista) expect(et[v].trim()).not.toBe("");
+    }
+    expect(ETIQUETAS.piel).toHaveLength(PIELES.length);
+    ETIQUETAS.piel.forEach((e) => expect(e.trim()).not.toBe(""));
+  });
+  it("«nada» se lee según la sección", () => {
+    expect(ETIQUETAS.cabeza.nada).toBe("Sin gorro");
+    expect(ETIQUETAS.ojos.nada).toBe("Sin gafas");
   });
 });
 

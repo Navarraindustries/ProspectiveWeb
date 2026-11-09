@@ -12,41 +12,44 @@ export const OJOS: readonly string[] = listas.ojos;
 export const PIJAMAS: readonly string[] = listas.pijamas;
 export const FONDOS: readonly string[] = listas.fondos;
 
-/** Etiquetas en español. La piel va por índice (ETIQUETAS_PIEL); el resto, por valor. */
-export const ETIQUETAS_PIEL: readonly string[] = ["Muy clara", "Clara", "Media", "Morena", "Oscura", "Muy oscura"];
-export const ETIQUETAS: Record<string, string> = {
-  corto: "Corto",
-  largo: "Largo",
-  mono: "Moño",
-  rapado: "Rapado",
-  rizado: "Rizado",
-  coleta: "Coleta",
-  nada: "Nada",
-  gorro: "Gorro quirúrgico",
-  gorro_amplio: "Gorro amplio",
-  gafas: "Gafas",
-  lupas: "Lupas quirúrgicas",
-  "#2B1D16": "Castaño oscuro",
-  "#121212": "Negro",
-  "#6B4226": "Castaño",
-  "#D8B26E": "Rubio",
-  "#A4492A": "Pelirrojo",
-  "#C9CCD2": "Canoso",
-  "#3FC4AB": "Verde quirófano",
-  "#5AA9FF": "Azul",
-  "#A98BF0": "Violeta",
-  "#B5485A": "Granate",
-  "#E0A84A": "Ámbar",
-  "#4A5263": "Gris pizarra",
-  "#12141A": "Obsidiana",
-  "#10233D": "Azul noche",
-  "#241A3D": "Ciruela",
-  "#0F2E28": "Verde bosque",
-  "#DCE3EC": "Gris claro",
-};
+type Peinado = "corto" | "largo" | "mono" | "rapado" | "rizado" | "coleta";
+type ColorPelo = "#2B1D16" | "#121212" | "#6B4226" | "#D8B26E" | "#A4492A" | "#C9CCD2";
+type Cabeza = "nada" | "gorro" | "gorro_amplio";
+type Ojos = "nada" | "gafas" | "lupas";
+type Pijama = "#3FC4AB" | "#5AA9FF" | "#A98BF0" | "#B5485A" | "#E0A84A" | "#4A5263";
+type Fondo = "#12141A" | "#10233D" | "#241A3D" | "#0F2E28" | "#DCE3EC";
 
-/** «nada» significa «sin gafas» en la lista de ojos. */
-export const ETIQUETA_OJOS_NADA = "Sin gafas";
+/**
+ * Etiquetas en español por sección. Cada sección es un Record sobre la unión
+ * literal de sus valores: si falta una etiqueta, no compila. La piel es un array
+ * indexado como PIELES. Uso: ETIQUETAS.ojos.nada, ETIQUETAS.peinado[valor].
+ */
+export const ETIQUETAS: {
+  piel: readonly string[];
+  peinado: Record<Peinado, string>;
+  pelo: Record<ColorPelo, string>;
+  cabeza: Record<Cabeza, string>;
+  ojos: Record<Ojos, string>;
+  pijama: Record<Pijama, string>;
+  fondo: Record<Fondo, string>;
+} = {
+  piel: ["Muy clara", "Clara", "Media", "Morena", "Oscura", "Muy oscura"],
+  peinado: { corto: "Corto", largo: "Largo", mono: "Moño", rapado: "Rapado", rizado: "Rizado", coleta: "Coleta" },
+  pelo: {
+    "#2B1D16": "Castaño oscuro", "#121212": "Negro", "#6B4226": "Castaño",
+    "#D8B26E": "Rubio", "#A4492A": "Pelirrojo", "#C9CCD2": "Canoso",
+  },
+  cabeza: { nada: "Sin gorro", gorro: "Gorro quirúrgico", gorro_amplio: "Gorro amplio" },
+  ojos: { nada: "Sin gafas", gafas: "Gafas", lupas: "Lupas quirúrgicas" },
+  pijama: {
+    "#3FC4AB": "Verde quirófano", "#5AA9FF": "Azul", "#A98BF0": "Violeta",
+    "#B5485A": "Granate", "#E0A84A": "Ámbar", "#4A5263": "Gris pizarra",
+  },
+  fondo: {
+    "#12141A": "Obsidiana", "#10233D": "Azul noche", "#241A3D": "Ciruela",
+    "#0F2E28": "Verde bosque", "#DCE3EC": "Gris claro",
+  },
+};
 
 function hash(n: number): number {
   let x = (Math.trunc(n) ^ 0x9e3779b9) >>> 0;

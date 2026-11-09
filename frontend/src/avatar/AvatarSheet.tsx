@@ -8,23 +8,23 @@ import { ErrorNote } from "../components/PanelHead";
 import { Sheet } from "../components/Sheet";
 import { useAuth } from "../store/auth";
 import { AvatarCreator } from "./AvatarCreator";
+import { DesdeMiFoto, type ResultadoFoto } from "./DesdeMiFoto";
 import { AvatarSvg } from "./AvatarSvg";
 import { UserAvatar } from "./UserAvatar";
 import { configPorDefecto, type AvatarConfig } from "./config";
 
 type Modo = "avatar" | "foto";
 
-export function AvatarSheet({ open, onClose, onDesdeFoto }: {
+export function AvatarSheet({ open, onClose }: {
   open: boolean;
   onClose: () => void;
-  /** Task 7 enchufa aquí el paso «Desde mi foto». Sin él, el botón no se muestra. */
-  onDesdeFoto?: () => void;
 }) {
   const { user, refreshUser } = useAuth();
   const [config, setConfig] = useState<AvatarConfig | null>(null);
   const [modo, setModo] = useState<Modo>("avatar");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [desdeFoto, setDesdeFoto] = useState(false);
 
   const tieneFoto = !!user?.has_profile_photo;
 
@@ -34,6 +34,7 @@ export function AvatarSheet({ open, onClose, onDesdeFoto }: {
     setConfig(user.avatar_config ?? configPorDefecto(user.id));
     setModo(user.avatar_mode === "foto" && user.has_profile_photo ? "foto" : "avatar");
     setError(null);
+    setDesdeFoto(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -47,6 +48,22 @@ export function AvatarSheet({ open, onClose, onDesdeFoto }: {
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar el avatar");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const aplicarDesdeFoto = async (r: ResultadoFoto) => {
+    setConfig(r.config); setModo(r.mostrar); setDesdeFoto(false);
+    if (r.mostrar !== "foto") return;
+    setBusy(true); setError(null);
+    try {
+      if (r.usarRegistro) await api.copyRegistroPhoto();
+      else if (r.foto) await api.uploadProfilePhoto(r.foto);
+      await refreshUser();
+    } catch (e) {
+      setModo("avatar");
+      setError(e instanceof Error ? e.message : "No se pudo subir la foto");
     } finally {
       setBusy(false);
     }
@@ -76,6 +93,9 @@ export function AvatarSheet({ open, onClose, onDesdeFoto }: {
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
         </>
       }>
+      {desdeFoto ? (
+        <DesdeMiFoto base={config} onListo={(r) => void aplicarDesdeFoto(r)} onCancel={() => setDesdeFoto(false)} />
+      ) : (
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         <div style={{ display: "flex", justifyContent: "center" }}>
           {modo === "foto" && tieneFoto
@@ -92,11 +112,10 @@ export function AvatarSheet({ open, onClose, onDesdeFoto }: {
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {onDesdeFoto && (
-            <Button variant="outline" size="sm" leadingIcon={<Icon name="USER" size={14} />} onClick={onDesdeFoto}>
-              Desde mi foto
-            </Button>
-          )}
+          <Button variant="outline" size="sm" leadingIcon={<Icon name="USER" size={14} />}
+            onClick={() => setDesdeFoto(true)}>
+            Desde mi foto
+          </Button>
           {tieneFoto && (
             <Button variant="destructive-ghost" size="sm" disabled={busy} onClick={() => void quitarFoto()}>
               Quitar mi foto
@@ -106,6 +125,7 @@ export function AvatarSheet({ open, onClose, onDesdeFoto }: {
 
         <AvatarCreator value={config} onChange={setConfig} />
       </div>
+      )}
     </Sheet>
   );
 }

@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { AvatarCreator } from "./AvatarCreator";
-import { configPorDefecto, type AvatarConfig } from "./config";
+import { ETIQUETAS, PIELES, configPorDefecto, type AvatarConfig } from "./config";
 
 const base: AvatarConfig = { ...configPorDefecto(1), ojos: "nada", mascarilla: false };
 
@@ -53,5 +53,15 @@ describe("AvatarCreator", () => {
     fireEvent.click(screen.getByRole("button", { name: "Más piezas" }));
     expect(screen.getByText("Mascarilla")).toBeInTheDocument();
     expect(screen.getByText("Fondo")).toBeInTheDocument();
+  });
+
+  it("las muestras de piel usan exactamente los tonos de PIELES", () => {
+    render(<AvatarCreator value={base} onChange={() => {}} />);
+    PIELES.forEach((hex, i) => {
+      const b = screen.getByRole("button", { name: ETIQUETAS.piel[i] });
+      const ref = document.createElement("i");
+      ref.style.background = hex; // jsdom normaliza a rgb()
+      expect(b.style.background).toBe(ref.style.background);
+    });
   });
 });

@@ -10,9 +10,6 @@ import {
   configAleatoria, type AvatarConfig,
 } from "./config";
 
-/* Tonos de piel: solo para las muestras (la paleta del avatar, no del tema). */
-const TONOS_PIEL = ["#F6D9C4", "#EEBF9B", "#D49A6A", "#A8714A", "#7A4A2E", "#4B2C1C"];
-
 function Fila({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -35,7 +32,7 @@ function Muestra({ color, etiqueta, activa, onClick }: { color: string; etiqueta
       style={{
         width: 44, height: 44, borderRadius: "50%", background: color, cursor: "pointer",
         border: "1px solid var(--border)",
-        boxShadow: activa ? "0 0 0 2px var(--background), 0 0 0 4px #fff" : "none",
+        boxShadow: activa ? "0 0 0 2px var(--background), 0 0 0 4px var(--foreground)" : "none",
       }}
     />
   );
@@ -48,7 +45,7 @@ function Pildora({ texto, activa, onClick }: { texto: string; activa: boolean; o
       aria-pressed={activa}
       onClick={onClick}
       style={{
-        minHeight: 36, padding: "0 14px", borderRadius: 999, cursor: "pointer", fontSize: 13,
+        minHeight: 44, padding: "0 14px", borderRadius: 999, cursor: "pointer", fontSize: 13,
         color: "var(--foreground)",
         border: `1px solid ${activa ? "var(--primary)" : "var(--border)"}`,
         background: activa ? "color-mix(in srgb, var(--primary) 18%, transparent)" : "var(--btn-outline-bg)",
@@ -93,8 +90,8 @@ export function AvatarCreator({ value, onChange, compacto = false }: {
       </div>
 
       <Fila titulo="Piel">
-        {PIELES.map((_, i) => (
-          <Muestra key={i} color={TONOS_PIEL[i] ?? "#999"} etiqueta={ETIQUETAS.piel[i]} activa={value.piel === i} onClick={() => cambiar({ ...value, piel: i })} />
+        {PIELES.map((hex, i) => (
+          <Muestra key={i} color={hex} etiqueta={ETIQUETAS.piel[i]} activa={value.piel === i} onClick={() => cambiar({ ...value, piel: i })} />
         ))}
       </Fila>
       <Fila titulo="Peinado">

@@ -55,4 +55,25 @@ describe("AvatarSheet", () => {
     fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
     await waitFor(() => expect(api.saveAvatar).toHaveBeenCalledWith(cfg, "foto"));
   });
+
+  it("si guardar falla, muestra el error, no cierra y conserva el borrador", async () => {
+    vi.mocked(api.saveAvatar).mockRejectedValueOnce(new Error("Sin conexión"));
+    const onClose = vi.fn();
+    render(<AvatarSheet open onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Lupas quirúrgicas" }));
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    expect(await screen.findByText("Sin conexión")).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(refreshUser).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Lupas quirúrgicas" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("tras «Quitar mi foto» el borrador queda en modo avatar y guarda 'avatar'", async () => {
+    user = { ...user, has_profile_photo: true, avatar_mode: "foto" };
+    render(<AvatarSheet open onClose={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Quitar mi foto" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Mi avatar" })).toHaveAttribute("aria-pressed", "true"));
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(api.saveAvatar).toHaveBeenCalledWith(cfg, "avatar"));
+  });
 });

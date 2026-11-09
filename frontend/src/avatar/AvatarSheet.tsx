@@ -56,8 +56,8 @@ export function AvatarSheet({ open, onClose, onDesdeFoto }: {
     setBusy(true); setError(null);
     try {
       await api.deleteProfilePhoto();
+      setModo("avatar"); // el servidor ya pasa a «avatar»; el borrador (config) se conserva
       await refreshUser();
-      setModo("avatar");
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo quitar la foto");
     } finally {
@@ -112,7 +112,7 @@ export function AvatarSheet({ open, onClose, onDesdeFoto }: {
 
 function pildora(activa: boolean, deshabilitada: boolean): CSSProperties {
   return {
-    minHeight: 36, padding: "0 14px", borderRadius: 999, fontSize: 13, color: "var(--foreground)",
+    minHeight: 44, padding: "0 14px", borderRadius: 999, fontSize: 13, color: "var(--foreground)",
     cursor: deshabilitada ? "not-allowed" : "pointer", opacity: deshabilitada ? 0.5 : 1,
     border: `1px solid ${activa ? "var(--primary)" : "var(--border)"}`,
     background: activa ? "color-mix(in srgb, var(--primary) 18%, transparent)" : "var(--btn-outline-bg)",

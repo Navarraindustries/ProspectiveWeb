@@ -1,6 +1,7 @@
 """Authentication router — real JWT login/me (Session D)."""
 from __future__ import annotations
 
+import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -16,6 +17,7 @@ from models import (
     LoginRequest, LoginResponse, UserInfo,
     SignupRequest, SignupResponse, PendingUser,
     UserAdminInfo, UserBrief, UserUpdate,
+    AvatarConfig, AvatarUpdate, OnboardingState,
 )
 from services.database import get_db
 from services.auth_service import (
@@ -34,6 +36,7 @@ from services.auth_service import (
     require_user,
     verify_password,
 )
+from services.avatar_config import leer_config, leer_onboarding
 from services.db_models import User
 
 logger = logging.getLogger(__name__)
@@ -67,6 +70,24 @@ async def _save_user_upload(upload: UploadFile, subdir: str, user_id: int) -> st
     return str(dest)
 
 
+def _avatar_fields(u: User) -> dict:
+    """Campos de avatar de un usuario; una config guardada ilegible cuenta como ausente."""
+    cfg = leer_config(u.avatar_config)
+    pp = u.profile_photo_path or ""
+    return {
+        "avatar_config": AvatarConfig(**cfg) if cfg else None,
+        "avatar_mode": u.avatar_mode if u.avatar_mode in ("avatar", "foto") else "avatar",
+        "has_profile_photo": bool(pp) and Path(pp).exists(),
+    }
+
+
+def _onboarding_of(u: User) -> OnboardingState:
+    try:
+        return OnboardingState(**leer_onboarding(u.onboarding_state))
+    except ValueError:
+        return OnboardingState()
+
+
 def _user_to_info(user: User) -> UserInfo:
     """Map ORM User → Pydantic UserInfo."""
     initials = "".join(
@@ -84,6 +105,8 @@ def _user_to_info(user: User) -> UserInfo:
         avatar_initials=initials,
         must_change_password=bool(user.must_change_password),
         has_photo=bool(user.photo_path and Path(user.photo_path).exists()),
+        onboarding=_onboarding_of(user),
+        **_avatar_fields(user),
     )
 
 
@@ -195,6 +218,42 @@ async def me(
     current_user: Annotated[User, Depends(require_user)],
 ) -> UserInfo:
     return _user_to_info(current_user)
+
+
+@router.put(
+    "/me/avatar",
+    response_model=UserInfo,
+    summary="Guardar el avatar propio",
+    description="`config` con piezas de listas cerradas (o null) y `modo` avatar|foto.",
+)
+async def put_my_avatar(
+    body: AvatarUpdate,
+    current_user: Annotated[User, Depends(require_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> UserInfo:
+    user = db.get(User, current_user.id)
+    user.avatar_config = json.dumps(body.config.model_dump()) if body.config else None
+    user.avatar_mode = body.modo
+    db.commit()
+    db.refresh(user)
+    return _user_to_info(user)
+
+
+@router.put(
+    "/me/onboarding",
+    response_model=UserInfo,
+    summary="Guardar el estado del onboarding propio",
+)
+async def put_my_onboarding(
+    body: OnboardingState,
+    current_user: Annotated[User, Depends(require_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> UserInfo:
+    user = db.get(User, current_user.id)
+    user.onboarding_state = json.dumps(body.model_dump())
+    db.commit()
+    db.refresh(user)
+    return _user_to_info(user)
 
 
 @router.get(
@@ -389,6 +448,7 @@ def _user_to_admin(u: User) -> UserAdminInfo:
         has_photo=bool(u.photo_path),
         has_cv=bool(u.cv_path),
         created_at=_utc_iso(u.created_at),
+        **_avatar_fields(u),
         university=u.university,
         position=u.position,
         rejected_at=_utc_iso(u.rejected_at) if u.rejected_at else None,
@@ -440,7 +500,10 @@ async def list_users_brief(
         .order_by(User.full_name, User.username)
         .all()
     )
-    return [UserBrief(id=u.id, username=u.username, full_name=u.full_name or "", role=u.role) for u in users]
+    return [
+        UserBrief(id=u.id, username=u.username, full_name=u.full_name or "", role=u.role, **_avatar_fields(u))
+        for u in users
+    ]
 
 
 @router.post(

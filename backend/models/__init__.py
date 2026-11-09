@@ -1,6 +1,9 @@
 """Pydantic models — public re-exports."""
 
 from .auth import (
+    AvatarConfig,
+    AvatarUpdate,
+    OnboardingState,
     ChangePasswordRequest,
     ResetPasswordRequest,
     LoginRequest,
@@ -79,6 +82,7 @@ from .treatment import (
 __all__ = [
     # auth
     "ChangePasswordRequest", "ResetPasswordRequest", "LoginRequest", "LoginResponse",
+    "AvatarConfig", "AvatarUpdate", "OnboardingState",
     "UserCreateRequest", "UserInfo", "UserRole", "UserAdminInfo", "UserBrief", "UserUpdate",
     "SignupRequest", "SignupResponse", "PendingUser",
     # clips

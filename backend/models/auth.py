@@ -4,11 +4,49 @@ Matches prospective/auth/auth_manager.py and prospective/db/models.py (User tabl
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+from services import avatar_config as _av
 
 UserRole = Literal["admin", "medico", "residente", "viewer"]
+
+Peinado = Literal[_av.PEINADOS]
+ColorPelo = Literal[_av.COLORES_PELO]
+Cabeza = Literal[_av.CABEZAS]
+Ojos = Literal[_av.OJOS]
+Pijama = Literal[_av.PIJAMAS]
+Fondo = Literal[_av.FONDOS]
+
+
+class AvatarConfig(BaseModel):
+    """Avatar construido con piezas de listas cerradas (`services/avatar_config.py`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    v: Literal[1] = 1
+    piel: int = Field(..., ge=0, le=5, description="Índice en PIELES")
+    peinado: Peinado
+    pelo: ColorPelo
+    cabeza: Cabeza
+    ojos: Ojos
+    mascarilla: bool
+    pijama: Pijama
+    fondo: Fondo
+
+
+class OnboardingState(BaseModel):
+    estado: Literal["pendiente", "invitado", "completado", "saltado"] = "pendiente"
+    fecha: str | None = None
+    pistas_vistas: list[Annotated[int, Field(ge=1, le=8)]] = Field(default_factory=list)
+    pistas_activas: bool = True
+    tarjeta_cerrada: bool = False
+
+
+class AvatarUpdate(BaseModel):
+    config: AvatarConfig | None = None
+    modo: Literal["avatar", "foto"] = "avatar"
 
 
 class LoginRequest(BaseModel):
@@ -37,6 +75,10 @@ class UserInfo(BaseModel):
     has_photo: bool = Field(False, description="A profile photo is available at /api/auth/me/photo")
     must_change_password: bool = Field(
         False, description="La cuenta lleva la contraseña inicial: hay que cambiarla antes de seguir")
+    avatar_config: AvatarConfig | None = None
+    avatar_mode: Literal["avatar", "foto"] = "avatar"
+    has_profile_photo: bool = Field(False, description="Hay foto de perfil propia del avatar (no la del alta)")
+    onboarding: OnboardingState = Field(default_factory=OnboardingState)
 
 
 class UserCreateRequest(BaseModel):
@@ -115,6 +157,9 @@ class UserBrief(BaseModel):
     username: str
     full_name: str
     role: UserRole
+    avatar_config: AvatarConfig | None = None
+    avatar_mode: Literal["avatar", "foto"] = "avatar"
+    has_profile_photo: bool = False
 
 
 class UserAdminInfo(BaseModel):
@@ -129,6 +174,9 @@ class UserAdminInfo(BaseModel):
     specialty: str = ""
     hospital: str = ""
     has_photo: bool = False
+    avatar_config: AvatarConfig | None = None
+    avatar_mode: Literal["avatar", "foto"] = "avatar"
+    has_profile_photo: bool = False
     has_cv: bool = False
     created_at: str = ""
     university: str = ""

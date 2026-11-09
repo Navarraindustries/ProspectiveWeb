@@ -194,7 +194,7 @@ export function SideNav({ state, modo = "carril", abierto = false, onCerrar }: {
       onMouseLeave={hoverOut}
     >
       <div className="shell-nav-head">
-        <Logo compact={!expanded} size={32} destello />
+        <Logo variante="linea" compact={!expanded} size={32} destello />
         {/* La chincheta solo se ve expandida (shell.css); plegada no hay sitio
             y el gesto para llegar a ella es expandir. */}
         {!cajon && <button

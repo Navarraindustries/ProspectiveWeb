@@ -66,7 +66,7 @@ export const PARADAS_PACIENTES: Record<ParadaPacientes, Explicacion> = {
   },
   atajos: {
     titulo: "Atajos y tu menú",
-    como: "⌘K abre la paleta de mandos; tu menú: avatar, contraseña y este recorrido.",
+    como: "Ctrl+K (⌘K en Mac) abre la paleta de mandos; tu menú: avatar, contraseña y este recorrido.",
     cuando: "Cuando quieras ir rápido o repasar.",
     porque: "Menos clics; el recorrido siempre está a mano.",
   },
@@ -173,11 +173,17 @@ export const TRAMOS_INTRO: ReadonlyArray<{
   { tramo: "dispositivo", verbo: "Dispositivo", linea: "Prueba clips sobre el cuello y cierra con el informe en PDF." },
 ];
 
-export const PRIMEROS_PASOS: ReadonlyArray<{ texto: string; donde: string; cta: string }> = [
-  { texto: "Crear tu primer paciente", donde: "pacientes", cta: "Nuevo paciente" },
-  { texto: "Colgarle un caso", donde: "pacientes", cta: "Nuevo caso" },
-  { texto: "Subir su DICOM y planificar", donde: "caso", cta: "Planificar" },
-  { texto: "¿Solo probar? Prueba rápida sin paciente", donde: "prueba", cta: "Prueba rápida" },
+export const PRIMEROS_PASOS: ReadonlyArray<{
+  texto: string;
+  /** Dónde ocurre, legible. */
+  lugar: string;
+  accion: "nuevo-paciente" | "nuevo-caso" | "subir-dicom" | "prueba-rapida";
+  cta: string;
+}> = [
+  { texto: "Crear tu primer paciente", lugar: "Pacientes · Nuevo paciente", accion: "nuevo-paciente", cta: "Nuevo paciente" },
+  { texto: "Colgarle un caso", lugar: "Pacientes · Nuevo caso", accion: "nuevo-caso", cta: "Nuevo caso" },
+  { texto: "Subir su DICOM y planificar", lugar: "Ficha del paciente · Planificar", accion: "subir-dicom", cta: "Planificar" },
+  { texto: "¿Solo probar? Prueba rápida sin paciente", lugar: "Pacientes · Prueba rápida sin paciente", accion: "prueba-rapida", cta: "Prueba rápida" },
 ];
 
 export const HOLA = {

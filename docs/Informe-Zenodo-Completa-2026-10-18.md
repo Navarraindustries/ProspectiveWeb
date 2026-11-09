@@ -1992,6 +1992,37 @@ la detección, la deja igual y limpia el modelo donde hacía falta. El caso de d
 **Veredicto.** Adoptada el 09-11. Nueva referencia **72 / 81 / 36 / 95 / 60**, con la misma salvedad del tope. Tests en
 `test_craneo_flojo.py` y `test_corteza_craneo.py`.
 
+### 4.24 Un criterio de «bulto redondo» para los aneurismas pequeños (2026-11-09): no separa; no entra
+
+**Pregunta.** ¿Puede un cuarto criterio, como calibre, cociente o curvatura, encontrar los aneurismas pequeños o
+subirlos de puesto? De las 63 lesiones de menos de 7 mm, 19 están entre las 5, 17 en la lista detrás del 5.º y 21 fuera.
+
+**Medida.** Sobre el volumen grueso guardado (0,8–1 mm por vóxel), en un cubo de 36 mm alrededor de cada lesión y de
+cada candidato de la lista larga (6 604 falsos, a más de 10 mm de toda lesión): hessiana multiescala (σ 0,8–2,5 mm)
+del HU recortado a [0, 600]. Un bulto brillante tiene los tres autovalores negativos y parecidos; un tubo no. Se toma
+el máximo en una bola de 3 mm de σ²·|λ₁| («bulto») y de |λ₁|/|λ₃| («redondez»). Scripts `sonda_blob.py` y
+`analiza_blob.py` del espacio de trabajo.
+
+| Medida | AUC pequeñas frente a falsos |
+|---|---|
+| bulto | 0,72 (0,73 frente a los falsos que van delante de una pequeña) |
+| redondez | 0,76 |
+| las dos combinadas | 0,76–0,79 |
+
+Las pequeñas tienen más bulto que los falsos (mediana 40 frente a 24), pero el 23 % de los falsos de la lista supera a
+la pequeña típica. Las 21 que están fuera de la lista tienen una mediana de 42, por debajo del percentil 90 de los
+falsos (57): como canal propio sobre toda la cabeza competirían con cada bifurcación, que en la hessiana se ve igual
+que un saco de 4–6 vóxeles.
+
+**Reordenación simulada** (regla del evaluador; cuota del 5.º como el canal de saco pequeño, o sustituir al 5.º):
+la mejor variante gana una lesión (017_1, 8 mm, 6.º → 5.º) con un umbral, y con los demás pierde 1–7, porque el 5.º
+puesto ya lo ocupan lesiones reales (004, 022, 024, 030_2, 106_1/2, 113, 161). Es el mismo techo que las cuotas de
+canal de §4.23.
+
+**Veredicto.** No entra. A esta resolución un saco de 3–5 mm y una bifurcación son indistinguibles en el volumen.
+Lo único que podría cambiarlo es repetir la medida sobre el volumen NATIVO de la banda (0,4–0,5 mm), que no se guarda
+para los 172 por espacio en disco; y la vía de fondo sigue siendo aprender de casos anotados.
+
 ## 5. Código y datos de esta pasada
 
 - `backend/scripts/zenodo_lesiones.py`: tabla por lesión y recuentos de una pasada a partir

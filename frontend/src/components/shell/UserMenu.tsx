@@ -16,6 +16,7 @@ import { Icon } from "../Icon";
 import type { IconName } from "../Icon";
 import { ChangePasswordSheet } from "../ChangePasswordSheet";
 import { UserAvatar } from "../../avatar/UserAvatar";
+import { AvatarSheet } from "../../avatar/AvatarSheet";
 import { useAuth } from "../../store/auth";
 import { useNav } from "../../store/nav";
 import { ROLE_LABEL, ROLE_PERMITE } from "../../lib/roles";
@@ -39,6 +40,7 @@ export function UserMenu() {
   const nav = useNav();
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const botonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -121,11 +123,13 @@ export function UserMenu() {
             </div>
           </div>
           <div className="shell-menu-sep" role="separator" />
+          <MenuItem icon="USER" label="Tu avatar" onClick={() => { setOpen(false); setAvatarOpen(true); }} />
           <MenuItem icon="PASSWORD" label="Cambiar contraseña" onClick={() => { setOpen(false); setPwOpen(true); }} />
           <MenuItem icon="LOGOUT" label="Cerrar sesión" danger onClick={doLogout} />
         </div>
       )}
 
+      <AvatarSheet open={avatarOpen} onClose={() => setAvatarOpen(false)} />
       <ChangePasswordSheet open={pwOpen} onClose={() => setPwOpen(false)} />
     </div>
   );

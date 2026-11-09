@@ -109,6 +109,12 @@ describe("UserMenu con teclado (UNI-85, patrón menu button)", () => {
   it("↑ y ↓ recorren en círculo; Inicio y Fin van a los extremos", () => {
     abrir();
     const [primero, ultimo] = [items()[0], items()[items().length - 1]];
+    // 3 elementos (Tu avatar, Cambiar contraseña, Cerrar sesión): ↓ desde el primero va al segundo.
+    tecla("ArrowUp");
+    expect(document.activeElement).toBe(ultimo);
+    tecla("ArrowDown");
+    expect(document.activeElement).toBe(primero);
+    tecla("ArrowDown");
     tecla("ArrowDown");
     expect(document.activeElement).toBe(ultimo);
     tecla("ArrowDown");

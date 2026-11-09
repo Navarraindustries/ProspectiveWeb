@@ -45,13 +45,22 @@ export function useRecorrido(
   const [rect, setRect] = useState<DOMRect | null>(null);
   const terminar = useRef(opts.onTerminar);
   terminar.current = opts.onTerminar;
+  const hecho = useRef(false);
+  const terminarUnaVez = useCallback((como: "completado" | "saltado") => {
+    if (hecho.current) return;
+    hecho.current = true;
+    terminar.current(como);
+  }, []);
   const parada = paradas[Math.min(indice, paradas.length - 1)];
+  const vivo = useRef(parada);
+  vivo.current = parada;
+  const clave = `${parada.id}|${parada.objetivos.join(",")}`;
 
   useEffect(() => {
     let observado: HTMLElement | null = null;
     const ro = typeof ResizeObserver === "function" ? new ResizeObserver(() => medir()) : null;
     function medir() {
-      const el = resolverObjetivo(parada.objetivos);
+      const el = resolverObjetivo(vivo.current.objetivos);
       if (el !== observado) {
         if (observado) ro?.unobserve(observado);
         observado = el;
@@ -73,22 +82,22 @@ export function useRecorrido(
       window.removeEventListener("scroll", medir, true);
       ro?.disconnect();
     };
-  }, [parada]);
+  }, [clave]);
 
   const siguiente = useCallback(() => {
     let i = indice + 1;
     while (i < paradas.length && omitida(paradas[i])) i++;
-    if (i >= paradas.length) terminar.current("completado");
+    if (i >= paradas.length) terminarUnaVez("completado");
     else setIndice(i);
-  }, [indice, paradas]);
+  }, [indice, paradas, terminarUnaVez]);
 
   const anterior = useCallback(() => {
     let i = indice - 1;
     while (i >= 0 && omitida(paradas[i])) i--;
     if (i >= 0) setIndice(i);
-  }, [indice, paradas]);
+  }, [indice, paradas, terminarUnaVez]);
 
-  const saltar = useCallback(() => terminar.current("saltado"), []);
+  const saltar = useCallback(() => terminarUnaVez("saltado"), [terminarUnaVez]);
 
   return { indice, parada, total: paradas.length, objetivo, rect, siguiente, anterior, saltar };
 }

@@ -145,3 +145,62 @@ describe("Burbuja", () => {
     expect(document.querySelector('[data-variante="centrada"]')).not.toBeNull();
   });
 });
+
+describe("Burbuja: teclado con otros diálogos y bordes", () => {
+  const props = () => ({ explicacion: expl("A"), indice: 1, total: 3, onSiguiente: vi.fn(), onAnterior: vi.fn(), onSaltar: vi.fn() });
+  it("un segundo diálogo con input encima recibe Esc/flechas/Intro sin mover el recorrido", () => {
+    const p = props();
+    render(<Burbuja {...p} />);
+    const otro = document.createElement("div");
+    otro.setAttribute("role", "dialog");
+    const input = document.createElement("input");
+    otro.appendChild(input);
+    document.body.appendChild(otro);
+    for (const key of ["Escape", "ArrowLeft", "ArrowRight", "Enter", "Tab"]) {
+      const ev = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+      input.dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(false);
+    }
+    expect(p.onSaltar).not.toHaveBeenCalled();
+    expect(p.onSiguiente).not.toHaveBeenCalled();
+    expect(p.onAnterior).not.toHaveBeenCalled();
+  });
+  it("←/→/Intro en un input dentro de extra no cambian de parada", () => {
+    const p = props();
+    render(<Burbuja {...p} extra={<input aria-label="nota" />} />);
+    const input = screen.getByLabelText("nota");
+    fireEvent.keyDown(input, { key: "ArrowLeft" });
+    fireEvent.keyDown(input, { key: "ArrowRight" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(p.onAnterior).not.toHaveBeenCalled();
+    expect(p.onSiguiente).not.toHaveBeenCalled();
+  });
+  it("ignora la repetición de tecla", () => {
+    const p = props();
+    render(<Burbuja {...p} />);
+    fireEvent.keyDown(document.body, { key: "ArrowRight", repeat: true });
+    expect(p.onSiguiente).not.toHaveBeenCalled();
+  });
+  it("el diálogo es modal", () => {
+    render(<Burbuja {...props()} />);
+    expect(document.querySelector('[role="dialog"]')?.getAttribute("aria-modal")).toBe("true");
+  });
+});
+
+describe("useRecorrido: una sola terminación", () => {
+  it("doble «siguiente» en la última y saltar después avisan una vez", () => {
+    poner("a", rectDe(1)); poner("c", rectDe(2));
+    const fin = vi.fn();
+    const { result } = renderHook(() => useRecorrido([paradas(true)[0]], { onTerminar: fin }));
+    act(() => { result.current.siguiente(); result.current.siguiente(); result.current.saltar(); });
+    expect(fin).toHaveBeenCalledTimes(1);
+  });
+  it("paradas en línea (identidad nueva) no re-suscriben ni repiten scrollIntoView", () => {
+    const a = poner("a", rectDe(1));
+    const sc = vi.fn();
+    a.scrollIntoView = sc;
+    const { rerender } = renderHook(() => useRecorrido(paradas(true), { onTerminar: vi.fn() }));
+    rerender(); rerender();
+    expect(sc).toHaveBeenCalledTimes(1);
+  });
+});

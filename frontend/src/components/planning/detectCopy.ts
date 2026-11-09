@@ -58,7 +58,7 @@ export function rejectedSummary(n: number): string {
  *  de las lesiones confirmadas, que enseña «¿Cuál es la lesión?». */
 export const DETECT_LINES: readonly string[] = [
   "Tres criterios buscan por separado (curvatura, calibre y cociente); cada candidato dice cuáles lo encontraron.",
-  "Es una lista para recorrer, no un veredicto: el orden no está validado contra casos anotados.",
+  "Es una lista para recorrer, no un veredicto: se llena hasta 5 aunque el estudio esté sano, así que no dice si hay aneurisma o no, y su orden no está validado contra casos anotados.",
   "Lo que se pinta de azul no es el saco: señala dónde mirar.",
 ];
 
@@ -67,8 +67,30 @@ export const DETECT_MORE: readonly string[] = [
   "Curvatura: la superficie se abomba. Calibre: más gruesa que el resto de la vasculatura. Cociente: más gruesa que el vaso de al lado.",
   "«Saco pequeño» es una cuota, no un cuarto voto: si ninguno de los 5 primeros es un saco de 3 – 5 mm con forma de esfera, el mejor de ellos ocupa el 5.º puesto. No mueve a los otros cuatro.",
   "Cuando lo encontró la curvatura, el azul es la región detectada; cuando lo encontró el calibre, es una bola alrededor del punto que incluye pared de vaso. El grosor es una estimación local.",
+  "Tejido (solo TC): HU medio y máximo en 2 mm alrededor del punto. «Hueso o calcio» puede ser el cráneo o la pared calcificada de una lesión real; «sin contraste», partes blandas o trombo. Describe, no filtra.",
   "La medida real la da Morfometría, marcando el cuello y el ápice: se vuelve a aislar el saco desde el volumen, así que nada de esto altera los números.",
 ];
+
+/** Lo que hay alrededor del candidato (HU en 2 mm, solo TC), en una línea;
+ *  null sin medir (3DRA, sesiones antiguas, marcados a mano). Dice la cifra
+ *  que decidió la etiqueta: el máximo para hueso y «sin contraste», la media
+ *  para el vaso con contraste. */
+export function tissueLabel(
+  c: { tissue?: string | null; hu_mean?: number | null; hu_max?: number | null },
+): string | null {
+  if (c.tissue === "hueso") return `hueso o calcio cerca · máx ${cifra(c.hu_max, 0)} HU`;
+  if (c.tissue === "contraste") return `vaso con contraste · ${cifra(c.hu_mean, 0)} HU`;
+  if (c.tissue === "otro") return `sin contraste · máx ${cifra(c.hu_max, 0)} HU`;
+  return null;
+}
+
+/** Explicación al pasar el ratón sobre el tejido. */
+export function tissueTitle(tissue?: string | null): string | undefined {
+  if (tissue === "hueso") return "La bola de 2 mm toca ≥ 700 HU: hueso, o el calcio de la pared de una lesión real. No descarta el candidato.";
+  if (tissue === "contraste") return "Vaso con contraste alrededor (máximo ≥ 150 HU y media ≥ 100 HU).";
+  if (tissue === "otro") return "Ni hueso ni contraste: partes blandas o trombo (una lesión trombosada puede salir así).";
+  return undefined;
+}
 
 /** F1-143: «Ø 3.7 mm est.» se leía como el diámetro del aneurisma, y es el
  *  grosor que el detector estimó en ese punto. Coma decimal, como el resto

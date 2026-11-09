@@ -95,6 +95,26 @@ class AneurysmCandidate(BaseModel):
         None,
         description="None si el sitio se acepta; el motivo si se descartó.",
     )
+    hu_mean: float | None = Field(
+        None,
+        description=(
+            "HU medio en una bola de 2 mm (o 1,5 espaciados) alrededor del "
+            "sitio, en el volumen con el que se segmentó. Solo en TC: en 3DRA "
+            "los valores no son HU y queda None."
+        ),
+    )
+    hu_max: float | None = Field(None, description="HU máximo en esa misma bola.")
+    tissue: Literal["hueso", "contraste", "otro"] | None = Field(
+        None,
+        description=(
+            "Qué hay alrededor, con los cortes del banco de Zenodo "
+            "(`services/hu_floor.tissue_label`): «hueso» si la bola toca "
+            "≥ 700 HU —hueso o el CALCIO de una pared, así que una lesión real "
+            "calcificada también sale así—, «contraste» si es vaso con "
+            "contraste, «otro» si no es ninguno (partes blandas, trombo). Es "
+            "una descripción para el clínico, no un filtro. None sin medir."
+        ),
+    )
 
 
 class DetectionDiagnostics(BaseModel):

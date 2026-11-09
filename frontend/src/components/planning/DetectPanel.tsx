@@ -17,7 +17,8 @@ import { usePlanning } from "../../store/planning";
 import type { DetectionDiagnostics } from "../../api/types";
 import {
   ALL_REJECTED, DETECT_LINES, DETECT_MORE, MANUAL_BADGE, MORPHO_INVALIDATED, SMALL_SAC_CHANNEL,
-  channelLabel, channelTitle, candidateName, isManual, rejectedSummary, thicknessLabel, vetoHint,
+  channelLabel, channelTitle, candidateName, isManual, rejectedSummary, thicknessLabel,
+  tissueLabel, tissueTitle, vetoHint,
 } from "./detectCopy";
 import { canAdvanceFromDetect } from "./detectGate";
 import { cifraCorta } from "../../lib/numero";
@@ -270,12 +271,19 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                 <div style={{ flex: 1 }} />
                 {on && <Icon name="STATUS_OK" size={15} color="var(--brand-deep)" />}
               </div>
-              <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", columnGap: 16, rowGap: 2, marginTop: 8 }}>
                 {/* F1-143: «Ø 3.7 mm est.» se leía como el diámetro del
                     aneurisma; es el grosor estimado en ese punto. */}
                 {!manual && (
                   <span style={{ fontSize: fs(12), color: "var(--muted-foreground)" }}>
                     {thicknessLabel(c.max_diameter_mm)}
+                  </span>
+                )}
+                {/* Qué hay alrededor (HU, solo TC): para ver de un vistazo si
+                    un candidato está en hueso. Describe; no filtra. */}
+                {!manual && tissueLabel(c) && (
+                  <span title={tissueTitle(c.tissue)} style={{ fontSize: fs(12), color: "var(--muted-foreground)" }}>
+                    {tissueLabel(c)}
                   </span>
                 )}
                 {c.patch_kind === "locator" && (
@@ -345,11 +353,16 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                       transition: "all var(--dur-fast) var(--ease-out)",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: fs(12), fontWeight: 600, color: "var(--foreground)" }}>{candidateName(c, true, i)}</span>
                       <span style={{ fontSize: fs(12), color: "var(--muted-foreground)" }}>
                         {thicknessLabel(c.max_diameter_mm)}
                       </span>
+                      {tissueLabel(c) && (
+                        <span title={tissueTitle(c.tissue)} style={{ fontSize: fs(12), color: "var(--muted-foreground)" }}>
+                          {tissueLabel(c)}
+                        </span>
+                      )}
                       <div style={{ flex: 1 }} />
                       {c.veto && (
                         <span title={c.veto.detail}>

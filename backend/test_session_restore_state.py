@@ -213,6 +213,8 @@ def _con_candidatos(sid: str) -> None:
                  f"{p}.diameter_mm": "6.5", f"{p}.score": "0.8", f"{p}.channels": "curvatura,calibre",
                  f"{p}.patch_kind": "region", f"{p}.veto_reason": "isla" if idx == 3 else "",
                  f"{p}.veto_detail": "Pieza suelta de 12 mm³" if idx == 3 else ""}
+        if idx == 1:  # el 2 y el 3 como una detección de antes de medir los HU
+            vals |= {f"{p}.hu_mean": "180.5", f"{p}.hu_max": "910.0"}
     write_states(sid, vals)
 
 
@@ -238,6 +240,14 @@ class TestDeteccionGuardada:
         assert veto["detail"] == "Pieza suelta de 12 mm³"
         assert j["rejected"][0]["rank"] == 1
         assert j["morphometry_invalidated"] is False
+
+    def test_cached_devuelve_el_tejido_si_se_midio(self):
+        sid = create_session()
+        _con_candidatos(sid)
+        j = client.post(f"/api/detect/{sid}?cached=true").json()
+        c1, c2 = j["candidates"]
+        assert (c1["hu_mean"], c1["hu_max"], c1["tissue"]) == (180.5, 910.0, "hueso")
+        assert (c2["hu_mean"], c2["hu_max"], c2["tissue"]) == (None, None, None)
 
     def test_cached_sin_deteccion_guardada_404(self):
         sid = create_session()

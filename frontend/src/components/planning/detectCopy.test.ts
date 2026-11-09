@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 import { candidateLabel } from "../../vtk/candidateOverlay";
 import type { AneurysmCandidate } from "../../api/types";
 import { hudCandidateLine } from "../../vtk/hudCandidate";
-import { DETECT_MORE, SMALL_SAC_CHANNEL, candidateName, candidateNameAt, channelLabel, channelTitle } from "./detectCopy";
+import {
+  DETECT_LINES, DETECT_MORE, SMALL_SAC_CHANNEL, candidateName, candidateNameAt, channelLabel, channelTitle,
+  tissueLabel, tissueTitle,
+} from "./detectCopy";
 
 describe("canal de saco pequeño", () => {
   it("se enseña como «saco pequeño» y explica la cuota al pasar el ratón", () => {
@@ -57,5 +60,30 @@ describe("la misma numeración en panel, HUD, registro y etiqueta 3D (A65)", () 
   });
   it("sin candidato en esa posición, null", () => {
     expect(candidateNameAt(acc, rej, 9)).toBeNull();
+  });
+});
+
+describe("tejido alrededor del candidato (09-11)", () => {
+  it("dice la etiqueta con la cifra que la decidió, con coma y sin decimales", () => {
+    expect(tissueLabel({ tissue: "hueso", hu_mean: 180.5, hu_max: 910.4 })).toBe("hueso o calcio cerca · máx 910 HU");
+    expect(tissueLabel({ tissue: "contraste", hu_mean: 251.6, hu_max: 420 })).toBe("vaso con contraste · 252 HU");
+    expect(tissueLabel({ tissue: "otro", hu_mean: 40, hu_max: 180 })).toBe("sin contraste · máx 180 HU");
+  });
+
+  it("sin medir (3DRA, sesión antigua) no dice nada", () => {
+    expect(tissueLabel({})).toBeNull();
+    expect(tissueLabel({ tissue: null, hu_mean: null, hu_max: null })).toBeNull();
+    expect(tissueTitle(null)).toBeUndefined();
+  });
+
+  it("«hueso» avisa de que una pared calcificada también sale así", () => {
+    expect(tissueTitle("hueso")).toMatch(/calcio de la pared/);
+    expect(tissueTitle("otro")).toMatch(/trombosada/);
+    expect(DETECT_MORE.join(" ")).toMatch(/Describe, no filtra/);
+  });
+
+  it("la nota dice que la lista se llena aunque el estudio esté sano", () => {
+    expect(DETECT_LINES[1]).toMatch(/se llena hasta 5 aunque el estudio esté sano/);
+    expect(DETECT_LINES[1]).toMatch(/no dice si hay aneurisma o no/);
   });
 });

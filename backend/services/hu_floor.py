@@ -33,6 +33,9 @@ HU_FLOOR_MEAN = -100.0
 HU_FLOOR_MAX = 200.0
 #: Radio de la bola en mm (o 1,5 espaciados si el volumen es más grueso).
 HU_BALL_MM = 2.0
+#: HU máximo de la bola a partir del cual toca hueso o calcio (el corte de la
+#: máscara de hueso del TC y de `eval_zenodo.BONE_HU`).
+TISSUE_BONE_HU = 700.0
 
 Point = tuple[float, float, float]
 
@@ -74,6 +77,36 @@ def in_air(hu_mean: float | None, hu_max: float | None) -> bool:
     return hu_mean < HU_FLOOR_MEAN or hu_max < HU_FLOOR_MAX
 
 
+def ball_radius_mm(spacing: Sequence[float]) -> float:
+    """Radio de la bola: `HU_BALL_MM` o 1,5 espaciados si el volumen es más grueso."""
+    return max(HU_BALL_MM, 1.5 * max(float(v) for v in spacing))
+
+
+def tissue_label(hu_mean: float | None, hu_max: float | None) -> str | None:
+    """Qué hay alrededor de un candidato, con los cortes del banco de Zenodo.
+
+    «hueso»: la bola toca algo de ≥ `TISSUE_BONE_HU` (hueso, o el CALCIO de
+    una pared: lesiones reales como 020 o 099 caen aquí, por eso es una
+    descripción y no un filtro). «contraste»: vaso con contraste (máximo
+    ≥ 150 y medio ≥ 100). «otro»: ni lo uno ni lo otro (partes blandas,
+    trombo). None si no se midió.
+    """
+    if hu_mean is None or hu_max is None:
+        return None
+    if hu_max >= TISSUE_BONE_HU:
+        return "hueso"
+    if hu_max >= 150.0 and hu_mean >= 100.0:
+        return "contraste"
+    return "otro"
+
+
+def ball_hu(volume: np.ndarray, spacing: Sequence[float], point: Point,
+            origin: Sequence[float] = (0.0, 0.0, 0.0)) -> tuple[float, float] | None:
+    """(media, máximo) de HU en la misma bola que mira el suelo, redondeados."""
+    r = hu_stats(volume, spacing, tuple(float(v) for v in point), ball_radius_mm(spacing), origin)
+    return None if r is None else (round(r[0], 1), round(r[1], 1))
+
+
 @dataclass
 class HuFloor:
     """Qué hizo el suelo: para el registro del banco y el diagnóstico."""
@@ -95,7 +128,7 @@ def drop_air(hits: list, volume: np.ndarray, spacing: Sequence[float],
     o 1,5 espaciados, lo mismo que mide el banco. *origin* es el del volumen
     en ese marco (ver `hu_stats`).
     """
-    radius = max(HU_BALL_MM, 1.5 * max(float(v) for v in spacing))
+    radius = ball_radius_mm(spacing)
     kept, dropped = [], []
     for h in hits:
         r = hu_stats(volume, spacing, tuple(float(v) for v in h.position), radius, origin)

@@ -112,6 +112,7 @@ REDETECT_MOVE_MM: float = 2.0
 _CAND_STATE_SUFFIXES = (
     "vtp_name", "url", "centroid_x", "centroid_y", "centroid_z",
     "diameter_mm", "score", "channels", "patch_kind", "veto_reason", "veto_detail",
+    "hu_mean", "hu_max",
 )
 
 
@@ -768,6 +769,12 @@ def _run_detection_sync(
     pyd_rejected: list[PydAneurysmCandidate] = []
     new_positions: dict[str, np.ndarray] = {}
 
+    # Tejido alrededor de cada sitio (HU medio y máximo en la bola del suelo):
+    # para que el clínico vea si un candidato está en hueso o en un vaso con
+    # contraste. Solo en TC; el volumen ya está en caché (el suelo lo usó).
+    from services.hu_floor import ball_hu, tissue_label
+    hu_volume = _session_volume(session_id) if modality.upper().startswith("CT") else None
+
     # Ids consecutivos: aceptados cand-001.., descartados a continuación. Un
     # solo espacio de ids porque GET /morphometry mide cualquiera de los dos.
     # `rank` es la posición dentro de SU lista, en el orden del consenso.
@@ -781,6 +788,7 @@ def _run_detection_sync(
         url = mesh_url(session_id, cand_name)
         diameter = hit_diameter_mm(hit)
         confidence = hit_confidence(hit)
+        hu = ball_hu(*hu_volume, hit.position) if hu_volume is not None else None
 
         # Persist candidate metadata to session state.
         # En UN lote: las claves de un candidato describen el mismo objeto y
@@ -803,6 +811,8 @@ def _run_detection_sync(
             # La frase con la cifra que decidió el veto: sin ella, la lista
             # devuelta sin recalcular (?cached=true) no podría explicarlo.
             f"{prefix}.veto_detail": veto.detail if veto is not None else "",
+            f"{prefix}.hu_mean":     "" if hu is None else str(hu[0]),
+            f"{prefix}.hu_max":      "" if hu is None else str(hu[1]),
         })
 
         cand_id = f"cand-{idx:03d}"
@@ -821,6 +831,9 @@ def _run_detection_sync(
                 rank=rank,
                 veto=None if veto is None else PydVeto(
                     reason=veto.reason, label=veto.label, detail=veto.detail),
+                hu_mean=None if hu is None else hu[0],
+                hu_max=None if hu is None else hu[1],
+                tissue=tissue_label(*hu) if hu is not None else None,
             )
         )
 
@@ -934,7 +947,9 @@ def add_manual_candidate(session_id: str, point: tuple[float, float, float]) -> 
         f"{prefix}.patch_kind":  MANUAL_CHANNEL,
         f"{prefix}.veto_reason": "",
         f"{prefix}.veto_detail": "",
-        "detect.n_manual":       str(_int_state(session_id, "detect.n_manual") + 1),
+        f"{prefix}.hu_mean":     "",
+        f"{prefix}.hu_max":      "",
+        "detect.n_manual":      str(_int_state(session_id, "detect.n_manual") + 1),
     })
     return f"cand-{idx:03d}"
 
@@ -995,6 +1010,7 @@ def cached_detection(session_id: str) -> AneurysmDetectionResult | None:
         return None
     meshes_dir = session_subdir(session_id, "meshes")
     from services.candidate_vetoes import LABELS as VETO_LABELS
+    from services.hu_floor import tissue_label
 
     accepted: list[PydAneurysmCandidate] = []
     rejected: list[PydAneurysmCandidate] = []
@@ -1017,6 +1033,7 @@ def cached_detection(session_id: str) -> AneurysmDetectionResult | None:
                            detail=read_state(session_id, f"{p}.veto_detail", "") or "")
         channels = [c for c in (read_state(session_id, f"{p}.channels", "") or "").split(",") if c]
         kind = read_state(session_id, f"{p}.patch_kind", "") or "region"
+        hu_mean, hu_max = (_float_state(session_id, f"{p}.hu_{k}") for k in ("mean", "max"))
         (rejected if is_rejected else accepted).append(PydAneurysmCandidate(
             id=f"cand-{idx:03d}",
             center_mm=Position3D(x=center[0], y=center[1], z=center[2]),
@@ -1029,6 +1046,9 @@ def cached_detection(session_id: str) -> AneurysmDetectionResult | None:
             patch_kind=kind if kind in ("region", "locator") else "region",
             rank=idx - n_acc if is_rejected else idx,
             veto=veto,
+            hu_mean=hu_mean,
+            hu_max=hu_max,
+            tissue=tissue_label(hu_mean, hu_max),
         ))
 
     # Los marcados a mano van con los aceptados, que es donde el panel los
@@ -1234,6 +1254,15 @@ def _int_state(session_id: str, key: str) -> int:
         return int(read_state(session_id, key, "0") or 0)
     except ValueError:
         return 0
+
+
+def _float_state(session_id: str, key: str) -> float | None:
+    """La cifra guardada, o None si falta, está vacía o no se lee."""
+    raw = read_state(session_id, key, "") or ""
+    try:
+        return float(raw) if raw else None
+    except ValueError:
+        return None
 
 
 def _read_saved_neck_plane(session_id: str) -> NeckPlaneRequest | None:

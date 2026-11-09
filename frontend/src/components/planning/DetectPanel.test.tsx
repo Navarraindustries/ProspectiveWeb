@@ -148,6 +148,27 @@ describe("DetectPanel", () => {
       expect(screen.queryByText(/La morfometría se ha limpiado/)).not.toBeInTheDocument());
   });
 
+  /* 09-11: el tejido alrededor (HU, solo TC) en aceptados y descartados; sin
+     medir (3DRA, sesión antigua) no se dice nada. */
+  it("enseña el tejido alrededor de cada candidato cuando se midió", async () => {
+    mockDetect({
+      candidates: [
+        cand("cand-001", 1, { tissue: "hueso", hu_mean: 180, hu_max: 910 }),
+        cand("cand-002", 2, { tissue: "contraste", hu_mean: 252, hu_max: 420 }),
+        cand("cand-003", 3),
+      ],
+      rejected: [cand("cand-004", 1, { tissue: "otro", hu_mean: 40, hu_max: 180,
+                                     veto: { reason: "borde", label: "Recorte de la malla", detail: "" } })],
+    });
+    render(<Wrapped />);
+    const hueso = await screen.findByText("hueso o calcio cerca · máx 910 HU");
+    expect(hueso).toHaveAttribute("title", expect.stringMatching(/calcio de la pared/));
+    expect(screen.getByText("vaso con contraste · 252 HU")).toBeInTheDocument();
+    expect(screen.getAllByText(/HU$/)).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: /Descartados \(1\)/ }));
+    expect(screen.getByText("sin contraste · máx 180 HU")).toBeInTheDocument();
+  });
+
   /* A65: nunca el id interno delante de una persona. */
   it("enseña «Candidato 1» y «Descartado D1», sin ids ni «Puesto #»", async () => {
     mockDetect({ candidates: [cand("cand-009", 1)], rejected: [cand("cand-005", 1, { veto: { reason: "borde", label: "Recorte de la malla", detail: "" } })] });

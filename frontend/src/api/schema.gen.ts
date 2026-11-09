@@ -2994,6 +2994,16 @@ export interface components {
              */
             dome_mesh_url: string;
             /**
+             * Hu Max
+             * @description HU máximo en esa misma bola.
+             */
+            hu_max?: number | null;
+            /**
+             * Hu Mean
+             * @description HU medio en una bola de 2 mm (o 1,5 espaciados) alrededor del sitio, en el volumen con el que se segmentó. Solo en TC: en 3DRA los valores no son HU y queda None.
+             */
+            hu_mean?: number | null;
+            /**
              * Id
              * @description Candidate identifier (e.g. 'cand-001')
              */
@@ -3021,6 +3031,11 @@ export interface components {
              * @default false
              */
             selected: boolean;
+            /**
+             * Tissue
+             * @description Qué hay alrededor, con los cortes del banco de Zenodo (`services/hu_floor.tissue_label`): «hueso» si la bola toca ≥ 700 HU —hueso o el CALCIO de una pared, así que una lesión real calcificada también sale así—, «contraste» si es vaso con contraste, «otro» si no es ninguno (partes blandas, trombo). Es una descripción para el clínico, no un filtro. None sin medir.
+             */
+            tissue?: ("hueso" | "contraste" | "otro") | null;
             /** @description None si el sitio se acepta; el motivo si se descartó. */
             veto?: components["schemas"]["Veto"] | null;
         };

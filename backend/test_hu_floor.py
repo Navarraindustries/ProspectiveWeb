@@ -128,3 +128,23 @@ class TestElOrigenDelVolumen:
                 ConsensusHit(position=(10.0, 10.0, 36.0), ranks={"curvatura": 2})]
         kept, floor = drop_air(hits, vol[40:], SP, origin=(0.0, 0.0, 20.0))
         assert kept == [hits[0]] and floor.dropped == 1
+
+
+class TestElTejido:
+    """La etiqueta que ve el clínico: los mismos cortes que el banco de Zenodo."""
+
+    def test_los_cortes(self):
+        from services.hu_floor import TISSUE_BONE_HU, tissue_label
+        assert TISSUE_BONE_HU == 700.0
+        assert tissue_label(250.0, 700.0) == "hueso"       # hueso o calcio de la pared
+        assert tissue_label(250.0, 699.0) == "contraste"
+        assert tissue_label(100.0, 150.0) == "contraste"
+        assert tissue_label(99.0, 400.0) == "otro"          # trombo, partes blandas
+        assert tissue_label(None, 400.0) is None
+
+    def test_ball_hu_usa_la_bola_del_suelo(self):
+        from services.hu_floor import ball_hu
+        vol = _volumen(0.0)
+        _bola(vol, (10.0, 10.0, 10.0), 3.0, 300.0)
+        assert ball_hu(vol, SP, (10.0, 10.0, 10.0)) == (300.0, 300.0)
+        assert ball_hu(vol, SP, (500.0, 10.0, 10.0)) is None

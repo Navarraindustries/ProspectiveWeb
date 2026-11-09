@@ -28,6 +28,30 @@
       "title": "Dome Mesh Url",
       "type": "string"
      },
+     "hu_max": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "HU máximo en esa misma bola.",
+      "title": "Hu Max"
+     },
+     "hu_mean": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "HU medio en una bola de 2 mm (o 1,5 espaciados) alrededor del sitio, en el volumen con el que se segmentó. Solo en TC: en 3DRA los valores no son HU y queda None.",
+      "title": "Hu Mean"
+     },
      "id": {
       "description": "Candidate identifier (e.g. 'cand-001')",
       "title": "Id",
@@ -59,6 +83,23 @@
       "description": "True when this candidate is the user-selected one",
       "title": "Selected",
       "type": "boolean"
+     },
+     "tissue": {
+      "anyOf": [
+       {
+        "enum": [
+         "hueso",
+         "contraste",
+         "otro"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Qué hay alrededor, con los cortes del banco de Zenodo (`services/hu_floor.tissue_label`): «hueso» si la bola toca ≥ 700 HU —hueso o el CALCIO de una pared, así que una lesión real calcificada también sale así—, «contraste» si es vaso con contraste, «otro» si no es ninguno (partes blandas, trombo). Es una descripción para el clínico, no un filtro. None sin medir.",
+      "title": "Tissue"
      },
      "veto": {
       "anyOf": [

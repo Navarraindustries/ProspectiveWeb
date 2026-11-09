@@ -808,6 +808,13 @@ export interface AneurysmCandidate {
       Los descartados se listan igualmente para que el cirujano pueda verlos
       y discrepar del detector. */
   veto: Veto | null;
+  /** HU medio y máximo en 2 mm alrededor del sitio y qué tejido indican
+      («hueso» ≥ 700 HU, que también es el calcio de una pared; «contraste»;
+      «otro»: partes blandas o trombo). Solo TC; ausentes o null en 3DRA, en
+      sesiones de antes de medirlo y en los marcados a mano. Describe, no filtra. */
+  hu_mean?: number | null;
+  hu_max?: number | null;
+  tissue?: "hueso" | "contraste" | "otro" | null;
 }
 
 export interface Veto {

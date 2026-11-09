@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import listas from "./listas.json";
 import {
-  PIELES, PEINADOS, COLORES_PELO, CABEZAS, OJOS, PIJAMAS, FONDOS, ETIQUETAS,
+  PIELES, PEINADOS, COLORES_PELO, CABEZAS, OJOS, PIJAMAS, FONDOS, ETIQUETAS, ETIQUETAS_PIEL,
   configPorDefecto, configAleatoria,
 } from "./config";
 

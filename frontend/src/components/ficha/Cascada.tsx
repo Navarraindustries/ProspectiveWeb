@@ -1,6 +1,6 @@
 /* Cascada de columnas de cristal de la ficha (L3). Cada columna es un section
    de cristal; la cascada solo reparte el espacio y mueve el foco entre columnas
-   con ← / →. No desplaza en horizontal (A37): enseña las últimas N columnas
+   con ← / → y entre las filas de una columna con ↑ / ↓. No desplaza en horizontal (A37): enseña las últimas N columnas
    según el tramo de pantalla y las anteriores quedan como migas encima, que la
    devuelven a la vista. En móvil la única columna crece y desplaza la página. */
 
@@ -23,6 +23,8 @@ export const COLUMNAS_VISIBLES: Record<Tramo, number> = { movil: 1, tableta: 2, 
 const ANCHO_PRIMERA = 320;
 const ANCHO_INTERMEDIA = 300;
 const FOCABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+/** Las filas de una columna: el botón de cada caso, estudio o sesión y las entradas. */
+const FILA = ".fc-fila-boton, .fc-entrada";
 
 export function Cascada({ columnas, onVolver }: { columnas: ColumnaCascada[]; onVolver: (hastaIndice: number) => void }) {
   const tramo = useTramo();
@@ -60,10 +62,26 @@ export function Cascada({ columnas, onVolver }: { columnas: ColumnaCascada[]; on
   };
 
   const alTeclear = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const vertical = e.key === "ArrowDown" || e.key === "ArrowUp";
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && !vertical) return;
     const t = e.target as HTMLElement;
     if (t.closest("input, textarea, select") || t.isContentEditable) return;
     const secciones = Array.from(raiz.current?.querySelectorAll<HTMLElement>(":scope > section") ?? []);
+    if (vertical) {
+      // ↑/↓ entre las filas de la columna (UNI-85). Desde un botón de acción de
+      // una fila se cuenta desde su fila; en los extremos no se da la vuelta.
+      const columna = secciones.find((s) => s.contains(t));
+      if (!columna) return;
+      const filas = Array.from(columna.querySelectorAll<HTMLElement>(FILA));
+      const propia = t.matches(FILA) ? t : t.closest(".fc-fila")?.querySelector<HTMLElement>(FILA) ?? null;
+      const i = propia ? filas.indexOf(propia) : -1;
+      const j = e.key === "ArrowDown" ? (i < 0 ? 0 : i + 1) : (i < 0 ? filas.length - 1 : i - 1);
+      const destino = filas[j];
+      if (!destino || destino === t) return;
+      e.preventDefault();
+      destino.focus();
+      return;
+    }
     const actual = secciones.findIndex((s) => s.contains(t));
     const destino = secciones[actual + (e.key === "ArrowRight" ? 1 : -1)];
     if (actual < 0 || !destino) return;

@@ -141,3 +141,57 @@ describe("Cascada", () => {
     expect(css).toMatch(/@media\s*\(\s*max-width:\s*1024px\s*\)\s*\{\s*\.fc-miga\s*\{[^}]*min-height:\s*44px/);
   });
 });
+
+describe("Cascada · ↑/↓ entre filas (UNI-85)", () => {
+  const conFilas = (): ColumnaCascada[] => [
+    {
+      key: "casos",
+      titulo: "Casos",
+      contenido: (
+        <ul>
+          {["Caso A", "Caso B", "Caso C"].map((n) => (
+            <li key={n} className="fc-fila">
+              <button type="button" className="fc-fila-boton">{n}</button>
+              <button type="button">Editar {n}</button>
+            </li>
+          ))}
+          <li><button type="button" className="fc-entrada">Sesiones sin caso</button></li>
+        </ul>
+      ),
+    },
+    { key: "otra", titulo: "Otra", contenido: <button type="button" className="fc-fila-boton">Fila de otra</button> },
+  ];
+  const boton = (name: string) => screen.getByRole("button", { name });
+  const tecla = (key: string) => fireEvent.keyDown(document.activeElement as Element, { key });
+
+  it("↓ y ↑ recorren las filas de la columna, sin pasar a la siguiente ni dar la vuelta", () => {
+    render(<Cascada columnas={conFilas()} onVolver={() => {}} />);
+    boton("Caso A").focus();
+    tecla("ArrowDown");
+    expect(document.activeElement).toBe(boton("Caso B"));
+    tecla("ArrowDown");
+    tecla("ArrowDown");
+    expect(document.activeElement).toBe(boton("Sesiones sin caso"));
+    tecla("ArrowDown");
+    expect(document.activeElement).toBe(boton("Sesiones sin caso"));
+    tecla("ArrowUp");
+    expect(document.activeElement).toBe(boton("Caso C"));
+  });
+
+  it("desde el botón de acción de una fila cuenta desde su fila", () => {
+    render(<Cascada columnas={conFilas()} onVolver={() => {}} />);
+    boton("Editar Caso B").focus();
+    tecla("ArrowDown");
+    expect(document.activeElement).toBe(boton("Caso C"));
+    boton("Editar Caso B").focus();
+    tecla("ArrowUp");
+    expect(document.activeElement).toBe(boton("Caso A"));
+  });
+
+  it("← / → siguen moviendo entre columnas", () => {
+    render(<Cascada columnas={conFilas()} onVolver={() => {}} />);
+    boton("Caso B").focus();
+    tecla("ArrowRight");
+    expect(document.activeElement).toBe(boton("Fila de otra"));
+  });
+});

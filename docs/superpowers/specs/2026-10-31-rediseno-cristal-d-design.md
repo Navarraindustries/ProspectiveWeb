@@ -224,7 +224,7 @@ Fase 7 completada el 2026-10-31: auditoría estática del cristal, el contraste 
 Desviaciones de las siete fases:
 - Fase 1: fuentes Inter y JetBrains Mono autoalojadas en lugar de Geist; la lente de los botones anima a 120 ms; con movimiento reducido las hojas usaban duración 0 (resuelto en la fase 7 con el fundido).
 - Fase 2: tarjetas de paciente y de estudio sin desenfoque propio (coste de GPU); el velo de la paleta es `--scrim-dense`; las solicitudes pendientes siguen como tarjetas; `useEstrecho` pasa de 1100 a 1280 px.
-- Fase 3: derechos que fallan cerrados si no llega el resumen del paciente; cuentas compartidas con «Ver datos» de solo lectura; entrada «Sesiones sin caso»; ↑/↓ entre filas aún no está; reanudar va siempre por Estudio › Sesión › Vista previa; la primera columna se titula «Paciente».
+- Fase 3: derechos que fallan cerrados si no llega el resumen del paciente; cuentas compartidas con «Ver datos» de solo lectura; entrada «Sesiones sin caso»; ↑/↓ entre filas aún no está (resuelto el 07-11, UNI-85: ↑/↓ recorren las filas de la columna); reanudar va siempre por Estudio › Sesión › Vista previa; la primera columna se titula «Paciente».
 - Fase 4: la barra del quirófano no lleva logotipo; el registro no tiene duraciones; una sesión reanudada anota al reanudar lo que trae; Esc con la hoja alta baja la hoja y para el cine sin cancelar el marcado.
 - Fase 5: ninguna desviación; la pantalla de carga conserva `loading.mp4`.
 - Fase 6: la ventana del hero enseña el caso 036 real, no las cifras del 002; los textos fijados por los tests prevalecen sobre la copia D; se retiran las secciones antiguas que el tablero D no tiene; el crédito de la figura sigue sin fuente.

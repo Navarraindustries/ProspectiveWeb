@@ -1947,6 +1947,51 @@ que la regla sea inocua en un cráneo flojo cualquiera. Exigiría además llevar
 se ve el modelo. La referencia sigue siendo **71 / 80 / 36 / 96 / 59**, con la salvedad del 06-11: es la cifra de un tope
 concreto; entre 5 va de 62 a 72 según el tope y 53 lesiones salen siempre.
 
+### 4.23 La corteza solo con cráneo flojo (2026-11-08/09): 71 / 80 / 36 / 96 / 59 → 72 / 81 / 36 / 95 / 60, adoptada
+
+**Qué cambia.** La regla de la corteza de §4.22 vuelve, pero el programa decide estudio a estudio si la aplica. El
+indicador (`services/craneo_flojo.py`) es la fracción de vóxeles > 150 HU en el anillo de 1,5–3 mm alrededor del hueso
+denso (> 700 HU), dentro de la envolvente y en la bóveda (los 60 mm superiores de la cabeza), medida sobre el volumen de
+la máscara gruesa. Con cráneo normal ese anillo cae en cuero cabelludo, LCR o cerebro; con cráneo flojo cae en tablas y
+diploe que no llegan a 700 HU. Si el indicador es ≥ 0,2 se aplica la corteza (12 mm exteriores, > 300 HU = hueso), en
+la máscara gruesa y en las baldosas nativas; si no, la segmentación es exactamente la de antes. El umbral de 0,2 es el
+de octubre, no se ajustó a la detección. El registro de cada estudio guarda `segment.craneo_flojo` (indicador, corteza,
+vóxeles quitados).
+
+**El indicador en los 172.** El de octubre se perdió con su directorio temporal y se rehízo: sobre los volúmenes
+guardados reproduce el de entonces (mediana 0,056; ≥ 0,15 en 21; los cuatro primeros, 123, 180, 127 y 084, los que
+tenían la bóveda dentro del modelo). En 52 estudios el volumen guardado está reducido ×2 respecto al que segmenta el
+programa (`factor_extra`), así que para ellos se midió el indicador exacto del programa (carga, banda, envolvente y
+mismo factor; `scratchpad/indicador_pipeline.py`): ninguno llega a 0,2 (máximo 112 con 0,174, 130 con 0,169, 091 con
+0,154). **El programa aplica la corteza en 8 estudios: 072, 084, 090, 119, 123, 127, 174 y 180.**
+
+**Medida (`zenodo_eval_craneo_flojo`, 13 estudios: los 8 y cinco de comprobación).** Desde la envolvente (223ab97) la
+segmentación no había cambiado, así que sin corteza el programa da las mismas mallas que la referencia: los cinco
+estudios donde no se aplica (092, 110, 112, 130, 188) salen idénticos, vértice a vértice y puesto a puesto. En los 8:
+
+| Estudio | Indicador | Máscara (cm³) | Pieza mayor (cm³) | Árbol |
+|---|---|---|---|---|
+| 072 | 0,260 | 126 → 89 | 89 → 79 | sí → sí |
+| 084 | 0,366 | 148 → 86 | 140 → 67 | **no → sí** |
+| 090 | 0,228 | 38 → 28 | 16 → 19 | sí → sí |
+| 119 | 0,217 | 56 → 47 | 45 → 36 | sí → sí |
+| 123 | 0,393 | 159 → 91 | 152 → 85 | **no → sí** |
+| 127 | 0,392 | 73 → 44 | 45 → 36 | sí → sí |
+| 174 | 0,224 | 48 → 38 | 39 → 33 | sí → sí |
+| 180 | 0,392 | 136 → 75 | 129 → 70 | **no → sí** |
+
+Ninguna lesión pierde recubrimiento. 084 sigue 1.ª; en 090 suben 090_1 (7,0 mm, 12.º → 5.º), 090_5 (6,0 mm,
+37.º → 14.º) y 090_3 (4,3 mm, 30.º → 23.º) y sale de la lista 090_4 (2,7 mm, era 18.ª). Hueso entre los 5 de los siete
+controles: 6 → 7 (072 1 → 3, 174 1 → 0).
+
+**Total de los 172** (la referencia con los 8 estudios sustituidos): **72 de 122 entre 5 (71), 81 entre 10 (80), 36 en
+1.º (36), 95 en lista (96), 60 de 82 estudios (59); hueso en controles 111 de 450 (110).** Son diferencias de una
+lesión, dentro de lo que oscila la cifra con cualquier cambio de malla (§4.22: 62–72 según el tope): la regla no mejora
+la detección, la deja igual y limpia el modelo donde hacía falta. El caso de demostración 130 no la activa (0,169).
+
+**Veredicto.** Adoptada el 09-11. Nueva referencia **72 / 81 / 36 / 95 / 60**, con la misma salvedad del tope. Tests en
+`test_craneo_flojo.py` y `test_corteza_craneo.py`.
+
 ## 5. Código y datos de esta pasada
 
 - `backend/scripts/zenodo_lesiones.py`: tabla por lesión y recuentos de una pasada a partir

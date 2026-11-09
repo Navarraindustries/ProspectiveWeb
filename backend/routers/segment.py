@@ -87,6 +87,13 @@ CT_BONE_HU = 700.0
 #: (Zenodo 016, factor 3); con 1 200 y sin margen se queda y el cráneo sigue
 #: fuera. Las baldosas nativas usan CT_BONE_HU con su margen.
 CT_BONE_HU_COARSE = 1200.0
+#: Hueso flojo en la corteza de la cabeza (services.head_mask.SHELL_MM): dentro
+#: de los 12 mm exteriores de la envolvente, lo que supera esto es cráneo
+#: aunque no llegue a CT_BONE_HU (084: cráneo de 650 HU como máximo; 123: tabla
+#: interna 530–620). Por encima de las venas del cuero cabelludo (~200–300 HU
+#: con contraste) y por debajo de la tabla interna más floja medida (414).
+#: Solo se aplica con cráneo flojo (services.craneo_flojo, 08-11).
+CT_SHELL_HU = 300.0
 #: Erosión de la máscara de hueso (mm), apagada. Medido (scripts/exp_hueso_ct.py,
 #: tanda 2): con 1 mm la pared calcificada del saco trombosado de Zenodo 096
 #: (21 mm, pegada al cráneo) se conserva (recall 0 → 0,99), pero en 027 a
@@ -382,6 +389,17 @@ def segment_tubular(
         seg_volume = np.ascontiguousarray(volume, dtype=np.float32)
         seg_spacing, factor = tuple(dcm.spacing), 1
     within = head.inside(seg_volume.shape, factor) if head.applied else None
+    # ── Cráneo flojo: la corteza solo donde hace falta (08-11) ───────────── #
+    # En los pacientes cuyo cráneo no llega a CT_BONE_HU la bóveda entraba en
+    # el modelo; la corteza la quita. Aplicada a todos movía la detección
+    # (71 → 61 entre 5), así que solo se aplica si el indicador lo pide.
+    from services.craneo_flojo import es_flojo, indicador as indicador_craneo
+    is_ct = (dcm.modality or "").upper() == "CT"
+    ind_craneo = indicador_craneo(seg_volume, seg_spacing, within) if (is_ct and within is not None) else None
+    corteza = es_flojo(ind_craneo)
+    shell_c = head.shell_in(seg_volume.shape, factor) if corteza else None
+    if ind_craneo is not None:
+        logger.info("Cráneo flojo: indicador %.3f → corteza %s", ind_craneo, "sí" if corteza else "no")
     logger.info("Segmenting (tubular): lower=%.0f upper=%.0f smooth=%d shape=%s (ds=%d)",
                 lower, upper, smooth_iters, seg_volume.shape, factor)
 
@@ -391,9 +409,10 @@ def segment_tubular(
     # El hueso, en TC, lo quita la máscara de hueso (MaskParams.bone_hu), no el
     # techo: el techo tras rellenar conserva el cortical envuelto por su cáscara
     # de volumen parcial. En XA/3DRA no hay hueso y queda apagada.
-    bone_hu = CT_BONE_HU if (dcm.modality or "").upper() == "CT" else 0.0
+    bone_hu = CT_BONE_HU if is_ct else 0.0
+    shell_hu = CT_SHELL_HU if (bone_hu and corteza) else 0.0
     params = MaskParams(lower=lower, upper=upper, reclaim_mm=reclaim_mm,
-                        bone_hu=bone_hu, bone_erode_mm=CT_BONE_ERODE_MM)
+                        bone_hu=bone_hu, bone_erode_mm=CT_BONE_ERODE_MM, shell_hu=shell_hu)
     # Con pasada nativa después, la máscara gruesa ocupa la mitad de la barra.
     refine = band_refine and factor > 1
     span = 0.4 if refine else 0.8
@@ -412,11 +431,11 @@ def segment_tubular(
         # vaso que lo tocan (016 con techo: 0/0; sin techo: 0,39/0,41).
         params = MaskParams(lower=lower, upper=0.0, reclaim_mm=reclaim_mm,
                             bone_hu=CT_BONE_HU_COARSE if bone_hu else 0.0,
-                            bone_margin_mm=0.0, bone_erode_mm=0.0)
+                            bone_margin_mm=0.0, bone_erode_mm=0.0, shell_hu=shell_hu)
     mr = build_vascular_mask(
-        seg_volume, seg_spacing, params, within=within,
+        seg_volume, seg_spacing, params, within=within, shell=shell_c,
         on_progress=lambda f, p: None if f == "hecho" else _say(f, 5 + span * p))
-    del within
+    del within, shell_c
     if mr.stats.get("m0_vox", 1) == 0:
         # Lo mismo que dice el umbral clásico: «la máscara no contiene
         # ninguna superficie» no le decía al usuario qué tocar.
@@ -456,6 +475,7 @@ def segment_tubular(
         native_spacing = tuple(float(v) for v in dcm.spacing)
         rr = refine_in_band(volume, native_spacing, mr.mask, factor, native_params,
                             inside=head.inside_box if head.applied else None,
+                            shell=head.shell_box if (head.applied and corteza) else None,
                             on_progress=lambda f, p: _say(f, 45 + 0.4 * p))
         band_stats = rr.stats
         if rr.stats["mask_vox"] > 0:
@@ -492,6 +512,8 @@ def segment_tubular(
         "voxels": n_voxels, "downsample_factor": int(factor), "fallback_note": fallback_note,
         "head_band": band.as_dict(),
         "head_mask": head.as_dict(),
+        "craneo_flojo": {"indicador": None if ind_craneo is None else round(ind_craneo, 4),
+                         "corteza": corteza, "shell_vox": int(mr.stats.get("shell_vox", 0))},
         "shape": [int(v) for v in dcm.volume.shape],
         "spacing_mm": [round(float(v), 4) for v in dcm.spacing],
         "seg_spacing": tuple(float(v) for v in seg_spacing),

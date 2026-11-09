@@ -86,6 +86,13 @@ class MaskParams:
     #: núcleo y vuelve a la máscara (027 nativo con 1 mm: 25 → 101 cm³), así
     #: que en producción va a 0 (`routers.segment.CT_BONE_ERODE_MM`).
     bone_erode_mm: float = 0.0
+    #: Hueso flojo en la CORTEZA de la cabeza (30-10, `services.head_mask.SHELL_MM`):
+    #: en la banda exterior de la envolvente (`shell`, piel y cráneo) se quita
+    #: como hueso lo que supera `shell_hu`, con el mismo margen que el hueso.
+    #: Hace falta porque el cráneo de algunos pacientes no llega a `bone_hu`
+    #: (Zenodo 084: máximo 650 HU; 123: tabla interna 530–620) y la bóveda
+    #: entera entraba en la malla (pieza mayor 130–150 cm³). 0 = apagado.
+    shell_hu: float = 0.0
     #: Percentil de la puerta tubular. Solo MIDE (`stats.core_vox`,
     #: `thresholds.gate`): no filtra la máscara, así que moverlo no la cambia.
     gate_pctl: float = 60.0
@@ -327,9 +334,14 @@ def build_vascular_mask(
     plateness: np.ndarray | None = None,
     seed_mask: np.ndarray | None = None,
     within: np.ndarray | None = None,
+    shell: np.ndarray | None = None,
     on_progress: Callable[[str, float], None] | None = None,
 ) -> MaskResult:
     """Máscara vascular de `volume` (z, y, x) con `spacing` (sz, sy, sx) en mm.
+
+    `shell`, si se da (bool, la forma del volumen) y `params.shell_hu` > 0, es
+    la corteza de la cabeza (`services.head_mask`): dentro de ella lo que
+    supera `shell_hu` es hueso aunque no llegue a `bone_hu`, y se quita igual.
 
     `vesselness`/`plateness` permiten reutilizar un Frangi ya calculado; si
     faltan se calculan aquí por lonchas. `on_progress(fase, porcentaje)`.
@@ -386,6 +398,16 @@ def build_vascular_mask(
         stats["bone_vox"] = int(np.count_nonzero(bone & above))
         above &= ~bone
         del bone
+    stats["shell_vox"] = 0
+    if params.shell_hu > 0 and shell is not None:
+        if np.shape(shell) != volume.shape:
+            raise ValueError(f"`shell` tiene forma {np.shape(shell)} y el volumen {volume.shape}")
+        soft_bone = shell & (volume > params.shell_hu)
+        if params.bone_margin_mm > 0 and soft_bone.any():
+            soft_bone = _dilate_mm(soft_bone, spacing, params.bone_margin_mm)
+        stats["shell_vox"] = int(np.count_nonzero(soft_bone & above))
+        above &= ~soft_bone
+        del soft_bone
     m0 = ndimage.binary_fill_holes(above)
     del above
     if within is not None and np.shape(within) != m0.shape:

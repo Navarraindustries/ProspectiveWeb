@@ -57,6 +57,10 @@ class User(Base):
     orcid           = Column(String(64),  nullable=False, default="")
     photo_path      = Column(String(300), nullable=False, default="")  # stored profile photo
     cv_path         = Column(String(300), nullable=False, default="")  # stored CV document
+    avatar_config      = Column(Text, nullable=True)  # JSON del avatar elegido
+    avatar_mode        = Column(String(8), nullable=False, default="avatar")  # "avatar" | "photo"
+    profile_photo_path = Column(String(300), nullable=False, default="")  # foto de perfil subida
+    onboarding_state   = Column(Text, nullable=True)  # JSON {"estado": ...}
 
     patients = relationship("Patient", back_populates="creator", foreign_keys="Patient.created_by")
 

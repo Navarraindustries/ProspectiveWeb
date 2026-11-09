@@ -183,3 +183,39 @@ def test_a_una_base_de_la_0006_con_filas_se_le_marca_la_etiqueta_como_automatica
         assert c.execute(text("SELECT session_id, label_custom FROM planning_sessions")).fetchall() == [("guardada-antes", 0)]
         diff = compare_metadata(MigrationContext.configure(c), Base.metadata)
     assert diff == [], diff
+
+
+def test_a_una_base_de_la_0007_con_usuarios_se_le_anaden_avatar_y_onboarding(tmp_path):
+    # Sin las columnas de avatar y onboarding (0008): los usuarios siguen, su
+    # foto antigua no se toca y todos arrancan como invitados con avatar.
+    import json
+    e = create_engine(f"sqlite:///{tmp_path / 'en_0007.db'}")
+    Base.metadata.create_all(bind=e)
+    with e.begin() as c:
+        c.execute(text("PRAGMA foreign_keys=OFF"))
+        _fila(c, "users", username="con_foto", photo_path="fotos/a.png")
+        _fila(c, "users", username="sin_foto")
+        for col in ("avatar_config", "avatar_mode", "profile_photo_path", "onboarding_state"):
+            c.execute(text(f"ALTER TABLE users DROP COLUMN {col}"))
+    from alembic import command
+    with e.connect() as c:
+        command.stamp(_alembic_config(c), "0007_etiqueta_a_mano")
+        c.commit()
+
+    run_migrations(bind=e, fresh=False)
+
+    assert _version(e) == _head()
+    cols = {c["name"] for c in inspect(e).get_columns("users")}
+    assert {"avatar_config", "avatar_mode", "profile_photo_path", "onboarding_state"} <= cols
+    with e.connect() as c:
+        filas = c.execute(text(
+            "SELECT username, photo_path, avatar_config, avatar_mode, profile_photo_path, onboarding_state "
+            "FROM users ORDER BY username"
+        )).fetchall()
+        diff = compare_metadata(MigrationContext.configure(c), Base.metadata)
+    assert [f[0] for f in filas] == ["con_foto", "sin_foto"]
+    assert filas[0][1] == "fotos/a.png"
+    for f in filas:
+        assert f[2] is None and f[3] == "avatar" and f[4] == ""
+        assert json.loads(f[5])["estado"] == "invitado"
+    assert diff == [], diff

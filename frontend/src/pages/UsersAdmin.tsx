@@ -29,6 +29,7 @@ import { ESTILO_FECHA, fechaHora } from "../lib/fecha";
 import { ROLE_LABEL, ROLE_OPTS, ROLE_PERMITE } from "../lib/roles";
 import "../styles/office.css";
 import { PageBody } from "../components/shell/PageBody";
+import { UserAvatar } from "../avatar/UserAvatar";
 
 /** Qué permite el rol elegido (F1-86): el nombre solo no dice si el Observador puede editar. */
 function RolePermite({ role }: { role: string }) {
@@ -72,13 +73,6 @@ function EstadoCuenta({ u }: { u: UserAdminInfo }) {
   const t = estadoCuenta(u);
   const variant = t === "Activo" ? "success" : t === "Pendiente" ? "warning" : "muted";
   return <Badge variant={variant}>{t}</Badge>;
-}
-
-/* Iniciales del avatar: primeras letras de las dos primeras palabras del nombre
-   (o del usuario si no hay nombre), como máximo 2. */
-function iniciales(u: Pick<UserAdminInfo, "full_name" | "username">): string {
-  const palabras = (u.full_name || u.username).trim().split(/\s+/).filter(Boolean);
-  return palabras.slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 }
 
 type CampoAlta = "full_name" | "username" | "password" | "confirm";
@@ -446,9 +440,7 @@ function UsersAdminPage() {
       id: "usuario", titulo: "Usuario", enTarjeta: "titulo",
       celda: (u) => (
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <span aria-hidden style={{ width: 34, height: 34, borderRadius: "50%", flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)", fontSize: 13, fontWeight: 700 }}>
-            {iniciales(u)}
-          </span>
+          <UserAvatar user={u} size={34} />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>
               {u.full_name || u.username}

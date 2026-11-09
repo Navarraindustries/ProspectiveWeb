@@ -15,20 +15,11 @@ import { glass } from "../../styles/glass";
 import { Icon } from "../Icon";
 import type { IconName } from "../Icon";
 import { ChangePasswordSheet } from "../ChangePasswordSheet";
-import { api } from "../../api/client";
+import { UserAvatar } from "../../avatar/UserAvatar";
 import { useAuth } from "../../store/auth";
 import { useNav } from "../../store/nav";
 import { ROLE_LABEL, ROLE_PERMITE } from "../../lib/roles";
 import { useTableta } from "../../hooks/useEstrecho";
-
-/** Avatar redondo: la foto subida (blob autenticado) o las iniciales. */
-function Avatar({ url, initials, size }: { url: string | null; initials: string; size: number }) {
-  return (
-    <span className="shell-avatar" style={{ width: size, height: size, fontSize: Math.round(size * 0.38) }}>
-      {url ? <img src={url} alt="" /> : initials}
-    </span>
-  );
-}
 
 function MenuItem({ icon, label, danger, onClick }: { icon: IconName; label: string; danger?: boolean; onClick: () => void }) {
   return (
@@ -48,24 +39,11 @@ export function UserMenu() {
   const nav = useNav();
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const botonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   // En tableta el botón mide 44: el avatar sube a 34 y la inicial a 13 px (R31).
   const tableta = useTableta();
-
-  // La foto propia llega como blob autenticado → URL de objeto, que se libera
-  // al desmontar o si la respuesta llega tarde.
-  useEffect(() => {
-    if (!user?.has_photo) { setPhotoUrl(null); return; }
-    let created: string | null = null;
-    let alive = true;
-    api.myPhotoObjectUrl()
-      .then((u) => { if (alive) { created = u; setPhotoUrl(u); } else URL.revokeObjectURL(u); })
-      .catch(() => {});
-    return () => { alive = false; if (created) URL.revokeObjectURL(created); };
-  }, [user?.has_photo]);
 
   // Al abrir, el foco va al primer elemento del menú.
   useEffect(() => {
@@ -128,13 +106,13 @@ export function UserMenu() {
         title={user.full_name || user.username}
         onClick={() => setOpen((o) => !o)}
       >
-        <Avatar url={photoUrl} initials={user.avatar_initials ?? ""} size={tableta ? 34 : 28} />
+        <UserAvatar user={user} self size={tableta ? 34 : 28} />
       </button>
 
       {open && (
         <div ref={menuRef} role="menu" aria-label="Cuenta" className="shell-user-menu fade-rise" style={MENU} onKeyDown={onMenuKey}>
           <div className="shell-user-head">
-            <Avatar url={photoUrl} initials={user.avatar_initials ?? ""} size={38} />
+            <UserAvatar user={user} self size={38} />
             <div className="shell-user-text">
               <div className="shell-user-name">{user.full_name || user.username}</div>
               <div className="shell-user-sub">{`@${user.username} · ${ROLE_LABEL[user.role] ?? user.role}`}</div>

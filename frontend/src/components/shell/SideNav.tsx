@@ -26,6 +26,7 @@ import { LogoutButton } from "./LogoutButton";
 import { ADMIN_GROUP_LABEL, SECTIONS } from "./sections";
 import type { Section } from "./sections";
 import type { ShellState } from "./useShellState";
+import { UserAvatar } from "../../avatar/UserAvatar";
 
 /** Cada minuto: una cuenta nueva no es urgente, y así la insignia no pide al
     servidor en cada render ni en cada cambio de sección. */
@@ -237,9 +238,7 @@ export function SideNav({ state, modo = "carril", abierto = false, onCerrar }: {
       <div className="shell-nav-foot">
         {user && (
           <div className="shell-nav-user">
-            <span className="shell-avatar" style={{ width: 28, height: 28, fontSize: 11 }}>
-              {user.avatar_initials ?? ""}
-            </span>
+            <UserAvatar user={user} self size={28} />
             <span className="shell-nav-user-text">
               <span className="shell-nav-user-name">{user.full_name || user.username}</span>
               <span className="shell-nav-user-role">{ROLE_LABEL[user.role] ?? user.role}</span>

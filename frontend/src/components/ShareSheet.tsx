@@ -20,6 +20,7 @@ import { Input } from "./Input";
 import { LoadState, loadErrorText } from "./LoadState";
 import { ErrorNote } from "./PanelHead";
 import { Sheet } from "./Sheet";
+import { UserAvatar } from "../avatar/UserAvatar";
 
 /** «Pérez» encuentra «Pérez» y «perez»: los nombres se escriben con y sin tilde. */
 const plano = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
@@ -166,6 +167,7 @@ export function ShareSheet({
                 }}
               >
                 <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggle(u.id)} />
+                <UserAvatar user={u} size={28} />
                 <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>{u.full_name || u.username}</span>
                   <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{`${ROLE_LABEL[u.role] ?? u.role} · ${u.username}`}</span>

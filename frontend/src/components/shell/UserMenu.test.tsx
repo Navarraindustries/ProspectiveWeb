@@ -10,7 +10,7 @@ const go = vi.fn();
 let user: Record<string, unknown>;
 vi.mock("../../store/auth", () => ({ useAuth: () => ({ user, logout }) }));
 vi.mock("../../store/nav", async (orig) => ({ ...(await orig<object>()), useNav: () => ({ screen: "patients", go }) }));
-vi.mock("../../api/client", () => ({ api: { myPhotoObjectUrl: vi.fn() } }));
+vi.mock("../../api/client", () => ({ api: { myProfilePhotoObjectUrl: vi.fn() } }));
 vi.mock("../ChangePasswordSheet", () => ({
   ChangePasswordSheet: ({ open }: { open: boolean }) => (open ? <div>hoja de contraseña</div> : null),
 }));
@@ -83,17 +83,16 @@ describe("UserMenu", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("menu")).toBeNull();
   });
-  it("R31: en tableta la inicial del avatar de la barra va a 13 px; en ancho, a 11", () => {
+  it("R31: en tableta el avatar de la barra mide 34 px; en ancho, 28", () => {
     const p = simularPantalla({ ancho: 1024 });
     const { unmount } = render(<UserMenu />);
     const av = screen.getByRole("button", { name: "Menú de usuario" }).querySelector(".shell-avatar") as HTMLElement;
-    expect(av.style.fontSize).toBe("13px");
     expect(av.style.width).toBe("34px");
     unmount();
     p.cambiar({ ancho: 1280 });
     render(<UserMenu />);
     const ancho = screen.getByRole("button", { name: "Menú de usuario" }).querySelector(".shell-avatar") as HTMLElement;
-    expect(ancho.style.fontSize).toBe("11px");
+    expect(ancho.style.width).toBe("28px");
     p.restaurar();
   });
 });

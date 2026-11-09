@@ -127,7 +127,7 @@ import type {
   ClinicalSiteResult,
   UploadResult,
   UserAdminInfo,
-  UserInfo,
+  UserInfo, AvatarConfig, OnboardingState,
   UserUpdate,
   VolumeMeta,
   ManualOrientationBody,
@@ -414,6 +414,21 @@ export const api = {
     post<{ status: string }>(`/api/auth/users/${userId}/reset-password`, { new_password }),
   myPhotoObjectUrl: async () =>
     URL.createObjectURL(await getBlob("/api/auth/me/photo")),
+  myProfilePhotoObjectUrl: async () =>
+    URL.createObjectURL(await getBlob("/api/auth/me/profile-photo")),
+  userProfilePhotoObjectUrl: async (id: number) =>
+    URL.createObjectURL(await getBlob(`/api/auth/users/${id}/profile-photo`)),
+  saveAvatar: (config: AvatarConfig | null, modo: "avatar" | "foto") =>
+    request<UserInfo>("/api/auth/me/avatar", { method: "PUT", body: JSON.stringify({ config, modo }), headers: { "Content-Type": "application/json" } }),
+  uploadProfilePhoto: (file: Blob) => {
+    const fd = new FormData();
+    fd.append("photo", file, "foto.jpg");
+    return post<UserInfo>("/api/auth/me/profile-photo", fd);
+  },
+  copyRegistroPhoto: () => post<UserInfo>("/api/auth/me/profile-photo", { desde_registro: true }),
+  deleteProfilePhoto: () => request<UserInfo>("/api/auth/me/profile-photo", { method: "DELETE" }),
+  saveOnboarding: (s: OnboardingState) =>
+    request<UserInfo>("/api/auth/me/onboarding", { method: "PUT", body: JSON.stringify(s), headers: { "Content-Type": "application/json" } }),
   signup: (req: SignupRequest, photo?: File | null, cv?: File | null) => {
     const fd = new FormData();
     for (const [k, v] of Object.entries(req)) fd.append(k, v ?? "");

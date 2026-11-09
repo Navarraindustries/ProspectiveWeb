@@ -2,7 +2,7 @@ import { act, fireEvent, render, renderHook, screen } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolverObjetivo } from "./resolverObjetivo";
 import { useRecorrido, type Parada } from "./useRecorrido";
-import { Burbuja } from "./Burbuja";
+import { Burbuja, posicion } from "./Burbuja";
 import { Foco } from "./Foco";
 
 vi.mock("../../hooks/useEstrecho", async (orig) => ({
@@ -202,5 +202,31 @@ describe("useRecorrido: una sola terminación", () => {
     const { rerender } = renderHook(() => useRecorrido(paradas(true), { onTerminar: vi.fn() }));
     rerender(); rerender();
     expect(sc).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("posicion (colocación de la burbuja)", () => {
+  const W = 1024, H = 600, alto = 300, ancho = 360;
+  const caja = (left: number, top: number, w: number, h: number) =>
+    ({ x: left, y: top, left, top, width: w, height: h, right: left + w, bottom: top + h, toJSON() {} }) as DOMRect;
+  // Rectángulo vertical resultante de la burbuja a partir de top/bottom.
+  const dentro = (s: { left?: unknown; top?: unknown; bottom?: unknown }) => {
+    const top = s.top !== undefined ? (s.top as number) : H - (s.bottom as number) - alto;
+    const left = s.left as number;
+    expect(top).toBeGreaterThanOrEqual(12);
+    expect(top + alto).toBeLessThanOrEqual(H - 12);
+    expect(left).toBeGreaterThanOrEqual(12);
+    expect(left + ancho).toBeLessThanOrEqual(W - 12);
+  };
+  it("arriba: no se sale por arriba (rect.top=320, alto 300, H 600)", () => {
+    const s = posicion(caja(0, 320, 1024, 10), alto, W, H);
+    expect(s.bottom).toBeDefined();
+    dentro(s);
+  });
+  it("abajo, derecha e izquierda quedan dentro del viewport", () => {
+    dentro(posicion(caja(500, 20, 100, 40), alto, W, H));      // abajo
+    dentro(posicion(caja(10, 100, 40, 400), alto, W, H));      // derecha
+    dentro(posicion(caja(970, 100, 40, 400), alto, W, H));     // izquierda
+    dentro(posicion(caja(980, 560, 40, 30), alto, W, H));      // esquina
   });
 });

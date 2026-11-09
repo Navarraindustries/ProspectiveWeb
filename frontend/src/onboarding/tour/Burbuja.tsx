@@ -27,8 +27,7 @@ const ANCHO = 360, ALTO = 300, HUECO = 14, BORDE = 12;
 const entre = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, Math.max(lo, hi)));
 const FOCALIZABLES = "button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex=\"-1\"])";
 
-function posicion(rect: DOMRect, alto: number): CSSProperties {
-  const W = window.innerWidth, H = window.innerHeight;
+export function posicion(rect: DOMRect, alto: number, W = window.innerWidth, H = window.innerHeight): CSSProperties {
   const ancho = Math.min(ANCHO, W - 24);
   const espacio = { abajo: H - rect.bottom, arriba: rect.top, derecha: W - rect.right, izquierda: rect.left };
   const lado = (Object.keys(espacio) as (keyof typeof espacio)[]).reduce((a, b) => (espacio[b] > espacio[a] ? b : a));
@@ -37,7 +36,7 @@ function posicion(rect: DOMRect, alto: number): CSSProperties {
   const arr = entre(cy - alto / 2, BORDE, H - alto - BORDE);
   switch (lado) {
     case "abajo": return { left: izq, top: entre(rect.bottom + HUECO, BORDE, H - alto - BORDE) };
-    case "arriba": return { left: izq, bottom: entre(H - rect.top + HUECO, BORDE, H - BORDE) };
+    case "arriba": return { left: izq, bottom: entre(H - rect.top + HUECO, BORDE, H - alto - BORDE) };
     case "derecha": return { left: entre(rect.right + HUECO, BORDE, W - ancho - BORDE), top: arr };
     default: return { left: entre(rect.left - HUECO - ancho, BORDE, W - ancho - BORDE), top: arr };
   }

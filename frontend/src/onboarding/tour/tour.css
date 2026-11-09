@@ -9,7 +9,7 @@
 
 .tour-burbuja { position: fixed; z-index: 1001; box-sizing: border-box; width: min(360px, calc(100vw - 24px));
   padding: 16px 18px; border-radius: 16px; max-height: calc(100vh - 24px); overflow-y: auto; color: var(--foreground);
-  transition: left 450ms cubic-bezier(.2, .8, .2, 1), top 450ms cubic-bezier(.2, .8, .2, 1); }
+  transition: left 450ms cubic-bezier(.2, .8, .2, 1), top 450ms cubic-bezier(.2, .8, .2, 1), bottom 450ms cubic-bezier(.2, .8, .2, 1); }
 .tour-burbuja[data-variante="hoja"] { left: 0; right: 0; bottom: 0; top: auto; width: 100%;
   border-radius: 18px 18px 0 0; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transition: none; }
 .tour-burbuja:focus { outline: none; }

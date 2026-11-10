@@ -165,7 +165,7 @@ function EditUserSheet({
             <Input label="Universidad" value={university} onChange={(e) => setUniversity(e.target.value)} />
             <Input label="Hospital / Centro" value={hospital} onChange={(e) => setHospital(e.target.value)} />
           </div>
-          <FileField label="Foto de perfil" accept="image/*" file={photo} onPick={setPhoto} />
+          <FileField label="Foto de perfil" accept="image/png,image/jpeg,image/webp" file={photo} onPick={setPhoto} />
           <Switch label="Cuenta activa (puede iniciar sesión)" checked={active} onChange={setActive} />
         </div>
       )}
@@ -272,7 +272,7 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
               <Input label="ID profesional" value={form.professional_id} onChange={set("professional_id")} />
               <Input label="ORCID" value={form.orcid} onChange={set("orcid")} placeholder="0000-0002-1825-0097" />
             </div>
-            <FileField label="Foto de perfil" accept="image/*" file={photo} onPick={setPhoto} />
+            <FileField label="Foto de perfil" accept="image/png,image/jpeg,image/webp" file={photo} onPick={setPhoto} />
             <FileField label="Currículum (CV)" accept=".pdf,.doc,.docx" file={cv} onPick={setCv} />
           </div>
         </Collapsible>

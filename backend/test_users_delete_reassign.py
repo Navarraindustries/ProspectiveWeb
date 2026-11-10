@@ -104,15 +104,13 @@ def test_comparticion_del_destino_se_quita_y_shared_by_se_traspasa():
 
 def test_deja_bloque_user_deleted_y_ningun_paciente_sin_creador():
     a_id, a_nombre, _ = _medico(); b_id, b_nombre, _ = _medico()
-    _pacientes(a_id)
+    ids = _pacientes(a_id)
     assert admin.delete(f"/api/auth/users/{a_id}?reassign_to={b_id}").status_code == 204
     bloques = [x for x in SkullChain.instance().get_all_blocks() if x["action"] == "USER_DELETED"]
     assert any(f'"deleted": "{a_nombre}"' in x["payload_json"]
                and f'"reassigned_to": "{b_nombre}"' in x["payload_json"]
                and '"patients": 2' in x["payload_json"] for x in bloques)
     assert bloques[-1]["username"] == "admin"
-    db = SessionLocal()
-    try:
-        assert db.query(Patient).filter(Patient.created_by.is_(None)).count() == 0
-    finally:
-        db.close()
+    # Solo los pacientes de ESTE test: la base de la suite es compartida y otros
+    # módulos crean pacientes sin creador a propósito.
+    assert _creadores(ids) == [b_id, b_id]

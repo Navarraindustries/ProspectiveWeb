@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import uuid
 
 _tmp = tempfile.mkdtemp(prefix="prospective_utcdates_")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
@@ -24,13 +25,15 @@ client = TestClient(app, raise_server_exceptions=True)
 
 
 def _headers() -> dict:
+    # Nombres únicos: la base de la suite es compartida y otros módulos ya crean «adm».
+    sufijo = uuid.uuid4().hex[:8]
     db = SessionLocal()
-    db.add(User(username="adm", full_name="Admin", role="admin", is_active=True, status="active",
+    db.add(User(username=f"adm-{sufijo}", full_name="Admin", role="admin", is_active=True, status="active",
                 hashed_password=get_password_hash("secret12345")))
-    db.add(User(username="pend", full_name="Pendiente", role="viewer", is_active=False, status="pending",
-                hashed_password=get_password_hash("secret12345")))
+    db.add(User(username=f"pend-{sufijo}", full_name="Pendiente", role="viewer", is_active=False,
+                status="pending", hashed_password=get_password_hash("secret12345")))
     db.commit(); db.close()
-    r = client.post("/api/auth/login", json={"username": "adm", "password": "secret12345"})
+    r = client.post("/api/auth/login", json={"username": f"adm-{sufijo}", "password": "secret12345"})
     assert r.status_code == 200, r.text
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
 

@@ -44,8 +44,9 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 # Profile photo + CV uploaded at signup. Stored OUTSIDE the public /data mount
 # (these are personal documents) and served only through admin-authenticated
-# endpoints below.
-_USER_FILES = Path("user_files")
+# endpoints below. `PROSPECTIVE_USER_FILES` lo cambia (los tests lo apuntan a un
+# temporal: escribían en el user_files real y podían pisar fotos de cuentas reales).
+_USER_FILES = Path(os.environ.get("PROSPECTIVE_USER_FILES") or "user_files")
 
 
 def _utc_iso(dt: datetime | None) -> str:
@@ -273,7 +274,7 @@ async def get_my_photo(
 ) -> FileResponse:
     if not current_user.photo_path or not Path(current_user.photo_path).exists():
         raise HTTPException(status_code=404, detail="Sin foto de perfil.")
-    return FileResponse(current_user.photo_path)
+    return _profile_photo_response(current_user.photo_path)
 
 
 _IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp"}
@@ -290,22 +291,40 @@ def _sniff_image(head: bytes) -> str | None:
     return None
 
 
-def _store_profile_image(data: bytes, user_id: int) -> str:
-    """Guarda una foto de perfil validada por contenido; 413 si pesa de más, 415 si no es PNG/JPEG/WebP."""
+def _validar_imagen(data: bytes) -> str:
+    """Extensión de una imagen validada por contenido; 413 si pesa de más, 415 si no es PNG/JPEG/WebP."""
     if len(data) > _MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="El archivo supera el máximo de 6 MB.")
     ext = _sniff_image(data[:12])
     if ext is None:
         raise HTTPException(status_code=415, detail="La foto debe ser PNG, JPEG o WebP.")
-    dest_dir = _USER_FILES / "profile_photos"
+    return ext
+
+
+def _guardar_imagen(data: bytes, ext: str, subdir: str, user_id: int) -> str:
+    """Escribe una imagen ya validada con la extensión que dice su contenido, nunca la del cliente."""
+    dest_dir = _USER_FILES / subdir
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / f"{user_id}{ext}"
     dest.write_bytes(data)
     return str(dest)
 
 
+def _store_profile_image(data: bytes, user_id: int) -> str:
+    """Guarda una foto de perfil validada por contenido; 413 si pesa de más, 415 si no es PNG/JPEG/WebP."""
+    return _guardar_imagen(data, _validar_imagen(data), "profile_photos", user_id)
+
+
+async def _leer_foto_registro(photo: UploadFile | None) -> tuple[bytes, str] | None:
+    """Lee y valida la foto del registro ANTES de crear o tocar la cuenta (413/415 si no vale)."""
+    if photo is None or not photo.filename:
+        return None
+    data = await photo.read()
+    return data, _validar_imagen(data)
+
+
 def _profile_photo_response(path: str) -> FileResponse:
-    """Sirve la foto con tipo explícito y nosniff; si el contenido no es imagen permitida, 404."""
+    """Sirve una foto (de perfil o del registro) con tipo explícito y nosniff; si el contenido no es imagen permitida, 404."""
     try:
         with open(path, "rb") as f:
             ext = _sniff_image(f.read(12))
@@ -466,6 +485,7 @@ async def signup(
     photo: UploadFile | None = File(None),
     cv: UploadFile | None = File(None),
 ) -> SignupResponse:
+    foto = await _leer_foto_registro(photo)  # 413/415 antes de crear nada
     user, err = create_pending_user(
         db, username=username, password=password, full_name=full_name,
         national_id=national_id, professional_id=professional_id, specialty=specialty,
@@ -480,8 +500,8 @@ async def signup(
 
     # Store the optional profile photo / CV named by the new user's id.
     changed = False
-    if photo is not None and photo.filename:
-        user.photo_path = await _save_user_upload(photo, "photos", user.id)
+    if foto is not None:
+        user.photo_path = _guardar_imagen(*foto, "photos", user.id)
         changed = True
     if cv is not None and cv.filename:
         user.cv_path = await _save_user_upload(cv, "cv", user.id)
@@ -513,7 +533,8 @@ async def get_pending_photo(
     user = db.get(User, user_id)
     if user is None or not user.photo_path or not Path(user.photo_path).exists():
         raise HTTPException(status_code=404, detail="Sin foto de perfil.")
-    return FileResponse(user.photo_path)
+    # Lo subió alguien sin cuenta: solo se sirve si es de verdad una imagen, con tipo fijo y nosniff.
+    return _profile_photo_response(user.photo_path)
 
 
 @router.get(
@@ -529,7 +550,11 @@ async def get_pending_cv(
     if user is None or not user.cv_path or not Path(user.cv_path).exists():
         raise HTTPException(status_code=404, detail="Sin CV adjunto.")
     p = Path(user.cv_path)
-    return FileResponse(p, filename=f"CV_{user.username}{p.suffix}")
+    # Siempre como descarga y sin que el navegador adivine el tipo: un «CV» HTML no se ejecuta.
+    tipo = "application/pdf" if p.suffix.lower() == ".pdf" else "application/octet-stream"
+    return FileResponse(p, filename=f"CV_{user.username}{p.suffix}", media_type=tipo,
+                        content_disposition_type="attachment",
+                        headers={"X-Content-Type-Options": "nosniff"})
 
 
 # ── Admin: pending-account review ──────────────────────────────────────────── #
@@ -704,6 +729,7 @@ async def create_user(
     photo: UploadFile | None = File(None),
     cv: UploadFile | None = File(None),
 ) -> UserAdminInfo:
+    foto = await _leer_foto_registro(photo)  # 413/415 antes de crear nada
     user, err = create_pending_user(
         db, active=True, role=role,
         username=username, password=password, full_name=full_name,
@@ -714,8 +740,8 @@ async def create_user(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err)
 
     changed = False
-    if photo is not None and photo.filename:
-        user.photo_path = await _save_user_upload(photo, "photos", user.id)
+    if foto is not None:
+        user.photo_path = _guardar_imagen(*foto, "photos", user.id)
         changed = True
     if cv is not None and cv.filename:
         user.cv_path = await _save_user_upload(cv, "cv", user.id)
@@ -803,7 +829,8 @@ async def set_user_photo(
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado.")
-    user.photo_path = await _save_user_upload(photo, "photos", user.id)
+    data = await photo.read()
+    user.photo_path = _guardar_imagen(data, _validar_imagen(data), "photos", user.id)
     db.commit()
     db.refresh(user)
     return _user_to_admin(user)

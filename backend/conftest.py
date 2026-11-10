@@ -48,6 +48,11 @@ os.environ.setdefault("STUDY_FILES_ROOT", tempfile.mkdtemp(prefix="prospective_s
 os.environ.setdefault("CLIP_ORDERS_ROOT", tempfile.mkdtemp(prefix="prospective_clip_orders_"))
 os.environ.setdefault("CLIP_LIBRARY_ROOT", tempfile.mkdtemp(prefix="prospective_clip_library_"))
 
+# Fotos y CV de las cuentas, igual: sin esto los tests escribían en el
+# backend/user_files real con nombres «<id>.png» que podían pisar las fotos de
+# cuentas reales con el mismo id.
+os.environ["PROSPECTIVE_USER_FILES"] = tempfile.mkdtemp(prefix="prospective_user_files_")
+
 # Sesiones de trabajo y guardados: sin esto create_session()/snapshot_session()
 # llenaban backend/data/sessions y backend/data/session_saves reales.
 os.environ.setdefault("PROSPECTIVE_SESSIONS_ROOT", tempfile.mkdtemp(prefix="prospective_sessions_"))

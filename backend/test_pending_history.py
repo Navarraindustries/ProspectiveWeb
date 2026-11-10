@@ -18,6 +18,8 @@ from starlette.testclient import TestClient
 
 Base.metadata.create_all(bind=engine)
 admin = TestClient(app)
+# La foto se valida por contenido: hace falta la firma de un PNG de verdad.
+PNG_MINIMO = b"\x89PNG\r\n\x1a\n" + b"0" * 32
 
 
 def _cuenta(status: str = "pending", role: str = "medico") -> tuple[int, str]:
@@ -80,7 +82,7 @@ def test_foto_solo_admin():
     uid, nombre = _cuenta("active")
     med = anonymous_client(app)
     med.headers["Authorization"] = f"Bearer {create_access_token(subject=nombre)}"
-    f = {"photo": ("a.png", b"PNG-falso", "image/png")}
+    f = {"photo": ("a.png", PNG_MINIMO, "image/png")}
     assert med.post(f"/api/auth/users/{uid}/photo", files=f).status_code == 403
     assert anonymous_client(app).post(f"/api/auth/users/{uid}/photo", files=f).status_code == 401
 
@@ -106,7 +108,7 @@ def test_editar_campos_profesionales():
 
 def test_foto_se_reemplaza():
     uid, _ = _cuenta("active")
-    r = admin.post(f"/api/auth/users/{uid}/photo", files={"photo": ("a.png", b"PNG-falso", "image/png")})
+    r = admin.post(f"/api/auth/users/{uid}/photo", files={"photo": ("a.png", PNG_MINIMO, "image/png")})
     assert r.status_code == 200 and r.json()["has_photo"] is True
 
 

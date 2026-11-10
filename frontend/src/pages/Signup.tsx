@@ -162,7 +162,7 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <Input label="Nombre completo" obligatorio value={form.full_name} onChange={set("full_name")} placeholder="Dr. …" {...props("full_name")} />
                   <Input label="DNI / NIE (opcional)" hint="Solo si tu centro lo pide" value={form.national_id} onChange={set("national_id")} />
-                  <FileField label="Foto de perfil" accept="image/*" file={photo} onPick={setPhoto} />
+                  <FileField label="Foto de perfil" accept="image/png,image/jpeg,image/webp" file={photo} onPick={setPhoto} />
                 </div>
 
                 <div style={GROUP_LABEL}>Datos profesionales</div>

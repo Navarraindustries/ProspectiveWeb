@@ -46,8 +46,10 @@
 .ob-intro__tarjeta[data-animada="true"] { animation: ob-sube 520ms cubic-bezier(.2, .8, .2, 1) both; animation-delay: var(--ob-retardo, 0ms); }
 @keyframes ob-sube { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 
-.ob-listo { display: flex; flex-direction: column; align-items: flex-start; gap: 24px; width: min(720px, 100%); }
-.ob-listo__cabecera { display: flex; align-items: center; gap: 24px; }
+.ob-listo { display: flex; flex-direction: column; align-items: flex-start; gap: 24px; width: min(720px, 100%); min-width: 0; }
+.ob-listo__cabecera { display: flex; align-items: center; gap: 24px; max-width: 100%; min-width: 0; }
+/* «Listo, <nombre>»: un nombre largo parte línea (y, si hace falta, la palabra) en vez de salirse por la derecha. */
+.ob-listo__cabecera .ob-titulo { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .ob-listo__pasos { width: 100%; }
 .ob-listo__pasos ul { list-style: none; margin: 0; padding: 0; }
 .ob-listo__rotulo { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted-foreground); }
@@ -66,6 +68,11 @@
   .ob-cuerpo { align-items: flex-start; }
 }
 @media (max-width: 640px) { .ob-intro__fila { grid-template-columns: 1fr; } .ob-paso__texto { display: none; } }
+/* Móvil: el avatar encima del saludo y el saludo a una escala que quepa en 390 px. */
+@media (max-width: 640px) {
+  .ob-listo__cabecera { flex-direction: column; align-items: flex-start; gap: 16px; width: 100%; }
+  .ob-listo__cabecera .ob-titulo--grande { font-size: clamp(28px, 9vw, 40px); }
+}
 .ob-intro__tarjeta[data-tarjeta-tramo="preparar"] { --ob-color: var(--tramo-preparar); }
 .ob-intro__tarjeta[data-tarjeta-tramo="detectar"] { --ob-color: var(--tramo-detectar); }
 .ob-intro__tarjeta[data-tarjeta-tramo="medir"] { --ob-color: var(--tramo-medir); }

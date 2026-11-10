@@ -4,6 +4,8 @@
 
 .qz { container-type: inline-size; position: relative;
   /* El ancho también se acota por la altura libre (barra superior + márgenes ≈ 150 px) para que la maqueta entera quepa en pantallas bajas. */
+  /* Primero con vh: los navegadores sin dvh descartan la línea siguiente y se quedan con esta. */
+  width: min(1180px, 100%, calc((100vh - 150px) * 16 / 9.5));
   width: min(1180px, 100%, calc((100dvh - 150px) * 16 / 9.5)); margin: 0 auto; aspect-ratio: 16 / 9.5;
   display: grid; grid-template-columns: 1fr 27%; gap: 10px; padding: 10px; box-sizing: border-box; border-radius: 18px;
   border: var(--glass-rim, 1px) solid var(--glass-border); overflow: hidden; color: var(--foreground);
@@ -51,8 +53,9 @@
 .qz-cand__detalle { color: var(--muted-foreground); }
 .qz-panel__pie { display: flex; justify-content: space-between; color: var(--muted-foreground); border-top: 1px solid var(--glass-border); padding-top: 0.6em; }
 
-/* Móvil: visor arriba y panel debajo; la maqueta crece con su contenido y deja sitio a la hoja inferior. */
-.qz[data-movil] { width: min(1180px, 100%); aspect-ratio: auto; grid-template-columns: 1fr; font-size: 10px; padding-bottom: 260px; }
+/* Móvil: visor arriba y panel debajo; la maqueta crece con su contenido y deja debajo tanto hueco
+   como mide la hoja inferior (--qz-hoja, lo pone QuirofanoZonas), para poder subir el panel por encima. */
+.qz[data-movil] { width: min(1180px, 100%); aspect-ratio: auto; grid-template-columns: 1fr; font-size: 10px; padding-bottom: calc(var(--qz-hoja, 260px) + 16px); }
 .qz[data-movil] .qz__visor { min-height: 360px; }
 .qz[data-movil] .qz-pastilla { white-space: normal; flex-wrap: wrap; border-radius: 16px; }
 

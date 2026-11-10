@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Explicacion } from "../copy";
-import { resolverObjetivo } from "./resolverObjetivo";
+import { rectQueAbarca, resolverObjetivo, resolverObjetivos } from "./resolverObjetivo";
 
 export interface Parada {
   id: string;
@@ -57,17 +57,21 @@ export function useRecorrido(
   const clave = `${parada.id}|${parada.objetivos.join(",")}`;
 
   useEffect(() => {
+    let observados: HTMLElement[] = [];
     let observado: HTMLElement | null = null;
     const ro = typeof ResizeObserver === "function" ? new ResizeObserver(() => medir()) : null;
     function medir() {
-      const el = resolverObjetivo(vivo.current.objetivos);
-      if (el !== observado) {
-        if (observado) ro?.unobserve(observado);
-        observado = el;
-        if (el) ro?.observe(el);
+      // Una alternativa «a+b» da varios elementos: el foco abarca todos.
+      const els = resolverObjetivos(vivo.current.objetivos);
+      if (els.length !== observados.length || els.some((el, i) => el !== observados[i])) {
+        observados.forEach((el) => ro?.unobserve(el));
+        observados = els;
+        els.forEach((el) => ro?.observe(el));
       }
+      const el = els[0] ?? null;
+      observado = el;
       setObjetivo(el);
-      const r = el ? el.getBoundingClientRect() : null;
+      const r = rectQueAbarca(els);
       setRect((previo) => (igual(previo, r) ? previo : r));
     }
     medir();

@@ -83,6 +83,8 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
   const escribir = useCallback((cambio: (s: OnboardingState) => OnboardingState): Promise<void> => {
     const siguiente = cambio(ultimo.current);
+    // Nada cambia (p. ej. una pista ya vista): no hay nada que enviar.
+    if (siguiente === ultimo.current) return cola.current;
     ultimo.current = siguiente;
     setEstado(siguiente);
     pendientes.current += 1;
@@ -90,8 +92,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       try {
         await api.saveOnboarding(siguiente);
         await refreshUser();
-      } catch {
+      } catch (e) {
         // Sin red o sin servidor: el flujo sigue; el estado se reintentará en la siguiente escritura.
+        console.warn("No se pudo guardar el estado del recorrido de bienvenida", e);
       } finally {
         pendientes.current -= 1;
       }

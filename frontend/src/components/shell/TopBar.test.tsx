@@ -76,6 +76,31 @@ describe("TopBar", () => {
     expect(screen.queryByRole("button", { name: "Más acciones" })).toBeNull();
     p.restaurar();
   });
+  it("objetivos del recorrido: en escritorio la caja de crear y la de atajos; en móvil el «+», el «⋯» y el avatar", () => {
+    const conTour: AccionBarra[] = [
+      { ...acciones[0], tour: "acciones-crear" }, { ...acciones[1], tour: "acciones-crear" }, acciones[2],
+    ];
+    const ancho = simularPantalla({ ancho: 1707 });
+    const { container, unmount } = render(<TopBar acciones={conTour} />);
+    const crear = container.querySelector('[data-tour="acciones-crear"]')!;
+    expect(within(crear as HTMLElement).getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? b.textContent))
+      .toEqual(["Nuevo paciente", "Nuevo caso"]);
+    expect(container.querySelector('[data-tour="atajos"]')).not.toBeNull();
+    expect(container.querySelector('[data-tour="usuario"]')).toBeNull();
+    unmount();
+    ancho.restaurar();
+
+    const movil = simularPantalla({ ancho: 390 });
+    const m = render(<TopBar acciones={conTour} />);
+    const mas = m.container.querySelector('[data-tour="acciones-crear"]') as HTMLElement;
+    expect(within(mas).getByRole("button", { name: "Nuevo paciente" })).toBeInTheDocument();
+    expect(within(mas).queryByRole("button", { name: "Nuevo caso" })).toBeNull();
+    expect(m.container.querySelector('[data-tour="acciones-mas"]')).not.toBeNull();
+    const usuario = m.container.querySelector('[data-tour="usuario"]') as HTMLElement;
+    expect(within(usuario).getByRole("button", { name: "Menú de usuario" })).toBeInTheDocument();
+    expect(m.container.querySelector('[data-tour="atajos"]')).toBeNull();
+    movil.restaurar();
+  });
   it("a 1280 la principal lleva texto y las demás solo icono con tooltip", () => {
     const p = simularPantalla({ ancho: 1280 });
     render(barra());

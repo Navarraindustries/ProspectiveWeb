@@ -26,6 +26,11 @@ vi.mock("../api/client", () => ({
 vi.mock("../components/shell/AppShell", async () => ({ AppShell: (await import("../test/shellMock")).ShellMock }));
 vi.mock("../pages/NuevoCaso", () => ({ CasePatientPicker: () => null, NuevoEstudioSheet: () => null }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
+let movil = false;
+vi.mock("../hooks/useEstrecho", async (orig) => ({
+  ...(await orig<typeof import("../hooks/useEstrecho")>()),
+  useMovil: () => movil,
+}));
 const user = { id: 1, role: "medico" as string, full_name: "Ana Pérez" };
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user }) }));
 
@@ -38,7 +43,7 @@ vi.mock("./OnboardingProvider", () => ({
 
 import { Patients } from "../pages/Patients";
 import { LINEA_ADMIN, LINEA_PESTANAS, RecorridoPacientes } from "./RecorridoPacientes";
-import { LIMITES, PARADAS_PACIENTES } from "./copy";
+import { LIMITES, PARADAS_PACIENTES, PARADAS_PACIENTES_MOVIL } from "./copy";
 
 const onFin = vi.fn();
 const noop = () => {};
@@ -83,6 +88,7 @@ function hasta(titulo: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   momento = "pacientes";
+  movil = false;
   user.role = "medico";
   listPatients.mockResolvedValue([]);
   listClipOrders.mockResolvedValue([]);
@@ -229,5 +235,58 @@ describe("RecorridoPacientes", () => {
     expect(terminar).toHaveBeenCalledTimes(1);
     expect(terminar).toHaveBeenCalledWith("saltado");
     expect(document.querySelector("[data-foco]")).toBeNull();
+  });
+
+  describe("en el móvil", () => {
+    /** Lo que pinta la barra superior en el móvil: «+», «⋯» y el avatar, en fila. */
+    const X: Record<string, number> = { "acciones-crear": 200, "acciones-mas": 250, usuario: 300 };
+    function BarraMovil() {
+      return <>{Object.keys(X).map((t) => <span key={t} data-tour={t}>{t}</span>)}</>;
+    }
+    const hueco = () => document.querySelector<HTMLElement>("[data-foco-hueco]")!;
+
+    beforeEach(() => {
+      movil = true;
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        const t = this.getAttribute("data-tour");
+        if (t && t in X) return { ...RECT, x: X[t], left: X[t], width: 44, right: X[t] + 44 } as DOMRect;
+        return t ? RECT : CERO;
+      });
+    });
+
+    it("«crear» resalta juntos el «+» y el «⋯», y lo cuenta con el «+»", async () => {
+      render(<>{arbol()}<BarraMovil /></>);
+      await screen.findByText(/^Parada 1 de/);
+      expect(burbuja()).toHaveTextContent("Abre «☰»");
+      expect(burbuja()).not.toHaveTextContent("Alt+B");
+      hasta("Todo empieza con un paciente");
+      expect(burbuja()).toHaveTextContent("«+» (Nuevo paciente)");
+      // Del «+» (200) al final del «⋯» (294), con el margen del foco (6 px).
+      expect(hueco().style.left).toBe("194px");
+      expect(hueco().style.width).toBe(`${294 - 200 + 12}px`);
+    });
+
+    it("«atajos» no habla de Ctrl+K: resalta el «⋯» y el avatar", async () => {
+      render(<>{arbol()}<BarraMovil /></>);
+      await screen.findByText(/^Parada 1 de/);
+      hasta("Atajos y tu menú");
+      expect(burbuja()).toHaveTextContent(PARADAS_PACIENTES_MOVIL.atajos!.como);
+      expect(burbuja()).not.toHaveTextContent(/Ctrl\+K|⌘K/);
+      expect(hueco().style.left).toBe("244px");
+      expect(hueco().style.width).toBe(`${344 - 250 + 12}px`);
+    });
+
+    it("sin el «⋯» (escritorio) siguen los textos de siempre", async () => {
+      movil = false;
+      montar();
+      await screen.findByText(/^Parada 1 de/);
+      hasta("Atajos y tu menú");
+      expect(burbuja()).toHaveTextContent("Ctrl+K");
+    });
+
+    it("las variantes del móvil caben en sus topes (con la línea de admin)", () => {
+      for (const e of Object.values(PARADAS_PACIENTES_MOVIL)) expect(e!.como.length).toBeLessThanOrEqual(LIMITES.como);
+      expect((PARADAS_PACIENTES_MOVIL.secciones!.como + LINEA_ADMIN).length).toBeLessThanOrEqual(LIMITES.como);
+    });
   });
 });

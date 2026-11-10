@@ -67,6 +67,9 @@ export function screenFromPath(pathname: string): Screen {
 interface Nav {
   screen: Screen;
   go: (s: Screen) => void;
+  /** Por qué ahora no se puede cambiar de sesión ni salir del quirófano sin pasar por el
+      aviso de cambios sin guardar (el mismo motivo que deshabilita «Prueba rápida» en la paleta). */
+  bloqueoPipeline?: string;
 }
 
 const NavContext = createContext<Nav>({ screen: "login", go: () => {} });

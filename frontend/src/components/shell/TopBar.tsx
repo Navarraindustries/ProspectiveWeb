@@ -49,7 +49,8 @@ export interface AccionBarra {
   /** `onClick` abre una hoja o un diálogo que toma el foco: desde el menú «⋯» no se devuelve al botón. */
   abreDialogo?: boolean;
   /** Objetivo del recorrido del onboarding: las acciones seguidas con el mismo valor
-      van juntas en una caja `data-tour` (en móvil no: allí el objetivo es el «⋯»). */
+      van juntas en una caja `data-tour`. En móvil solo se pintan las principales (el resto
+      va al «⋯»), así que la caja lleva solo esas; el recorrido la junta con el «⋯». */
   tour?: string;
 }
 
@@ -189,12 +190,13 @@ export function TopBar({ crumbs, subtitle, status, acciones, extra, onAbrirSecci
           ));
           const tour = grupo[0].tour;
           return tour
-            ? <span key={`tour-${grupo[0].id}`} className="shell-grupo" data-tour={movil ? undefined : tour}>{botones}</span>
+            ? <span key={`tour-${grupo[0].id}`} className="shell-grupo" data-tour={tour}>{botones}</span>
             : botones[0];
         })}
         {movil && <span className="shell-grupo" data-tour="acciones-mas"><MenuMas items={itemsMenu} tactil /></span>}
-        {/* ⌘K, tema y menú de usuario: una caja para el foco del recorrido (parada «Atajos»). */}
-        <span className="shell-grupo" data-tour={movil ? undefined : "atajos"}>
+        {/* ⌘K, tema y menú de usuario: una caja para el foco del recorrido (parada «Atajos»).
+            En móvil solo queda el avatar: el recorrido lo junta con el «⋯», donde va la paleta. */}
+        <span className="shell-grupo" data-tour={movil ? "usuario" : "atajos"}>
           {!movil && (
             <button
               type="button"

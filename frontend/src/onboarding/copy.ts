@@ -72,6 +72,23 @@ export const PARADAS_PACIENTES: Record<ParadaPacientes, Explicacion> = {
   },
 };
 
+/** Variantes para el móvil: allí no hay teclado ni ⌘K, «Nuevo paciente» es el «+» de la barra
+    y «Nuevo caso» y la paleta viven en el «⋯». */
+export const PARADAS_PACIENTES_MOVIL: Partial<Record<ParadaPacientes, Explicacion>> = {
+  secciones: {
+    ...PARADAS_PACIENTES.secciones,
+    como: "Abre «☰» arriba a la izquierda y toca una sección para ir a ella.",
+  },
+  crear: {
+    ...PARADAS_PACIENTES.crear,
+    como: "«+» (Nuevo paciente) crea su ficha; en «⋯», «Nuevo caso» le cuelga un caso.",
+  },
+  atajos: {
+    ...PARADAS_PACIENTES.atajos,
+    como: "En «⋯» tienes la paleta de mandos; en tu avatar, tu menú: avatar, contraseña y este recorrido.",
+  },
+};
+
 /** En el orden de la ilustración: visor, pasos, panel, dónde estás, guardar. */
 export const ZONAS_QUIROFANO: Explicacion[] = [
   {

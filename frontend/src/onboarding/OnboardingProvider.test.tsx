@@ -85,6 +85,28 @@ describe("OnboardingProvider", () => {
     expect(saveOnboarding.mock.calls.at(-1)![0].pistas_vistas).toEqual([1, 2, 3]);
   });
 
+  it("marcarPista de una pista ya vista no envía nada al servidor", async () => {
+    onboarding = base("completado", { pistas_vistas: [2, 5] });
+    montar();
+    await act(async () => { await ctx.marcarPista(5); await ctx.marcarPista(2); });
+    expect(saveOnboarding).not.toHaveBeenCalled();
+    await act(async () => { await ctx.marcarPista(3); });
+    expect(saveOnboarding).toHaveBeenCalledTimes(1);
+    expect(saveOnboarding.mock.calls[0][0].pistas_vistas).toEqual([2, 3, 5]);
+  });
+
+  it("si guardar falla, avisa por consola y el flujo sigue", async () => {
+    onboarding = base("completado");
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    saveOnboarding.mockRejectedValueOnce(new Error("sin red"));
+    montar();
+    await act(async () => { await ctx.setPistasActivas(false); });
+    expect(aviso).toHaveBeenCalledTimes(1);
+    expect(String(aviso.mock.calls[0][0])).toMatch(/recorrido/);
+    expect(ctx.estado.pistas_activas).toBe(false);
+    aviso.mockRestore();
+  });
+
   it("reiniciarPistas, setPistasActivas, cerrarTarjeta y descartarInvitacion", async () => {
     onboarding = base("invitado", { pistas_vistas: [1, 2] });
     montar();

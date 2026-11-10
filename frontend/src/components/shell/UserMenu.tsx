@@ -10,7 +10,7 @@
    elemento; ↑/↓ recorren en círculo, Inicio/Fin van al primero y al último; Esc
    y Tab cierran y devuelven el foco al botón. */
 
-import { useEffect, useRef, useState, type KeyboardEvent as KeyboardEventReact } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent as KeyboardEventReact } from "react";
 import { glass } from "../../styles/glass";
 import { Icon } from "../Icon";
 import type { IconName } from "../Icon";
@@ -23,11 +23,23 @@ import { ROLE_LABEL, ROLE_PERMITE } from "../../lib/roles";
 import { useTableta } from "../../hooks/useEstrecho";
 import { useOnboarding } from "../../onboarding/OnboardingProvider";
 
-function MenuItem({ icon, label, danger, onClick }: { icon: IconName; label: string; danger?: boolean; onClick: () => void }) {
+/** `bloqueo`: el elemento sigue en el recorrido de flechas pero no hace nada, y dice por qué. */
+function MenuItem({ icon, label, danger, bloqueo, onClick }: {
+  icon: IconName; label: string; danger?: boolean; bloqueo?: string; onClick: () => void;
+}) {
+  const idPista = useId();
   return (
-    <button type="button" role="menuitem" className="shell-menu-item" data-danger={danger ? "true" : undefined} onClick={onClick}>
+    <button type="button" role="menuitem" className="shell-menu-item" data-danger={danger ? "true" : undefined}
+      aria-disabled={bloqueo ? true : undefined} aria-describedby={bloqueo ? idPista : undefined}
+      title={bloqueo} onClick={bloqueo ? undefined : onClick}
+      style={bloqueo ? { opacity: 0.6, cursor: "not-allowed", alignItems: "flex-start" } : undefined}>
       <Icon name={icon} size={15} />
-      <span>{label}</span>
+      {bloqueo ? (
+        <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <span>{label}</span>
+          <span id={idPista} style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{bloqueo}</span>
+        </span>
+      ) : <span>{label}</span>}
     </button>
   );
 }
@@ -126,7 +138,7 @@ export function UserMenu() {
       {open && (
         <div ref={menuRef} role="menu" aria-label="Cuenta" className="shell-user-menu fade-rise" style={MENU} onKeyDown={onMenuKey}>
           <div className="shell-user-head">
-            <UserAvatar user={user} self size={38} />
+            <UserAvatar user={user} self size={38} decorativo />
             <div className="shell-user-text">
               <div className="shell-user-name">{user.full_name || user.username}</div>
               <div className="shell-user-sub">{`@${user.username} · ${ROLE_LABEL[user.role] ?? user.role}`}</div>
@@ -136,7 +148,9 @@ export function UserMenu() {
           </div>
           <div className="shell-menu-sep" role="separator" />
           <MenuItem icon="USER" label="Tu avatar" onClick={() => { setOpen(false); setAvatarOpen(true); }} />
-          <MenuItem icon="INFO" label="Ver el recorrido de bienvenida" onClick={() => { setOpen(false); empezar(); }} />
+          {/* Con el análisis sin guardar, el recorrido navegaría a Pacientes y chocaría con el aviso de cambios. */}
+          <MenuItem icon="INFO" label="Ver el recorrido de bienvenida" bloqueo={nav.bloqueoPipeline}
+                    onClick={() => { setOpen(false); empezar(); }} />
           <MenuSwitch icon="INFO" label={`Pistas: ${pistasOn ? "activadas" : "desactivadas"}`} checked={pistasOn}
                       onClick={() => void setPistasActivas(!pistasOn)} />
           <MenuItem icon="INFO" label="Volver a ver todas las pistas" onClick={() => { setOpen(false); void reiniciarPistas(); }} />

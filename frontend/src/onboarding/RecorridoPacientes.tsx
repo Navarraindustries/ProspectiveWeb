@@ -10,7 +10,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../store/auth";
 import { SCREEN_PATH } from "../store/nav";
-import { PARADAS_PACIENTES } from "./copy";
+import { useMovil } from "../hooks/useEstrecho";
+import { PARADAS_PACIENTES, PARADAS_PACIENTES_MOVIL, type Explicacion } from "./copy";
 import { useOnboarding } from "./OnboardingProvider";
 import { Burbuja } from "./tour/Burbuja";
 import { Foco } from "./tour/Foco";
@@ -35,13 +36,18 @@ function EsquemaFicha() {
   );
 }
 
-function construirParadas(admin: boolean, conPestanas: boolean): Parada[] {
+const secciones = (base: Explicacion, admin: boolean): Explicacion =>
+  admin ? { ...base, como: base.como + LINEA_ADMIN } : base;
+
+function construirParadas(admin: boolean, conPestanas: boolean, movil = false): Parada[] {
   const P = PARADAS_PACIENTES;
+  const M = movil ? PARADAS_PACIENTES_MOVIL : {};
   const tarjeta = ["tarjeta-0", "tarjeta-ejemplo"];
   const todas: Parada[] = [
     { id: "secciones", objetivos: ["nav-secciones", "nav-hamburguesa"],
-      explicacion: admin ? { ...P.secciones, como: P.secciones.como + LINEA_ADMIN } : P.secciones },
-    { id: "crear", objetivos: ["acciones-crear", "acciones-mas"], explicacion: P.crear },
+      explicacion: secciones(M.secciones ?? P.secciones, admin) },
+    // En el móvil «Nuevo paciente» es el «+» y «Nuevo caso» está en el «⋯»: se resaltan los dos juntos.
+    { id: "crear", objetivos: ["acciones-crear+acciones-mas", "acciones-crear", "acciones-mas"], explicacion: M.crear ?? P.crear },
     { id: "prueba", objetivos: ["accion-prueba", "acciones-mas"], explicacion: P.prueba },
     { id: "avisos", objetivos: ["avisos"], explicacion: P.avisos, opcional: true },
     { id: "buscar", objetivos: ["buscar"],
@@ -49,7 +55,8 @@ function construirParadas(admin: boolean, conPestanas: boolean): Parada[] {
     { id: "tarjeta", objetivos: tarjeta, explicacion: P.tarjeta },
     { id: "ficha", objetivos: tarjeta, explicacion: P.ficha, extra: <EsquemaFicha /> },
     { id: "hoy", objetivos: ["hoy"], explicacion: P.hoy, opcional: true },
-    { id: "atajos", objetivos: ["atajos", "acciones-mas"], explicacion: P.atajos },
+    // En el móvil no hay ⌘K: la paleta está en el «⋯» y el menú, en el avatar.
+    { id: "atajos", objetivos: ["atajos", "acciones-mas+usuario", "acciones-mas"], explicacion: M.atajos ?? P.atajos },
   ];
   // Lo opcional que no está ahora no cuenta en «Parada N de M».
   return todas.filter((p) => !p.opcional || resolverObjetivo(p.objetivos) !== null);
@@ -68,6 +75,7 @@ export function RecorridoPacientes({ onFin }: { onFin: () => void }) {
   const { terminar } = useOnboarding();
   const { user } = useAuth();
   const admin = user?.role === "admin";
+  const movil = useMovil();
   const enPacientes = esPacientes(pathname);
   const [paradas, setParadas] = useState<Parada[] | null>(null);
   const [acabado, setAcabado] = useState(false);
@@ -97,10 +105,10 @@ export function RecorridoPacientes({ onFin }: { onFin: () => void }) {
       if (!paginaLista() && Date.now() - inicio < ESPERA_MAX_MS) return;
       window.clearInterval(id);
       const conPestanas = !!document.querySelector('[data-tour="buscar"] [role="tablist"]');
-      setParadas(construirParadas(admin, conPestanas));
+      setParadas(construirParadas(admin, conPestanas, movil));
     }, SONDEO_MS);
     return () => window.clearInterval(id);
-  }, [paradas, acabado, enPacientes, admin]);
+  }, [paradas, acabado, enPacientes, admin, movil]);
 
   // Ya en marcha, cualquier salida de Pacientes cierra el onboarding.
   useEffect(() => {

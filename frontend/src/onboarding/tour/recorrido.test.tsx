@@ -1,6 +1,6 @@
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resolverObjetivo } from "./resolverObjetivo";
+import { rectQueAbarca, resolverObjetivo, resolverObjetivos } from "./resolverObjetivo";
 import { useRecorrido, type Parada } from "./useRecorrido";
 import { Burbuja, posicion } from "./Burbuja";
 import { Foco } from "./Foco";
@@ -40,6 +40,16 @@ describe("resolverObjetivo", () => {
     expect(resolverObjetivo(["x", "y"])).toBe(y);
     expect(resolverObjetivo(["x", "z"])).toBeNull();
   });
+  it("«a+b» resalta los dos si se ven los dos; si falta uno, pasa a la siguiente alternativa", () => {
+    const a = poner("a", rectDe(10, 40));
+    const b = poner("b", rectDe(60, 30));
+    expect(resolverObjetivos(["a+b", "a"])).toEqual([a, b]);
+    expect(resolverObjetivo(["a+b"])).toBe(a);
+    expect(resolverObjetivos(["a+falta", "b"])).toEqual([b]);
+    expect(resolverObjetivos(["a+falta"])).toEqual([]);
+    expect(rectQueAbarca([a, b])).toMatchObject({ left: 10, right: 90, width: 80, top: 10, bottom: 50, height: 40 });
+    expect(rectQueAbarca([])).toBeNull();
+  });
   it("descarta display:none y visibility:hidden", () => {
     poner("x", rectDe(5), "display:none");
     poner("w", rectDe(5), "visibility:hidden");
@@ -56,6 +66,13 @@ describe("useRecorrido", () => {
     expect(result.current.parada.id).toBe("c");
     act(() => result.current.anterior());
     expect(result.current.parada.id).toBe("a");
+  });
+  it("una parada con «a+b» da un rect que abarca los dos", () => {
+    const a = poner("a", rectDe(10, 40));
+    poner("b", rectDe(60, 30));
+    const { result } = renderHook(() => useRecorrido([{ id: "x", objetivos: ["a+b"], explicacion: expl("X") }], { onTerminar: vi.fn() }));
+    expect(result.current.objetivo).toBe(a);
+    expect(result.current.rect).toMatchObject({ left: 10, width: 80, top: 10, height: 40 });
   });
   it("una parada no opcional sin objetivo se queda (objetivo null)", () => {
     poner("a", rectDe(1));

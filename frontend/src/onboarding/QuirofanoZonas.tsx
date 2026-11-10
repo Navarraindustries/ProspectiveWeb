@@ -40,6 +40,28 @@ const rangoPasos = (t: TramoFlujo) => {
 const ANCLA: ReadonlyArray<readonly [number, number]> = [[0.72, 0.5], [1, 0], [0, 0.5], [0, 0], [1, 0]];
 const PIN = 44;
 
+/** Margen que se deja libre por arriba y sobre la hoja inferior al traer una zona a la vista. */
+const MARGEN_VISTA = 12;
+
+/** Cuánto desplazar (px, positivo = bajar) para que `rect` quede entre el borde superior y
+    `limiteAbajo` (el borde de la hoja inferior). Si no cabe entera, se alinea por arriba. */
+export function desplazamientoParaVer(rect: { top: number; bottom: number }, limiteAbajo: number, margen = MARGEN_VISTA): number {
+  const tope = limiteAbajo - margen;
+  if (rect.bottom - rect.top > tope - margen) return rect.top - margen;
+  if (rect.bottom > tope) return rect.bottom - tope;
+  if (rect.top < margen) return rect.top - margen;
+  return 0;
+}
+
+/** El antepasado que desplaza (la capa de bienvenida); si no hay, el documento. */
+function contenedorConScroll(el: HTMLElement): HTMLElement {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const oy = getComputedStyle(p).overflowY;
+    if (oy === "auto" || oy === "scroll") return p;
+  }
+  return (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
+}
+
 const CANDIDATOS = [
   ["Candidato 1", "saco 5 mm"], ["Candidato 2", "saco 3 mm"], ["Candidato 3", "bifurcación"],
   ["Candidato 4", "saco 2 mm"], ["Candidato 5", "curvatura"],
@@ -85,10 +107,11 @@ function Dock() {
   );
 }
 
-function Ilustracion({ refs, movil }: { refs: MutableRefObject<(HTMLElement | null)[]>; movil: boolean }) {
+function Ilustracion({ refs, movil, altoHoja = 0 }: { refs: MutableRefObject<(HTMLElement | null)[]>; movil: boolean; altoHoja?: number }) {
   const ref = (i: number) => (el: HTMLElement | null) => { refs.current[i] = el; };
   return (
-    <div className="qz" data-movil={movil || undefined} role="group" aria-label="Maqueta del quirófano">
+    <div className="qz" data-movil={movil || undefined} role="group" aria-label="Maqueta del quirófano"
+      style={movil && altoHoja > 0 ? ({ "--qz-hoja": `${altoHoja}px` } as CSSProperties) : undefined}>
       <div className="qz__visor" ref={ref(0)}>
         <Vasos />
         <div className="qz__arriba" aria-hidden="true">
@@ -167,8 +190,26 @@ export function QuirofanoZonas({ onFin, onAtras }: { onFin: () => void; onAtras?
     refs.current.forEach((el) => el && ro?.observe(el));
     return () => { window.removeEventListener("resize", medir); window.removeEventListener("scroll", medir, true); ro?.disconnect(); };
   }, [medir]);
-  // En móvil la zona puede quedar fuera de pantalla: se trae a la vista.
-  useEffect(() => { if (movil) refs.current[zona]?.scrollIntoView?.({ block: "nearest" }); }, [zona, movil]);
+  // En móvil la burbuja es una hoja inferior que tapa el final de la pantalla: la zona
+  // activa se trae a la vista POR ENCIMA de la hoja (no basta «nearest»: el panel del
+  // paso quedaba debajo). La maqueta deja abajo tanto hueco como mide la hoja.
+  const [altoHoja, setAltoHoja] = useState(0);
+  useEffect(() => {
+    if (!movil) return;
+    const el = refs.current[zona];
+    if (!el) return;
+    const hoja = Math.round(document.querySelector<HTMLElement>(".tour-burbuja")?.getBoundingClientRect().height ?? 0);
+    setAltoHoja(hoja);
+    // También ya, en el DOM: si esta hoja es más alta que la anterior, el hueco de abajo
+    // tiene que existir antes de desplazar o el desplazamiento se quedaría corto.
+    if (hoja > 0) el.closest<HTMLElement>(".qz")?.style.setProperty("--qz-hoja", `${hoja}px`);
+    const delta = desplazamientoParaVer(el.getBoundingClientRect(), window.innerHeight - hoja);
+    if (!delta) return;
+    const caja = contenedorConScroll(el);
+    const suave = !(typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    if (typeof caja.scrollBy === "function") caja.scrollBy({ top: delta, behavior: suave ? "smooth" : "auto" });
+    else caja.scrollTop += delta;
+  }, [zona, movil]);
 
   const acabar = useCallback(() => {
     if (hecho.current) return;
@@ -197,7 +238,7 @@ export function QuirofanoZonas({ onFin, onAtras }: { onFin: () => void; onAtras?
   const rect = rects[zona] ?? null;
   return (
     <>
-      <Ilustracion refs={refs} movil={movil} />
+      <Ilustracion refs={refs} movil={movil} altoHoja={altoHoja} />
       {createPortal(
         <>
           <Foco rect={rect} />

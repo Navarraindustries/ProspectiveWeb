@@ -6,18 +6,24 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AVISO_PISTAS, ZONAS_QUIROFANO } from "./copy";
 
+let movil = false;
+vi.mock("../hooks/useEstrecho", async (orig) => ({
+  ...(await orig<typeof import("../hooks/useEstrecho")>()),
+  useMovil: () => movil,
+}));
+
 const terminar = vi.fn().mockResolvedValue(undefined);
 vi.mock("./OnboardingProvider", () => ({
   useOnboarding: () => ({ activo: true, momento: "quirofano", ir: vi.fn(), terminar }),
 }));
 
-import { QuirofanoZonas } from "./QuirofanoZonas";
+import { QuirofanoZonas, desplazamientoParaVer } from "./QuirofanoZonas";
 
 const onFin = vi.fn();
 const zona = (n: number) => screen.getByRole("button", { name: new RegExp(`^Zona ${n}: `) });
 const dialogo = (titulo: string) => screen.getByRole("dialog", { name: titulo });
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => { vi.clearAllMocks(); movil = false; });
 
 describe("QuirofanoZonas", () => {
   it("empieza en el visor y pulsar el 4 muestra «Dónde estás»", () => {
@@ -128,5 +134,43 @@ describe("QuirofanoZonas", () => {
   it("la maqueta se marca como «Ejemplo»", () => {
     const { container } = render(<QuirofanoZonas onFin={onFin} />);
     expect(container.querySelector(".qz__ejemplo")?.textContent).toBe("Ejemplo");
+  });
+
+  describe("en el móvil (hoja inferior)", () => {
+    const caja = (top: number, bottom: number) =>
+      ({ x: 0, y: top, left: 0, top, right: 390, bottom, width: 390, height: bottom - top, toJSON() {} }) as DOMRect;
+
+    it("desplazamientoParaVer deja la zona entre el borde de arriba y la hoja", () => {
+      expect(desplazamientoParaVer({ top: 100, bottom: 200 }, 500)).toBe(0);
+      expect(desplazamientoParaVer({ top: 600, bottom: 800 }, 500)).toBe(800 - 488);
+      expect(desplazamientoParaVer({ top: -300, bottom: -100 }, 500)).toBe(-312);
+      // Más alta que el hueco libre: se alinea por arriba.
+      expect(desplazamientoParaVer({ top: 50, bottom: 1000 }, 500)).toBe(38);
+    });
+
+    it("cada zona activa sube por encima de la hoja; la maqueta deja abajo el alto de la hoja", () => {
+      movil = true;
+      const H = window.innerHeight, HOJA = 300;
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        if (this.classList.contains("tour-burbuja")) return caja(H - HOJA, H);
+        if (this.classList.contains("qz-panel")) return caja(H - 100, H + 200); // bajo la hoja
+        if (this.classList.contains("qz-pastilla--donde")) return caja(-80, -40); // por encima de la pantalla
+        return caja(100, 200);
+      });
+      const scrollBy = vi.fn();
+      const { container } = render(<div style={{ overflowY: "auto" }}><QuirofanoZonas onFin={onFin} /></div>);
+      const scroller = container.firstElementChild as HTMLElement;
+      scroller.scrollBy = scrollBy as unknown as HTMLElement["scrollBy"];
+      fireEvent.click(zona(3));
+      const tope = H - HOJA - 12;
+      expect(scrollBy).toHaveBeenLastCalledWith({ top: H + 200 - tope, behavior: "smooth" });
+      fireEvent.click(zona(4));
+      expect(scrollBy).toHaveBeenLastCalledWith({ top: -80 - 12, behavior: "smooth" });
+      scrollBy.mockClear();
+      fireEvent.click(zona(1)); // ya a la vista: no se mueve
+      expect(scrollBy).not.toHaveBeenCalled();
+      expect((container.querySelector(".qz") as HTMLElement).style.getPropertyValue("--qz-hoja")).toBe(`${HOJA}px`);
+      vi.restoreAllMocks();
+    });
   });
 });

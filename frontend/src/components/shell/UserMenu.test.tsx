@@ -9,7 +9,8 @@ const logout = vi.fn();
 const go = vi.fn();
 let user: Record<string, unknown>;
 vi.mock("../../store/auth", () => ({ useAuth: () => ({ user, logout }) }));
-vi.mock("../../store/nav", async (orig) => ({ ...(await orig<object>()), useNav: () => ({ screen: "patients", go }) }));
+let bloqueoPipeline: string | undefined;
+vi.mock("../../store/nav", async (orig) => ({ ...(await orig<object>()), useNav: () => ({ screen: "patients", go, bloqueoPipeline }) }));
 vi.mock("../../api/client", () => ({ api: { myProfilePhotoObjectUrl: vi.fn() } }));
 vi.mock("../ChangePasswordSheet", () => ({
   ChangePasswordSheet: ({ open }: { open: boolean }) => (open ? <div>hoja de contraseña</div> : null),
@@ -33,6 +34,7 @@ beforeEach(() => {
   user = { ...base, role: "admin", institution: "Hospital Universitario" };
   logout.mockReset();
   go.mockReset();
+  bloqueoPipeline = undefined;
   onb.estado = { pistas_activas: true };
   onb.empezar.mockReset(); onb.setPistasActivas.mockReset(); onb.reiniciarPistas.mockReset();
 });
@@ -88,6 +90,26 @@ describe("UserMenu", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Ver el recorrido de bienvenida" }));
     expect(onb.empezar).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("con el análisis sin guardar, «Ver el recorrido de bienvenida» está deshabilitado y dice por qué", () => {
+    bloqueoPipeline = "Guarda o descarta los cambios del análisis antes";
+    abrir();
+    const item = screen.getByRole("menuitem", { name: /Ver el recorrido de bienvenida/ });
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    expect(item).toHaveAccessibleDescription("Guarda o descarta los cambios del análisis antes");
+    expect(screen.getByText("Guarda o descarta los cambios del análisis antes")).toBeInTheDocument();
+    fireEvent.click(item);
+    expect(onb.empezar).not.toHaveBeenCalled();
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
+  it("la cabecera del menú no repite el nombre a los lectores: su avatar es decorativo", () => {
+    abrir();
+    const cabeza = document.querySelector(".shell-user-head .shell-avatar")!;
+    expect(cabeza.getAttribute("aria-hidden")).toBe("true");
+    // El botón del avatar, solo, sí se nombra (por su etiqueta propia).
+    expect(screen.getByRole("button", { name: "Menú de usuario" })).toBeInTheDocument();
   });
 
   it("«Pistas» es un interruptor que refleja y cambia el estado", () => {

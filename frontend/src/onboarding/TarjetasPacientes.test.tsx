@@ -58,10 +58,20 @@ describe("TarjetasPacientes", () => {
     expect(screen.getByText("Crear tu primer paciente")).toBeInTheDocument();
   });
 
-  it("pendiente no muestra nada y la tarjeta cerrada de antes tampoco", () => {
+  it("saltado con la tarjeta ya cerrada no muestra nada", () => {
     onboarding = base("saltado", { tarjeta_cerrada: true });
     const { container } = montar();
     expect(container.textContent).toBe("");
+  });
+
+  it("pendiente no muestra nada: el recorrido arranca solo y las tarjetas se apartan", async () => {
+    onboarding = base("pendiente");
+    const { container } = montar();
+    expect(container.textContent).toBe("");
+    // Arrancar guarda «saltado» (por si se cierra la pestaña a medias); ni así sale tarjeta alguna mientras dura.
+    await waitFor(() => expect(saveOnboarding).toHaveBeenCalled());
+    expect(screen.queryByText("Hay un recorrido nuevo de 4 minutos")).toBeNull();
+    expect(screen.queryByText("Primeros pasos sugeridos")).toBeNull();
   });
 
   it("al cerrarla desaparece y no vuelve tras refrescar el usuario", async () => {

@@ -343,6 +343,7 @@ function Router() {
       // F1-94: la entrada del menú abre la lista entera; el filtro por paciente
       // solo lo fija «Pedidos» de la ficha, que no pasa por aquí.
       go: (s) => { if (s === "orders") setOrdersPatient(null); setScreen(s); },
+      bloqueoPipeline,
     }}>
     <div style={{ height: "100%", position: "relative" }}>
       {/* Mientras dura la carga la oficina espera oculta bajo ella; al acabar entra

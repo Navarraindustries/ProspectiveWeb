@@ -21,9 +21,14 @@ vi.mock("./store/planning", () => ({
   usePlanning: () => planning,
 }));
 vi.mock("./resume", () => ({ rehydrateSession: vi.fn() }));
-vi.mock("./pages/Workspace", () => ({
-  Workspace: ({ aviso }: { aviso?: { texto: string } | null }) => <><p>pipeline</p><p data-testid="aviso-pipeline">{aviso?.texto ?? ""}</p></>,
-}));
+vi.mock("./pages/Workspace", async () => {
+  const { useNav } = await import("./store/nav");
+  // Lo que ve el menú de usuario del quirófano (QuirofanoBar → UserMenu) por useNav().
+  const Bloqueo = () => <p data-testid="nav-bloqueo">{useNav().bloqueoPipeline ?? ""}</p>;
+  return {
+    Workspace: ({ aviso }: { aviso?: { texto: string } | null }) => <><p>pipeline</p><p data-testid="aviso-pipeline">{aviso?.texto ?? ""}</p><Bloqueo /></>,
+  };
+});
 vi.mock("./pages/Patients", () => ({ Patients: () => <p>pacientes</p> }));
 vi.mock("./pages/Studies", () => ({ Studies: () => null }));
 vi.mock("./pages/ClipOrders", () => ({ ClipOrdersPage: () => null }));
@@ -63,11 +68,14 @@ describe("App · paleta en el pipeline", () => {
     expect(pruebaRapida()?.disabled).toBe(true);
     expect(pruebaRapida()?.hint).toBe(BLOQUEO);
     expect(paletteProps.reanudarBloqueado).toBe(BLOQUEO);
+    // La misma señal llega por useNav: el menú de usuario deshabilita «Ver el recorrido de bienvenida».
+    expect(screen.getByTestId("nav-bloqueo").textContent).toBe(BLOQUEO);
   });
 
   it("sin cambios pendientes los dos siguen disponibles", async () => {
     montar("/app/sesion");
     expect(await screen.findByText("pipeline")).toBeTruthy();
+    expect(screen.getByTestId("nav-bloqueo").textContent).toBe("");
     expect(pruebaRapida()?.disabled).toBeFalsy();
     expect(paletteProps.reanudarBloqueado).toBeUndefined();
   });

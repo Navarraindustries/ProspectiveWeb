@@ -12,6 +12,7 @@ import { DesdeMiFoto, type ResultadoFoto } from "./DesdeMiFoto";
 import { AvatarSvg } from "./AvatarSvg";
 import { UserAvatar } from "./UserAvatar";
 import { useGuardarAvatar } from "./useGuardarAvatar";
+import "./avatar.css";
 import { configPorDefecto, type AvatarConfig } from "./config";
 
 type Modo = "avatar" | "foto";
@@ -102,17 +103,25 @@ export function AvatarSheet({ open, onClose }: {
             style={pildora(modo === "foto", !tieneFoto && !pendiente)}>Mi foto</button>
         </div>
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button variant="outline" size="sm" leadingIcon={<Icon name="USER" size={14} />}
-            onClick={() => setDesdeFoto(true)}>
-            Desde mi foto
-          </Button>
-          {tieneFoto && (
-            <Button variant="destructive-ghost" size="sm" disabled={busy} onClick={() => void quitarFoto()}>
+        <button type="button" className="av-desde-foto" aria-label="Desde mi foto"
+          aria-describedby="av-desde-foto-sub" onClick={() => setDesdeFoto(true)}>
+          <span className="av-desde-foto__icono" aria-hidden="true"><Icon name="CAMERA" size={18} /></span>
+          <span className="av-desde-foto__texto">
+            <span className="av-desde-foto__titulo">Desde mi foto</span>
+            <span className="av-desde-foto__sub" id="av-desde-foto-sub">
+              Rellena piel y pelo a partir de tu foto. Se lee en tu equipo.
+            </span>
+          </span>
+          <Icon name="CHEVRON_RIGHT" size={16} />
+        </button>
+        {tieneFoto && (
+          <div>
+            <Button variant="destructive-ghost" disabled={busy} leadingIcon={<Icon name="DELETE" size={14} />}
+              onClick={() => void quitarFoto()}>
               Quitar mi foto
             </Button>
-          )}
-        </div>
+          </div>
+        )}
 
         <AvatarCreator value={config} onChange={setConfig} />
       </div>

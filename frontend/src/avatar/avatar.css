@@ -1,0 +1,290 @@
+/* Avatar: «Desde mi foto» y botones del creador. Solo tokens del sistema. */
+
+/* Pasos del flujo «Desde mi foto» */
+.dmf-pasos {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.dmf-paso {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+}
+.dmf-paso__n {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--btn-outline-bg);
+}
+.dmf-paso[data-estado="actual"] {
+  color: var(--foreground);
+  border-color: var(--primary);
+}
+.dmf-paso[data-estado="actual"] .dmf-paso__n {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.dmf-paso[data-estado="hecho"] .dmf-paso__n {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+/* Zona para elegir o soltar la foto */
+.dmf-zona {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 200px;
+  padding: 24px 20px;
+  border-radius: var(--radius-xl, 16px);
+  border: 1.5px dashed var(--btn-outline-border);
+  background: var(--btn-outline-bg);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.dmf-zona:hover,
+.dmf-zona[data-arrastrando="true"] {
+  border-color: var(--primary);
+  background: var(--glass-hover);
+}
+.dmf-zona:focus-within {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.dmf-zona__icono {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.dmf-zona__titulo {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.dmf-zona__sub {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+/* El input queda accesible por teclado pero invisible: lo dibuja la zona. */
+.dmf-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.dmf-aviso {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+}
+.dmf-aviso svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--success);
+}
+
+.dmf-instruccion {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+}
+
+.dmf-zoom {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.dmf-zoom input[type="range"] {
+  flex: 1;
+  accent-color: var(--primary);
+}
+.dmf-zoom__valor {
+  min-width: 40px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+
+/* Vista previa del avatar mientras se ajusta */
+.dmf-previa {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  border-radius: var(--radius-lg, 12px);
+  background: var(--glass-solid);
+  border: 1px solid var(--border);
+}
+.dmf-previa strong {
+  display: block;
+  font-size: 14px;
+  color: var(--foreground);
+}
+.dmf-previa span {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+/* Elección «¿Qué quieres que vean los demás?» */
+.dmf-opciones {
+  display: grid;
+  gap: 8px;
+}
+.dmf-opcion {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 10px 14px;
+  border-radius: var(--radius-lg, 12px);
+  border: 1px solid var(--border);
+  background: var(--btn-outline-bg);
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.dmf-opcion:hover {
+  background: var(--glass-hover);
+}
+.dmf-opcion[aria-pressed="true"] {
+  border-color: var(--primary);
+  background: var(--brand-subtle);
+}
+.dmf-opcion__miniatura {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.dmf-opcion__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.dmf-opcion__titulo {
+  font-size: 14px;
+  font-weight: 600;
+}
+.dmf-opcion__sub {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.dmf-opcion__marca {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--btn-outline-border);
+}
+.dmf-opcion[aria-pressed="true"] .dmf-opcion__marca {
+  border: 6px solid var(--primary);
+}
+
+/* Fila de acciones: a la derecha, sin ocupar todo el ancho */
+.dmf-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+/* Botón «Crear desde mi foto» de la hoja Tu avatar */
+.av-desde-foto {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 14px;
+  border-radius: var(--radius-lg, 12px);
+  border: 1px solid var(--border);
+  background: var(--btn-outline-bg);
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.av-desde-foto:hover {
+  background: var(--glass-hover);
+}
+.av-desde-foto:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.av-desde-foto__icono {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.av-desde-foto__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.av-desde-foto__titulo {
+  font-size: 14px;
+  font-weight: 600;
+}
+.av-desde-foto__sub {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dmf-zona {
+    transition: none;
+  }
+}

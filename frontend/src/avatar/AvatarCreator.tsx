@@ -81,10 +81,10 @@ export function AvatarCreator({ value, onChange, compacto = false }: {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", gap: 8 }}>
-        <Button variant="outline" size="sm" leadingIcon={<Icon name="REFRESH" size={14} />} onClick={() => cambiar(configAleatoria())}>
+        <Button variant="outline" leadingIcon={<Icon name="REFRESH" size={14} />} onClick={() => cambiar(configAleatoria())}>
           Aleatorio
         </Button>
-        <Button variant="outline" size="sm" leadingIcon={<Icon name="UNDO" size={14} />} disabled={!hayPila} onClick={deshacer}>
+        <Button variant="outline" leadingIcon={<Icon name="UNDO" size={14} />} disabled={!hayPila} onClick={deshacer}>
           Deshacer
         </Button>
       </div>
@@ -134,7 +134,9 @@ export function AvatarCreator({ value, onChange, compacto = false }: {
       )}
       {compacto && !masPiezas && (
         <div>
-          <Button variant="ghost" size="sm" onClick={() => setMasPiezas(true)}>Más piezas</Button>
+          <Button variant="outline" trailingIcon={<Icon name="CHEVRON_DOWN" size={14} />} onClick={() => setMasPiezas(true)}>
+            Más piezas
+          </Button>
         </div>
       )}
     </div>

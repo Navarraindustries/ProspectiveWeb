@@ -1,10 +1,13 @@
 /* «Desde mi foto»: la foto se decodifica y se lee en un canvas local. Solo sale
    del navegador si la persona elige «Mi foto», y entonces la sube quien llama. */
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button } from "../components/Button";
+import { Icon } from "../components/Icon";
 import { ErrorNote } from "../components/PanelHead";
 import { useAuth } from "../store/auth";
 import { AvatarCreator } from "./AvatarCreator";
+import { AvatarSvg } from "./AvatarSvg";
+import "./avatar.css";
 import { leerRasgos, decodificarLocal, recortarLocal, MAX_BYTES, type Guia } from "./desdeFoto";
 import type { AvatarConfig } from "./config";
 
@@ -37,7 +40,11 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
   const [config, setConfig] = useState<AvatarConfig | null>(null);
   const [eleccion, setEleccion] = useState<Eleccion>("avatar");
   const [busy, setBusy] = useState(false);
+  const [arrastrando, setArrastrando] = useState(false);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const miniatura = useRef<HTMLCanvasElement>(null);
+  const entrada = useRef<HTMLInputElement>(null);
+  const idEntrada = useId();
   const punteros = useRef(new Map<number, { x: number; y: number }>());
   const pinza = useRef<number | null>(null);
 
@@ -70,6 +77,21 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
     ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.ellipse(V / 2, V / 2, OVALO.rx, OVALO.ry, 0, 0, Math.PI * 2); ctx.stroke();
   }, [img, off, escala]);
+
+  // Miniatura de «Mi foto»: el óvalo encuadrado, dibujado en local.
+  useEffect(() => {
+    const c = miniatura.current;
+    if (!c || !img || !guia || !config) return;
+    let ctx: CanvasRenderingContext2D | null = null;
+    try { ctx = c.getContext("2d"); } catch { ctx = null; }
+    if (!ctx) return;
+    const tmp = document.createElement("canvas");
+    tmp.width = img.width; tmp.height = img.height;
+    tmp.getContext("2d")?.putImageData(img, 0, 0);
+    const lado = 2 * Math.max(guia.rx, guia.ry);
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.drawImage(tmp, guia.cx - lado / 2, guia.cy - lado / 2, lado, lado, 0, 0, c.width, c.height);
+  }, [img, guia, config]);
 
   const elegir = async (f: File | undefined) => {
     if (!f) return;
@@ -134,65 +156,128 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
     }
   };
 
+  const paso = !img ? 1 : !config ? 2 : 3;
+  const PASOS = ["Elige tu foto", "Encuadra tu cara", "Ajusta y elige"];
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <ol className="dmf-pasos" aria-label="Pasos" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+        {PASOS.map((t, i) => (
+          <li key={t} className="dmf-paso" aria-current={paso === i + 1 ? "step" : undefined}
+            data-estado={paso === i + 1 ? "actual" : paso > i + 1 ? "hecho" : "pendiente"}>
+            <span className="dmf-paso__n" aria-hidden="true">{i + 1}</span>{t}
+          </li>
+        ))}
+      </ol>
+
       {/* Sin `capture`: en el móvil abriría directamente la cámara frontal, sin galería;
-          accept="image/*" ya ofrece las dos cosas. */}
-      <input type="file" accept="image/*"
-        aria-label="Elegir una foto" onChange={(e) => void elegir(e.target.files?.[0])}
-        style={{ minHeight: 44, fontSize: 13, color: "var(--foreground)" }} />
+          accept="image/*" ya ofrece las dos cosas. El input es invisible: lo dibuja la zona. */}
+      <input ref={entrada} id={idEntrada} className="dmf-oculto" type="file" accept="image/*"
+        aria-label="Elegir una foto"
+        onChange={(e) => { void elegir(e.target.files?.[0]); e.target.value = ""; }} />
+
+      {!img && (
+        <label htmlFor={idEntrada} className="dmf-zona" data-arrastrando={arrastrando}
+          onDragOver={(e) => { e.preventDefault(); setArrastrando(true); }}
+          onDragLeave={() => setArrastrando(false)}
+          onDrop={(e) => { e.preventDefault(); setArrastrando(false); void elegir(e.dataTransfer.files?.[0]); }}>
+          <span className="dmf-zona__icono" aria-hidden="true"><Icon name="UPLOAD" size={22} /></span>
+          <span className="dmf-zona__titulo">Elige una foto</span>
+          <span className="dmf-zona__sub">o arrástrala aquí · JPG o PNG, hasta 6 MB</span>
+        </label>
+      )}
+      {!img && (
+        <p className="dmf-aviso">
+          <Icon name="LOCK" size={14} />
+          <span>La foto se lee aquí, en tu equipo. No se sube nada salvo que al final elijas «Mi foto».</span>
+        </p>
+      )}
       {error && <ErrorNote>{error}</ErrorNote>}
 
       {img && !config && (
         <>
+          <p className="dmf-instruccion">Arrastra la foto para centrar tu cara en el óvalo y acerca con el zoom.</p>
           <div style={{ display: "flex", justifyContent: "center" }}>
             <canvas ref={canvas} width={V} height={V} aria-label="Encaja tu cara en el óvalo"
               onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
               onWheel={(e) => setZoom((z) => Math.max(1, Math.min(4, z * (e.deltaY < 0 ? 1.08 : 1 / 1.08))))}
-              style={{ width: V, maxWidth: "100%", touchAction: "none", borderRadius: 12, cursor: "grab",
-                background: "var(--muted)" }} />
+              style={{ width: V, maxWidth: "100%", touchAction: "none", borderRadius: 16, cursor: "grab",
+                background: "var(--muted)", border: "1px solid var(--border)" }} />
           </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "var(--muted-foreground)" }}>
+          <label className="dmf-zoom">
             Zoom
             <input type="range" min={1} max={4} step={0.05} value={zoom} aria-label="Zoom"
-              onChange={(e) => setZoom(Number(e.target.value))} style={{ flex: 1, minHeight: 44 }} />
+              onChange={(e) => setZoom(Number(e.target.value))} />
+            <span className="dmf-zoom__valor" aria-hidden="true">{zoom.toFixed(1).replace(".", ",")}×</span>
           </label>
-          <Button onClick={leer}>Leer colores</Button>
         </>
       )}
 
-      {config && (
+      {config && img && guia && (
         <>
+          <div className="dmf-previa">
+            <AvatarSvg config={config} size={72} title="Vista previa de tu avatar" />
+            <div>
+              <strong>Así quedarías</strong>
+              <span>Hemos tomado el tono de piel y el color de pelo de tu foto. Cambia lo que quieras.</span>
+            </div>
+          </div>
           <AvatarCreator value={config} onChange={setConfig} compacto />
-          <div role="group" aria-labelledby="dmf-q" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div role="group" aria-labelledby="dmf-q" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <strong id="dmf-q" style={{ fontSize: 14 }}>¿Qué quieres que vean los demás?</strong>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button type="button" aria-pressed={eleccion === "avatar"} onClick={() => setEleccion("avatar")}
-                style={pildora(eleccion === "avatar")}>Mi avatar</button>
-              <button type="button" aria-pressed={eleccion === "foto"} onClick={() => setEleccion("foto")}
-                style={pildora(eleccion === "foto")}>Mi foto</button>
+            <div className="dmf-opciones">
+              <Opcion titulo="Mi avatar" sub="Se guarda solo el dibujo. Tu foto se descarta."
+                activa={eleccion === "avatar"} onClick={() => setEleccion("avatar")}
+                miniatura={<AvatarSvg config={config} size={44} />} />
+              <Opcion titulo="Mi foto" sub="Se sube tu foto recortada a Prospective al guardar."
+                activa={eleccion === "foto"} onClick={() => setEleccion("foto")}
+                miniatura={<canvas ref={miniatura} width={88} height={88} style={{ width: 44, height: 44 }} />} />
               {user?.has_photo && (
-                <button type="button" aria-pressed={eleccion === "registro"} onClick={() => setEleccion("registro")}
-                  style={pildora(eleccion === "registro")}>Usar la foto de mi registro</button>
+                <Opcion titulo="Usar la foto de mi registro" sub="Se copia la foto que enviaste al pedir la cuenta."
+                  activa={eleccion === "registro"} onClick={() => setEleccion("registro")}
+                  miniatura={<Icon name="USER" size={20} />} />
               )}
             </div>
-            <p style={{ margin: 0, fontSize: 12, color: "var(--muted-foreground)" }}>
-              Tu foto nunca se envía a servicios externos.
+            <p className="dmf-aviso">
+              <Icon name="LOCK" size={14} />
+              <span>Tu foto nunca se envía a servicios externos.</span>
             </p>
           </div>
-          <Button onClick={() => void terminar()} disabled={busy}>Listo</Button>
         </>
       )}
 
-      <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+      <div className="dmf-acciones">
+        {img && (
+          <Button variant="ghost" leadingIcon={<Icon name="UPLOAD" size={14} />} onClick={() => entrada.current?.click()}
+            style={{ marginRight: "auto" }}>
+            Cambiar foto
+          </Button>
+        )}
+        <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+        {img && !config && (
+          <Button onClick={leer} leadingIcon={<Icon name="SPARKLE" size={14} />}>Leer colores</Button>
+        )}
+        {config && (
+          <Button onClick={() => void terminar()} disabled={busy}>Listo</Button>
+        )}
+      </div>
     </div>
   );
 }
 
-function pildora(activa: boolean): CSSProperties {
-  return {
-    minHeight: 44, padding: "0 14px", borderRadius: 999, fontSize: 13, color: "var(--foreground)", cursor: "pointer",
-    border: `1px solid ${activa ? "var(--primary)" : "var(--border)"}`,
-    background: activa ? "color-mix(in srgb, var(--primary) 18%, transparent)" : "var(--btn-outline-bg)",
-  };
+function Opcion({ titulo, sub, activa, onClick, miniatura }: {
+  titulo: string; sub: string; activa: boolean; onClick: () => void; miniatura: ReactNode;
+}) {
+  const id = useId();
+  return (
+    <button type="button" className="dmf-opcion" aria-pressed={activa} aria-label={titulo}
+      aria-describedby={id} onClick={onClick}>
+      <span className="dmf-opcion__miniatura" aria-hidden="true">{miniatura}</span>
+      <span className="dmf-opcion__texto">
+        <span className="dmf-opcion__titulo">{titulo}</span>
+        <span className="dmf-opcion__sub" id={id}>{sub}</span>
+      </span>
+      <span className="dmf-opcion__marca" aria-hidden="true" />
+    </button>
+  );
 }

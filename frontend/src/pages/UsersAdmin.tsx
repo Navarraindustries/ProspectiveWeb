@@ -440,7 +440,7 @@ function UsersAdminPage() {
       id: "usuario", titulo: "Usuario", enTarjeta: "titulo",
       celda: (u) => (
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <UserAvatar user={u} size={34} />
+          <UserAvatar user={u} size={34} decorativo />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>
               {u.full_name || u.username}

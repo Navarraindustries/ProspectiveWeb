@@ -1,6 +1,8 @@
 /* «Desde mi foto»: la foto se decodifica y se lee en un canvas local. Solo sale
-   del navegador si la persona elige «Mi foto», y entonces la sube quien llama. */
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+   del navegador si la persona elige «Mi foto», y entonces la sube quien llama.
+   Esc cierra este panel (no la hoja ni el recorrido que lo contienen): la raíz
+   lleva `data-escape-propio` para que la capa de bienvenida lo deje pasar. */
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { ErrorNote } from "../components/PanelHead";
@@ -23,6 +25,20 @@ type Eleccion = "avatar" | "foto" | "registro";
 const V = 300; // lado del visor en px
 const OVALO = { rx: 0.32 * V, ry: 0.42 * V };
 const MSG_ILEGIBLE = "No hemos podido leer esa imagen. Prueba con un JPG o PNG.";
+const ZOOM_MIN = 1, ZOOM_MAX = 4;
+const entreZoom = (z: number) => Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+
+/** Desplazamiento acotado: el centro del óvalo nunca sale de la imagen. Si ya cabe, el mismo objeto. */
+export function acotarDesplazamiento(o: { x: number; y: number }, ancho: number, alto: number, escala: number) {
+  const mx = (ancho * escala) / 2, my = (alto * escala) / 2;
+  const x = Math.max(-mx, Math.min(mx, o.x)), y = Math.max(-my, Math.min(my, o.y));
+  return x === o.x && y === o.y ? o : { x, y };
+}
+
+/** Píxeles del canvas por píxel CSS: el visor se encoge con `max-width: 100%` en pantallas estrechas. */
+export function pixelesPorCss(c: { width: number; clientWidth: number }): number {
+  return c.clientWidth > 0 ? c.width / c.clientWidth : 1;
+}
 
 export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificarLocal, recortar = recortarLocal }: {
   base: AvatarConfig;
@@ -47,8 +63,40 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
   const idEntrada = useId();
   const punteros = useRef(new Map<number, { x: number; y: number }>());
   const pinza = useRef<number | null>(null);
+  // Un solo lienzo con la imagen por foto: arrastrar y hacer zoom solo redibujan, no copian la foto entera.
+  const fuente = useRef<{ img: ImageData; lienzo: HTMLCanvasElement } | null>(null);
+  const lienzoDe = useCallback((d: ImageData): HTMLCanvasElement | null => {
+    if (fuente.current?.img === d) return fuente.current.lienzo;
+    const c = document.createElement("canvas");
+    c.width = d.width; c.height = d.height;
+    let ctx: CanvasRenderingContext2D | null = null;
+    try { ctx = c.getContext("2d"); } catch { ctx = null; }
+    if (!ctx) return null;
+    ctx.putImageData(d, 0, 0);
+    fuente.current = { img: d, lienzo: c };
+    return c;
+  }, []);
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
 
   const escala = img ? (V / Math.min(img.width, img.height)) * zoom : 1;
+
+  // Al alejar, el desplazamiento que valía con más zoom puede sacar el óvalo de la foto: se vuelve a acotar.
+  useEffect(() => {
+    if (img) setOff((o) => acotarDesplazamiento(o, img.width, img.height, escala));
+  }, [img, escala]);
+
+  // Esc cierra «Desde mi foto» y nada más: se atiende en captura y no sigue hacia la hoja o el recorrido.
+  useEffect(() => {
+    const alPulsar = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onCancelRef.current();
+    };
+    window.addEventListener("keydown", alPulsar, true);
+    return () => window.removeEventListener("keydown", alPulsar, true);
+  }, []);
 
   /** Óvalo del visor expresado en píxeles de la imagen. */
   const guia = useMemo<Guia | null>(() => img && ({
@@ -63,9 +111,8 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
     let ctx: CanvasRenderingContext2D | null = null;
     try { ctx = c.getContext("2d"); } catch { ctx = null; }
     if (!ctx) return;
-    const tmp = document.createElement("canvas");
-    tmp.width = img.width; tmp.height = img.height;
-    tmp.getContext("2d")?.putImageData(img, 0, 0);
+    const tmp = lienzoDe(img);
+    if (!tmp) return;
     ctx.clearRect(0, 0, V, V);
     ctx.drawImage(tmp, V / 2 + off.x - (img.width * escala) / 2, V / 2 + off.y - (img.height * escala) / 2,
       img.width * escala, img.height * escala);
@@ -76,7 +123,21 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
     ctx.fill("evenodd");
     ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.ellipse(V / 2, V / 2, OVALO.rx, OVALO.ry, 0, 0, Math.PI * 2); ctx.stroke();
-  }, [img, off, escala]);
+  }, [img, off, escala, lienzoDe]);
+
+  // Rueda = zoom. React registra «wheel» como pasivo: sin un escuchador propio no
+  // se puede impedir que la misma rueda desplace también la hoja.
+  const visor = !!img && !config;
+  useEffect(() => {
+    const c = canvas.current;
+    if (!visor || !c) return;
+    const alRodar = (e: WheelEvent) => {
+      e.preventDefault();
+      setZoom((z) => entreZoom(z * (e.deltaY < 0 ? 1.08 : 1 / 1.08)));
+    };
+    c.addEventListener("wheel", alRodar, { passive: false });
+    return () => c.removeEventListener("wheel", alRodar);
+  }, [visor]);
 
   // Miniatura de «Mi foto»: el óvalo encuadrado, dibujado en local.
   useEffect(() => {
@@ -85,13 +146,12 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
     let ctx: CanvasRenderingContext2D | null = null;
     try { ctx = c.getContext("2d"); } catch { ctx = null; }
     if (!ctx) return;
-    const tmp = document.createElement("canvas");
-    tmp.width = img.width; tmp.height = img.height;
-    tmp.getContext("2d")?.putImageData(img, 0, 0);
+    const tmp = lienzoDe(img);
+    if (!tmp) return;
     const lado = 2 * Math.max(guia.rx, guia.ry);
     ctx.clearRect(0, 0, c.width, c.height);
     ctx.drawImage(tmp, guia.cx - lado / 2, guia.cy - lado / 2, lado, lado, 0, 0, c.width, c.height);
-  }, [img, guia, config]);
+  }, [img, guia, config, lienzoDe]);
 
   const elegir = async (f: File | undefined) => {
     if (!f) return;
@@ -114,11 +174,7 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
     setConfig({ ...base, piel: r.piel, pelo: r.pelo as AvatarConfig["pelo"] });
   };
 
-  const acotar = (x: number, y: number) => {
-    if (!img) return { x, y };
-    const mx = (img.width * escala) / 2, my = (img.height * escala) / 2;
-    return { x: Math.max(-mx, Math.min(mx, x)), y: Math.max(-my, Math.min(my, y)) };
-  };
+  const acotar = (x: number, y: number) => (img ? acotarDesplazamiento({ x, y }, img.width, img.height, escala) : { x, y });
 
   const onDown = (e: React.PointerEvent) => {
     punteros.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -134,11 +190,13 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
       const [a, b] = [...punteros.current.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
       const previa = pinza.current;
-      if (previa) setZoom((z) => Math.max(1, Math.min(4, z * (d / previa))));
+      if (previa) setZoom((z) => entreZoom(z * (d / previa)));
       pinza.current = d;
       return;
     }
-    setOff((o) => acotar(o.x + nuevo.x - p.x, o.y + nuevo.y - p.y));
+    // El puntero se mueve en px CSS; el desplazamiento vive en px del canvas.
+    const k = pixelesPorCss(e.currentTarget as HTMLCanvasElement);
+    setOff((o) => acotar(o.x + (nuevo.x - p.x) * k, o.y + (nuevo.y - p.y) * k));
   };
   const onUp = (e: React.PointerEvent) => { punteros.current.delete(e.pointerId); pinza.current = null; };
 
@@ -160,7 +218,7 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
   const PASOS = ["Elige tu foto", "Encuadra tu cara", "Ajusta y elige"];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div data-escape-propio="" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <ol className="dmf-pasos" aria-label="Pasos" style={{ listStyle: "none", margin: 0, padding: 0 }}>
         {PASOS.map((t, i) => (
           <li key={t} className="dmf-paso" aria-current={paso === i + 1 ? "step" : undefined}
@@ -200,13 +258,12 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
           <div style={{ display: "flex", justifyContent: "center" }}>
             <canvas ref={canvas} width={V} height={V} aria-label="Encaja tu cara en el óvalo"
               onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
-              onWheel={(e) => setZoom((z) => Math.max(1, Math.min(4, z * (e.deltaY < 0 ? 1.08 : 1 / 1.08))))}
               style={{ width: V, maxWidth: "100%", touchAction: "none", borderRadius: 16, cursor: "grab",
                 background: "var(--muted)", border: "1px solid var(--border)" }} />
           </div>
           <label className="dmf-zoom">
             Zoom
-            <input type="range" min={1} max={4} step={0.05} value={zoom} aria-label="Zoom"
+            <input type="range" min={ZOOM_MIN} max={ZOOM_MAX} step={0.05} value={zoom} aria-label="Zoom"
               onChange={(e) => setZoom(Number(e.target.value))} />
             <span className="dmf-zoom__valor" aria-hidden="true">{zoom.toFixed(1).replace(".", ",")}×</span>
           </label>
@@ -246,20 +303,23 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
         </>
       )}
 
+      {/* En estrecho, «Cambiar foto» va en su propia fila y «Cancelar» + la acción principal, juntas debajo. */}
       <div className="dmf-acciones">
         {img && (
-          <Button variant="ghost" leadingIcon={<Icon name="UPLOAD" size={14} />} onClick={() => entrada.current?.click()}
-            style={{ marginRight: "auto" }}>
+          <Button variant="ghost" className="dmf-acciones__cambiar" leadingIcon={<Icon name="UPLOAD" size={14} />}
+            onClick={() => entrada.current?.click()}>
             Cambiar foto
           </Button>
         )}
-        <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-        {img && !config && (
-          <Button onClick={leer} leadingIcon={<Icon name="SPARKLE" size={14} />}>Leer colores</Button>
-        )}
-        {config && (
-          <Button onClick={() => void terminar()} disabled={busy}>Listo</Button>
-        )}
+        <span className="dmf-acciones__fin">
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          {img && !config && (
+            <Button onClick={leer} leadingIcon={<Icon name="SPARKLE" size={14} />}>Leer colores</Button>
+          )}
+          {config && (
+            <Button onClick={() => void terminar()} disabled={busy}>Listo</Button>
+          )}
+        </span>
       </div>
     </div>
   );

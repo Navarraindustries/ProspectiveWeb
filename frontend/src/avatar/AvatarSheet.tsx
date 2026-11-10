@@ -48,6 +48,13 @@ export function AvatarSheet({ open, onClose }: {
 
   if (!user || !config) return <Sheet open={false} onClose={onClose} title="Tu avatar">{null}</Sheet>;
 
+  // Cerrar sin guardar suelta ya la foto elegida (y su URL de vista previa), no al volver a abrir.
+  const cerrar = () => {
+    setPendiente(null);
+    setDesdeFoto(false);
+    onClose();
+  };
+
   const guardar = async () => {
     setErrorLocal(null);
     if (await guardarAvatar(config, modo)) onClose();
@@ -72,14 +79,14 @@ export function AvatarSheet({ open, onClose }: {
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Tu avatar" width={460}
+    <Sheet open={open} onClose={cerrar} title="Tu avatar" width={460}
       footer={desdeFoto ? null : (
         <>
           {errorVisible && <div style={{ flexBasis: "100%" }}><ErrorNote>{errorVisible}</ErrorNote></div>}
           <Button onClick={() => void guardar()} disabled={busy} leadingIcon={<Icon name="SAVE" size={14} />}>
             {busy ? "Guardando…" : "Guardar"}
           </Button>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button variant="outline" onClick={cerrar}>Cancelar</Button>
         </>
       )}>
       {desdeFoto ? (

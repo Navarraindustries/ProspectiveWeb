@@ -89,6 +89,11 @@ export function FlujoOnboarding() {
   useEffect(() => { vivo.current = !!activo; }, [activo]);
   useEffect(() => () => { vivo.current = false; }, []);
   const saltar = useCallback(() => { vivo.current = false; void terminar("saltado"); }, [terminar]);
+  // En «Listo» ya se vio todo: cerrarlo con Esc es terminarlo, no saltarlo.
+  const cerrarConEsc = useCallback(() => {
+    if (momento === "listo") { vivo.current = false; void terminar("completado"); }
+    else saltar();
+  }, [momento, saltar, terminar]);
   const sobreLaApp = !!momento && SOBRE_LA_APP.has(momento);
   const burbujaManda = !!momento && BURBUJA_MANDA.has(momento);
 
@@ -106,7 +111,12 @@ export function FlujoOnboarding() {
         if (sobreLaApp && e.key === "Escape" && e.target instanceof Node && capa.current?.contains(e.target)) saltar();
         return;
       }
-      if (e.key === "Escape") { saltar(); return; }
+      if (e.key === "Escape") {
+        // Un panel de la capa con Esc propio («Desde mi foto») lo atiende él: se cierra ese panel, no el recorrido.
+        if (capa.current?.querySelector("[data-escape-propio]")) return;
+        cerrarConEsc();
+        return;
+      }
       // La capa es modal: tampoco Tab llega a la app de debajo.
       if (e.key === "Tab" && capa.current) {
         const foco = Array.from(capa.current.querySelectorAll<HTMLElement>(
@@ -129,7 +139,7 @@ export function FlujoOnboarding() {
     };
     window.addEventListener("keydown", alPulsar, true);
     return () => window.removeEventListener("keydown", alPulsar, true);
-  }, [activo, saltar, sobreLaApp, burbujaManda]);
+  }, [activo, saltar, cerrarConEsc, sobreLaApp, burbujaManda]);
 
   // Con burbuja no: ya se llevó el foco (su efecto corre antes que este).
   useEffect(() => { if (activo && !burbujaManda) capa.current?.focus(); }, [activo, momento, burbujaManda]);
@@ -194,7 +204,7 @@ export function FlujoOnboarding() {
       {momento !== "quirofano" && <footer className="ob-pie">
         {previo ? <Button variant="outline" onClick={() => ir(previo)}>Atrás</Button> : <span />}
         <span className="ob-pie__pista">
-          {momento === "hola" ? "Puedes saltarlo cuando quieras." : "Esc salta el recorrido."}
+          {momento === "hola" ? "Puedes saltarlo cuando quieras." : momento === "listo" ? "Esc cierra el recorrido." : "Esc salta el recorrido."}
         </span>
         {momento === "hola" ? (
           <span className="ob-pie__acciones">

@@ -59,9 +59,41 @@ export function leerRasgos(img: ImageData, g: Guia): { piel: number; pelo: strin
 export const MAX_BYTES = 6 * 1024 * 1024;
 export const LADO_MAX = 1024;
 
-/** Decodifica en local (createImageBitmap) y reduce a ≤ 1024 px por lado. */
+/** Ancho y alto de la foto sin decodificarla entera: un <img> sobre una URL local
+    (blob:, nada sale del navegador) lee la cabecera. null si no se puede. */
+export function medirImagen(file: Blob): Promise<{ ancho: number; alto: number } | null> {
+  if (typeof Image !== "function" || typeof URL.createObjectURL !== "function") return Promise.resolve(null);
+  return new Promise((res) => {
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    const fin = (r: { ancho: number; alto: number } | null) => { URL.revokeObjectURL?.(url); res(r); };
+    im.onload = () => fin(im.naturalWidth > 0 && im.naturalHeight > 0 ? { ancho: im.naturalWidth, alto: im.naturalHeight } : null);
+    im.onerror = () => fin(null);
+    im.src = url;
+  });
+}
+
+/** Opciones de createImageBitmap: orientación EXIF aplicada y, si se conoce el tamaño y
+    sobra, decodificada ya reducida (un solo lado: el otro sigue la proporción). */
+export function opcionesDecodificado(medida: { ancho: number; alto: number } | null): ImageBitmapOptions {
+  const op: ImageBitmapOptions = { imageOrientation: "from-image" };
+  if (medida && Math.max(medida.ancho, medida.alto) > LADO_MAX) {
+    const k = LADO_MAX / Math.max(medida.ancho, medida.alto);
+    op.resizeWidth = Math.max(1, Math.round(medida.ancho * k));
+    op.resizeQuality = "high";
+  }
+  return op;
+}
+
+/** Decodifica en local (createImageBitmap), reducida desde el principio cuando se puede,
+    y la deja en ≤ 1024 px por lado. */
 export async function decodificarLocal(file: File): Promise<ImageData> {
-  const bmp = await createImageBitmap(file);
+  let bmp: ImageBitmap;
+  try {
+    bmp = await createImageBitmap(file, opcionesDecodificado(await medirImagen(file)));
+  } catch {
+    bmp = await createImageBitmap(file); // navegador sin opciones: decodificado normal
+  }
   const k = Math.min(1, LADO_MAX / Math.max(bmp.width, bmp.height));
   const w = Math.max(1, Math.round(bmp.width * k)), h = Math.max(1, Math.round(bmp.height * k));
   const c = document.createElement("canvas");

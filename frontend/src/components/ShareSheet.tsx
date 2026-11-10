@@ -167,7 +167,7 @@ export function ShareSheet({
                 }}
               >
                 <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggle(u.id)} />
-                <UserAvatar user={u} size={28} />
+                <UserAvatar user={u} size={28} decorativo />
                 <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>{u.full_name || u.username}</span>
                   <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{`${ROLE_LABEL[u.role] ?? u.role} · ${u.username}`}</span>

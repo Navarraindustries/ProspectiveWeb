@@ -239,7 +239,8 @@ export function SideNav({ state, modo = "carril", abierto = false, onCerrar }: {
       <div className="shell-nav-foot">
         {user && (
           <div className="shell-nav-user">
-            <UserAvatar user={user} self size={28} />
+            {/* Desplegada, el nombre va al lado (decorativo); plegada se oculta y el avatar lo dice. */}
+            <UserAvatar user={user} self size={28} decorativo={expanded} />
             <span className="shell-nav-user-text">
               <span className="shell-nav-user-name">{user.full_name || user.username}</span>
               <span className="shell-nav-user-role">{ROLE_LABEL[user.role] ?? user.role}</span>

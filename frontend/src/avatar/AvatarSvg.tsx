@@ -1,4 +1,4 @@
-import { PIELES } from "./config";
+import { COLORES_PELO, FONDOS, PIELES, PIJAMAS } from "./config";
 import type { AvatarConfig } from "./config";
 
 interface Props {
@@ -7,8 +7,14 @@ interface Props {
   title?: string;
 }
 
-/** Oscurece (f<0) o aclara (f>0) un color #RRGGBB. */
-function tono(hex: string, f: number): string {
+const HEX = /^#[0-9a-f]{6}$/i;
+const esHex = (v: unknown): v is string => typeof v === "string" && HEX.test(v);
+/** El color si es #rrggbb; si no (config incompleta o estropeada), el primero de su lista. */
+const color = (v: unknown, lista: readonly string[]) => (esHex(v) ? v : lista[0]);
+
+/** Oscurece (f<0) o aclara (f>0) un color #RRGGBB; cualquier otra cosa se devuelve tal cual. */
+export function tono(hex: string, f: number): string {
+  if (!esHex(hex)) return hex;
   const n = parseInt(hex.slice(1), 16);
   const c = (s: number) => {
     const v = (n >> s) & 255;
@@ -19,8 +25,12 @@ function tono(hex: string, f: number): string {
 
 /** Avatar indie vectorial: formas planas sin contorno. viewBox 0 0 200 200. */
 export function AvatarSvg({ config, size, title }: Props) {
-  const piel = PIELES[config.piel] ?? PIELES[0];
-  const { pelo, pijama, fondo, peinado, cabeza, ojos, mascarilla } = config;
+  // Una config a medias (servidor viejo, dato estropeado) no debe tumbar la página: cada color cae a su lista.
+  const piel = color(PIELES[config.piel], PIELES);
+  const pelo = color(config.pelo, COLORES_PELO);
+  const pijama = color(config.pijama, PIJAMAS);
+  const fondo = color(config.fondo, FONDOS);
+  const { peinado, cabeza, ojos, mascarilla } = config;
   const sombra = tono(piel, -0.14);
   const canoso = pelo.toUpperCase() === "#C9CCD2";
   const ceja = canoso ? "#8E939C" : pelo;

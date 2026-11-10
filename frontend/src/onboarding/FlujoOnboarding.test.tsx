@@ -84,6 +84,28 @@ describe("FlujoOnboarding", () => {
     expect(terminar).toHaveBeenCalledWith("completado");
   });
 
+  it("Esc en «Listo» lo da por completado (ya se vio todo), no por saltado", () => {
+    momento = "listo";
+    render(<Montar />);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(terminar).toHaveBeenCalledTimes(1);
+    expect(terminar).toHaveBeenCalledWith("completado");
+  });
+
+  it("en «avatar», Esc con «Desde mi foto» abierto cierra la foto y no salta el recorrido", () => {
+    momento = "avatar";
+    render(<Montar />);
+    fireEvent.click(screen.getByRole("button", { name: "Desde mi foto" }));
+    expect(screen.getByText("Elige una foto")).toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(terminar).not.toHaveBeenCalled();
+    expect(screen.queryByText("Elige una foto")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Tu avatar" })).toBeInTheDocument();
+    // Ya sin el panel de la foto, Esc vuelve a saltar el recorrido.
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(terminar).toHaveBeenCalledWith("saltado");
+  });
+
   it("Listo no lleva marcas de progreso", () => {
     momento = "listo";
     render(<Montar />);

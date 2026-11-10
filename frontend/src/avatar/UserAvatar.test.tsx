@@ -79,3 +79,47 @@ describe("UserAvatar: foto sustituida", () => {
     expect(userUrl).toHaveBeenCalledWith(9, 5);
   });
 });
+
+describe("UserAvatar: fila reciclada", () => {
+  it("al cambiar de persona no enseña ni un instante la foto de la anterior", async () => {
+    let soltar: (u: string) => void = () => {};
+    userUrl.mockResolvedValueOnce("blob:ana").mockImplementationOnce(() => new Promise<string>((r) => { soltar = r; }));
+    const foto = { avatar_mode: "foto" as const, has_profile_photo: true };
+    const { container, rerender } = render(<UserAvatar user={{ id: 1, full_name: "Ana", ...foto }} size={28} />);
+    await waitFor(() => expect(container.querySelector("img")?.getAttribute("src")).toBe("blob:ana"));
+    rerender(<UserAvatar user={{ id: 2, full_name: "Beatriz", ...foto }} size={28} />);
+    // Mientras llega la de Beatriz, su avatar dibujado: nunca la foto de Ana.
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByRole("img", { name: "Beatriz" }).tagName.toLowerCase()).toBe("svg");
+    soltar("blob:beatriz");
+    await waitFor(() => expect(container.querySelector("img")?.getAttribute("src")).toBe("blob:beatriz"));
+  });
+
+  it("al cambiar de revisión tampoco queda la foto anterior mientras llega la nueva", async () => {
+    userUrl.mockResolvedValueOnce("blob:v1").mockImplementationOnce(() => new Promise<string>(() => {}));
+    const u = { id: 3, full_name: "C", avatar_mode: "foto" as const, has_profile_photo: true };
+    const { container, rerender } = render(<UserAvatar user={{ ...u, profile_photo_rev: 1 }} size={28} />);
+    await waitFor(() => expect(container.querySelector("img")).not.toBeNull());
+    rerender(<UserAvatar user={{ ...u, profile_photo_rev: 2 }} size={28} />);
+    expect(container.querySelector("img")).toBeNull();
+  });
+});
+
+describe("UserAvatar decorativo", () => {
+  it("con el nombre al lado se oculta a los lectores: ni título ni etiqueta", async () => {
+    const { container, rerender } = render(<UserAvatar decorativo user={{ id: 7, full_name: "Ana Ruiz" }} size={28} />);
+    expect(container.firstElementChild!.getAttribute("aria-hidden")).toBe("true");
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(container.querySelector("[aria-label]")).toBeNull();
+    expect(container.querySelector("title")).toBeNull();
+    userUrl.mockResolvedValue("blob:foto");
+    rerender(<UserAvatar decorativo user={{ id: 7, full_name: "Ana Ruiz", avatar_mode: "foto", has_profile_photo: true }} size={28} />);
+    await waitFor(() => expect(container.querySelector("img")).not.toBeNull());
+    expect(container.querySelector("img")!.getAttribute("alt")).toBe("");
+  });
+
+  it("solo (sin decorativo) conserva su nombre", () => {
+    render(<UserAvatar user={{ id: 7, full_name: "Ana Ruiz" }} size={28} />);
+    expect(screen.getByRole("img", { name: "Ana Ruiz" })).toBeTruthy();
+  });
+});

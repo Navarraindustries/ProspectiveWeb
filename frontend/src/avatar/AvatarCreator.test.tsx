@@ -33,6 +33,25 @@ describe("AvatarCreator", () => {
     expect(screen.getByTestId("o").textContent).toBe("nada");
   });
 
+  it("volver a pulsar la opción ya elegida no añade un paso de «Deshacer» ni avisa", () => {
+    const onChange = vi.fn();
+    const Wrap = () => {
+      const [v, setV] = useState(base);
+      return <AvatarCreator value={v} onChange={(c) => { onChange(c); setV(c); }} />;
+    };
+    render(<Wrap />);
+    fireEvent.click(screen.getByRole("button", { name: "Sin gafas" }));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Deshacer" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Gafas" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gafas" }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Deshacer" }));
+    expect(screen.getByRole("button", { name: "Sin gafas" })).toHaveAttribute("aria-pressed", "true");
+    // Un solo paso: tras deshacerlo no queda nada más.
+    expect(screen.getByRole("button", { name: "Deshacer" })).toBeDisabled();
+  });
+
   it("«Aleatorio» emite una configuración válida", () => {
     const onChange = vi.fn();
     render(<AvatarCreator value={base} onChange={onChange} />);

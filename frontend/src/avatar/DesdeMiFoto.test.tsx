@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configPorDefecto } from "./config";
@@ -10,7 +12,7 @@ vi.mock("../hooks/useEstrecho", async (orig) => ({
   useMovil: () => movil,
 }));
 
-import { DesdeMiFoto } from "./DesdeMiFoto";
+import { DesdeMiFoto, acotarDesplazamiento, pixelesPorCss } from "./DesdeMiFoto";
 
 const base = configPorDefecto(3);
 const imgFalsa = () => {
@@ -139,5 +141,87 @@ describe("DesdeMiFoto", () => {
     subir(f);
     expect(await screen.findByText("La foto supera 6 MB.")).toBeInTheDocument();
     expect(dec).not.toHaveBeenCalled();
+  });
+
+  it("Esc cierra «Desde mi foto» y no llega a la hoja ni al recorrido que lo contienen", () => {
+    const onCancel = vi.fn();
+    const deFuera = vi.fn();
+    document.addEventListener("keydown", deFuera);
+    render(<DesdeMiFoto base={base} onListo={() => {}} onCancel={onCancel} />);
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    document.removeEventListener("keydown", deFuera);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(deFuera).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-escape-propio]")).not.toBeNull();
+  });
+
+  it("la rueda acerca y no desplaza la hoja (escuchador no pasivo con preventDefault)", async () => {
+    render(<DesdeMiFoto base={base} onListo={() => {}} onCancel={() => {}} decodificar={async () => imgFalsa()} />);
+    subir(jpg());
+    const visor = await screen.findByLabelText("Encaja tu cara en el óvalo");
+    expect(fireEvent.wheel(visor, { deltaY: -100, cancelable: true })).toBe(false);
+    expect((screen.getByRole("slider", { name: "Zoom" }) as HTMLInputElement).value).toBe("1.08");
+  });
+
+  /** Recorre hasta «Mi foto» + «Listo» y devuelve la guía que recibe el recorte. */
+  async function guiaTras(mover: (visor: HTMLElement) => void) {
+    const recortar = vi.fn(async () => new Blob(["j"]));
+    render(<DesdeMiFoto base={base} onListo={() => {}} onCancel={() => {}} decodificar={async () => imgFalsa()} recortar={recortar} />);
+    subir(jpg());
+    const visor = await screen.findByLabelText("Encaja tu cara en el óvalo");
+    mover(visor);
+    fireEvent.click(screen.getByRole("button", { name: "Leer colores" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mi foto" }));
+    fireEvent.click(screen.getByRole("button", { name: "Listo" }));
+    await waitFor(() => expect(recortar).toHaveBeenCalled());
+    return (recortar.mock.calls[0] as unknown as [unknown, { cx: number; cy: number }])[1];
+  }
+  const arrastrar = (visor: HTMLElement, dx: number) => {
+    fireEvent.pointerDown(visor, { pointerId: 1, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(visor, { pointerId: 1, clientX: dx, clientY: 0 });
+    fireEvent.pointerUp(visor, { pointerId: 1, clientX: dx, clientY: 0 });
+  };
+
+  it("arrastrar en un visor encogido mueve la foto en px del canvas, no en px CSS", async () => {
+    // Visor de 300 px de canvas pintado a 150 px CSS: 10 px de dedo son 20 de canvas.
+    const g = await guiaTras((visor) => {
+      Object.defineProperty(visor, "clientWidth", { configurable: true, value: 150 });
+      arrastrar(visor, 10);
+    });
+    // Imagen de 100 px en un visor de 300: escala 3. cx = 50 - 20 / 3.
+    expect(g.cx).toBeCloseTo(50 - 20 / 3, 5);
+  });
+
+  it("al alejar el zoom, el desplazamiento se vuelve a acotar", async () => {
+    const g = await guiaTras((visor) => {
+      Object.defineProperty(visor, "clientWidth", { configurable: true, value: 300 });
+      fireEvent.change(screen.getByRole("slider", { name: "Zoom" }), { target: { value: "4" } });
+      arrastrar(visor, 300); // a zoom 4 (escala 12) cabe: tope 600
+      fireEvent.change(screen.getByRole("slider", { name: "Zoom" }), { target: { value: "1" } });
+    });
+    // A zoom 1 (escala 3) el tope es 150: cx = 50 - 150 / 3 = 0 (sin volver a acotar sería -50).
+    expect(g.cx).toBeCloseTo(0, 5);
+  });
+
+  it("acotarDesplazamiento y pixelesPorCss", () => {
+    const o = { x: 10, y: -5 };
+    expect(acotarDesplazamiento(o, 100, 100, 3)).toBe(o);
+    expect(acotarDesplazamiento({ x: 400, y: -400 }, 100, 100, 3)).toEqual({ x: 150, y: -150 });
+    expect(pixelesPorCss({ width: 300, clientWidth: 150 })).toBe(2);
+    expect(pixelesPorCss({ width: 300, clientWidth: 0 })).toBe(1);
+  });
+
+  it("en estrecho, «Cambiar foto» va aparte y «Cancelar» + la acción principal juntas", async () => {
+    render(<DesdeMiFoto base={base} onListo={() => {}} onCancel={() => {}} decodificar={async () => imgFalsa()} />);
+    subir(jpg());
+    const leer = await screen.findByRole("button", { name: "Leer colores" });
+    const fin = leer.parentElement!;
+    expect(fin.className).toBe("dmf-acciones__fin");
+    expect(fin).toContainElement(screen.getByRole("button", { name: "Cancelar" }));
+    expect(fin).not.toContainElement(screen.getByRole("button", { name: "Cambiar foto" }));
+    fireEvent.click(leer);
+    expect(screen.getByRole("button", { name: "Listo" }).parentElement).toBe(fin);
+    const css = readFileSync(join(__dirname, "avatar.css"), "utf-8");
+    expect(css).toMatch(/@media \(max-width: 640px\) \{\s*\.dmf-acciones__cambiar \{\s*flex: 1 1 100%;/);
   });
 });

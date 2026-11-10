@@ -114,6 +114,28 @@ describe("AvatarSheet", () => {
     expect(api.copyRegistroPhoto).not.toHaveBeenCalled();
   });
 
+  it("«Cancelar» suelta en el acto la foto pendiente y revoca su URL de vista previa", () => {
+    const orig = { crear: URL.createObjectURL, revocar: URL.revokeObjectURL };
+    URL.createObjectURL = vi.fn(() => "blob:vista");
+    URL.revokeObjectURL = vi.fn();
+    try {
+      const onClose = vi.fn();
+      const { rerender } = render(<AvatarSheet open onClose={onClose} />);
+      entrarFoto("fake-foto");
+      expect(screen.getByRole("img", { name: "Vista previa de tu foto" })).toHaveAttribute("src", "blob:vista");
+      expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+      expect(onClose).toHaveBeenCalledTimes(1);
+      // Sin esperar a volver a abrir: la hoja sigue montada (open lo controla quien llama).
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:vista");
+      expect(screen.queryByRole("img", { name: "Vista previa de tu foto" })).toBeNull();
+      rerender(<AvatarSheet open={false} onClose={onClose} />);
+      expect(api.uploadProfilePhoto).not.toHaveBeenCalled();
+    } finally {
+      URL.createObjectURL = orig.crear; URL.revokeObjectURL = orig.revocar;
+    }
+  });
+
   it("«Mi foto» y luego «Mi avatar» antes de guardar: no sube, guarda 'avatar'", async () => {
     render(<AvatarSheet open onClose={() => {}} />);
     entrarFoto("fake-foto");

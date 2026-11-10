@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { COLORES_PELO, ETIQUETAS, PIELES } from "./config";
-import { leerRasgos, masCercano, medianaRegion } from "./desdeFoto";
+import { LADO_MAX, decodificarLocal, leerRasgos, masCercano, medianaRegion, opcionesDecodificado } from "./desdeFoto";
 
 type Img = { data: Uint8ClampedArray; width: number; height: number };
 
@@ -52,5 +52,48 @@ describe("leerRasgos", () => {
     const r = leerRasgos(img as unknown as ImageData, guia);
     expect(ETIQUETAS.piel[r.piel]).toBe("Media");
     expect(r.pelo).toBe(COLORES_PELO[1]);
+  });
+});
+
+describe("decodificado local reducido", () => {
+  it("opciones: siempre orientación EXIF; reduce solo si sobra, por un lado (el otro sigue la proporción)", () => {
+    expect(opcionesDecodificado(null)).toEqual({ imageOrientation: "from-image" });
+    expect(opcionesDecodificado({ ancho: 800, alto: 600 })).toEqual({ imageOrientation: "from-image" });
+    const grande = opcionesDecodificado({ ancho: 4000, alto: 3000 });
+    expect(grande).toMatchObject({ imageOrientation: "from-image", resizeWidth: LADO_MAX, resizeQuality: "high" });
+    expect(grande.resizeHeight).toBeUndefined();
+    expect(opcionesDecodificado({ ancho: 3000, alto: 4000 }).resizeWidth).toBe(768);
+  });
+
+  it("decodificarLocal pide el bitmap ya reducido, sin red, y entrega ≤ 1024 px", async () => {
+    const pedidas: unknown[] = [];
+    const orig = { cib: globalThis.createImageBitmap, img: globalThis.Image, cou: URL.createObjectURL, rou: URL.revokeObjectURL, fetch: globalThis.fetch };
+    const fetchSpy = vi.fn();
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+    URL.createObjectURL = vi.fn(() => "blob:local");
+    URL.revokeObjectURL = vi.fn();
+    globalThis.Image = class {
+      naturalWidth = 4032; naturalHeight = 3024;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_u: string) { queueMicrotask(() => this.onload?.()); }
+    } as unknown as typeof Image;
+    globalThis.createImageBitmap = vi.fn(async (_f: unknown, op?: ImageBitmapOptions) => {
+      pedidas.push(op);
+      return { width: op?.resizeWidth ?? 4032, height: op?.resizeWidth ? 768 : 3024, close: vi.fn() } as unknown as ImageBitmap;
+    }) as unknown as typeof createImageBitmap;
+    const ctx = { drawImage: vi.fn(), getImageData: vi.fn((_x: number, _y: number, w: number, h: number) => ({ width: w, height: h })) };
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
+    try {
+      const d = await decodificarLocal(new File(["x"], "yo.jpg", { type: "image/jpeg" }));
+      expect(pedidas).toEqual([{ imageOrientation: "from-image", resizeWidth: 1024, resizeQuality: "high" }]);
+      expect(Math.max(d.width, d.height)).toBeLessThanOrEqual(LADO_MAX);
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:local");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      getContext.mockRestore();
+      globalThis.createImageBitmap = orig.cib; globalThis.Image = orig.img; globalThis.fetch = orig.fetch;
+      URL.createObjectURL = orig.cou; URL.revokeObjectURL = orig.rou;
+    }
   });
 });

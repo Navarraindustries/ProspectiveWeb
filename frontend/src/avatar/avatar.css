@@ -229,9 +229,33 @@
 .dmf-acciones {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 10px;
   flex-wrap: wrap;
   padding-top: 4px;
+}
+.dmf-acciones__cambiar {
+  margin-right: auto;
+}
+.dmf-acciones__fin {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+/* Estrecho: «Cambiar foto» en su propia fila; «Cancelar» y la acción principal, a medias debajo. */
+@media (max-width: 640px) {
+  .dmf-acciones__cambiar {
+    flex: 1 1 100%;
+    margin-right: 0;
+  }
+  .dmf-acciones__fin {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+  .dmf-acciones__fin > * {
+    flex: 1 1 0;
+    min-width: 0;
+  }
 }
 
 /* Botón «Crear desde mi foto» de la hoja Tu avatar */

@@ -56,6 +56,11 @@ function Pildora({ texto, activa, onClick }: { texto: string; activa: boolean; o
   );
 }
 
+function igual(a: AvatarConfig, b: AvatarConfig): boolean {
+  const ka = Object.keys(a) as (keyof AvatarConfig)[];
+  return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
+}
+
 export function AvatarCreator({ value, onChange, compacto = false }: {
   value: AvatarConfig;
   onChange: (c: AvatarConfig) => void;
@@ -66,6 +71,8 @@ export function AvatarCreator({ value, onChange, compacto = false }: {
   const [hayPila, setHayPila] = useState(false);
 
   const cambiar = (c: AvatarConfig) => {
+    // Volver a tocar lo ya elegido no es un cambio: ni paso de «Deshacer» ni aviso.
+    if (igual(c, value)) return;
     pila.current.push(value);
     setHayPila(true);
     onChange(c);

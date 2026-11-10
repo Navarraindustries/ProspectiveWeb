@@ -219,3 +219,38 @@ def test_a_una_base_de_la_0007_con_usuarios_se_le_anaden_avatar_y_onboarding(tmp
         assert f[2] is None and f[3] == "avatar" and f[4] == ""
         assert json.loads(f[5])["estado"] == "invitado"
     assert diff == [], diff
+
+
+def test_la_0008_se_deshace_quitando_las_cuatro_columnas_sin_perder_usuarios(tmp_path):
+    # Arriba del todo y vuelta a la 0007: avatar, foto de perfil y onboarding
+    # desaparecen; los usuarios y su foto del registro siguen. Y se puede volver a subir.
+    from alembic import command
+    columnas = {"avatar_config", "avatar_mode", "profile_photo_path", "onboarding_state"}
+    e = create_engine(f"sqlite:///{tmp_path / 'deshacer_0008.db'}")
+    Base.metadata.create_all(bind=e)
+    run_migrations(bind=e, fresh=True)
+    assert _version(e) == _head()
+    with e.begin() as c:
+        _fila(c, "users", username="con_foto", photo_path="fotos/a.png", avatar_mode="foto",
+              profile_photo_path="perfil/1.jpg", onboarding_state='{"estado":"completado"}')
+        _fila(c, "users", username="sin_foto")
+
+    with e.connect() as c:
+        command.downgrade(_alembic_config(c), "0007_etiqueta_a_mano")
+        c.commit()
+
+    assert _version(e) == "0007_etiqueta_a_mano"
+    assert not columnas & {col["name"] for col in inspect(e).get_columns("users")}
+    with e.connect() as c:
+        filas = c.execute(text("SELECT username, photo_path FROM users ORDER BY username")).fetchall()
+    assert [f[0] for f in filas] == ["con_foto", "sin_foto"]
+    assert filas[0][1] == "fotos/a.png"
+
+    run_migrations(bind=e, fresh=False)
+
+    assert _version(e) == _head()
+    assert columnas <= {col["name"] for col in inspect(e).get_columns("users")}
+    with e.connect() as c:
+        assert [r[0] for r in c.execute(text("SELECT username FROM users ORDER BY username"))] == ["con_foto", "sin_foto"]
+        diff = compare_metadata(MigrationContext.configure(c), Base.metadata)
+    assert diff == [], diff

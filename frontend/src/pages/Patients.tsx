@@ -24,6 +24,8 @@ import { CasePatientPicker, NuevoEstudioSheet } from "./NuevoCaso";
 import { avisosOficina } from "../lib/avisosOficina";
 import { filtraPestana, hayCompartidos, recuentoPacientes, ultimaActividad, type PestanaPacientes } from "../lib/pacientes";
 import { PageBody } from "../components/shell/PageBody";
+import { useOnboarding } from "../onboarding/OnboardingProvider";
+import { TarjetaEjemplo } from "../onboarding/TarjetaEjemplo";
 
 /** El aviso tras crear: el siguiente paso, para no tener que buscarlo (F2-22). */
 type Aviso =
@@ -70,6 +72,8 @@ export function Patients({
   const [q, setQ] = useState("");
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  // Durante el recorrido del onboarding, una lista vacía enseña una tarjeta de ejemplo.
+  const enRecorrido = useOnboarding().momento === "pacientes";
 
   const load = () => {
     if (primeraCarga.current) primeraCarga.current = false;
@@ -157,12 +161,12 @@ export function Patients({
       // F2-20, F2-21: «Usuarios», «Cuentas pendientes» y «Estudios» están en el
       // panel lateral; aquí quedan solo las acciones clínicas, la prueba rápida la última.
       acciones={[
-        { id: "nuevo-paciente", label: "Nuevo paciente", icon: "PLUS", principal: true, abreDialogo: true, onClick: openCreate },
-        { id: "nuevo-caso", label: "Nuevo caso", icon: "FOLDER", abreDialogo: true, onClick: () => setCaseSheet(true) },
+        { id: "nuevo-paciente", label: "Nuevo paciente", icon: "PLUS", principal: true, abreDialogo: true, onClick: openCreate, tour: "acciones-crear" },
+        { id: "nuevo-caso", label: "Nuevo caso", icon: "FOLDER", abreDialogo: true, onClick: () => setCaseSheet(true), tour: "acciones-crear" },
         ...(onStartWithoutPatient ? [{
           id: "prueba-rapida", label: "Prueba rápida sin paciente", icon: "STEP_SEGMENT" as const,
           title: "Sube un DICOM y planifica ya. Si no lo adjuntas después a un paciente y un caso, se borra al caducar la sesión.",
-          onClick: onStartWithoutPatient,
+          onClick: onStartWithoutPatient, tour: "accion-prueba",
         }] : []),
       ]}
     >
@@ -170,7 +174,7 @@ export function Patients({
       <PageBody className="fade-rise">
           {avisos.length > 0 && (
             // Franja de chips: cada aviso es una pastilla de cristal, no una tarjeta de la rejilla.
-            <div role="list" aria-label="Avisos clínicos" className="pt-avisos">
+            <div role="list" aria-label="Avisos clínicos" className="pt-avisos" data-tour="avisos">
               {avisos.map((av) => (
                 <div key={av.titulo} role="listitem" data-aviso={av.tono} data-glass className="pt-aviso" style={glass("normal")}>
                   <span className="pt-aviso-icono" style={{
@@ -220,7 +224,7 @@ export function Patients({
             </div>
           )}
 
-          <div className="pt-toolbar">
+          <div className="pt-toolbar" data-tour="buscar">
             {/* F2-18: la búsqueda junto a la lista que filtra. */}
             <div className="pt-search">
               <Input icon={<Icon name="SEARCH" />} placeholder="Buscar paciente o HC…" aria-label="Buscar paciente o HC"
@@ -242,14 +246,17 @@ export function Patients({
                 <div className="pt-grid" aria-busy="true">
                   {Array.from({ length: ESQUELETOS }, (_, i) => <div key={i} className="pt-card pt-card--skeleton" />)}
                 </div>
+              ) : patients.length === 0 && enRecorrido ? (
+                // Solo mientras dura el recorrido: nada de esto llega a la base de datos.
+                <div className="pt-grid" data-tour="tarjetas"><TarjetaEjemplo /></div>
               ) : patients.length === 0 ? (
                 <LoadState state="vacio" mensaje={vacioDelRol} onRetry={load} />
               ) : rows.length === 0 ? (
                 <LoadState state="vacio" mensaje="Ningún paciente coincide con la búsqueda." onRetry={load} />
               ) : (
-                <div className="pt-grid" data-testid="pacientes-rejilla">
-                  {rows.map((p) => (
-                    <PatientCard key={p.id} patient={p}
+                <div className="pt-grid" data-testid="pacientes-rejilla" data-tour="tarjetas">
+                  {rows.map((p, i) => (
+                    <PatientCard key={p.id} patient={p} tour={i === 0 ? "tarjeta-0" : undefined}
                                  onOpen={(x) => openSheet(x.id)}
                                  onResume={onResume}
                                  // La tarjeta no conoce el caso; la ficha tiene «Planificar este caso» y «Nuevo caso».

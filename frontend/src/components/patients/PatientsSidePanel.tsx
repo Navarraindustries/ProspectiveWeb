@@ -106,7 +106,7 @@ export function PatientsSidePanel({ patients, loading, error = false, version = 
   );
 
   return (
-    <aside className="pt-side" aria-label="Resumen y accesos" data-glass style={glass("dense")}>
+    <aside className="pt-side" aria-label="Resumen y accesos" data-glass data-tour="hoy" style={glass("dense")}>
       <section className="pt-side-block" aria-labelledby={idHoy}>
         <SectionLabel>
           <span id={idHoy}>Hoy</span>

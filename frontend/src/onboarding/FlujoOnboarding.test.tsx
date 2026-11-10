@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { configPorDefecto } from "../avatar/config";
@@ -36,7 +36,7 @@ beforeEach(() => {
 });
 
 describe("FlujoOnboarding", () => {
-  it("recorre hola → avatar → intro → listo con «Siguiente»", async () => {
+  it("recorre hola → avatar → intro → pacientes con «Siguiente»", async () => {
     const { rerender } = render(<Montar />);
     expect(screen.getByRole("heading", { name: "Hola, Ana." })).toBeInTheDocument();
     siguiente();
@@ -48,9 +48,7 @@ describe("FlujoOnboarding", () => {
     rerender(<Montar />);
     expect(screen.getByRole("heading", { name: "En 20 segundos" })).toBeInTheDocument();
     siguiente();
-    expect(ir).toHaveBeenLastCalledWith("listo");
-    rerender(<Montar />);
-    expect(screen.getByRole("heading", { name: "Listo, Ana" })).toBeInTheDocument();
+    expect(ir).toHaveBeenLastCalledWith("pacientes");
   });
 
   it("«Saltar todo» está siempre y termina como saltado; Esc también", () => {
@@ -120,7 +118,7 @@ describe("FlujoOnboarding", () => {
     window.removeEventListener("keydown", paleta);
     expect(paleta).not.toHaveBeenCalled();
     const botones = screen.getAllByRole("button").filter((b) => !(b as HTMLButtonElement).disabled);
-    botones[botones.length - 1].focus();
+    act(() => botones[botones.length - 1].focus());
     fireEvent.keyDown(document.activeElement!, { key: "Tab" });
     expect(document.activeElement).toBe(botones[0]);
     fireEvent.keyDown(document.activeElement!, { key: "Tab", shiftKey: true });
@@ -140,5 +138,62 @@ describe("FlujoOnboarding", () => {
     await waitFor(() => expect(refreshUser).toHaveBeenCalled());
     await new Promise((r) => setTimeout(r, 20));
     expect(ir).not.toHaveBeenCalled();
+  });
+
+  describe("momento «pacientes» (recorrido sobre la app)", () => {
+    const MontarPacientes = () => (
+      <MemoryRouter initialEntries={["/app/pacientes"]}>
+        <div data-tour="buscar" />
+        <FlujoOnboarding />
+      </MemoryRouter>
+    );
+
+    it("la capa se aparta: Tab gira dentro de la burbuja, ⌘K sigue bloqueado y Esc termina una sola vez", async () => {
+      momento = "pacientes";
+      render(<MontarPacientes />);
+      const b = await screen.findByRole("dialog", { name: "Tus secciones" });
+      // La capa a pantalla completa no está: solo una barra mínima con «Saltar todo».
+      expect(document.querySelector(".ob-capa")).toBeNull();
+      expect(screen.getByRole("button", { name: "Saltar todo" })).toBeInTheDocument();
+      const paleta = vi.fn();
+      window.addEventListener("keydown", paleta);
+      fireEvent.keyDown(document.body, { key: "k", ctrlKey: true });
+      window.removeEventListener("keydown", paleta);
+      expect(paleta).not.toHaveBeenCalled();
+      const botones = within(b).getAllByRole("button").filter((x) => !(x as HTMLButtonElement).disabled);
+      act(() => botones[botones.length - 1].focus());
+      fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+      expect(document.activeElement).toBe(botones[0]);
+      fireEvent.keyDown(document.activeElement!, { key: "Tab", shiftKey: true });
+      expect(document.activeElement).toBe(botones[botones.length - 1]);
+      fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+      expect(terminar).toHaveBeenCalledTimes(1);
+      expect(terminar).toHaveBeenCalledWith("saltado");
+      expect(document.querySelector("[data-foco]")).toBeNull();
+    });
+
+    it("Esc desde la pastilla «Saltar todo» también salta, una sola vez", async () => {
+      momento = "pacientes";
+      render(<MontarPacientes />);
+      await screen.findByRole("dialog", { name: "Tus secciones" });
+      const saltarTodo = screen.getByRole("button", { name: "Saltar todo" });
+      act(() => saltarTodo.focus());
+      fireEvent.keyDown(saltarTodo, { key: "Escape" });
+      expect(terminar).toHaveBeenCalledTimes(1);
+      expect(terminar).toHaveBeenCalledWith("saltado");
+    });
+
+    it("terminar la última parada lleva al siguiente momento con pantalla", async () => {
+      momento = "pacientes";
+      render(<MontarPacientes />);
+      await screen.findByRole("dialog", { name: "Tus secciones" });
+      for (let i = 0; i < 9 && !screen.queryByRole("button", { name: "Terminar" }); i++) {
+        fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+      }
+      fireEvent.click(screen.getByRole("button", { name: "Terminar" }));
+      expect(ir).toHaveBeenCalledTimes(1);
+      expect(ir).toHaveBeenCalledWith("listo");
+      expect(terminar).not.toHaveBeenCalled();
+    });
   });
 });

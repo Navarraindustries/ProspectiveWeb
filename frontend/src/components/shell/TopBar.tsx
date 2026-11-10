@@ -48,6 +48,20 @@ export interface AccionBarra {
   disabled?: boolean;
   /** `onClick` abre una hoja o un diálogo que toma el foco: desde el menú «⋯» no se devuelve al botón. */
   abreDialogo?: boolean;
+  /** Objetivo del recorrido del onboarding: las acciones seguidas con el mismo valor
+      van juntas en una caja `data-tour` (en móvil no: allí el objetivo es el «⋯»). */
+  tour?: string;
+}
+
+/** Agrupa las acciones seguidas que comparten `tour`; las que no lo llevan van solas. */
+function porTour(lista: AccionBarra[]): AccionBarra[][] {
+  const grupos: AccionBarra[][] = [];
+  for (const a of lista) {
+    const ultimo = grupos[grupos.length - 1];
+    if (a.tour && ultimo && ultimo[0].tour === a.tour) ultimo.push(a);
+    else grupos.push([a]);
+  }
+  return grupos;
 }
 
 function Accion({ a, soloIcono, tam }: { a: AccionBarra; soloIcono: boolean; tam: "sm" | "md" }) {
@@ -132,6 +146,7 @@ export function TopBar({ crumbs, subtitle, status, acciones, extra, onAbrirSecci
           aria-label="Abrir las secciones"
           aria-expanded={seccionesAbiertas}
           aria-controls="shell-cajon"
+          data-tour="nav-hamburguesa"
           onClick={onAbrirSecciones}
         >
           <Icon name="MENU" size={18} />
@@ -168,24 +183,33 @@ export function TopBar({ crumbs, subtitle, status, acciones, extra, onAbrirSecci
       <div className="shell-actions">
         {status}
         {!movil && extraNodo}
-        {lista.filter((a) => !movil || a.principal).map((a) => (
-          <Accion key={a.id} a={a} soloIcono={movil || (estrecho && !a.principal) || (tableta && !!extra && !!a.principal)} tam={tam} />
-        ))}
-        {movil && <MenuMas items={itemsMenu} tactil />}
-        {!movil && (
-          <button
-            type="button"
-            className="shell-cmdk"
-            aria-label={rotuloPaleta()}
-            aria-keyshortcuts={teclasPaleta()}
-            title={`Paleta de mandos (${atajoPaleta()})`}
-            onClick={openCommandPalette}
-          >
-            {atajoPaleta()}
-          </button>
-        )}
-        {!movil && <ThemeToggle size={tableta ? "lg" : "sm"} />}
-        <UserMenu />
+        {porTour(lista.filter((a) => !movil || a.principal)).map((grupo) => {
+          const botones = grupo.map((a) => (
+            <Accion key={a.id} a={a} soloIcono={movil || (estrecho && !a.principal) || (tableta && !!extra && !!a.principal)} tam={tam} />
+          ));
+          const tour = grupo[0].tour;
+          return tour
+            ? <span key={`tour-${grupo[0].id}`} className="shell-grupo" data-tour={movil ? undefined : tour}>{botones}</span>
+            : botones[0];
+        })}
+        {movil && <span className="shell-grupo" data-tour="acciones-mas"><MenuMas items={itemsMenu} tactil /></span>}
+        {/* ⌘K, tema y menú de usuario: una caja para el foco del recorrido (parada «Atajos»). */}
+        <span className="shell-grupo" data-tour={movil ? undefined : "atajos"}>
+          {!movil && (
+            <button
+              type="button"
+              className="shell-cmdk"
+              aria-label={rotuloPaleta()}
+              aria-keyshortcuts={teclasPaleta()}
+              title={`Paleta de mandos (${atajoPaleta()})`}
+              onClick={openCommandPalette}
+            >
+              {atajoPaleta()}
+            </button>
+          )}
+          {!movil && <ThemeToggle size={tableta ? "lg" : "sm"} />}
+          <UserMenu />
+        </span>
       </div>
       {/* Móvil: el buscador va en su propia fila, a todo el ancho (R3). */}
       {movil && extraNodo}

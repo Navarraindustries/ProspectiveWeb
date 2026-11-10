@@ -70,3 +70,26 @@
 .ob-intro__tarjeta[data-tarjeta-tramo="detectar"] { --ob-color: var(--tramo-detectar); }
 .ob-intro__tarjeta[data-tarjeta-tramo="medir"] { --ob-color: var(--tramo-medir); }
 .ob-intro__tarjeta[data-tarjeta-tramo="dispositivo"] { --ob-color: var(--tramo-dispositivo); }
+
+/* ── Momento «pacientes»: recorrido sobre la app real ─────────────────────── */
+/* La capa se aparta: una pastilla de cristal (data-glass + glass("dense")) abajo
+   a la izquierda, por encima del velo del foco (1000) y de la burbuja (1001). */
+.ob-mini { position: fixed; left: 16px; bottom: 16px; z-index: 1002; display: flex; align-items: center; gap: 12px;
+  padding: 6px 6px 6px 14px; border-radius: var(--radius-full); color: var(--foreground); }
+.ob-mini .ob-pasos { min-width: 0; width: 180px; flex: none; }
+.ob-mini .ob-paso__texto { display: none; }
+.ob-mini__rotulo { font-size: 12px; color: var(--muted-foreground); white-space: nowrap; }
+/* En móvil la burbuja es una hoja inferior con su «Saltar recorrido»: la pastilla sobra. */
+@media (max-width: 640px) { .ob-mini { display: none; } }
+
+/* Mini esquema de la ficha en la burbuja: Paciente › Casos › … */
+.ob-esquema { display: flex; flex-wrap: wrap; gap: 4px 0; list-style: none; margin: 8px 0 0; padding: 0;
+  font-size: 12px; color: var(--muted-foreground); }
+.ob-esquema li + li::before { content: "›"; margin: 0 6px; color: var(--primary); }
+
+/* Tarjeta de ejemplo: la forma de una de verdad, marcada y sin aspecto de botón. */
+.ob-ejemplo { position: relative; cursor: default; border-style: dashed; }
+.ob-ejemplo:hover { border-color: var(--glass-border); box-shadow: var(--glass-highlight), var(--shadow-md); }
+.ob-ejemplo__rotulo { position: absolute; top: 8px; right: 8px; z-index: 1; }
+.ob-ejemplo__accion { display: inline-flex; align-items: center; gap: 6px; height: var(--control-sm); padding: 0 12px;
+  border-radius: var(--radius-full); background: var(--primary); color: var(--primary-foreground); font-size: 13px; font-weight: 500; }

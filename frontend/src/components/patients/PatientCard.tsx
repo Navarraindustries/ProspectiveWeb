@@ -22,6 +22,8 @@ interface Props {
   /** Si devuelve una promesa, la tarjeta enseña «Abriendo…» hasta que acabe. */
   onResume: (sessionId: string, p: PatientSummary) => void | Promise<unknown>;
   onPlan: (p: PatientSummary) => void;
+  /** Objetivo del recorrido del onboarding (`data-tour`). */
+  tour?: string;
 }
 
 type Fuente = "captura" | "vista" | "ninguna";
@@ -69,7 +71,7 @@ function iniciales(nombre: string): string {
   return letras || "?";
 }
 
-export function PatientCard({ patient: p, onOpen, onResume, onPlan }: Props) {
+export function PatientCard({ patient: p, onOpen, onResume, onPlan, tour }: Props) {
   const raiz = useRef<HTMLElement>(null);
   const visible = useVisible(raiz);
   const imagen = useImagen(p, visible);
@@ -118,6 +120,7 @@ export function PatientCard({ patient: p, onOpen, onResume, onPlan }: Props) {
       aria-label={`${p.full_name}, ${hc}`}
       className="pt-card tarjeta-lente"
       data-glass
+      data-tour={tour}
       aria-busy={abriendo || undefined}
       data-abriendo={abriendo || undefined}
       onClick={() => { if (!abriendo) onOpen(p); }}

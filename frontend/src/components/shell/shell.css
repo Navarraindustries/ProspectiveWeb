@@ -606,6 +606,9 @@
 
 /* ── Barra superior adaptable (fase 8, A19) ─────────────────────────────── */
 .shell-actions > * { white-space: nowrap; flex-shrink: 0; }
+/* Caja de acciones para el foco del onboarding (data-tour): la misma fila con el
+   mismo hueco que .shell-actions, pero con caja propia para medirla. */
+.shell-grupo { display: inline-flex; align-items: center; gap: 8px; }
 .shell-actions > .shell-extra { flex: 0 1 220px; min-width: 120px; }
 /* Enlace con la pastilla del botón outline (descarga con aspecto de botón). */
 .shell-accion {

@@ -191,6 +191,7 @@ export function SideNav({ state, modo = "carril", abierto = false, onCerrar }: {
       // En el cajón el nombre lo lleva el diálogo que lo envuelve.
       aria-label={cajon ? undefined : "Secciones"}
       data-expanded={expanded ? "true" : "false"}
+      data-tour="nav-secciones"
       onMouseEnter={hoverIn}
       onMouseLeave={hoverOut}
     >

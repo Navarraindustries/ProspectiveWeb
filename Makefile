@@ -14,7 +14,7 @@ dev\:frontend:
 	cd $(FRONTEND_DIR) && npm run dev
 
 install\:backend:
-	cd $(BACKEND_DIR) && python -m venv .venv && $(VENV)\pip install -r requirements.txt
+	cd $(BACKEND_DIR) && python -m venv .venv && $(VENV)\pip install -r requirements-lock.txt
 
 install\:frontend:
 	cd $(FRONTEND_DIR) && npm install

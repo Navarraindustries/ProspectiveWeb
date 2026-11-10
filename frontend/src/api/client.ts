@@ -412,12 +412,11 @@ export const api = {
     post<{ status: string }>("/api/auth/change-password", { current_password, new_password }),
   resetPassword: (userId: number, new_password: string) =>
     post<{ status: string }>(`/api/auth/users/${userId}/reset-password`, { new_password }),
-  myPhotoObjectUrl: async () =>
-    URL.createObjectURL(await getBlob("/api/auth/me/photo")),
-  myProfilePhotoObjectUrl: async () =>
-    URL.createObjectURL(await getBlob("/api/auth/me/profile-photo")),
-  userProfilePhotoObjectUrl: async (id: number) =>
-    URL.createObjectURL(await getBlob(`/api/auth/users/${id}/profile-photo`)),
+  /** `rev` (profile_photo_rev) va en la URL: una foto sustituida no sale de la caché del navegador. */
+  myProfilePhotoObjectUrl: async (rev?: number | null) =>
+    URL.createObjectURL(await getBlob(`/api/auth/me/profile-photo${rev != null ? `?v=${rev}` : ""}`)),
+  userProfilePhotoObjectUrl: async (id: number, rev?: number | null) =>
+    URL.createObjectURL(await getBlob(`/api/auth/users/${id}/profile-photo${rev != null ? `?v=${rev}` : ""}`)),
   saveAvatar: (config: AvatarConfig | null, modo: "avatar" | "foto") =>
     request<UserInfo>("/api/auth/me/avatar", { method: "PUT", body: JSON.stringify({ config, modo }), headers: { "Content-Type": "application/json" } }),
   uploadProfilePhoto: (file: Blob) => {

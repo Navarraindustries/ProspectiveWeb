@@ -150,3 +150,26 @@ def test_listas_coinciden_con_el_cliente():
     assert tuple(j["ojos"]) == ac.OJOS
     assert tuple(j["pijamas"]) == ac.PIJAMAS
     assert tuple(j["fondos"]) == ac.FONDOS
+
+
+def test_onboarding_fecha_larga_422():
+    _make_user("ob_fecha")
+    h = _auth("ob_fecha")
+    r = client.put("/api/auth/me/onboarding", headers=h,
+                   json={"estado": "saltado", "fecha": "x" * 41})
+    assert r.status_code == 422
+    r = client.put("/api/auth/me/onboarding", headers=h,
+                   json={"estado": "saltado", "fecha": "x" * 40})
+    assert r.status_code == 200, r.text
+
+
+def test_onboarding_pistas_repetidas_se_quitan_y_mas_de_8_es_422():
+    _make_user("ob_pistas")
+    h = _auth("ob_pistas")
+    r = client.put("/api/auth/me/onboarding", headers=h,
+                   json={"estado": "completado", "pistas_vistas": [3, 1, 3, 1]})
+    assert r.status_code == 200, r.text
+    assert _me(h)["onboarding"]["pistas_vistas"] == [1, 3]
+    r = client.put("/api/auth/me/onboarding", headers=h,
+                   json={"estado": "completado", "pistas_vistas": [1, 2, 3, 4, 5, 6, 7, 8, 8]})
+    assert r.status_code == 422

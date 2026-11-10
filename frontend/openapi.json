@@ -6406,6 +6406,7 @@
      "fecha": {
       "anyOf": [
        {
+        "maxLength": 40,
         "type": "string"
        },
        {
@@ -6425,6 +6426,7 @@
        "minimum": 1.0,
        "type": "integer"
       },
+      "maxItems": 8,
       "title": "Pistas Vistas",
       "type": "array"
      },
@@ -11135,6 +11137,18 @@
       "title": "Position",
       "type": "string"
      },
+     "profile_photo_rev": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Revisión de la foto de perfil (cambia al sustituirla); null si no hay",
+      "title": "Profile Photo Rev"
+     },
      "rejected_at": {
       "anyOf": [
        {
@@ -11222,6 +11236,18 @@
       "title": "Id",
       "type": "integer"
      },
+     "profile_photo_rev": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Revisión de la foto de perfil (cambia al sustituirla); null si no hay",
+      "title": "Profile Photo Rev"
+     },
      "role": {
       "enum": [
        "admin",
@@ -11307,6 +11333,18 @@
      },
      "onboarding": {
       "$ref": "#/components/schemas/OnboardingState"
+     },
+     "profile_photo_rev": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Revisión de la foto de perfil (cambia al sustituirla); null si no hay",
+      "title": "Profile Photo Rev"
      },
      "role": {
       "enum": [

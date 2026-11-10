@@ -15,6 +15,8 @@ export interface UserInfo {
   avatar_config?: AvatarConfig | null;
   avatar_mode?: "avatar" | "foto";
   has_profile_photo?: boolean;
+  /** Revisión de la foto de perfil (cambia al sustituirla); null si no hay. */
+  profile_photo_rev?: number | null;
   onboarding?: OnboardingState;
 }
 
@@ -91,12 +93,16 @@ export interface UserBrief {
   avatar_config?: AvatarConfig | null;
   avatar_mode?: "avatar" | "foto";
   has_profile_photo?: boolean;
+  /** Revisión de la foto de perfil (cambia al sustituirla); null si no hay. */
+  profile_photo_rev?: number | null;
 }
 
 export interface UserAdminInfo {
   avatar_config?: AvatarConfig | null;
   avatar_mode?: "avatar" | "foto";
   has_profile_photo?: boolean;
+  /** Revisión de la foto de perfil (cambia al sustituirla); null si no hay. */
+  profile_photo_rev?: number | null;
   id: number;
   username: string;
   full_name: string;

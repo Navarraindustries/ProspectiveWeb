@@ -74,10 +74,17 @@ def _avatar_fields(u: User) -> dict:
     """Campos de avatar de un usuario; una config guardada ilegible cuenta como ausente."""
     cfg = leer_config(u.avatar_config)
     pp = u.profile_photo_path or ""
+    rev: int | None = None
+    if pp:
+        try:
+            rev = Path(pp).stat().st_mtime_ns // 1000  # microsegundos: cambia al sustituir la foto
+        except OSError:
+            rev = None
     return {
         "avatar_config": AvatarConfig(**cfg) if cfg else None,
         "avatar_mode": u.avatar_mode if u.avatar_mode in ("avatar", "foto") else "avatar",
-        "has_profile_photo": bool(pp) and Path(pp).exists(),
+        "has_profile_photo": rev is not None,
+        "profile_photo_rev": rev,
     }
 
 

@@ -10328,6 +10328,11 @@ export interface components {
              */
             position: string;
             /**
+             * Profile Photo Rev
+             * @description Revisión de la foto de perfil (cambia al sustituirla); null si no hay
+             */
+            profile_photo_rev?: number | null;
+            /**
              * Rejected At
              * @description ISO UTC; solo si la solicitud se rechazó
              */
@@ -10380,6 +10385,11 @@ export interface components {
             has_profile_photo: boolean;
             /** Id */
             id: number;
+            /**
+             * Profile Photo Rev
+             * @description Revisión de la foto de perfil (cambia al sustituirla); null si no hay
+             */
+            profile_photo_rev?: number | null;
             /**
              * Role
              * @enum {string}
@@ -10434,6 +10444,11 @@ export interface components {
              */
             must_change_password: boolean;
             onboarding?: components["schemas"]["OnboardingState"];
+            /**
+             * Profile Photo Rev
+             * @description Revisión de la foto de perfil (cambia al sustituirla); null si no hay
+             */
+            profile_photo_rev?: number | null;
             /**
              * Role
              * @enum {string}

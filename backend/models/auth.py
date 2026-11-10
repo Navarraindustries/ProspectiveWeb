@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from services import avatar_config as _av
 
@@ -38,10 +38,16 @@ class AvatarConfig(BaseModel):
 
 class OnboardingState(BaseModel):
     estado: Literal["pendiente", "invitado", "completado", "saltado"] = "pendiente"
-    fecha: str | None = None
-    pistas_vistas: list[Annotated[int, Field(ge=1, le=8)]] = Field(default_factory=list)
+    fecha: str | None = Field(None, max_length=40)
+    pistas_vistas: list[Annotated[int, Field(ge=1, le=8)]] = Field(default_factory=list, max_length=8)
     pistas_activas: bool = True
     tarjeta_cerrada: bool = False
+
+    @field_validator("pistas_vistas")
+    @classmethod
+    def _sin_repetir(cls, v: list[int]) -> list[int]:
+        """Cada paso cuenta una vez; los repetidos se descartan en silencio."""
+        return sorted(set(v))
 
 
 class AvatarUpdate(BaseModel):
@@ -78,6 +84,8 @@ class UserInfo(BaseModel):
     avatar_config: AvatarConfig | None = None
     avatar_mode: Literal["avatar", "foto"] = "avatar"
     has_profile_photo: bool = Field(False, description="Hay foto de perfil propia del avatar (no la del alta)")
+    profile_photo_rev: int | None = Field(
+        None, description="Revisión de la foto de perfil (cambia al sustituirla); null si no hay")
     onboarding: OnboardingState = Field(default_factory=OnboardingState)
 
 
@@ -160,6 +168,8 @@ class UserBrief(BaseModel):
     avatar_config: AvatarConfig | None = None
     avatar_mode: Literal["avatar", "foto"] = "avatar"
     has_profile_photo: bool = False
+    profile_photo_rev: int | None = Field(
+        None, description="Revisión de la foto de perfil (cambia al sustituirla); null si no hay")
 
 
 class UserAdminInfo(BaseModel):
@@ -177,6 +187,8 @@ class UserAdminInfo(BaseModel):
     avatar_config: AvatarConfig | None = None
     avatar_mode: Literal["avatar", "foto"] = "avatar"
     has_profile_photo: bool = False
+    profile_photo_rev: int | None = Field(
+        None, description="Revisión de la foto de perfil (cambia al sustituirla); null si no hay")
     has_cv: bool = False
     created_at: str = ""
     university: str = ""

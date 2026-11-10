@@ -12,21 +12,24 @@ export interface UserAvatarUser {
   avatar_config?: AvatarConfig | null;
   avatar_mode?: "avatar" | "foto";
   has_profile_photo?: boolean;
+  /** Cambia al sustituir la foto: vuelve a pedirla aunque nada más haya cambiado. */
+  profile_photo_rev?: number | null;
 }
 
 export function UserAvatar({ user, size, self = false }: { user: UserAvatarUser; size: number; self?: boolean }) {
   const quiereFoto = user.avatar_mode === "foto" && !!user.has_profile_photo;
+  const rev = user.profile_photo_rev ?? null;
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!quiereFoto) { setUrl(null); return; }
     let created: string | null = null;
     let alive = true;
-    (self ? api.myProfilePhotoObjectUrl() : api.userProfilePhotoObjectUrl(user.id))
+    (self ? api.myProfilePhotoObjectUrl(rev) : api.userProfilePhotoObjectUrl(user.id, rev))
       .then((u) => { if (alive) { created = u; setUrl(u); } else URL.revokeObjectURL(u); })
       .catch(() => { if (alive) setUrl(null); });
     return () => { alive = false; if (created) URL.revokeObjectURL(created); };
-  }, [quiereFoto, self, user.id]);
+  }, [quiereFoto, self, user.id, rev]);
 
   const nombre = user.full_name;
   return (

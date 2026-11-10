@@ -183,3 +183,24 @@ def test_get_sirve_image_png_con_nosniff_en_ambos_endpoints():
         assert g.status_code == 200, url
         assert g.headers["content-type"] == "image/png", url
         assert g.headers["x-content-type-options"] == "nosniff", url
+
+
+def test_revision_de_la_foto_cambia_al_sustituirla_y_llega_a_todas_las_listas():
+    _make_user("pf_rev")
+    h = _h("pf_rev")
+    me = client.get("/api/auth/me", headers=h).json()
+    assert me["profile_photo_rev"] is None
+    r1 = client.post("/api/auth/me/profile-photo", headers=h, files={"photo": ("a.png", PERFIL, "image/png")})
+    rev1 = r1.json()["profile_photo_rev"]
+    assert isinstance(rev1, int)
+    # La misma ruta se sobrescribe: se fecha la anterior en el pasado para que la nueva marque otra revisión.
+    os.utime(_row("pf_rev").profile_photo_path, (1_000_000, 1_000_000))
+    r2 = client.post("/api/auth/me/profile-photo", headers=h,
+                     files={"photo": ("b.png", PERFIL + b"x", "image/png")})
+    rev2 = r2.json()["profile_photo_rev"]
+    assert isinstance(rev2, int) and rev2 != rev1
+    assert client.get("/api/auth/me", headers=h).json()["profile_photo_rev"] == rev2
+    brief = [u for u in client.get("/api/auth/users/brief", headers=h).json() if u["username"] == "pf_rev"]
+    assert brief and brief[0]["profile_photo_rev"] == rev2
+    r3 = client.delete("/api/auth/me/profile-photo", headers=h)
+    assert r3.json()["profile_photo_rev"] is None

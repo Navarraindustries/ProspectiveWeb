@@ -70,6 +70,30 @@ describe("PistaPaso", () => {
     expect(marcarPista).toHaveBeenCalledWith(3);
   });
 
+  it("Esc con el foco en un campo de texto no la cierra ni la marca", () => {
+    render(<><input aria-label="nota" /><PistaPaso paso={3} /></>);
+    const campo = screen.getByLabelText("nota");
+    campo.focus();
+    fireEvent.keyDown(campo, { key: "Escape" });
+    expect(marcarPista).not.toHaveBeenCalled();
+    expect(screen.getByRole("note")).toBeInTheDocument();
+  });
+
+  it("Esc con un menú abierto (foco en él o en el cuerpo) no la marca", () => {
+    render(<><div role="menu"><button role="menuitem">a</button></div><PistaPaso paso={3} /></>);
+    fireEvent.keyDown(screen.getByRole("menuitem"), { key: "Escape" });
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(marcarPista).not.toHaveBeenCalled();
+    expect(screen.getByRole("note")).toBeInTheDocument();
+  });
+
+  it("Esc con el foco en el cuerpo la cierra y marca una sola vez", () => {
+    render(<PistaPaso paso={3} />);
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(marcarPista).toHaveBeenCalledTimes(1);
+    expect(marcarPista).toHaveBeenCalledWith(3);
+  });
+
   it("cambiar de paso con la pista abierta marca el anterior", () => {
     const { rerender } = render(<PistaPaso paso={3} />);
     expect(marcarPista).not.toHaveBeenCalled();

@@ -33,6 +33,7 @@ export function PistaPaso({ paso }: { paso: number }) {
   const pickMode = usePickMode();
   const hojaAbierta = useSyncExternalStore(suscribirHojas, isSheetOpen, () => false);
   const estrecho = useEstrecho();
+  const raiz = useRef<HTMLDivElement>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
 
   const explicacion = PISTAS_PASO[paso as keyof typeof PISTAS_PASO];
@@ -51,6 +52,13 @@ export function PistaPaso({ paso }: { paso: number }) {
     if (!visible) return;
     const alPulsar = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
+      // Esc es de quien tiene el foco: solo cuenta con el foco en la pista o en el cuerpo de la página.
+      const t = e.target instanceof HTMLElement ? e.target : null;
+      const enPista = !!t && !!raiz.current?.contains(t);
+      const enCuerpo = !t || t === document.body || t === document.documentElement;
+      if (!enPista && !enCuerpo) return;
+      // Un menú o un diálogo abierto se queda con la tecla aunque el foco esté en el cuerpo.
+      if (document.querySelector('[role="menu"], [role="dialog"], [aria-modal="true"]')) return;
       void marcarPista(paso);
     };
     document.addEventListener("keydown", alPulsar);
@@ -76,6 +84,7 @@ export function PistaPaso({ paso }: { paso: number }) {
 
   return createPortal(
     <div
+      ref={raiz}
       role="note"
       aria-label={`Pista: ${explicacion.titulo}`}
       data-glass=""

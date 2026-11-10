@@ -2,7 +2,9 @@
    El tamaño de letra sigue el ancho de la maqueta (cqw) para que quepa a cualquier tamaño. */
 .ob-cuerpo--ilustracion { align-items: flex-start; padding: 8px 28px 24px; }
 
-.qz { container-type: inline-size; position: relative; width: min(1180px, 100%); margin: 0 auto; aspect-ratio: 16 / 9.5;
+.qz { container-type: inline-size; position: relative;
+  /* El ancho también se acota por la altura libre (barra superior + márgenes ≈ 150 px) para que la maqueta entera quepa en pantallas bajas. */
+  width: min(1180px, 100%, calc((100dvh - 150px) * 16 / 9.5)); margin: 0 auto; aspect-ratio: 16 / 9.5;
   display: grid; grid-template-columns: 1fr 27%; gap: 10px; padding: 10px; box-sizing: border-box; border-radius: 18px;
   border: var(--glass-rim, 1px) solid var(--glass-border); overflow: hidden; color: var(--foreground);
   font-size: clamp(8px, 1.05cqw, 13px);
@@ -50,7 +52,7 @@
 .qz-panel__pie { display: flex; justify-content: space-between; color: var(--muted-foreground); border-top: 1px solid var(--glass-border); padding-top: 0.6em; }
 
 /* Móvil: visor arriba y panel debajo; la maqueta crece con su contenido y deja sitio a la hoja inferior. */
-.qz[data-movil] { aspect-ratio: auto; grid-template-columns: 1fr; font-size: 10px; padding-bottom: 260px; }
+.qz[data-movil] { width: min(1180px, 100%); aspect-ratio: auto; grid-template-columns: 1fr; font-size: 10px; padding-bottom: 260px; }
 .qz[data-movil] .qz__visor { min-height: 360px; }
 .qz[data-movil] .qz-pastilla { white-space: normal; flex-wrap: wrap; border-radius: 16px; }
 

@@ -1,5 +1,5 @@
 /* Velo con un hueco sobre el elemento explicado. El hueco lleva borde
-   --primary y su sombra gigante pinta el velo --scrim; cuatro tiras
+   --primary y su sombra gigante pinta el velo --scrim-dense; cuatro tiras
    transparentes alrededor bloquean los clics de fuera. El hueco también los
    bloquea (spec §4.5: bajo el velo nada recibe clics): sin él, tocar la
    tarjeta o una sección navegaría y cortaría el recorrido, y «Nuevo

@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 import { api } from "../api/client";
 import type { OnboardingState } from "../api/types";
 import { useAuth } from "../store/auth";
+import { FlujoOnboarding } from "./FlujoOnboarding";
 
 export type Momento = "hola" | "avatar" | "intro" | "pacientes" | "quirofano" | "listo";
 
@@ -127,5 +128,10 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     descartarInvitacion: () => escribir((s) => ({ ...s, estado: "saltado", fecha: new Date().toISOString() })),
   }), [estado, momento, empezar, terminar, escribir]);
 
-  return <OnboardingContext.Provider value={valor}>{children}</OnboardingContext.Provider>;
+  return (
+    <OnboardingContext.Provider value={valor}>
+      {children}
+      <FlujoOnboarding />
+    </OnboardingContext.Provider>
+  );
 }

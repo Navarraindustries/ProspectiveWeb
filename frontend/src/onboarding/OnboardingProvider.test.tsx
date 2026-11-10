@@ -12,6 +12,8 @@ vi.mock("../store/auth", () => ({
   useAuth: () => ({ user: { id: 1, onboarding }, refreshUser }),
 }));
 
+vi.mock("./FlujoOnboarding", () => ({ FlujoOnboarding: () => null }));
+
 import { OnboardingProvider, useOnboarding } from "./OnboardingProvider";
 
 let ctx: ReturnType<typeof useOnboarding>;

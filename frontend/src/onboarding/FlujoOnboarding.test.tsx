@@ -1,0 +1,104 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { configPorDefecto } from "../avatar/config";
+
+const refreshUser = vi.fn();
+const terminar = vi.fn().mockResolvedValue(undefined);
+const empezar = vi.fn();
+let momento = "hola";
+const ir = vi.fn((m: string) => { momento = m; });
+let reducido = false;
+
+vi.mock("../store/auth", () => ({
+  useAuth: () => ({ user: { id: 7, full_name: "Ana Pérez", avatar_config: configPorDefecto(7), avatar_mode: "avatar" }, refreshUser }),
+}));
+vi.mock("../api/client", () => ({
+  api: { saveAvatar: vi.fn().mockResolvedValue({}), uploadProfilePhoto: vi.fn(), copyRegistroPhoto: vi.fn() },
+}));
+vi.mock("./OnboardingProvider", () => ({
+  useOnboarding: () => ({ activo: true, momento, ir, terminar, empezar }),
+}));
+vi.mock("../motion", async (orig) => ({ ...(await orig<object>()), useReducedMotion: () => reducido }));
+
+import { api } from "../api/client";
+import { FlujoOnboarding } from "./FlujoOnboarding";
+
+function Montar() {
+  return <MemoryRouter><FlujoOnboarding /></MemoryRouter>;
+}
+const siguiente = () => fireEvent.click(screen.getByRole("button", { name: /Siguiente|Empezar/ }));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  momento = "hola"; reducido = false;
+});
+
+describe("FlujoOnboarding", () => {
+  it("recorre hola → avatar → intro → listo con «Siguiente»", async () => {
+    const { rerender } = render(<Montar />);
+    expect(screen.getByRole("heading", { name: "Hola, Ana." })).toBeInTheDocument();
+    siguiente();
+    expect(ir).toHaveBeenLastCalledWith("avatar");
+    rerender(<Montar />);
+    expect(screen.getByRole("heading", { name: "Tu avatar" })).toBeInTheDocument();
+    siguiente();
+    await waitFor(() => expect(ir).toHaveBeenLastCalledWith("intro"));
+    rerender(<Montar />);
+    expect(screen.getByRole("heading", { name: "En 20 segundos" })).toBeInTheDocument();
+    siguiente();
+    expect(ir).toHaveBeenLastCalledWith("listo");
+    rerender(<Montar />);
+    expect(screen.getByRole("heading", { name: "Listo, Ana" })).toBeInTheDocument();
+  });
+
+  it("«Saltar todo» está siempre y termina como saltado; Esc también", () => {
+    render(<Montar />);
+    fireEvent.click(screen.getByRole("button", { name: "Saltar todo" }));
+    expect(terminar).toHaveBeenCalledWith("saltado");
+    terminar.mockClear();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(terminar).toHaveBeenCalledWith("saltado");
+  });
+
+  it("en «avatar», cambiar el pijama y avanzar guarda ese pijama", async () => {
+    momento = "avatar";
+    render(<Montar />);
+    const antes = configPorDefecto(7);
+    const nombres = ["Verde quirófano", "Azul", "Violeta", "Granate", "Ámbar", "Gris pizarra"];
+    const otro = nombres.map((n) => screen.getByRole("button", { name: n })).find((b) => b.getAttribute("aria-pressed") === "false");
+    expect(otro).toBeTruthy();
+    fireEvent.click(otro!);
+    siguiente();
+    await waitFor(() => expect(api.saveAvatar).toHaveBeenCalled());
+    const [cfg, modo] = (api.saveAvatar as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(modo).toBe("avatar");
+    expect(cfg.pijama).not.toBe(antes.pijama);
+  });
+
+  it("«Ir a mis pacientes» termina como completado y «Repetir» vuelve a empezar", () => {
+    momento = "listo";
+    render(<Montar />);
+    fireEvent.click(screen.getByRole("button", { name: "Repetir el recorrido" }));
+    expect(empezar).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Ir a mis pacientes" }));
+    expect(terminar).toHaveBeenCalledWith("completado");
+  });
+
+  it("Listo no lleva marcas de progreso", () => {
+    momento = "listo";
+    render(<Montar />);
+    expect(screen.queryByText(/desbloque|logro|insignia/i)).toBeNull();
+  });
+
+  it("con movimiento reducido las tarjetas de intro no se animan", () => {
+    momento = "intro"; reducido = true;
+    const { container, rerender } = render(<Montar />);
+    const tarjetas = container.querySelectorAll("[data-tarjeta-tramo]");
+    expect(tarjetas).toHaveLength(4);
+    tarjetas.forEach((t) => expect(t.getAttribute("data-animada")).toBe("false"));
+    reducido = false;
+    rerender(<Montar />);
+    container.querySelectorAll("[data-tarjeta-tramo]").forEach((t) => expect(t.getAttribute("data-animada")).toBe("true"));
+  });
+});

@@ -11,6 +11,7 @@ import { AvatarCreator } from "./AvatarCreator";
 import { DesdeMiFoto, type ResultadoFoto } from "./DesdeMiFoto";
 import { AvatarSvg } from "./AvatarSvg";
 import { UserAvatar } from "./UserAvatar";
+import { useGuardarAvatar } from "./useGuardarAvatar";
 import { configPorDefecto, type AvatarConfig } from "./config";
 
 type Modo = "avatar" | "foto";
@@ -22,12 +23,14 @@ export function AvatarSheet({ open, onClose }: {
   const { user, refreshUser } = useAuth();
   const [config, setConfig] = useState<AvatarConfig | null>(null);
   const [modo, setModo] = useState<Modo>("avatar");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setErrorLocal] = useState<string | null>(null);
   const [desdeFoto, setDesdeFoto] = useState(false);
-  /** Foto elegida en «Desde mi foto»: no sale del navegador hasta «Guardar». */
-  const [pendiente, setPendiente] = useState<{ foto: Blob | null; usarRegistro: boolean } | null>(null);
-  const [vistaPendiente, setVistaPendiente] = useState<string | null>(null);
+  const { pendiente, vistaPendiente, busy: busyGuardar, error: errorGuardar, setError: setErrorGuardar,
+    setPendiente, aplicarFoto, guardar: guardarAvatar } = useGuardarAvatar();
+  const [busyQuitar, setBusyQuitar] = useState(false);
+  const busy = busyGuardar || busyQuitar;
+  const errorVisible = error ?? errorGuardar;
+  const setError = (e: string | null) => { setErrorLocal(e); setErrorGuardar(e); };
 
   const tieneFoto = !!user?.has_profile_photo;
 
@@ -42,41 +45,20 @@ export function AvatarSheet({ open, onClose }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  useEffect(() => {
-    if (!pendiente?.foto || typeof URL.createObjectURL !== "function") { setVistaPendiente(null); return; }
-    const u = URL.createObjectURL(pendiente.foto);
-    setVistaPendiente(u);
-    return () => URL.revokeObjectURL?.(u);
-  }, [pendiente]);
-
   if (!user || !config) return <Sheet open={false} onClose={onClose} title="Tu avatar">{null}</Sheet>;
 
   const guardar = async () => {
-    setBusy(true); setError(null);
-    try {
-      // La foto debe existir antes de guardar el modo «foto».
-      if (modo === "foto" && pendiente) {
-        if (pendiente.usarRegistro) await api.copyRegistroPhoto();
-        else if (pendiente.foto) await api.uploadProfilePhoto(pendiente.foto);
-        setPendiente(null);
-      }
-      await api.saveAvatar(config, modo);
-      await refreshUser();
-      onClose();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo guardar el avatar");
-    } finally {
-      setBusy(false);
-    }
+    setErrorLocal(null);
+    if (await guardarAvatar(config, modo)) onClose();
   };
 
   const aplicarDesdeFoto = (r: ResultadoFoto) => {
-    setConfig(r.config); setModo(r.mostrar); setDesdeFoto(false); setError(null);
-    setPendiente(r.mostrar === "foto" ? { foto: r.foto, usarRegistro: !!r.usarRegistro } : null);
+    setConfig(r.config); setModo(r.mostrar); setDesdeFoto(false);
+    setErrorLocal(null); aplicarFoto(r);
   };
 
   const quitarFoto = async () => {
-    setBusy(true); setError(null);
+    setBusyQuitar(true); setError(null);
     try {
       await api.deleteProfilePhoto();
       setModo("avatar"); // el servidor ya pasa a «avatar»; el borrador (config) se conserva
@@ -84,7 +66,7 @@ export function AvatarSheet({ open, onClose }: {
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo quitar la foto");
     } finally {
-      setBusy(false);
+      setBusyQuitar(false);
     }
   };
 
@@ -92,7 +74,7 @@ export function AvatarSheet({ open, onClose }: {
     <Sheet open={open} onClose={onClose} title="Tu avatar" width={460}
       footer={desdeFoto ? null : (
         <>
-          {error && <div style={{ flexBasis: "100%" }}><ErrorNote>{error}</ErrorNote></div>}
+          {errorVisible && <div style={{ flexBasis: "100%" }}><ErrorNote>{errorVisible}</ErrorNote></div>}
           <Button onClick={() => void guardar()} disabled={busy} leadingIcon={<Icon name="SAVE" size={14} />}>
             {busy ? "Guardando…" : "Guardar"}
           </Button>

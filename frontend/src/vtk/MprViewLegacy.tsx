@@ -163,20 +163,20 @@ export function MprViewLegacy({
       {/* Grow-from-seeds markers on this slice */}
 
       {!compact && onWindowLevel && (
-        <span style={{ position: "absolute", top: 8, right: 10, fontSize: 10, fontFamily: "var(--font-mono)", color: "rgba(168,184,198,0.5)", pointerEvents: "none" }}>
+        <span style={{ position: "absolute", top: 8, right: 10, fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--hud-text-dim)", pointerEvents: "none" }}>
           rueda: corte · arrastra: ventana/nivel
         </span>
       )}
 
       {showPlaneLabel && (
-        <span style={{ position: "absolute", top: 8, left: 10, fontSize: compact ? 10 : 11, fontFamily: "var(--font-mono)", color: "rgba(168,184,198,0.85)", pointerEvents: "none" }}>
+        <span style={{ position: "absolute", top: 8, left: 10, fontSize: compact ? 10 : 11, fontFamily: "var(--font-mono)", color: "var(--hud-text)", pointerEvents: "none" }}>
           {PLANE_LABEL[plane]}
         </span>
       )}
-      <span style={{ position: "absolute", bottom: 8, left: 10, fontSize: compact ? 9 : 10, fontFamily: "var(--font-mono)", color: "rgba(168,184,198,0.7)", pointerEvents: "none" }}>
+      <span style={{ position: "absolute", bottom: 8, left: 10, fontSize: compact ? 9 : 10, fontFamily: "var(--font-mono)", color: "var(--hud-text-dim)", pointerEvents: "none" }}>
         {index + 1} / {count}
       </span>
-      <span style={{ position: "absolute", bottom: 8, right: 10, fontSize: compact ? 9 : 10, fontFamily: "var(--font-mono)", color: "rgba(168,184,198,0.55)", pointerEvents: "none" }}>
+      <span style={{ position: "absolute", bottom: 8, right: 10, fontSize: compact ? 9 : 10, fontFamily: "var(--font-mono)", color: "var(--hud-text-dim)", pointerEvents: "none" }}>
         W {Math.round(wwv)} · L {Math.round(wcv)}
       </span>
 
@@ -212,7 +212,7 @@ function CrosshairOverlay({ imgRef, u, v }: { imgRef: React.RefObject<HTMLImageE
   if (!box) return null;
   const cx = box.left + u * box.w;
   const cy = box.top + v * box.h;
-  const color = "rgba(96,180,220,0.7)";
+  const color = "var(--hud-text)";
   return (
     <>
       <div style={{ position: "absolute", left: cx, top: box.top, width: 1, height: box.h, background: color, pointerEvents: "none" }} />

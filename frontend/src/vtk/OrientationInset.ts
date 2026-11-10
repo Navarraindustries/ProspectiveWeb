@@ -17,11 +17,18 @@ import vtkAnnotatedCubeActor from "@kitware/vtk.js/Rendering/Core/AnnotatedCubeA
 import vtkXMLPolyDataReader from "@kitware/vtk.js/IO/XML/XMLPolyDataReader";
 import type vtkRenderWindow from "@kitware/vtk.js/Rendering/Core/RenderWindow";
 import { effectiveDirection, lpsToVolumeUserMatrix, type Orientation } from "./geometry";
+import { HUD_HEX } from "./planeColors";
 
-const HUD = "#8CFF9E";          // --hud
+const HUD = HUD_HEX;
 const GREY = "#7A7F7B";
 const FIGURE_HUD: [number, number, number] = [0.55, 1, 0.62];
 const FIGURE_GREY: [number, number, number] = [0.5, 0.5, 0.5];
+
+/** La primera familia de `--font-mono`: las caras del cubo se pintan en un
+ *  <canvas>, que no lee variables CSS ni acepta aquí una lista de familias. */
+export function familiaMono(valor: string): string {
+  return valor.split(",")[0].trim().replace(/^["']|["']$/g, "") || "monospace";
+}
 
 /* vtkAnnotatedCubeActor pinta cada cara en un <canvas> propio y la lee con
    getImageData; Chrome avisa en consola («Multiple readback operations…»)
@@ -106,7 +113,7 @@ export function createOrientationInset(rw: vtkRenderWindow, main: vtkRenderer, o
     const c = withReadbackCanvases(() => vtkAnnotatedCubeActor.newInstance({
       defaultStyle: {
         text: "", faceRotation: 0,
-        fontStyle: "bold", fontFamily: "JetBrains Mono", fontColor: color,
+        fontStyle: "bold", fontFamily: familiaMono(getComputedStyle(document.documentElement).getPropertyValue("--font-mono")), fontColor: color,
         faceColor: "rgba(0,0,0,0.25)", edgeThickness: 0.04, edgeColor: color, resolution: 256,
         // Letra pequeña: el maniquí se ve a través de la cara frontal.
         fontSizeScale: (res: number) => res / 4.6,

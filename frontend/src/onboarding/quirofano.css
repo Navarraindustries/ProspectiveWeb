@@ -1,0 +1,75 @@
+/* Ilustración del quirófano (Tarea 13). Todo con tokens: sirve a los dos temas.
+   El tamaño de letra sigue el ancho de la maqueta (cqw) para que quepa a cualquier tamaño. */
+.ob-cuerpo--ilustracion { align-items: flex-start; padding: 8px 28px 24px; }
+
+.qz { container-type: inline-size; position: relative; width: min(1180px, 100%); margin: 0 auto; aspect-ratio: 16 / 9.5;
+  display: grid; grid-template-columns: 1fr 27%; gap: 10px; padding: 10px; box-sizing: border-box; border-radius: 18px;
+  border: var(--glass-rim, 1px) solid var(--glass-border); overflow: hidden; color: var(--foreground);
+  font-size: clamp(8px, 1.05cqw, 13px);
+  background:
+    radial-gradient(ellipse 80% 70% at 40% 45%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 70%),
+    var(--glass-solid, var(--background)); }
+.qz__visor { position: relative; min-width: 0; border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; gap: 0.8em; padding: 0.8em; }
+.qz-vasos { position: absolute; inset: 8% 6% 14% 6%; width: 88%; height: 78%; }
+.qz-saco { fill: color-mix(in srgb, var(--foreground) 55%, transparent); stroke: none; }
+.qz-anillo { fill: none; stroke: var(--tramo-detectar); stroke-width: 2; stroke-dasharray: 5 4; }
+
+.qz__arriba { position: relative; display: flex; justify-content: space-between; align-items: flex-start; gap: 0.8em; flex-wrap: wrap; }
+.qz-pastilla { display: inline-flex; align-items: center; gap: 0.8em; padding: 0.6em 1em; border-radius: 999px; white-space: nowrap;
+  background: var(--glass-luz, none), var(--glass); border: var(--glass-rim, 1px) solid var(--glass-border); box-shadow: var(--glass-highlight); }
+.qz-pastilla--guardar { flex-wrap: nowrap; }
+.qz-ruta { color: var(--muted-foreground); }
+.qz-riesgo { padding: 0.15em 0.7em; border-radius: 999px; background: color-mix(in srgb, var(--tramo-dispositivo) 25%, transparent); }
+.qz-guardado { color: var(--tramo-dispositivo); }
+.qz-primario { padding: 0.35em 0.9em; border-radius: 999px; background: var(--primary); color: var(--primary-foreground, var(--background)); font-weight: 600; }
+.qz-pastilla kbd { font: inherit; padding: 0.1em 0.5em; border-radius: 6px; border: 1px solid var(--glass-border); color: var(--muted-foreground); }
+
+.qz__vistas { position: relative; display: flex; flex-direction: column; gap: 0.5em; align-items: flex-start; }
+.qz-segmentos { display: inline-flex; flex-wrap: wrap; gap: 0.2em; padding: 0.3em; border-radius: 999px; font-size: 0.9em; letter-spacing: 0.04em;
+  background: var(--glass); border: var(--glass-rim, 1px) solid var(--glass-border); }
+.qz-segmentos span { padding: 0.25em 0.8em; border-radius: 999px; color: var(--muted-foreground); }
+.qz-segmentos span:first-child { color: var(--foreground); }
+.qz-segmentos .qz-malla { color: var(--primary); }
+
+.qz__zona-dock { position: absolute; left: 0.8em; bottom: 0.8em; border-radius: 999px; }
+.qz-dock { display: inline-flex; gap: 0.5em; padding: 0.5em 0.7em; border-radius: 999px;
+  background: var(--glass-luz, none), var(--glass); border: var(--glass-rim, 1px) solid var(--glass-border); box-shadow: var(--glass-highlight); }
+.qz-paso { width: 2.8em; height: 2.8em; border-radius: 50%; display: grid; place-items: center; font-weight: 600;
+  border: 1.5px solid var(--qz-c); color: var(--qz-c); }
+.qz-paso[data-estado="hecho"] { background: color-mix(in srgb, var(--qz-c) 30%, transparent); }
+.qz-paso[data-estado="activo"] { background: var(--qz-c); color: var(--background); box-shadow: 0 0 0 3px var(--background), 0 0 0 4.5px var(--qz-c); }
+
+.qz-panel { display: flex; flex-direction: column; gap: 0.8em; min-width: 0; padding: 1em; border-radius: 14px; box-sizing: border-box;
+  background: var(--glass-luz, none), var(--glass); border: var(--glass-rim, 1px) solid var(--glass-border); box-shadow: var(--glass-highlight); }
+.qz-panel__cab { margin: 0; font-size: 1em; letter-spacing: 0.06em; color: var(--tramo-detectar); }
+.qz-panel__lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5em; flex: 1; }
+.qz-cand { display: flex; flex-direction: column; gap: 0.15em; padding: 0.6em 0.8em; border-radius: 10px; border: 1px solid var(--glass-border); }
+.qz-cand[data-primero] { border-color: var(--tramo-detectar); background: color-mix(in srgb, var(--tramo-detectar) 14%, transparent); }
+.qz-cand__nombre { font-weight: 600; }
+.qz-cand__detalle { color: var(--muted-foreground); }
+.qz-panel__pie { display: flex; justify-content: space-between; color: var(--muted-foreground); border-top: 1px solid var(--glass-border); padding-top: 0.6em; }
+
+/* Móvil: visor arriba y panel debajo; la maqueta crece con su contenido y deja sitio a la hoja inferior. */
+.qz[data-movil] { aspect-ratio: auto; grid-template-columns: 1fr; font-size: 10px; padding-bottom: 260px; }
+.qz[data-movil] .qz__visor { min-height: 360px; }
+.qz[data-movil] .qz-pastilla { white-space: normal; flex-wrap: wrap; border-radius: 16px; }
+
+/* Marcadores numerados (ratón y tacto): 44 px de objetivo, círculo visible de 28. */
+.qz-pin { position: fixed; z-index: 1000; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; cursor: pointer;
+  display: grid; place-items: center; }
+.qz-pin > span { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 700;
+  background: var(--background); color: var(--primary); border: 2px solid var(--primary); transition: transform 200ms ease; }
+.qz-pin[data-activo="true"] > span { background: var(--primary); color: var(--primary-foreground, var(--background)); transform: scale(1.15); }
+.qz-pin:focus-visible > span { outline: 2px solid var(--foreground); outline-offset: 2px; }
+
+/* Dentro de la burbuja. */
+.qz-zonas { display: flex; gap: 6px; margin: 10px 0 4px; }
+.qz-zonas__boton { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--glass-border); background: transparent;
+  color: var(--foreground); font-size: 14px; font-weight: 600; cursor: pointer; }
+.qz-zonas__boton[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground, var(--background)); }
+.qz-tramos { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 1.35; }
+.qz-tramos li { display: flex; gap: 8px; align-items: baseline; }
+.qz-tramos__punto { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--qz-c); }
+.qz-aviso { margin: 8px 0 0; font-size: 13px; color: var(--muted-foreground); }
+
+@media (prefers-reduced-motion: reduce) { .qz-pin > span { transition: none; } }

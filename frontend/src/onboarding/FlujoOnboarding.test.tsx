@@ -192,6 +192,40 @@ describe("FlujoOnboarding", () => {
       }
       fireEvent.click(screen.getByRole("button", { name: "Terminar" }));
       expect(ir).toHaveBeenCalledTimes(1);
+      expect(ir).toHaveBeenCalledWith("quirofano");
+      expect(terminar).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("momento «quirofano» (ilustración en cinco zonas)", () => {
+    const MontarQuirofano = () => <MemoryRouter><FlujoOnboarding /></MemoryRouter>;
+
+    it("la capa sigue a pantalla completa pero no pelea por Tab ni Esc: Esc termina una sola vez y ⌘K sigue bloqueado", () => {
+      momento = "quirofano";
+      render(<MontarQuirofano />);
+      const b = screen.getByRole("dialog", { name: "El visor" });
+      expect(document.querySelector(".ob-capa")).not.toBeNull();
+      expect(document.querySelector(".ob-pie")).toBeNull();
+      expect(document.activeElement).toBe(b);
+      const paleta = vi.fn();
+      window.addEventListener("keydown", paleta);
+      fireEvent.keyDown(document.body, { key: "k", ctrlKey: true });
+      window.removeEventListener("keydown", paleta);
+      expect(paleta).not.toHaveBeenCalled();
+      const botones = within(b).getAllByRole("button").filter((x) => !(x as HTMLButtonElement).disabled);
+      act(() => botones[botones.length - 1].focus());
+      fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+      expect(document.activeElement).toBe(botones[0]);
+      fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+      expect(terminar).toHaveBeenCalledTimes(1);
+      expect(terminar).toHaveBeenCalledWith("saltado");
+    });
+
+    it("«Siguiente» en la zona 5 lleva a «Listo»", () => {
+      momento = "quirofano";
+      render(<MontarQuirofano />);
+      fireEvent.click(screen.getByRole("button", { name: /^Zona 5: / }));
+      fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
       expect(ir).toHaveBeenCalledWith("listo");
       expect(terminar).not.toHaveBeenCalled();
     });

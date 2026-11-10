@@ -1,16 +1,18 @@
 /* Capa de bienvenida a pantalla completa: seis momentos, «Saltar todo» siempre
-   a la vista (y Esc), y nunca bloquea el trabajo. «quirofano» (Tarea 13) se
-   enchufa en PANTALLAS; mientras no esté, se salta.
+   a la vista (y Esc), y nunca bloquea el trabajo.
    En «pacientes» la capa se aparta: el recorrido va sobre la app real, así que
    queda solo una pastilla (progreso + «Saltar todo») que no tapa la página, y
    el foco y las teclas (Tab, Esc) son de la burbuja del recorrido. ⌘K sigue
-   bloqueado: la paleta se abriría debajo del foco. */
+   bloqueado: la paleta se abriría debajo del foco.
+   «quirofano» sigue a pantalla completa (la ilustración vive en la capa), pero
+   su burbuja también manda en Tab y Esc: la capa no los toca. */
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import { Button } from "../components/Button";
 import { Logo } from "../components/shell/Logo";
 import { useAuth } from "../store/auth";
 import { glass } from "../styles/glass";
 import { HOLA } from "./copy";
+import { QuirofanoZonas } from "./QuirofanoZonas";
 import { RecorridoPacientes } from "./RecorridoPacientes";
 import { Hola } from "./momentos/Hola";
 import { Listo } from "./momentos/Listo";
@@ -37,13 +39,27 @@ function MomentoPacientes() {
   return <RecorridoPacientes onFin={fin} />;
 }
 
-/** Punto de enganche de la Tarea 13: añadir aquí «quirofano». */
+/** Momento «quirofano»: la ilustración en cinco zonas; la burbuja manda en el teclado. */
+function MomentoQuirofano() {
+  const { ir, terminar } = useOnboarding();
+  const fin = useCallback(() => {
+    const proximo = vecino("quirofano", 1);
+    if (proximo) ir(proximo);
+    else void terminar("completado");
+  }, [ir, terminar]);
+  return <QuirofanoZonas onFin={fin} />;
+}
+
 const PANTALLAS: Partial<Record<Momento, ComponentType<PropsMomento>>> = {
-  hola: Hola, avatar: TuAvatar, intro: EnVeinteSegundos, pacientes: MomentoPacientes, listo: Listo,
+  hola: Hola, avatar: TuAvatar, intro: EnVeinteSegundos, pacientes: MomentoPacientes,
+  quirofano: MomentoQuirofano, listo: Listo,
 };
 
 /** Momentos que se viven sobre la app real: la capa no la cubre ni le roba el teclado. */
 const SOBRE_LA_APP: ReadonlySet<Momento> = new Set<Momento>(["pacientes"]);
+/** Momentos con burbuja de recorrido: ella lleva el foco, Tab y Esc (dos trampas a la vez se pelean).
+    «quirofano» sigue a pantalla completa, pero la capa no toca el teclado. */
+const BURBUJA_MANDA: ReadonlySet<Momento> = new Set<Momento>(["pacientes", "quirofano"]);
 
 function vecino(m: Momento, paso: 1 | -1): Momento | null {
   for (let i = ORDEN.indexOf(m) + paso; i >= 0 && i < ORDEN.length; i += paso) {
@@ -65,6 +81,7 @@ export function FlujoOnboarding() {
   useEffect(() => () => { vivo.current = false; }, []);
   const saltar = useCallback(() => { vivo.current = false; void terminar("saltado"); }, [terminar]);
   const sobreLaApp = !!momento && SOBRE_LA_APP.has(momento);
+  const burbujaManda = !!momento && BURBUJA_MANDA.has(momento);
 
   useEffect(() => {
     if (!activo) return;
@@ -73,8 +90,8 @@ export function FlujoOnboarding() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); e.stopPropagation(); return; }
       // Sobre la app, Esc y Tab son de la burbuja del recorrido: dos trampas a la vez se pelean.
       // Solo un Esc desde la propia pastilla (la burbuja no lo atiende) lo salta todo.
-      if (sobreLaApp) {
-        if (e.key === "Escape" && e.target instanceof Node && capa.current?.contains(e.target)) saltar();
+      if (burbujaManda) {
+        if (sobreLaApp && e.key === "Escape" && e.target instanceof Node && capa.current?.contains(e.target)) saltar();
         return;
       }
       if (e.key === "Escape") { saltar(); return; }
@@ -94,10 +111,10 @@ export function FlujoOnboarding() {
     };
     window.addEventListener("keydown", alPulsar, true);
     return () => window.removeEventListener("keydown", alPulsar, true);
-  }, [activo, saltar, sobreLaApp]);
+  }, [activo, saltar, sobreLaApp, burbujaManda]);
 
-  // Sobre la app no: la burbuja ya se llevó el foco (su efecto corre antes que este).
-  useEffect(() => { if (activo && !sobreLaApp) capa.current?.focus(); }, [activo, momento, sobreLaApp]);
+  // Con burbuja no: ya se llevó el foco (su efecto corre antes que este).
+  useEffect(() => { if (activo && !burbujaManda) capa.current?.focus(); }, [activo, momento, burbujaManda]);
 
   if (!activo || !momento) return null;
   const Pantalla = PANTALLAS[momento];
@@ -144,18 +161,18 @@ export function FlujoOnboarding() {
   };
 
   return (
-    <div ref={capa} className="ob-capa" role="dialog" aria-modal="true" aria-label="Bienvenida a Prospective" tabIndex={-1}>
+    <div ref={capa} className="ob-capa" role="dialog" aria-modal={momento === "quirofano" ? undefined : true} aria-label="Bienvenida a Prospective" tabIndex={-1}>
       <header className="ob-barra">
         <Logo size={26} />
         {progreso}
         <Button variant="ghost" onClick={saltar}>{HOLA.saltar}</Button>
       </header>
 
-      <main className="ob-cuerpo">
+      <main className={momento === "quirofano" ? "ob-cuerpo ob-cuerpo--ilustracion" : "ob-cuerpo"}>
         <Pantalla nombre={nombre} registrarAvance={registrarAvance} />
       </main>
 
-      <footer className="ob-pie">
+      {momento !== "quirofano" && <footer className="ob-pie">
         {previo ? <Button variant="outline" onClick={() => ir(previo)}>Atrás</Button> : <span />}
         <span className="ob-pie__pista">
           {momento === "hola" ? "Puedes saltarlo cuando quieras." : "Esc salta el recorrido."}
@@ -168,7 +185,7 @@ export function FlujoOnboarding() {
         ) : proximo ? (
           <Button disabled={ocupado} onClick={() => void siguiente()}>{ocupado ? "Guardando…" : "Siguiente"}</Button>
         ) : <span />}
-      </footer>
+      </footer>}
     </div>
   );
 }

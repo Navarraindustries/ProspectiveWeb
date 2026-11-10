@@ -3,7 +3,7 @@
 
 import { canAdvanceFromDetect } from "../components/planning/detectGate";
 import type { usePlanning } from "../store/planning";
-import { MORPHO_AUTO_HINT, NEEDS_MORPHOMETRY, STEPS } from "./steps";
+import { MORPHO_AUTO_HINT, NEEDS_CANDIDATE, NEEDS_MORPHOMETRY, STEPS } from "./steps";
 
 export type GateState = Pick<
   ReturnType<typeof usePlanning>,
@@ -22,7 +22,7 @@ export function stepMissing(i: number, p: GateState): string | null {
     case 1: return p.series ? null : "Carga una serie DICOM primero";
     case 2: return p.segmentation ? null : "Segmenta el vaso primero";
     // Un descartado también se mide: con todo vetado el paso sigue abierto.
-    case 3: return canAdvanceFromDetect(p.candidates, p.rejectedCandidates) ? null : "Detecta un candidato primero";
+    case 3: return canAdvanceFromDetect(p.candidates, p.rejectedCandidates) ? null : NEEDS_CANDIDATE;
     default: return p.morphometry ? null : NEEDS_MORPHOMETRY;
   }
 }

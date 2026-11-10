@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 const auditBlocks = vi.fn();
 const listPatients = vi.fn();
@@ -178,6 +179,23 @@ describe("F2 (16)", () => {
     const borrado = screen.getByText("Paciente borrado o editado");
     expect(borrado.getAttribute("title")).toMatch(/huella del paciente/);
     expect(screen.getAllByText("—", { selector: "td, th" }).length).toBeGreaterThan(0);
+  });
+
+  it("el paciente que aún existe enlaza con su ficha, sin desplegar la fila", async () => {
+    auditBlocks.mockResolvedValueOnce([
+      bloque({ id: 1, patient_hash: "h1", patient_id: 7, patient_name: "Ana Prueba" }),
+      // Nombre resuelto sin id: no hay ficha a la que ir.
+      bloque({ id: 2, patient_hash: "h2", patient_id: null, patient_name: "Luis Prueba" }),
+    ]);
+    const Ruta = () => <output data-testid="ruta">{useLocation().pathname}</output>;
+    render(<MemoryRouter initialEntries={["/app/auditoria"]}><AuditTrail onBack={() => {}} /><Ruta /></MemoryRouter>);
+    const enlace = await screen.findByRole("link", { name: "Ana Prueba" });
+    expect(enlace).toHaveAttribute("href", "/app/pacientes/7");
+    expect(screen.getByText("Luis Prueba")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Luis Prueba" })).toBeNull();
+    fireEvent.click(enlace);
+    expect(screen.getByTestId("ruta")).toHaveTextContent("/app/pacientes/7");
+    expect(screen.queryByText("Hash anterior")).toBeNull();
   });
 
   it("a 390 tarjetas con la acción de título y el resto a la vista (A60)", async () => {

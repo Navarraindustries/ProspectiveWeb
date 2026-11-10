@@ -6,6 +6,7 @@
    pide por `viewer:focus-annotation`, como los atajos van por `viewer:shortcut`. */
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { api } from "../../api/client";
 import type { AnnotationKind } from "../../api/types";
 import { ANNOTATION_MODES, usePlanning } from "../../store/planning";
 import { ANNOTATIONS_MAX, formatMeasure, LABEL_MAX, measure, NOTE_MAX, toCsv, type Annotation } from "../../vtk/annotations";
@@ -41,8 +42,28 @@ const smallBtn = {
 export function AnnotationsPanel() {
   const {
     sessionId, annotations, setAnnotations, selectedAnnotation, setSelectedAnnotation, pickMode, setPickMode,
-    noteFocusRequest, setNoteFocusRequest,
+    noteFocusRequest, setNoteFocusRequest, annotationsLoadState, setAnnotationsLoaded, setAnnotationsSync,
   } = usePlanning();
+  // Si la lista no cargó (al reanudar) solo se decía: se puede volver a pedir.
+  const [retrying, setRetrying] = useState(false);
+  const latest = useRef({ sessionId, annotations });
+  latest.current = { sessionId, annotations };
+  const retryLoad = async () => {
+    const sid = sessionId;
+    if (!sid) return;
+    setRetrying(true);
+    try {
+      const disk = await api.getAnnotations(sid);
+      if (latest.current.sessionId !== sid) return;
+      // Lo anotado mientras no cargaba no está en disco: se conserva detrás de
+      // lo leído y, ya con la lista cargada, el guardado automático lo escribe.
+      const locales = latest.current.annotations.filter((a) => !disk.some((d) => d.id === a.id));
+      setAnnotationsLoaded(disk);
+      if (locales.length > 0) setAnnotations([...disk, ...locales]);
+      else setAnnotationsSync("guardado");
+    } catch { /* sigue en error: el aviso y el botón se quedan */ }
+    finally { setRetrying(false); }
+  };
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(null);
   // WHY: al cancelar con Escape el input desaparece y algunos navegadores aún
   // le mandan el blur; sin esta marca el blur guardaría lo que se canceló.
@@ -124,6 +145,16 @@ export function AnnotationsPanel() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {deleteDialog}
+      {annotationsLoadState === "error" && (
+        <div role="alert" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 12, color: "var(--destructive)", lineHeight: 1.5 }}>
+          <span style={{ flex: "1 1 180px" }}>
+            No se pudieron cargar las anotaciones guardadas. Lo que anotes ahora no se guarda hasta que carguen
+          </span>
+          <Button variant="outline" size="sm" disabled={retrying} onClick={() => void retryLoad()}>
+            {retrying ? "Cargando…" : "Reintentar"}
+          </Button>
+        </div>
+      )}
       <div role="group" aria-label="Herramientas de anotación" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
         {TOOLS.map((t) => {
           const mode = ANNOTATION_MODES[t.kind];

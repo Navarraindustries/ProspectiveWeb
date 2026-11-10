@@ -83,6 +83,8 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
   // detección, la medida y las anotaciones sin preguntar. Los archivos
   // esperan aquí a que se confirme.
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
+  // Cambiar de serie hace lo mismo sobre la sesión que ya hay: misma pregunta.
+  const [pendingSeries, setPendingSeries] = useState<string | null>(null);
   const hasWork = planning.segmentation !== null || planning.candidates.length > 0
     || planning.morphometry !== null || planning.annotations.length > 0;
   // Already in the permanent archive — either opened from the gallery or just
@@ -240,6 +242,17 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
       >
         Esto descarta la segmentación, la detección y la medida. ¿Cargar otro estudio?
       </ConfirmDialog>
+      <ConfirmDialog
+        open={pendingSeries !== null}
+        title="¿Cambiar de serie?"
+        confirmLabel="Cambiar de serie"
+        destructive
+        onCancel={() => setPendingSeries(null)}
+        onConfirm={() => { const s = pendingSeries; setPendingSeries(null); if (s) void switchSeries(s); }}
+      >
+        Lo hecho sobre la serie actual no vale para otra: se pierden la segmentación, la detección,
+        las medidas, los dispositivos y las anotaciones.
+      </ConfirmDialog>
       <PanelHead
         title="Carga DICOM"
         desc="Sube la serie del estudio (carpeta o arrastrando los archivos)."
@@ -322,7 +335,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
               <select
                 value={series.series_id}
                 disabled={switching}
-                onChange={(e) => void switchSeries(e.target.value)}
+                onChange={(e) => (hasWork ? setPendingSeries(e.target.value) : void switchSeries(e.target.value))}
                 style={{
                   width: "100%", padding: "8px 10px", fontSize: 12,
                   fontFamily: "var(--font-sans)", color: "var(--foreground)",

@@ -45,12 +45,25 @@ vi.mock("../components/CaptureGallery", () => ({ CaptureGallery: () => null }));
 // «Nuevo caso» se sustituye por botones que eligen el paciente y crean el caso:
 // aquí se prueba lo que la lista hace antes y después, no el formulario.
 vi.mock("./NuevoCaso", () => ({
-  CasePatientPicker: (p: { open: boolean; patients: { full_name: string }[]; onPick: (x: unknown) => void }) =>
-    p.open ? <button onClick={() => p.onPick(p.patients[0])}>elegir el primero</button> : null,
-  NuevoEstudioSheet: (p: { open: boolean; patientName?: string; onCreated: (s?: unknown) => void; onClose: () => void }) =>
+  CasePatientPicker: (p: {
+    open: boolean; patients: { full_name: string }[]; onPick: (x: unknown) => void;
+    loading?: boolean; error?: string | null; onRetry?: () => void;
+  }) =>
+    !p.open ? null : p.error ? (
+      <div>
+        <span>selector con error: {p.error}</span>
+        <button onClick={p.onRetry}>reintentar en el selector</button>
+      </div>
+    ) : p.loading ? <span>selector cargando</span>
+      : <button onClick={() => p.onPick(p.patients[0])}>elegir el primero</button>,
+  NuevoEstudioSheet: (p: {
+    open: boolean; patientName?: string; onCreated: (s?: unknown) => void; onClose: () => void;
+    onCambiarPaciente?: () => void;
+  }) =>
     p.open ? (
       <div>
         <span>formulario del caso de {p.patientName}</span>
+        {p.onCambiarPaciente && <button onClick={p.onCambiarPaciente}>cambiar paciente</button>}
         <button onClick={() => { p.onCreated({ id: 41, patient_id: 7, dx_principal: "Aneurisma ACoA" }); p.onClose(); }}>
           guardar el caso
         </button>
@@ -374,6 +387,38 @@ describe("la lista de pacientes (F2)", () => {
     fireEvent.click(screen.getByRole("button", { name: "guardar el caso" }));
     fireEvent.click(await screen.findByRole("button", { name: "Planificar este caso" }));
     expect(onPlanCase).toHaveBeenCalledWith(expect.objectContaining({ id: 41 }), maria);
+  });
+
+  it("«Nuevo caso»: desde el formulario se vuelve al selector para cambiar de paciente", async () => {
+    listPatients.mockResolvedValue([fila({ id: 7, full_name: "Restrepo, María" })]);
+    renderAt("/app/pacientes");
+    await screen.findByText("Restrepo, María");
+    fireEvent.click(screen.getByRole("button", { name: /Nuevo caso/ }));
+    fireEvent.click(screen.getByRole("button", { name: "elegir el primero" }));
+    expect(screen.getByText("formulario del caso de Restrepo, María")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "cambiar paciente" }));
+    expect(screen.queryByText(/formulario del caso/)).toBeNull();
+    expect(screen.getByRole("button", { name: "elegir el primero" })).toBeTruthy();
+  });
+
+  it("el caso ofrecido tras crear un paciente no ofrece cambiarlo: no vino del selector", async () => {
+    createPatient.mockResolvedValue(fila({ id: 9, full_name: "Restrepo, María" }));
+    renderAt("/app/pacientes?nuevo=paciente");
+    fireEvent.change(await screen.findByRole("textbox", { name: "Apellidos" }), { target: { value: "Restrepo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Crear paciente" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Crear un caso para Restrepo, María" }));
+    expect(screen.getByText("formulario del caso de Restrepo, María")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "cambiar paciente" })).toBeNull();
+  });
+
+  it("si la lista falló, el selector de «Nuevo caso» recibe el error y su «Reintentar» la vuelve a pedir", async () => {
+    listPatients.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    renderAt("/app/pacientes?nuevo=caso");
+    expect(await screen.findByText("selector con error: Sin conexión con el servidor")).toBeTruthy();
+    listPatients.mockResolvedValue([fila({ id: 7, full_name: "Restrepo, María" })]);
+    fireEvent.click(screen.getByRole("button", { name: "reintentar en el selector" }));
+    expect(await screen.findByRole("button", { name: "elegir el primero" })).toBeTruthy();
+    expect(listPatients).toHaveBeenCalledTimes(2);
   });
 });
 

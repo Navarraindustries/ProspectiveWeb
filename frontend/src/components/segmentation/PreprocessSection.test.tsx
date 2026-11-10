@@ -6,10 +6,13 @@ import { useEffect, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const preprocess = vi.fn();
+const revertPreprocess = vi.fn();
+const preprocessStatus = vi.fn();
 vi.mock("../../api/client", () => ({
   api: {
     preprocess: (...a: unknown[]) => preprocess(...a),
-    preprocessStatus: vi.fn().mockResolvedValue({ ops: "" }),
+    revertPreprocess: (...a: unknown[]) => revertPreprocess(...a),
+    preprocessStatus: (...a: unknown[]) => preprocessStatus(...a),
   },
 }));
 
@@ -36,7 +39,35 @@ function montar(conMalla: boolean, spacing?: { x: number; y: number; z: number }
   fireEvent.click(screen.getByText("Preprocesamiento (avanzado)"));
 }
 
-beforeEach(() => { preprocess.mockReset().mockResolvedValue(resultado); });
+beforeEach(() => {
+  preprocess.mockReset().mockResolvedValue(resultado);
+  revertPreprocess.mockReset().mockResolvedValue(resultado);
+  preprocessStatus.mockReset().mockResolvedValue({ ops: "" });
+});
+
+/* «Restaurar volumen original» reinicia lo mismo que «Aplicar» y no preguntaba. */
+describe("«Restaurar volumen original»", () => {
+  it("con trabajo hecho pide confirmación y no restaura hasta confirmar", async () => {
+    preprocessStatus.mockResolvedValue({ ops: "suavizado" });
+    montar(true);
+    fireEvent.click(await screen.findByRole("button", { name: "Restaurar volumen original" }));
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Restaurar el volumen original?" });
+    expect(dialogo).toHaveTextContent("Se reinicia la segmentación");
+    expect(dialogo).toHaveTextContent("se borran las anotaciones");
+    expect(revertPreprocess).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Restaurar y reiniciar" }));
+    await waitFor(() => expect(revertPreprocess).toHaveBeenCalledTimes(1));
+  });
+
+  it("sin nada que perder restaura directamente", async () => {
+    preprocessStatus.mockResolvedValue({ ops: "suavizado" });
+    montar(false);
+    fireEvent.click(await screen.findByRole("button", { name: "Restaurar volumen original" }));
+    await waitFor(() => expect(revertPreprocess).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+});
 
 describe("«Aplicar preprocesamiento»", () => {
   it("con trabajo hecho pide confirmación y no reescribe el volumen hasta confirmar", async () => {

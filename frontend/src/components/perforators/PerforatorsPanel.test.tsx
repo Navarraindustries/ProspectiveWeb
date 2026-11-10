@@ -171,10 +171,24 @@ describe("when there is nothing to show", () => {
     expect(screen.getByText(/1,0 mm/)).toBeInTheDocument();
   });
 
-  it("explains what to run first when the endpoint fails", async () => {
-    perforators.mockRejectedValue(new Error("422"));
+  it("explains what to run first when there is no mesh yet (422)", async () => {
+    perforators.mockRejectedValue(Object.assign(new Error("No segmented mesh found."), { status: 422 }));
     withSession({});
     expect(await screen.findByText(/ejecuta primero la detección/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
+  });
+
+  /* Cualquier fallo salía como «ejecuta primero la detección…», también con el
+     servidor caído y la detección hecha, y sin forma de repetir la lectura. */
+  it("otro fallo se dice como error, con «Reintentar» que vuelve a leer", async () => {
+    perforators.mockRejectedValueOnce(Object.assign(new Error("Fallo interno"), { status: 500 }));
+    withSession({});
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudieron leer las ramas: Fallo interno");
+    expect(screen.queryByText(/ejecuta primero la detección/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByRole("button", { name: /br-002/ })).toBeInTheDocument();
+    expect(perforators).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
 

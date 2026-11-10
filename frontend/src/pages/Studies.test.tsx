@@ -72,6 +72,17 @@ describe("«Estudios» con el API fallando", () => {
     expect(await screen.findByText(/Aún no hay estudios archivados/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
   });
+
+  it("sin estudios, el vacío ofrece «Subir un estudio nuevo»; una búsqueda sin resultados, no", async () => {
+    const onNew = vi.fn();
+    listStudies.mockResolvedValue([]);
+    render(<Studies {...props} onNew={onNew} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Subir un estudio nuevo" }));
+    expect(onNew).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByLabelText("Buscar por paciente, HC o diagnóstico"), { target: { value: "zzz" } });
+    expect(await screen.findByText("Sin coincidencias")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Subir un estudio nuevo" })).toBeNull();
+  });
 });
 
 

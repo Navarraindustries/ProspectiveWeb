@@ -7,11 +7,14 @@
 
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 const listClipOrders = vi.fn();
 const clipOrdersSummary = vi.fn();
 const advanceClipOrder = vi.fn();
 const rejectClipOrder = vi.fn();
+const verifyClipOrder = vi.fn();
+const deleteClipOrder = vi.fn();
 const auth = { user: null as null | { role: string } };
 
 vi.mock("../api/client", () => ({
@@ -21,6 +24,8 @@ vi.mock("../api/client", () => ({
     downloadClipOrderFile: vi.fn(),
     advanceClipOrder: (...a: unknown[]) => advanceClipOrder(...a),
     rejectClipOrder: (...a: unknown[]) => rejectClipOrder(...a),
+    verifyClipOrder: (...a: unknown[]) => verifyClipOrder(...a),
+    deleteClipOrder: (...a: unknown[]) => deleteClipOrder(...a),
   },
   ApiError: class ApiError extends Error {},
 }));
@@ -77,6 +82,8 @@ beforeEach(() => {
   clipOrdersSummary.mockReset();
   advanceClipOrder.mockReset().mockResolvedValue({});
   rejectClipOrder.mockReset().mockResolvedValue({});
+  verifyClipOrder.mockReset().mockResolvedValue({});
+  deleteClipOrder.mockReset().mockResolvedValue({ deleted: true });
   auth.user = null;
   clipOrdersSummary.mockResolvedValue({
     counts: { enviado: 2, recibida: 1 },
@@ -335,6 +342,106 @@ describe("firmar y rechazar", () => {
     expect(rejectClipOrder).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Rechazar la pieza" }));
     await waitFor(() => expect(rejectClipOrder).toHaveBeenCalledWith("PR-REC", "Pieza no conforme"));
+  });
+});
+
+/* Los pasos sin vuelta atrás se confirman: el servidor no deja retroceder desde
+   «enviado» ni «en fabricación», y aceptar la pieza cierra el pedido. */
+describe("los pasos que no se pueden deshacer", () => {
+  const abrir = async (o: ClipOrder) => {
+    listClipOrders.mockResolvedValue([o]);
+    render(<ClipOrdersPage />);
+    (await screen.findByText(o.part_no)).click();
+  };
+
+  it("«Marcar enviado» pregunta antes y cancelar no lo manda", async () => {
+    await abrir(order({ part_no: "PR-FIR", status: "firmado", status_label: "Firmado", next_states: ["enviado", "borrador"] }));
+    fireEvent.click(await screen.findByRole("button", { name: "Marcar enviado" }));
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Marcar el pedido PR-FIR como enviado?" });
+    expect(advanceClipOrder).not.toHaveBeenCalled();
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(advanceClipOrder).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Marcar enviado" }));
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Marcar enviado" }));
+    await waitFor(() => expect(advanceClipOrder).toHaveBeenCalledWith("PR-FIR", "enviado"));
+  });
+
+  it("«En fabricación» pregunta antes de avanzar", async () => {
+    await abrir(order({ part_no: "PR-ENV", status: "enviado", next_states: ["en_fabricacion", "recibida"] }));
+    fireEvent.click(await screen.findByRole("button", { name: "En fabricación" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Pasar el pedido PR-ENV a fabricación?" })).toBeInTheDocument();
+    expect(advanceClipOrder).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Pasar a fabricación" }));
+    await waitFor(() => expect(advanceClipOrder).toHaveBeenCalledWith("PR-ENV", "en_fabricacion"));
+  });
+
+  it("«Aceptar la pieza» pregunta antes de cerrar el pedido", async () => {
+    await abrir(order({
+      part_no: "PR-REC", status: "recibida", status_label: "Recibida", next_states: ["verificada", "rechazada"],
+      reception: { measured_jaw_mm: 7, measured_force_g: 150, jaw_within_tolerance: true, force_within_band: true },
+    }));
+    fireEvent.click(await screen.findByRole("button", { name: "Aceptar la pieza" }));
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Aceptar la pieza PR-REC?" });
+    expect(verifyClipOrder).not.toHaveBeenCalled();
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Aceptar la pieza" }));
+    await waitFor(() => expect(verifyClipOrder).toHaveBeenCalledWith("PR-REC", ""));
+  });
+});
+
+describe("borrar un borrador", () => {
+  it("solo un borrador ofrece «Borrar borrador», y borra tras confirmar", async () => {
+    listClipOrders.mockResolvedValue([order({ part_no: "PR-BOR", status: "borrador", status_label: "Borrador", next_states: ["firmado"] })]);
+    render(<ClipOrdersPage />);
+    (await screen.findByText("PR-BOR")).click();
+    fireEvent.click(await screen.findByRole("button", { name: "Borrar borrador" }));
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Borrar el borrador PR-BOR?" });
+    expect(deleteClipOrder).not.toHaveBeenCalled();
+    const antes = listClipOrders.mock.calls.length;
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Borrar borrador" }));
+    await waitFor(() => expect(deleteClipOrder).toHaveBeenCalledWith("PR-BOR"));
+    // Tras borrar se vuelve a leer el registro.
+    await waitFor(() => expect(listClipOrders.mock.calls.length).toBeGreaterThan(antes));
+  });
+
+  it("un pedido firmado no lo ofrece", async () => {
+    listClipOrders.mockResolvedValue([order({ part_no: "PR-FIR", status: "firmado", status_label: "Firmado", next_states: ["enviado"] })]);
+    render(<ClipOrdersPage />);
+    (await screen.findByText("PR-FIR")).click();
+    await screen.findByRole("button", { name: "Marcar enviado" });
+    expect(screen.queryByRole("button", { name: "Borrar borrador" })).toBeNull();
+  });
+
+  it("si el servidor se niega, el motivo sale junto a las acciones", async () => {
+    deleteClipOrder.mockRejectedValueOnce(new Error("No autorizado sobre este pedido."));
+    listClipOrders.mockResolvedValue([order({ part_no: "PR-BOR", status: "borrador", status_label: "Borrador", next_states: ["firmado"] })]);
+    render(<ClipOrdersPage />);
+    (await screen.findByText("PR-BOR")).click();
+    fireEvent.click(await screen.findByRole("button", { name: "Borrar borrador" }));
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Borrar borrador" }));
+    expect(await screen.findByText("No autorizado sobre este pedido.")).toBeInTheDocument();
+  });
+});
+
+describe("el paciente del pedido enlaza con su ficha", () => {
+  const Ruta = () => <output data-testid="ruta">{useLocation().pathname}</output>;
+
+  it("el nombre lleva a /app/pacientes/<id>", async () => {
+    listClipOrders.mockResolvedValue([order({ part_no: "PR-0001", patient: "Navarro, Ana", patient_id: 7 })]);
+    render(<MemoryRouter initialEntries={["/app/pedidos"]}><ClipOrdersPage /><Ruta /></MemoryRouter>);
+    (await screen.findByText("PR-0001")).click();
+    const enlace = await screen.findByRole("link", { name: "Navarro, Ana" });
+    expect(enlace).toHaveAttribute("href", "/app/pacientes/7");
+    fireEvent.click(enlace);
+    expect(screen.getByTestId("ruta")).toHaveTextContent("/app/pacientes/7");
+  });
+
+  it("sin paciente (pedido de una prueba sin adjuntar) queda el texto", async () => {
+    listClipOrders.mockResolvedValue([order({ part_no: "PR-0002", patient: "Sin paciente", patient_id: null })]);
+    render(<MemoryRouter><ClipOrdersPage /></MemoryRouter>);
+    (await screen.findByText("PR-0002")).click();
+    await screen.findByTestId("po-acciones");
+    expect(screen.queryByRole("link")).toBeNull();
   });
 });
 

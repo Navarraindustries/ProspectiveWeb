@@ -15,11 +15,14 @@
    conserven su copia se dice una sola vez, en «Cómo se usa»: F2-64.) */
 
 import { useCallback, useEffect, useState } from "react";
+import { Link, useInRouterContext } from "react-router-dom";
+import { SCREEN_PATH } from "../store/nav";
 import { api } from "../api/client";
 import type { Workshop, WorkshopIn } from "../api/types";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { DiscardChanges } from "../components/DiscardChanges";
 import { Input } from "../components/Input";
 import { Card, ErrorNote, SectionLabel } from "../components/PanelHead";
 import { Sheet } from "../components/Sheet";
@@ -53,20 +56,33 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
   // nombre, o al salir de él habiendo escrito algo y vaciándolo.
   const [flagName, setFlagName] = useState(false);
   const [typedName, setTypedName] = useState(false);
+  // Lo que había al abrir: «Cancelar», el ✕, Escape y el clic fuera tiraban lo
+  // escrito sin preguntar. Contra esto se mide si hay cambios.
+  const [initial, setInitial] = useState<WorkshopIn>(BLANK);
+  const [askDiscard, setAskDiscard] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setFlagName(false);
     setTypedName(false);
-    setForm(workshop
+    const cargado: WorkshopIn = workshop
       ? {
           name: workshop.name, contact_name: workshop.contact_name,
           email: workshop.email, phone: workshop.phone, address: workshop.address,
           tax_id: workshop.tax_id, notes: workshop.notes,
         }
-      : BLANK);
+      : BLANK;
+    setForm(cargado);
+    setInitial(cargado);
+    setAskDiscard(false);
     setError("");
   }, [open, workshop]);
+
+  const dirty = (Object.keys(BLANK) as (keyof WorkshopIn)[]).some((k) => form[k] !== initial[k]);
+  const requestClose = () => {
+    if (dirty) setAskDiscard(true);
+    else onClose();
+  };
 
   const set = (k: keyof WorkshopIn) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm({ ...form, [k]: e.target.value });
@@ -87,9 +103,10 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
   };
 
   return (
+    <>
     <Sheet
       open={open}
-      onClose={onClose}
+      onClose={requestClose}
       title={workshop ? "Editar taller" : "Nuevo taller"}
       width={460}
       footer={
@@ -102,7 +119,7 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
           <Button onClick={save} disabled={busy || nameMissing}>
             {busy ? "Guardando…" : workshop ? "Guardar cambios" : "Registrar taller"}
           </Button>
-          <Button variant="outline" onClick={onClose} disabled={busy}>Cancelar</Button>
+          <Button variant="outline" onClick={requestClose} disabled={busy}>Cancelar</Button>
         </>
       }
     >
@@ -125,6 +142,12 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
                hint="Plazos habituales, capacidades, lo que convenga recordar." />
       </div>
     </Sheet>
+    <DiscardChanges
+      open={askDiscard}
+      onKeep={() => setAskDiscard(false)}
+      onDiscard={() => { setAskDiscard(false); onClose(); }}
+    />
+    </>
   );
 }
 
@@ -133,6 +156,7 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
 export function WorkshopsPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const enRouter = useInRouterContext();
 
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,6 +166,7 @@ export function WorkshopsPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Workshop | null>(null);
   const [toDelete, setToDelete] = useState<Workshop | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -157,13 +182,16 @@ export function WorkshopsPage() {
   useEffect(load, [load]);
 
   const remove = () => {
-    if (!toDelete) return;
+    // Un segundo clic mientras el primero viaja mandaba otro DELETE (y un 404).
+    if (!toDelete || deleting) return;
+    setDeleting(true);
     api.deleteWorkshop(toDelete.id)
       .then(() => { setToDelete(null); load(); })
       .catch((e) => {
         setError(e instanceof Error ? e.message : "No se pudo borrar el taller");
         setToDelete(null);
-      });
+      })
+      .finally(() => setDeleting(false));
   };
 
   const abrirAlta = () => { setEditing(null); setSheetOpen(true); };
@@ -204,11 +232,17 @@ export function WorkshopsPage() {
               <article key={w.id} data-glass className="tl-tarjeta" style={glass("normal")}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
                   <div style={{ fontSize: 15, fontWeight: 600, color: "var(--foreground)" }}>{w.name}</div>
-                  {w.order_count > 0 && (
-                    <Badge variant="subtle">
-                      {w.order_count === 1 ? "1 pedido" : `${w.order_count} pedidos`}
-                    </Badge>
-                  )}
+                  {w.order_count > 0 && (() => {
+                    const insignia = (
+                      <Badge variant="subtle">
+                        {w.order_count === 1 ? "1 pedido" : `${w.order_count} pedidos`}
+                      </Badge>
+                    );
+                    // La insignia lleva a los pedidos de este taller (Pedidos busca por taller).
+                    return enRouter
+                      ? <Link to={`${SCREEN_PATH.orders}?q=${encodeURIComponent(w.name)}`} title={`Ver los pedidos de ${w.name}`}>{insignia}</Link>
+                      : insignia;
+                  })()}
                 </div>
                 <div style={{ fontSize: 13 }}>
                   {[w.contact_name, w.email, w.phone].filter(Boolean).join(" · ") || "Sin contacto registrado"}
@@ -279,8 +313,9 @@ export function WorkshopsPage() {
       <ConfirmDialog
         open={toDelete !== null}
         title="Borrar taller"
-        confirmLabel="Borrar"
+        confirmLabel={deleting ? "Borrando…" : "Borrar"}
         destructive
+        busy={deleting}
         onConfirm={remove}
         onCancel={() => setToDelete(null)}
       >

@@ -70,6 +70,9 @@ interface Nav {
   /** Por qué ahora no se puede cambiar de sesión ni salir del quirófano sin pasar por el
       aviso de cambios sin guardar (el mismo motivo que deshabilita «Prueba rápida» en la paleta). */
   bloqueoPipeline?: string;
+  /** Cerrar la sesión pasando antes por el aviso de cambios sin guardar. Sin él
+      (fuera del Router) se cierra directamente. */
+  salir?: () => void;
 }
 
 const NavContext = createContext<Nav>({ screen: "login", go: () => {} });

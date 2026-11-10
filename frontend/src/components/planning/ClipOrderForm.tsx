@@ -22,6 +22,7 @@ import type {
 } from "../../api/types";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { Input } from "../Input";
 import { Card, ErrorNote, SectionLabel } from "../PanelHead";
 import { Select } from "../Select";
@@ -627,7 +628,7 @@ export function ClipOrderForm({
 
 /* ── El registro ────────────────────────────────────────────────────────── */
 
-function Reception({ order, onDone }: { order: ClipOrder; onDone: () => void }) {
+function Reception({ order, onDone, onCancel }: { order: ClipOrder; onDone: () => void; onCancel: () => void }) {
   const [jaw, setJaw] = useState(order.jaw_mm);
   const [force, setForce] = useState(0);
   const [notes, setNotes] = useState("");
@@ -652,16 +653,20 @@ function Reception({ order, onDone }: { order: ClipOrder; onDone: () => void }) 
           <Input label="Notas" value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
       </div>
-      <Button size="sm" style={{ marginTop: 10 }} disabled={busy || force <= 0}
-              onClick={() => {
-                setBusy(true);
-                api.receiveClipOrder(order.part_no, jaw, force, notes)
-                  .then(onDone)
-                  .catch((e) => setError(problemsFrom(e)[0]))
-                  .finally(() => setBusy(false));
-              }}>
-        Registrar recepción
-      </Button>
+      <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <Button size="sm" disabled={busy || force <= 0}
+                onClick={() => {
+                  setBusy(true);
+                  api.receiveClipOrder(order.part_no, jaw, force, notes)
+                    .then(onDone)
+                    .catch((e) => setError(problemsFrom(e)[0]))
+                    .finally(() => setBusy(false));
+                }}>
+          Registrar recepción
+        </Button>
+        {/* Abierta por error no tenía salida: solo se cerraba registrando. */}
+        <Button size="sm" variant="ghost" disabled={busy} onClick={onCancel}>Cancelar</Button>
+      </div>
       <ErrorNote>{error}</ErrorNote>
     </Card>
   );
@@ -682,6 +687,16 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
   const act = (p: Promise<unknown>) => {
     setError("");
     p.then(onChange).catch((e) => setError(problemsFrom(e)[0]));
+  };
+  // Lo que no tiene vuelta atrás espera aquí a que se confirme: borrar el
+  // borrador, aceptar o rechazar la pieza, y «enviado» / «en fabricación»,
+  // que el pedido no puede desandar.
+  const [asking, setAsking] = useState<{
+    title: string; confirmLabel: string; body: string; destructive: boolean; run: () => Promise<unknown>;
+  } | null>(null);
+  const ADVANCE_BODY: Partial<Record<OrderStatus, string>> = {
+    enviado: "El pedido queda como enviado al taller y ya no se puede devolver a borrador ni corregir.",
+    en_fabricacion: "El pedido queda en fabricación. Este paso no se puede deshacer.",
   };
 
   return (
@@ -767,31 +782,62 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
           ) : (
             <Button key={s} size="sm" variant="outline"
                     disabled={s === "firmado" && !declara}
-                    onClick={() => act(api.advanceClipOrder(order.part_no, s, s === "firmado" && declara))}>
+                    onClick={() => {
+                      const run = () => api.advanceClipOrder(order.part_no, s, s === "firmado" && declara);
+                      const body = ADVANCE_BODY[s];
+                      // Firmar ya pide su declaración, y un firmado vuelve a borrador.
+                      if (body) setAsking({ title: `¿${NEXT_LABEL[s]}?`, confirmLabel: NEXT_LABEL[s]!, body, destructive: false, run });
+                      else act(run());
+                    }}>
               {NEXT_LABEL[s]}
             </Button>
           )
         ))}
         {order.status === "recibida" && (
           <>
-            <Button size="sm" onClick={() => act(api.verifyClipOrder(order.part_no, deviation))}>
+            <Button size="sm" onClick={() => setAsking({
+              title: "¿Aceptar la pieza?", confirmLabel: "Aceptar la pieza", destructive: false,
+              body: outOfSpec
+                ? `La pieza ${order.part_no} está fuera de especificación y queda verificada con tu justificación. No se puede deshacer.`
+                : `La pieza ${order.part_no} queda verificada y el pedido se cierra. No se puede deshacer.`,
+              run: () => api.verifyClipOrder(order.part_no, deviation),
+            })}>
               Aceptar la pieza
             </Button>
-            <Button size="sm" variant="destructive"
-                    onClick={() => act(api.rejectClipOrder(order.part_no, deviation || "Pieza no conforme"))}>
+            <Button size="sm" variant="destructive" onClick={() => setAsking({
+              title: "¿Rechazar la pieza?", confirmLabel: "Rechazar la pieza", destructive: true,
+              body: `La pieza ${order.part_no} queda rechazada y el pedido se cierra. No se puede deshacer: para otra pieza hay que hacer un pedido nuevo.`,
+              run: () => api.rejectClipOrder(order.part_no, deviation || "Pieza no conforme"),
+            })}>
               Rechazar
             </Button>
           </>
         )}
         {order.status === "borrador" && (
-          <Button size="sm" variant="destructive"
-                  onClick={() => act(api.deleteClipOrder(order.part_no))}>
+          <Button size="sm" variant="destructive" onClick={() => setAsking({
+            title: "¿Borrar el borrador?", confirmLabel: "Borrar el borrador", destructive: true,
+            body: `Se borra el borrador ${order.part_no} con todo lo rellenado. No se puede recuperar.`,
+            run: () => api.deleteClipOrder(order.part_no),
+          })}>
             Borrar borrador
           </Button>
         )}
       </div>
+      <ConfirmDialog
+        open={asking !== null}
+        title={asking?.title ?? ""}
+        confirmLabel={asking?.confirmLabel ?? ""}
+        destructive={asking?.destructive}
+        onCancel={() => setAsking(null)}
+        onConfirm={() => { const a = asking; setAsking(null); if (a) act(a.run()); }}
+      >
+        {asking?.body}
+      </ConfirmDialog>
 
-      {receiving && <Reception order={order} onDone={() => { setReceiving(false); onChange(); }} />}
+      {receiving && (
+        <Reception order={order} onDone={() => { setReceiving(false); onChange(); }}
+                   onCancel={() => setReceiving(false)} />
+      )}
       <ErrorNote>{error}</ErrorNote>
     </div>
   );

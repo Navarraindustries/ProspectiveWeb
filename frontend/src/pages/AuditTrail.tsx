@@ -11,6 +11,7 @@ import { Input } from "../components/Input";
 import { Select } from "../components/Select";
 import { TablaTarjetas, type ColumnaTabla } from "../components/TablaTarjetas";
 import { EstadoVacio } from "../components/EstadoVacio";
+import { EnlaceFicha } from "../components/patients/EnlaceFicha";
 import { AppShell } from "../components/shell/AppShell";
 import { SectionLabel, Card, ErrorNote } from "../components/PanelHead";
 import { AdminOnlyCard } from "../components/AdminOnly";
@@ -46,10 +47,11 @@ const plural = (n: number) => (n === 1 ? "1 bloque corrupto" : `${n} bloques cor
 const ROTULO: React.CSSProperties = { color: "var(--muted-foreground)" };
 const MONO: React.CSSProperties = { margin: 0, fontFamily: "var(--font-mono)", fontSize: 12, overflowWrap: "anywhere" };
 
-/** El paciente de un bloque: su nombre, el aviso de que ya no existe, o «—». */
+/** El paciente de un bloque: su nombre (enlace a su ficha si aún existe), el
+    aviso de que ya no existe, o «—». */
 function PacienteDelBloque({ b }: { b: AuditBlock }) {
   if (!b.patient_hash) return <>—</>;
-  if (b.patient_name) return <>{b.patient_name}</>;
+  if (b.patient_name) return <EnlaceFicha patientId={b.patient_id}>{b.patient_name}</EnlaceFicha>;
   return <span style={ROTULO} title={SIN_PACIENTE_TITULO}>{SIN_PACIENTE}</span>;
 }
 

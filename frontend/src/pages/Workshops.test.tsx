@@ -143,6 +143,62 @@ describe("who may delete", () => {
     expect(screen.getByText(/Deja de poder elegirse en\s+pedidos nuevos/)).toBeInTheDocument();
     expect(deleteWorkshop).not.toHaveBeenCalled();
   });
+
+  it("un doble clic en «Borrar» manda un solo DELETE, y mientras viaja no se cancela", async () => {
+    user.role = "admin";
+    listWorkshops.mockResolvedValue([shop()]);
+    let terminar: (v: { deleted: boolean }) => void = () => {};
+    deleteWorkshop.mockReturnValue(new Promise((r) => { terminar = r; }));
+    render(<WorkshopsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /Borrar/ }));
+    const dialogo = screen.getByRole("alertdialog", { name: "Borrar taller" });
+    const confirmar = within(dialogo).getByRole("button", { name: "Borrar" });
+    fireEvent.click(confirmar);
+    fireEvent.click(confirmar);
+    expect(deleteWorkshop).toHaveBeenCalledTimes(1);
+    expect(within(dialogo).getByRole("button", { name: "Borrando…" })).toBeDisabled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("alertdialog", { name: "Borrar taller" })).toBeInTheDocument();
+    terminar({ deleted: true });
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+  });
+});
+
+/* «Cancelar», el ✕, Escape y el clic fuera cerraban la hoja y tiraban lo
+   escrito sin preguntar. */
+describe("descartar el taller a medio escribir", () => {
+  it("«Cancelar» con algo escrito pregunta, y «Seguir editando» lo conserva", async () => {
+    listWorkshops.mockResolvedValue([]);
+    render(<WorkshopsPage />);
+    fireEvent.click(await abrirDesdeBarra());
+    fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: "Precisión Andina" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    const pregunta = screen.getByRole("alertdialog", { name: "¿Descartar los cambios?" });
+    fireEvent.click(within(pregunta).getByRole("button", { name: "Seguir editando" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect((screen.getByLabelText(/Nombre/) as HTMLInputElement).value).toBe("Precisión Andina");
+  });
+
+  it("Escape también pregunta, y «Descartar cambios» cierra sin guardar", async () => {
+    listWorkshops.mockResolvedValue([shop()]);
+    render(<WorkshopsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /Editar/ }));
+    fireEvent.change(screen.getByLabelText("Notas"), { target: { value: "Otra nota" } });
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(within(screen.getByRole("alertdialog", { name: "¿Descartar los cambios?" }))
+      .getByRole("button", { name: "Descartar cambios" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Editar taller" })).toBeNull());
+    expect(updateWorkshop).not.toHaveBeenCalled();
+  });
+
+  it("sin cambios, «Cancelar» cierra sin preguntar", async () => {
+    listWorkshops.mockResolvedValue([shop()]);
+    render(<WorkshopsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /Editar/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Editar taller" })).toBeNull());
+  });
 });
 
 describe("con el API fallando (F1-104)", () => {
@@ -265,5 +321,15 @@ describe("Talleres con el estilo D (A47–A50)", () => {
     expect(container.querySelector(".tl-rejilla")).not.toBeNull();
     fireEvent.click(await abrirDesdeBarra());
     expect(document.querySelector(".hoja-dos-columnas")).not.toBeNull();
+  });
+});
+
+describe("Talleres · enlace a sus pedidos", () => {
+  it("la insignia «N pedidos» lleva a Pedidos buscando por el taller", async () => {
+    const { MemoryRouter } = await import("react-router-dom");
+    listWorkshops.mockResolvedValue([shop({ name: "Taller Ñu & Cía", order_count: 2 })]);
+    render(<MemoryRouter><WorkshopsPage /></MemoryRouter>);
+    const enlace = await screen.findByRole("link", { name: "2 pedidos" });
+    expect(enlace.getAttribute("href")).toBe(`/app/pedidos?q=${encodeURIComponent("Taller Ñu & Cía")}`);
   });
 });

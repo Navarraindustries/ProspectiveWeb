@@ -9,9 +9,11 @@ import { useEffect, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const upload = vi.fn();
+const setActiveSeries = vi.fn();
 vi.mock("../../api/client", () => ({
   api: {
     upload: (...a: unknown[]) => upload(...a),
+    setActiveSeries: (...a: unknown[]) => setActiveSeries(...a),
     patientStudies: vi.fn().mockResolvedValue([]),
   },
 }));
@@ -115,6 +117,44 @@ const serieBase: SeriesInfo = {
   is_projection: false, projection_warning: null, size_mb: 80,
   acquisition_date: "2026-07-14", acquisition_time: "09:35", session_ttl_hours: 24,
 };
+
+/* Cambiar de serie borra lo mismo que cargar otro estudio y no preguntaba. */
+describe("cambiar de serie con trabajo hecho", () => {
+  const otra: SeriesInfo = { ...serieBase, series_id: "9.9", description: "3DRA" };
+  const elegirOtra = async (conMalla: boolean) => {
+    setActiveSeries.mockReset().mockResolvedValue(otra);
+    montar(conMalla);
+    await screen.findByText("Arrastra la carpeta DICOM aquí");
+    await act(async () => { visto!.setSeries(serieBase); visto!.setSeriesList([serieBase, otra]); });
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "9.9" } });
+  };
+
+  it("con malla pide confirmación, dice qué se pierde y no cambia hasta confirmar", async () => {
+    await elegirOtra(true);
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Cambiar de serie?" });
+    expect(dialogo).toHaveTextContent("se pierden la segmentación, la detección, las medidas, los dispositivos y las anotaciones");
+    expect(setActiveSeries).not.toHaveBeenCalled();
+    expect(visto?.segmentation).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar de serie" }));
+    await waitFor(() => expect(setActiveSeries).toHaveBeenCalledWith("s1", "9.9"));
+    await waitFor(() => expect(visto?.segmentation).toBeNull());
+  });
+
+  it("«Cancelar» deja la serie y la malla como estaban", async () => {
+    await elegirOtra(true);
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(setActiveSeries).not.toHaveBeenCalled();
+    expect(visto?.series?.series_id).toBe(serieBase.series_id);
+    expect(visto?.segmentation).not.toBeNull();
+  });
+
+  it("sin trabajo hecho cambia directamente", async () => {
+    await elegirOtra(false);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await waitFor(() => expect(setActiveSeries).toHaveBeenCalledWith("s1", "9.9"));
+  });
+});
 
 /* F1-125: el selector no vuelve a disparar `change` con los mismos archivos;
    sin vaciarlo, elegir otra vez la misma carpeta no hacía nada. */

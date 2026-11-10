@@ -3,7 +3,7 @@
    superior, components/shell); el espacio de trabajo conserva su barra superior propia. */
 
 import { ForcePasswordChange } from "./components/ForcePasswordChange";
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { OnboardingProvider } from "./onboarding/OnboardingProvider";
 import { glide, glideTransition, motion, useReducedMotion } from "./motion";
 import { glass } from "./styles/glass";
@@ -37,7 +37,7 @@ import { useRegisterCommands } from "./lib/commands";
 const SOLO_OPACIDAD = { initial: { opacity: 0 }, animate: { opacity: 1 } };
 
 function Router() {
-  const { user, ready, expiredNotice } = useAuth();
+  const { user, ready, expiredNotice, logout } = useAuth();
   const planning = usePlanning();
   const location = useLocation();
   const navigate = useNavigate();
@@ -50,7 +50,22 @@ function Router() {
   );
   const [patient, setPatient] = useState<PatientSummary | null>(null);
   // Paciente por el que se abre el registro de pedidos, cuando se llega desde su ficha.
+  // El filtro vive en la URL (/app/pedidos?paciente=<id>): así una recarga, un
+  // enlace o el «Atrás» conservan el filtro y la vuelta a la ficha. El estado
+  // solo guarda el registro ya leído de ese id.
   const [ordersPatient, setOrdersPatient] = useState<PatientSummary | null>(null);
+  const ordersParam = screen === "orders" ? Number(new URLSearchParams(location.search).get("paciente")) : NaN;
+  const ordersQuery = screen === "orders" ? new URLSearchParams(location.search).get("q") ?? "" : "";
+  const ordersPatientId = Number.isInteger(ordersParam) && ordersParam > 0 ? ordersParam : null;
+  const ordersFilter = ordersPatient && ordersPatient.id === ordersPatientId ? ordersPatient : null;
+  useEffect(() => {
+    if (!user || ordersPatientId === null || ordersFilter) return;
+    let vivo = true;
+    api.listPatients()
+      .then((ps) => { if (vivo) setOrdersPatient(ps.find((x) => x.id === ordersPatientId) ?? null); })
+      .catch(() => { /* sin el registro, la lista se enseña entera */ });
+    return () => { vivo = false; };
+  }, [user, ordersPatientId, ordersFilter]);
   const reduced = useReducedMotion();
   const [toast, setToast] = useState<string | null>(null);
   // «Reintentar» del aviso de una restauración fallida (F1-25): el aviso se
@@ -78,6 +93,30 @@ function Router() {
       dirtyWorkspace && currentLocation.pathname !== nextLocation.pathname,
   );
 
+  // «Cerrar sesión» con el análisis sin guardar: cerrar primero desmontaba el
+  // quirófano y mataba la cookie, así que el aviso salía cuando «Guardar y
+  // salir» ya no podía guardar. Ahora se sale del quirófano primero (el
+  // bloqueador pregunta) y la sesión se cierra al llegar fuera.
+  const cierrePendiente = useRef(false);
+  const cierreVoluntario = useRef(false);
+  const salir = useCallback(() => {
+    if (dirtyWorkspace) {
+      cierrePendiente.current = true;
+      navigate(SCREEN_PATH.patients);
+      return;
+    }
+    cierreVoluntario.current = true;
+    logout();
+    navigate(SCREEN_PATH.login);
+  }, [dirtyWorkspace, logout, navigate]);
+  useEffect(() => {
+    if (!cierrePendiente.current || screen === "workspace") return;
+    cierrePendiente.current = false;
+    cierreVoluntario.current = true;
+    logout();
+    navigate(SCREEN_PATH.login);
+  }, [screen, logout, navigate]);
+
   useEffect(() => {
     if (!dirtyWorkspace) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
@@ -97,12 +136,24 @@ function Router() {
   // ruta antigua que screenFromPath aún reconoce (/app/solicitudes →
   // /app/cuentas-pendientes, F2).
   // `replace`, not push: this correction must not become a Back destination.
+  // Quien abre un enlace de la aplicación sin sesión (o con ella caducada) pasa
+  // por «Entrar»; al entrar vuelve a la pantalla que pedía, no a la lista. El
+  // quirófano no cuenta: sin su sesión de trabajo abriría vacío.
+  const destinoTrasEntrar = useRef<string | null>(null);
   useEffect(() => {
     if (!ready) return;
+    const enEntrada = screen === "login" || screen === "signup";
+    if (enEntrada) cierreVoluntario.current = false;
     if (effectivePath !== location.pathname) {
-      navigate(effectivePath, { replace: true });
+      // Quien cierra la sesión a propósito no deja destino para el siguiente.
+      if (!user && !enEntrada && screen !== "workspace" && !cierreVoluntario.current)
+        destinoTrasEntrar.current = location.pathname + location.search;
+      // Con sesión y aún en «Entrar»: es el momento de volver a lo que se pedía.
+      const destino = user && enEntrada ? destinoTrasEntrar.current : null;
+      if (destino) destinoTrasEntrar.current = null;
+      navigate(destino ?? effectivePath, { replace: true });
     }
-  }, [ready, effectivePath, location.pathname, navigate]);
+  }, [ready, user, screen, effectivePath, location.pathname, location.search, navigate]);
 
   // Empezar sin paciente: subir el DICOM y usar el pipeline ya, y decidir
   // después si se guarda («Adjuntar a un caso», en la barra del pipeline).
@@ -245,11 +296,14 @@ function Router() {
     }
   };
 
+  // Al terminar se vuelve a la ficha del paciente, donde queda la sesión recién
+  // guardada; sin paciente (prueba rápida), a la lista, y sin decir «vinculada».
   const finish = () => {
-    setToast("✓ Sesión guardada y vinculada al paciente");
+    const p = planning.patient ?? patient;
+    setToast(p ? "✓ Sesión guardada en la ficha del paciente" : "✓ Sesión guardada, sin paciente");
     setTimeout(() => {
       setToast(null);
-      setScreen("patients");
+      navigate(p ? patientPath(p.id) : SCREEN_PATH.patients);
     }, 1600);
   };
 
@@ -258,7 +312,8 @@ function Router() {
     // A session that expired mid-study explains itself on the login screen.
     view = (
       <Login
-        onLogin={() => { setLoadingIn(true); setShowLoading(true); setScreen("patients"); }}
+        // Adónde se va lo decide la corrección de URL de arriba (destino pedido o Pacientes).
+        onLogin={() => { setLoadingIn(true); setShowLoading(true); }}
         onSignup={() => setScreen("signup")}
         notice={loginNotice ?? expiredNotice}
       />
@@ -286,7 +341,7 @@ function Router() {
         onResume={resumeSession}
         onPlanCase={planCase}
         onOpenStudy={(s) => void openStudy(s)}
-        onOpenOrders={(p) => { setOrdersPatient(p); setScreen("orders"); }}
+        onOpenOrders={(p) => { setOrdersPatient(p); navigate(`${SCREEN_PATH.orders}?paciente=${p.id}`); }}
       />
     );
   else if (effective === "studies")
@@ -301,14 +356,17 @@ function Router() {
   else if (effective === "orders")
     view = (
       <ClipOrdersPage
-        patientFilter={ordersPatient}
-        onClearPatient={() => setOrdersPatient(null)}
+        // La clave remonta la vista si cambia la búsqueda de la URL (enlace desde Talleres).
+        key={`pedidos-${ordersQuery}`}
+        initialQuery={ordersQuery}
+        patientFilter={ordersFilter}
+        onClearPatient={() => navigate(SCREEN_PATH.orders)}
         onCrumbPatients={() => navigate(SCREEN_PATH.patients)}
         onOpenSession={openOrderSession}
         // F2-27: se llega aquí desde la ficha con el paciente fijado; la vuelta
         // reabre esa ficha (/app/pacientes/<id>), no la lista.
-        onBackToPatient={ordersPatient
-          ? () => navigate(patientPath(ordersPatient.id))
+        onBackToPatient={ordersFilter
+          ? () => navigate(patientPath(ordersFilter.id))
           : undefined}
       />
     );
@@ -342,8 +400,9 @@ function Router() {
       screen: effective === "patient" ? "patients" : effective,
       // F1-94: la entrada del menú abre la lista entera; el filtro por paciente
       // solo lo fija «Pedidos» de la ficha, que no pasa por aquí.
-      go: (s) => { if (s === "orders") setOrdersPatient(null); setScreen(s); },
+      go: setScreen,
       bloqueoPipeline,
+      salir,
     }}>
     <div style={{ height: "100%", position: "relative" }}>
       {/* Mientras dura la carga la oficina espera oculta bajo ella; al acabar entra
@@ -372,7 +431,7 @@ function Router() {
         open={blocker.state === "blocked"}
         hasPatient={!!(planning.patient ?? patient)}
         attached={!!planning.imagingStudyId}
-        onStay={() => blocker.reset?.()}
+        onStay={() => { cierrePendiente.current = false; blocker.reset?.(); }}
         onLeave={() => blocker.proceed?.()}
         saveNow={planning.saveNow}
       />

@@ -3,6 +3,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { api } from "../api/client";
 import { Button } from "../components/Button";
+import { DiscardChanges } from "../components/DiscardChanges";
 import { Icon } from "../components/Icon";
 import { ErrorNote } from "../components/PanelHead";
 import { Sheet } from "../components/Sheet";
@@ -33,6 +34,8 @@ export function AvatarSheet({ open, onClose }: {
   const errorVisible = error ?? errorGuardar;
   const setError = (e: string | null) => { setErrorLocal(e); setErrorGuardar(e); };
 
+  const [askDiscard, setAskDiscard] = useState(false);
+
   const tieneFoto = !!user?.has_profile_photo;
 
   // Al abrir, se parte de lo guardado.
@@ -43,6 +46,7 @@ export function AvatarSheet({ open, onClose }: {
     setError(null);
     setDesdeFoto(false);
     setPendiente(null);
+    setAskDiscard(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -50,9 +54,21 @@ export function AvatarSheet({ open, onClose }: {
 
   // Cerrar sin guardar suelta ya la foto elegida (y su URL de vista previa), no al volver a abrir.
   const cerrar = () => {
+    setAskDiscard(false);
     setPendiente(null);
     setDesdeFoto(false);
     onClose();
+  };
+
+  // El avatar se compone pieza a pieza y nada se guarda hasta «Guardar»: un
+  // Escape o un clic fuera lo tiraba entero. Se mide contra lo guardado ahora
+  // («Quitar mi foto» sí se guarda al momento y no cuenta como cambio).
+  const modoGuardado: Modo = user.avatar_mode === "foto" && user.has_profile_photo ? "foto" : "avatar";
+  const dirty = pendiente !== null || modo !== modoGuardado
+    || JSON.stringify(config) !== JSON.stringify(user.avatar_config ?? configPorDefecto(user.id));
+  const pedirCierre = () => {
+    if (dirty) setAskDiscard(true);
+    else cerrar();
   };
 
   const guardar = async () => {
@@ -79,14 +95,15 @@ export function AvatarSheet({ open, onClose }: {
   };
 
   return (
-    <Sheet open={open} onClose={cerrar} title="Tu avatar" width={460}
+    <>
+    <Sheet open={open} onClose={pedirCierre} title="Tu avatar" width={460}
       footer={desdeFoto ? null : (
         <>
           {errorVisible && <div style={{ flexBasis: "100%" }}><ErrorNote>{errorVisible}</ErrorNote></div>}
           <Button onClick={() => void guardar()} disabled={busy} leadingIcon={<Icon name="SAVE" size={14} />}>
             {busy ? "Guardando…" : "Guardar"}
           </Button>
-          <Button variant="outline" onClick={cerrar}>Cancelar</Button>
+          <Button variant="outline" onClick={pedirCierre}>Cancelar</Button>
         </>
       )}>
       {desdeFoto ? (
@@ -134,6 +151,8 @@ export function AvatarSheet({ open, onClose }: {
       </div>
       )}
     </Sheet>
+    <DiscardChanges open={askDiscard} onKeep={() => setAskDiscard(false)} onDiscard={cerrar} />
+    </>
   );
 }
 

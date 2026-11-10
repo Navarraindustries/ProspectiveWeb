@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MORPHO_AUTO_HINT, STEPS } from "../../pipeline/steps";
 import { BURBUJA_MS, StepDock } from "./StepDock";
@@ -231,14 +231,29 @@ describe("StepDock", () => {
       expect(burbuja()).toHaveTextContent("Segmenta el vaso primero");
     });
 
-    it.each(["completo", "compacto"] as const)("%s (ratón): sin burbuja; el aviso navega al primer clic", (modo) => {
+    it.each(["completo", "compacto"] as const)("%s (ratón): el clic en un bloqueado enseña el motivo; el aviso navega al primer clic", async (modo) => {
       const onGo = vi.fn();
       render(<StepDock steps={steps} activeIndex={2} missingFor={(i) => (i === 5 ? "Falta" : null)} avisoFor={(i) => (i === 3 ? MORPHO_AUTO_HINT : null)} onGo={onGo} modo={modo} />);
       expect(screen.queryByRole("status")).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: /^Paso 6,/ }));
-      expect(screen.queryByRole("status")).toBeNull();
+      expect(onGo).not.toHaveBeenCalled();
+      expect(burbuja()).toHaveTextContent("Paso 6, Dispositivos — Falta");
+      // Un paso libre navega sin segundo clic y se lleva la burbuja.
       fireEvent.click(screen.getByRole("button", { name: /^Paso 4,/ }));
       expect(onGo).toHaveBeenCalledWith(3);
+      await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+    });
+  });
+
+  describe("«opcional» a la vista (no solo en el tooltip)", () => {
+    it("completo: el rótulo del paso 7 activo lo dice", () => {
+      render(<StepDock steps={steps} activeIndex={6} missingFor={() => null} onGo={() => {}} />);
+      expect(screen.getByText("7 · Fabricación · opcional")).toBeInTheDocument();
+    });
+
+    it("mini: la píldora del paso 7 lo dice", () => {
+      render(<StepDock steps={steps} activeIndex={6} missingFor={() => null} onGo={() => {}} modo="mini" />);
+      expect(screen.getByText(`7/${steps.length} · Fabricación · opcional`)).toBeInTheDocument();
     });
   });
 });

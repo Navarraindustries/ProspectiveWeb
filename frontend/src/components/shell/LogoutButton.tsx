@@ -17,7 +17,7 @@ export function LogoutButton({ compact = false }: { compact?: boolean }) {
       className="shell-logout"
       title="Cerrar la sesión y volver a «Entrar»"
       aria-label={compact ? "Cerrar sesión" : undefined}
-      onClick={() => { logout(); nav.go("login"); }}
+      onClick={() => { if (nav.salir) nav.salir(); else { logout(); nav.go("login"); } }}
     >
       <Icon name="LOGOUT" size={14} />
       {!compact && <span>Cerrar sesión</span>}

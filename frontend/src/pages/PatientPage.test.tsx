@@ -131,6 +131,17 @@ describe("PatientPage", () => {
     expect(getPatient).toHaveBeenCalledTimes(1);
   });
 
+  it("con un 404 dice que el paciente no existe y solo ofrece «Volver a Pacientes», sin «Reintentar»", async () => {
+    getPatient.mockRejectedValueOnce(new ApiError(404, "Patient not found"));
+    renderPage();
+    expect(await screen.findByText("Paciente no encontrado")).toBeTruthy();
+    expect(screen.getByText(/no existe o se ha eliminado/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Volver a Pacientes" }));
+    expect(screen.getByTestId("ruta").textContent).toBe("/app/pacientes");
+    expect(getPatient).toHaveBeenCalledTimes(1);
+  });
+
   it("con otro fallo dice el motivo y «Reintentar» lo vuelve a pedir", async () => {
     getPatient.mockRejectedValueOnce(new ApiError(500, "La base de datos está bloqueada"));
     renderPage();

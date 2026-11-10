@@ -86,3 +86,57 @@ describe("adjuntar a un caso", () => {
     expect(await screen.findByText(/Ya existe un paciente/)).toBeInTheDocument();
   });
 });
+
+describe("cerrar con algo escrito", () => {
+  it("«Cancelar» pregunta antes; «Seguir editando» conserva lo escrito y no cierra", async () => {
+    vi.mocked(api.sessionIdentity).mockResolvedValue(identidad());
+    const onClose = vi.fn();
+    render(<AttachCaseSheet open onClose={onClose} sessionId="s1" onAttached={() => {}} />);
+    await screen.findByText(/Rellenar con la cabecera DICOM/);
+    fireEvent.change(screen.getByLabelText("Motivo / diagnóstico"), { target: { value: "Aneurisma basilar" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Descartar los cambios?" })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Seguir editando" }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect((screen.getByLabelText("Motivo / diagnóstico") as HTMLInputElement).value).toBe("Aneurisma basilar");
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Descartar cambios" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("sin nada escrito cierra sin preguntar", async () => {
+    vi.mocked(api.sessionIdentity).mockResolvedValue(identidad());
+    const onClose = vi.fn();
+    render(<AttachCaseSheet open onClose={onClose} sessionId="s1" onAttached={() => {}} />);
+    await screen.findByText(/Rellenar con la cabecera DICOM/);
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("lo que no carga y lo que falta", () => {
+  it("si falla la lista de pacientes lo dice y «Reintentar» la vuelve a pedir", async () => {
+    vi.mocked(api.sessionIdentity).mockResolvedValue(identidad());
+    vi.mocked(api.listPatients).mockReset().mockRejectedValueOnce(new Error("caído")).mockResolvedValue([]);
+    render(<AttachCaseSheet open onClose={() => {}} sessionId="s1" onAttached={() => {}} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo cargar la lista de pacientes");
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    await waitFor(() => expect(api.listPatients).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
+  it("«Adjuntar» apagado dice qué falta, y deja de decirlo al completarlo", async () => {
+    vi.mocked(api.sessionIdentity).mockResolvedValue(identidad());
+    render(<AttachCaseSheet open onClose={() => {}} sessionId="s1" onAttached={() => {}} />);
+    expect(screen.getByText(
+      "Para adjuntar: elige un paciente o escribe sus apellidos o nombres; elige un caso o escribe el motivo del caso nuevo",
+    )).toBeInTheDocument();
+    fireEvent.click(await screen.findByText(/Rellenar con la cabecera DICOM/));
+    expect(screen.getByText("Para adjuntar: elige un caso o escribe el motivo del caso nuevo")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Motivo / diagnóstico"), { target: { value: "X" } });
+    expect(screen.queryByText(/^Para adjuntar:/)).toBeNull();
+  });
+});

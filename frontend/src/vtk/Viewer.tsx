@@ -84,6 +84,7 @@ import type { Vector3 } from "@kitware/vtk.js/types";
 import { cifra } from "../lib/numero";
 import { useMediaQuery } from "../hooks/useEstrecho";
 import { MQ_TACTIL } from "../pipeline/puntosCorte";
+import { requestCandidate } from "../components/planning/candidateGuard";
 
 // vtk.js (~1 MB) is only needed once a 3D mesh is shown, so load MeshView — and
 // with it the whole vtk.js runtime — lazily. The landing/login/MPR-only views
@@ -1530,7 +1531,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (pickMode === null) {
         if (!candidatePick) return;
         const i = nearestCandidate(xyz, allCandidates, showRejectedIn3d, candidates.length);
-        if (i !== null && i !== selectedCandidate) { candidateFromScene.current = true; setSelectedCandidate(i); }
+        if (i !== null && i !== selectedCandidate) {
+          // Con algo medido, el panel pregunta antes (borra morfometría y decisión).
+          if (morphometry && requestCandidate(i)) return;
+          candidateFromScene.current = true;
+          setSelectedCandidate(i);
+        }
         return;
       }
       // Cualquier punto marcado en el 3D es también el nuevo foco común: los
@@ -1553,7 +1559,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       else if (pickMode === "scissors") { setScissorsPoints([...scissorsPoints, xyz]); }
       else if (kindOfMode(pickMode)) addAnnotationPoint(xyz, null);
     },
-    [pickMode, addAnnotationPoint, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setLesionMark, setErasePick, setTrajEntry, setTrajTarget, setPickMode, focusFromMm, syncViews, meta],
+    [morphometry, pickMode, addAnnotationPoint, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setLesionMark, setErasePick, setTrajEntry, setTrajTarget, setPickMode, focusFromMm, syncViews, meta],
   );
 
   // Un marcado se hace sobre la malla: si la escena es una vista lateral, sube

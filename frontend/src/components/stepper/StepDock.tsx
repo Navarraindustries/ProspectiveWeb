@@ -5,8 +5,9 @@
    un toque en un paso bloqueado dice por qué en una burbuja junto al dock, y un
    toque en un paso con aviso (Morfometría sin medir) enseña el aviso y no
    navega hasta un segundo toque (salvo el paso activo: navega y solo informa).
-   Con ratón (`completo`, `compacto`) el motivo y
-   el aviso siguen en el tooltip y en el nombre accesible. */
+   Con ratón (`completo`, `compacto`) el aviso sigue en el tooltip y en el
+   nombre accesible, pero el clic en un paso bloqueado enseña el motivo en la
+   misma burbuja: un botón que no hace nada parecía roto. */
 
 import { tramoDePaso } from "../../lib/pacientes";
 import { useEffect, useRef, useState } from "react";
@@ -75,13 +76,15 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
     return () => { window.clearTimeout(t); document.removeEventListener("pointerdown", fuera); };
   }, [burbuja]);
 
-  /** Toque en un paso. Con ratón: navega si no está bloqueado. En táctil: un
-   *  bloqueado dice su motivo; uno con aviso lo enseña y navega al segundo toque.
+  /** Toque en un paso. Un bloqueado dice su motivo en la burbuja, con ratón o
+   *  con dedo. Con ratón, lo demás navega al primer clic. En táctil, uno con
+   *  aviso lo enseña y navega al segundo toque.
    *  El paso ACTIVO no se abre de nuevo (no hay nada que avisar antes de
    *  entrar): navega al primer toque y la burbuja solo informa (R17). */
   const pulsar = (i: number, motivo: string | null, aviso: string | null, rotulo: string) => {
     if (!tactil) {
-      if (!motivo) onGo(i);
+      if (motivo) setBurbuja({ texto: `${rotulo} — ${motivo}`, paso: i, tipo: "motivo" });
+      else { setBurbuja(null); onGo(i); }
       return;
     }
     if (motivo) {
@@ -128,11 +131,14 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
     fontSize: 13, lineHeight: 1.4, color: "var(--foreground)",
   } as const;
   const contenidoBurbuja = burbuja && <span data-glass style={{ display: "block", ...glass("viewer"), ...estiloBurbuja }}>{burbuja.texto}</span>;
-  const capaBurbuja = tactil && (
+  // En `completo` sube más: el rótulo flotante del paso activo ocupa ese hueco.
+  // Con ratón la región solo existe mientras hay burbuja: el motivo ya va en
+  // el nombre accesible del botón, y vacía sería otro `status` en la pantalla.
+  const capaBurbuja = (tactil || burbuja) && (
     <span
       role="status"
       data-burbuja-dock
-      style={{ position: "absolute", left: 0, bottom: "calc(100% + 10px)", pointerEvents: "none", width: "max-content", maxWidth: 300 }}
+      style={{ position: "absolute", left: 0, bottom: `calc(100% + ${modo === "completo" ? 40 : 10}px)`, pointerEvents: "none", width: "max-content", maxWidth: 300 }}
     >
       {reducido ? contenidoBurbuja : (
         <AnimatePresence>
@@ -210,7 +216,7 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
           }}
         >
           <span style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {activeIndex + 1}/{steps.length} · {act.label}
+            {activeIndex + 1}/{steps.length} · {act.label}{act.optional ? " · opcional" : ""}
           </span>
         </button>
         <button
@@ -268,9 +274,12 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
                   ...glass("viewer"), fontSize: 12, fontWeight: 600, color: "var(--foreground)", pointerEvents: "none",
                 }}
               >
-                {i + 1} · {s.label}
+                {i + 1} · {s.label}{s.optional ? " · opcional" : ""}
               </span>
             )}
+            {/* «Opcional» se lee en el rótulo del paso activo y en el pie de
+                Dispositivos («Saltar al informe»); un rótulo flotante sobre el 7
+                pisaba el borde del carril y el rótulo del paso vecino. */}
             <motion.button
               ref={(el: HTMLButtonElement | null) => { refs.current[i] = el; }}
               type="button"

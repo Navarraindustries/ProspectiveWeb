@@ -6,17 +6,27 @@
    implante desde una pantalla. */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 
 const clipOrderPrefill = vi.fn();
 const createClipOrder = vi.fn();
 const listClipOrders = vi.fn(async () => []);
+const deleteClipOrder = vi.fn(async (..._a: unknown[]) => ({}));
+const verifyClipOrder = vi.fn(async (..._a: unknown[]) => ({}));
+const rejectClipOrder = vi.fn(async (..._a: unknown[]) => ({}));
+const advanceClipOrder = vi.fn(async (..._a: unknown[]) => ({}));
+const receiveClipOrder = vi.fn(async (..._a: unknown[]) => ({}));
 
 vi.mock("../../api/client", () => ({
   api: {
     clipOrderPrefill: (...a: unknown[]) => clipOrderPrefill(...(a as [])),
     createClipOrder: (...a: unknown[]) => createClipOrder(...(a as [])),
     listClipOrders: (...a: unknown[]) => listClipOrders(...(a as [])),
+    deleteClipOrder: (...a: unknown[]) => deleteClipOrder(...a),
+    verifyClipOrder: (...a: unknown[]) => verifyClipOrder(...a),
+    rejectClipOrder: (...a: unknown[]) => rejectClipOrder(...a),
+    advanceClipOrder: (...a: unknown[]) => advanceClipOrder(...a),
+    receiveClipOrder: (...a: unknown[]) => receiveClipOrder(...a),
   },
   // Misma forma que la real: el detalle es el mensaje, y ahí viaja la lista
   // de problemas que el formulario tiene que desplegar.
@@ -378,6 +388,70 @@ describe("la lista de pedidos (F1-219)", () => {
     render(<ClipOrderList sessionId="viva" caseId={null} refreshKey={0} />);
     expect(await screen.findByText("Pedidos de esta sesión")).toBeTruthy();
     expect(screen.queryByText("Pedidos de este caso")).toBeNull();
+  });
+});
+
+/* Borrar el borrador, aceptar o rechazar la pieza y los avances sin vuelta
+   atrás actuaban al primer clic; y «Registrar recepción» no tenía salida. */
+describe("lo irreversible de un pedido pregunta antes", () => {
+  const base = {
+    part_no: "PR-2026-0007", status_label: "", series: "T1",
+    shape: "straight", angle_deg: 0, jaw_mm: 10, window_mm: 0, total_pieces: 1,
+    workshop_name: "Taller Sur", advised_label: "", override_reason: "", files: {},
+    reception: { jaw_within_tolerance: true, force_within_band: true, measured_jaw_mm: 10, measured_force_g: 150 },
+  };
+  const montarCon = async (over: Record<string, unknown>) => {
+    for (const f of [deleteClipOrder, verifyClipOrder, rejectClipOrder, advanceClipOrder]) f.mockClear();
+    listClipOrders.mockResolvedValueOnce([{ ...base, ...over }] as never);
+    render(<ClipOrderList sessionId="viva" caseId={12} refreshKey={0} />);
+    await screen.findByText("PR-2026-0007");
+  };
+
+  it("«Borrar borrador» no borra hasta confirmar y dice qué se pierde", async () => {
+    await montarCon({ status: "borrador", next_states: [] });
+    fireEvent.click(screen.getByRole("button", { name: "Borrar borrador" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Borrar el borrador?" }))
+      .toHaveTextContent("Se borra el borrador PR-2026-0007 con todo lo rellenado");
+    expect(deleteClipOrder).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(deleteClipOrder).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Borrar borrador" }));
+    fireEvent.click(screen.getByRole("button", { name: "Borrar el borrador" }));
+    await waitFor(() => expect(deleteClipOrder).toHaveBeenCalledWith("PR-2026-0007"));
+  });
+
+  it("«Rechazar» y «Aceptar la pieza» piden confirmación", async () => {
+    await montarCon({ status: "recibida", next_states: [] });
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Rechazar la pieza?" })).toHaveTextContent("No se puede deshacer");
+    expect(rejectClipOrder).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Aceptar la pieza" }));
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Aceptar la pieza?" });
+    expect(verifyClipOrder).not.toHaveBeenCalled();
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Aceptar la pieza" }));
+    await waitFor(() => expect(verifyClipOrder).toHaveBeenCalledWith("PR-2026-0007", ""));
+    expect(rejectClipOrder).not.toHaveBeenCalled();
+  });
+
+  it("«Marcar enviado» no tiene vuelta atrás: pregunta", async () => {
+    await montarCon({ status: "firmado", next_states: ["enviado"] });
+    fireEvent.click(screen.getByRole("button", { name: "Marcar enviado" }));
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Marcar enviado?" });
+    expect(dialogo).toHaveTextContent("ya no se puede devolver a borrador");
+    expect(advanceClipOrder).not.toHaveBeenCalled();
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Marcar enviado" }));
+    await waitFor(() => expect(advanceClipOrder).toHaveBeenCalledWith("PR-2026-0007", "enviado", false));
+  });
+
+  it("«Registrar recepción» se puede cancelar", async () => {
+    await montarCon({ status: "enviado", next_states: ["recibida"] });
+    fireEvent.click(screen.getByRole("button", { name: "Registrar recepción" }));
+    expect(screen.getByLabelText("Fuerza medida (g)")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByLabelText("Fuerza medida (g)")).toBeNull();
+    expect(receiveClipOrder).not.toHaveBeenCalled();
   });
 });
 

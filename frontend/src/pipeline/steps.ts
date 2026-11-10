@@ -38,6 +38,9 @@ export const STEPS: PipelineStep[] = [
  *  diciendo cosas distintas. */
 export const NEEDS_MORPHOMETRY = "Calcula la morfometría primero";
 
+/** Lo mismo para Morfometría sin candidato: el carril y el pie de Detección. */
+export const NEEDS_CANDIDATE = "Detecta un candidato primero";
+
 /** El paso Morfometría lanza el cálculo solo al abrirse; se avisa antes de pulsar. */
 export const MORPHO_AUTO_HINT = "Al abrirlo calcula la morfometría del candidato elegido";
 

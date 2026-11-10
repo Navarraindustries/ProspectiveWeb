@@ -9,7 +9,7 @@
    copia del taller se anuncie como libre de datos de paciente, y que un clip de
    catálogo —que se compra, no se fabrica— no ofrezca un STL. */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const clipSelection = vi.fn();
@@ -94,6 +94,22 @@ describe("the step announces that it can be skipped", () => {
     clipSelection.mockResolvedValue(result({ manufacture: null }));
     draw();
     expect(await screen.findByText(/marca el cuello en Morfometría/i)).toBeInTheDocument();
+  });
+});
+
+/* Si la lectura de la selección fallaba, el paso se quedaba con el error y
+   nada más: había que salir y volver a entrar. */
+describe("si no se puede leer la selección", () => {
+  it("lo dice con «Reintentar», que la vuelve a pedir", async () => {
+    clipSelection.mockRejectedValueOnce(new Error("El servidor no responde"));
+    clipSelection.mockResolvedValue(result({ manufacture: spec }));
+    draw();
+    expect(await screen.findByText("El servidor no responde")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByText("Especificación de fabricación")).toBeInTheDocument();
+    expect(clipSelection).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("El servidor no responde")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
   });
 });
 

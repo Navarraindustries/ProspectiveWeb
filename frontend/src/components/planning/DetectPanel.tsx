@@ -6,6 +6,7 @@ import { DUR, EASE, motion } from "../../motion";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
 import { ConfirmDialog } from "../ConfirmDialog";
+import { registerCandidateGuard } from "./candidateGuard";
 import { Icon } from "../Icon";
 import { PanelHead, ErrorNote } from "../PanelHead";
 import { PanelActions, PanelFooter } from "../PanelFooter";
@@ -21,6 +22,7 @@ import {
   tissueLabel, tissueTitle, vetoHint,
 } from "./detectCopy";
 import { canAdvanceFromDetect } from "./detectGate";
+import { NEEDS_CANDIDATE } from "../../pipeline/steps";
 import { cifraCorta } from "../../lib/numero";
 import { useTableta } from "../../hooks/useEstrecho";
 
@@ -94,6 +96,24 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
   const [ran, setRan] = useState(allCandidates.length > 0);
   const [clearing, setClearing] = useState(false);
   const [askingClear, setAskingClear] = useState(false);
+  // Elegir otro candidato borra la medida y la decisión (el store las descarta
+  // al cambiar de elegido) y volver a detectar puede invalidarlas: con algo
+  // medido se pregunta antes; sin nada que perder, no.
+  const hasMeasure = planning.morphometry !== null || planning.treatment !== null;
+  const [pendingSelect, setPendingSelect] = useState<number | null>(null);
+  const [askingRedetect, setAskingRedetect] = useState(false);
+  const selectCandidate = (i: number) => {
+    if (i === selectedCandidate) return;
+    if (hasMeasure) setPendingSelect(i);
+    else planning.setSelectedCandidate(i);
+  };
+  // El clic sobre la malla (visor 3D) elige por este mismo camino.
+  const selectRef = useRef(selectCandidate);
+  selectRef.current = selectCandidate;
+  useEffect(() => {
+    registerCandidateGuard((i) => selectRef.current(i));
+    return () => registerCandidateGuard(null);
+  }, []);
   const [diag, setDiag] = useState<DetectionDiagnostics | null>(null);
   // Los descartados empiezan plegados: están para poder discrepar del
   // detector, no para recorrerlos primero.
@@ -240,7 +260,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
             <div
               key={c.id}
               className="tarjeta-lente"
-              onClick={() => planning.setSelectedCandidate(i)}
+              onClick={() => selectCandidate(i)}
               style={{
                 cursor: "pointer",
                 border: `var(--glass-rim) solid ${on ? "var(--primary)" : "var(--glass-border)"}`,
@@ -343,7 +363,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                   <div
                     key={c.id}
                     className="tarjeta-lente"
-                    onClick={() => planning.setSelectedCandidate(idx)}
+                    onClick={() => selectCandidate(idx)}
                     style={{
                       cursor: "pointer",
                       border: `1px ${on ? "solid var(--warning)" : "dashed var(--border)"}`,
@@ -448,9 +468,11 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
           {clearing ? "Limpiando…" : "Limpiar candidatos y morfometría"}
         </Button>
       )}
-      <PanelFooter>
+      {/* Apagado no decía por qué; el mismo texto que el carril. Mientras
+          detecta no se dice: el motivo es que aún no ha terminado. */}
+      <PanelFooter note={!busy && !canAdvanceFromDetect(candidates, rejectedCandidates) ? NEEDS_CANDIDATE : undefined}>
         <PanelActions>
-          <Button variant="outline" onClick={() => void run()} disabled={busy || clearing || !sessionId} leadingIcon={<Icon name="REFRESH" />}>
+          <Button variant="outline" onClick={() => (hasMeasure ? setAskingRedetect(true) : void run())} disabled={busy || clearing || !sessionId} leadingIcon={<Icon name="REFRESH" />}>
             Re-detectar
           </Button>
           <Button
@@ -473,6 +495,28 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
         onConfirm={() => { setAskingClear(false); void clear(); }}
       >
         Se pierden los candidatos, la medida, el cuello marcado y la recomendación de tratamiento.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={pendingSelect !== null}
+        title="¿Elegir otro candidato?"
+        confirmLabel="Elegir y descartar la medida"
+        destructive
+        onCancel={() => setPendingSelect(null)}
+        onConfirm={() => { const i = pendingSelect; setPendingSelect(null); if (i !== null) planning.setSelectedCandidate(i); }}
+      >
+        La morfometría y la recomendación de tratamiento son del candidato actual: se descartan y
+        habrá que medir el nuevo.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={askingRedetect}
+        title="¿Volver a detectar?"
+        confirmLabel="Volver a detectar"
+        destructive
+        onCancel={() => setAskingRedetect(false)}
+        onConfirm={() => { setAskingRedetect(false); void run(); }}
+      >
+        Si la lista de candidatos cambia, se pierden la morfometría, el cuello marcado y la
+        recomendación de tratamiento.
       </ConfirmDialog>
     </div>
   );

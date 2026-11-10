@@ -25,6 +25,11 @@ vi.mock("../api/client", () => ({
 // acciones: lo que se prueba aquí es la página.
 vi.mock("../components/shell/AppShell", async () => ({ AppShell: (await import("../test/shellMock")).ShellMock }));
 vi.mock("../store/theme", () => ({ useThemeContext: () => ({ theme: "light" }) }));
+const go = vi.fn();
+vi.mock("../store/nav", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../store/nav")>()),
+  useNav: () => ({ go }),
+}));
 // La página es solo de administradores; quien no lo es ve la tarjeta (AdminOnly.test).
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user: { role: "admin" } }) }));
 
@@ -37,6 +42,7 @@ beforeEach(() => {
   rejectPending.mockReset().mockResolvedValue(undefined);
   approvePending.mockReset().mockResolvedValue(undefined);
   listUsers.mockReset().mockResolvedValue([]);
+  go.mockReset();
 });
 
 const solicitud = { id: 5, username: "nuevo", full_name: "Nuevo Residente", has_photo: false, has_cv: false, created_at: "2026-10-01T00:00:00Z" };
@@ -178,7 +184,15 @@ describe("«Aprobar» (F1-90)", () => {
   it("la tarjeta dice con qué rol entra la cuenta", async () => {
     listPending.mockResolvedValue([solicitud]);
     render(<PendingRequests onBack={() => {}} />);
-    expect(await screen.findByText("Entrará como Médico; cambia el rol en Usuarios.")).toBeTruthy();
+    const nota = (await screen.findByText(/Entrará como Médico; cambia el rol en/)).closest("div")!;
+    expect(nota.textContent).toBe("Entrará como Médico; cambia el rol en Usuarios.");
+  });
+
+  it("«Usuarios», en esa frase, lleva a la pantalla de Usuarios", async () => {
+    listPending.mockResolvedValue([solicitud]);
+    render(<PendingRequests onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Ir a Usuarios" }));
+    expect(go).toHaveBeenCalledWith("users");
   });
 });
 

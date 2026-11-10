@@ -134,6 +134,34 @@ function ClearDeviceButton({
   );
 }
 
+/** «Retirar stent» con su pregunta: lo hacía al primer clic, cuando limpiar
+ *  clips, coils o la trayectoria sí preguntaban. */
+function RetirarStent({
+  clearer, hasPlan, onCleared,
+}: { clearer: ReturnType<typeof useClearDevice>; hasPlan: boolean; onCleared: () => void }) {
+  const [asking, setAsking] = useState(false);
+  return (
+    <>
+      <ClearDeviceButton
+        label="Retirar stent"
+        disabled={!clearer.placed && !hasPlan}
+        busy={clearer.busy}
+        onClick={() => setAsking(true)}
+      />
+      <ConfirmDialog
+        open={asking}
+        title="¿Retirar el stent?"
+        confirmLabel="Retirar el stent"
+        destructive
+        onCancel={() => setAsking(false)}
+        onConfirm={() => { setAsking(false); void clearer.clear(onCleared); }}
+      >
+        Se pierden el stent desplegado y su evaluación (cobertura y aposición), también en el informe.
+      </ConfirmDialog>
+    </>
+  );
+}
+
 /* ── Clips ─────────────────────────────────────────────────────────────── */
 
 /** Recolocaciones de clips pendientes, visibles para los dos sitios que limpian:
@@ -207,6 +235,10 @@ function ClipsTab() {
   // F1-22: «Limpiar clips colocados» se llevaba la pose, la verificación, la
   // oclusión y el mapa de calor al primer clic.
   const [askingClear, setAskingClear] = useState(false);
+  // El ✕ de un clip colocado y el de un clip importado (este borra en el
+  // servidor) actuaban al primer clic; esperan aquí a que se confirme.
+  const [askingRemove, setAskingRemove] = useState<{ key: number; rotulo: string } | null>(null);
+  const [askingCustom, setAskingCustom] = useState<CustomClipInfo | null>(null);
   // Decisión nº 23: una sola lista de modelos. El menú se hacía con otro
   // recomendador (`/clips/recommendations`, en orden de catálogo) y las
   // tarjetas con la selección por criterios (en orden de puntuación): el
@@ -620,8 +652,9 @@ function ClipsTab() {
                   <Icon name="CLIPS" size={12} color="var(--muted-foreground)" />
                   <span className="truncate" style={{ flex: 1, fontSize: 12, color: "var(--foreground)" }}>{c.name}</span>
                   <button
-                    onClick={() => void removeCustom(c.clip_id)}
+                    onClick={() => setAskingCustom(c)}
                     title="Quitar del catálogo"
+                    aria-label={`Quitar del catálogo: ${c.name}`}
                     style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted-foreground)", fontSize: 13, lineHeight: 1, padding: 2 }}
                   >
                     ✕
@@ -630,6 +663,17 @@ function ClipsTab() {
               ))}
             </div>
           )}
+          <ConfirmDialog
+            open={askingCustom !== null}
+            title="¿Quitar el clip importado?"
+            confirmLabel="Quitar del catálogo"
+            destructive
+            onCancel={() => setAskingCustom(null)}
+            onConfirm={() => { const c = askingCustom; setAskingCustom(null); if (c) void removeCustom(c.clip_id); }}
+          >
+            Se borra «{askingCustom?.name}» de los clips importados de esta sesión. Para volver a
+            usarlo tendrás que importar el archivo otra vez.
+          </ConfirmDialog>
 
           <Button
             style={{ marginTop: 6, width: "100%" }}
@@ -687,6 +731,16 @@ function ClipsTab() {
 
           {placed.length > 0 && (
             <>
+              <ConfirmDialog
+                open={askingRemove !== null}
+                title="¿Quitar este clip?"
+                confirmLabel="Quitar el clip"
+                destructive
+                onCancel={() => setAskingRemove(null)}
+                onConfirm={() => { const r = askingRemove; setAskingRemove(null); if (r) removeClip(r.key); }}
+              >
+                Se quita {askingRemove?.rotulo} del plan y se pierden su posición y sus ángulos.
+              </ConfirmDialog>
               <SectionLabel>Clips colocados ({placed.length})</SectionLabel>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
                 {/* La fila elegida es el clip que mueven las asas del 3D. Tocar
@@ -709,7 +763,7 @@ function ClipsTab() {
                         style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted-foreground)", fontSize: 11, padding: 2 }}>
                         {fineOpen.has(c.key) ? "▾" : "▸"} Ajuste fino
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); removeClip(c.key); }} title="Quitar" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--destructive, #ef4444)", fontSize: 14 }}>✕</button>
+                      <button onClick={(e) => { e.stopPropagation(); setAskingRemove({ key: c.key, rotulo: `#${i + 1} · ${c.name}` }); }} title="Quitar" aria-label={`Quitar el clip #${i + 1}`} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--destructive, #ef4444)", fontSize: 14 }}>✕</button>
                     </div>
                     {fineOpen.has(c.key) && (<>
                     <div style={{ display: "flex", gap: 6, margin: "8px 0 6px" }}>
@@ -1303,12 +1357,7 @@ function StentsTab() {
         {busy ? "Desplegando…" : "Desplegar y evaluar"}
       </Button>
       {/* One stent record per session: this also clears a centreline-guided stent. */}
-      <ClearDeviceButton
-        label="Retirar stent"
-        disabled={!clearer.placed && !plan}
-        busy={clearer.busy}
-        onClick={() => void clearer.clear(() => setPlan(null))}
-      />
+      <RetirarStent clearer={clearer} hasPlan={!!plan} onCleared={() => setPlan(null)} />
       <ErrorNote>{clearer.error}</ErrorNote>
     </div>
   );
@@ -1421,12 +1470,7 @@ function ClStentTab() {
       <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void run()} disabled={busy} leadingIcon={<Icon name="STENT" />}>
         {busy ? "Desplegando…" : "Desplegar sobre la línea central"}
       </Button>
-      <ClearDeviceButton
-        label="Retirar stent"
-        disabled={!clearer.placed && !plan}
-        busy={clearer.busy}
-        onClick={() => void clearer.clear(() => setPlan(null))}
-      />
+      <RetirarStent clearer={clearer} hasPlan={!!plan} onCleared={() => setPlan(null)} />
       <ErrorNote>{clearer.error}</ErrorNote>
     </div>
   );
@@ -2104,7 +2148,11 @@ function tabForTeam(team: TeamDecision | null | undefined): string {
   return team?.team_decision === "endovascular" ? "Coils" : "Clips";
 }
 
-export function DevicesPanel({ onNext }: { onNext: () => void }) {
+export function DevicesPanel({ onNext, onSkipToReport }: {
+  onNext: () => void;
+  /** Fabricación es opcional: el pie ofrece ir directo al informe. */
+  onSkipToReport?: () => void;
+}) {
   const { sessionId, treatment } = usePlanning();
   const [tab, _setTab] = useState<string>(() => tabForTeam(treatment?.team));
   // Una pestaña elegida a mano manda sobre la lectura que llega tarde.
@@ -2137,6 +2185,13 @@ export function DevicesPanel({ onNext }: { onNext: () => void }) {
         <Button variant="outline" style={{ width: "100%" }} onClick={onNext} trailingIcon={<Icon name="SETTINGS" />}>
           Continuar a fabricación
         </Button>
+        {/* Fabricación es opcional y solo lo decía el tooltip del carril. */}
+        {onSkipToReport && (
+          <div style={{ marginTop: 8, textAlign: "center", fontSize: 12, color: "var(--muted-foreground)" }}>
+            Fabricación es opcional ·{" "}
+            <Button variant="link" onClick={onSkipToReport} style={{ fontSize: 12 }}>Saltar al informe</Button>
+          </div>
+        )}
       </PanelFooter>
     </div>
   );

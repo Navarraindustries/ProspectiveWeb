@@ -149,6 +149,52 @@ describe("«Editar usuario» (F2-45, F1-84)", () => {
 });
 
 /* F2-47 y F2-48. */
+/* «Cancelar», el ✕, Escape y el clic fuera cerraban las dos hojas y tiraban lo
+   escrito sin preguntar. */
+describe("descartar lo escrito en las hojas de usuario", () => {
+  const pregunta = () => screen.getByRole("alertdialog", { name: "¿Descartar los cambios?" });
+
+  it("editar: con un cambio, «Cancelar» pregunta y «Seguir editando» lo conserva", async () => {
+    listUsers.mockResolvedValue([cuenta()]);
+    render(<UsersAdmin onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar a María Restrepo" }));
+    fireEvent.change(screen.getByLabelText("Hospital / Centro"), { target: { value: "Clínica Universidad" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    fireEvent.click(within(pregunta()).getByRole("button", { name: "Seguir editando" }));
+    expect((screen.getByLabelText("Hospital / Centro") as HTMLInputElement).value).toBe("Clínica Universidad");
+    expect(updateUser).not.toHaveBeenCalled();
+  });
+
+  it("editar: sin cambios, Escape cierra sin preguntar", async () => {
+    listUsers.mockResolvedValue([cuenta()]);
+    render(<UsersAdmin onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar a María Restrepo" }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Editar usuario" })).toBeNull());
+  });
+
+  it("alta: con algo escrito, Escape pregunta y «Descartar cambios» cierra sin crear", async () => {
+    listUsers.mockResolvedValue([]);
+    render(<UsersAdmin onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Nuevo usuario/ }));
+    fireEvent.change(screen.getByLabelText(/^Nombre completo/), { target: { value: "Ana Pérez" } });
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(within(pregunta()).getByRole("button", { name: "Descartar cambios" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Nuevo usuario" })).toBeNull());
+    expect(createUser).not.toHaveBeenCalled();
+  });
+
+  it("alta: en blanco, «Cancelar» cierra sin preguntar", async () => {
+    listUsers.mockResolvedValue([]);
+    render(<UsersAdmin onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Nuevo usuario/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Nuevo usuario" })).toBeNull());
+  });
+});
+
 describe("«Nuevo usuario» (F2-47, F2-48)", () => {
   it("pide cuatro campos y esconde el resto en «Más datos (opcional)», sin nada preseleccionado", async () => {
     listUsers.mockResolvedValue([]);

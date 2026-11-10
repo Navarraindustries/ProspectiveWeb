@@ -9,7 +9,9 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { AttachResult, PatientSummary, SessionIdentity, StudySummary } from "../api/types";
 import { Button } from "./Button";
+import { DiscardChanges } from "./DiscardChanges";
 import { Input } from "./Input";
+import { LoadState } from "./LoadState";
 import { ErrorNote, SectionLabel } from "./PanelHead";
 import { Sheet } from "./Sheet";
 
@@ -41,11 +43,17 @@ export function AttachCaseSheet({
   const [studyDate, setStudyDate] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Qué no se pudo cargar. Callado, un fallo dejaba la búsqueda en «Ninguno
+  // coincide» y el paciente sin sus casos: invitaba a crear duplicados.
+  const [fallos, setFallos] = useState<{ cabecera?: true; pacientes?: true; casos?: true }>({});
+  const [intento, setIntento] = useState(0);
+  const [askDiscard, setAskDiscard] = useState(false);
 
   // Al abrir: lo que propone la cabecera y la lista de pacientes.
   useEffect(() => {
     if (!open) return;
     setError(null);
+    setFallos((f) => ({ casos: f.casos }));
     let vivo = true;
     api.sessionIdentity(sessionId).then((id) => {
       if (!vivo) return;
@@ -53,19 +61,43 @@ export function AttachCaseSheet({
       setStudyDate(id.study_date);
       const m = id.matches.find((x) => x.reason === "hospital_id");
       setPatientChoice(m ? { kind: "existing", id: m.id } : { kind: "new" });
-    }).catch(() => {});
-    api.listPatients().then((ps) => { if (vivo) setPatients(ps); }).catch(() => {});
+    }).catch(() => { if (vivo) setFallos((f) => ({ ...f, cabecera: true })); });
+    api.listPatients().then((ps) => { if (vivo) setPatients(ps); })
+      .catch(() => { if (vivo) setFallos((f) => ({ ...f, pacientes: true })); });
     return () => { vivo = false; };
-  }, [open, sessionId]);
+  }, [open, sessionId, intento]);
 
   // Los casos del paciente elegido.
   useEffect(() => {
+    setFallos((f) => ({ ...f, casos: undefined }));
     if (patientChoice.kind !== "existing") { setCases([]); setCaseChoice({ kind: "new" }); return; }
     let vivo = true;
-    api.patientStudies(patientChoice.id).then((cs) => { if (vivo) setCases(cs); }).catch(() => setCases([]));
+    api.patientStudies(patientChoice.id).then((cs) => { if (vivo) setCases(cs); })
+      .catch(() => { if (vivo) { setCases([]); setFallos((f) => ({ ...f, casos: true })); } });
     setCaseChoice({ kind: "new" });
     return () => { vivo = false; };
-  }, [patientChoice]);
+  }, [patientChoice, intento]);
+
+  const sinCargar = [
+    fallos.cabecera && "la propuesta de la cabecera DICOM",
+    fallos.pacientes && "la lista de pacientes",
+    fallos.casos && "los casos de este paciente",
+  ].filter((x): x is string => !!x);
+
+  // Cerrar (Cancelar, ✕, Escape, clic fuera) con algo escrito pregunta antes.
+  const escrito = Object.values(np).some((v) => v.trim() !== "") || motivo.trim() !== "";
+  const pedirCerrar = () => {
+    if (busy) return;
+    if (escrito) setAskDiscard(true);
+    else onClose();
+  };
+  const descartar = () => {
+    setAskDiscard(false);
+    setNp({ surname: "", given_name: "", hospital_id: "", dob: "", sex: "" });
+    setMotivo("");
+    setSearch("");
+    onClose();
+  };
 
   const usarCabecera = () => {
     if (!identity) return;
@@ -77,8 +109,13 @@ export function AttachCaseSheet({
     ? patients.filter((p) => p.full_name.toLowerCase().includes(q) || (p.hospital_id || "").toLowerCase().includes(q))
     : patients).slice(0, 8);
 
-  const listo = (patientChoice.kind === "existing" || np.surname.trim() || np.given_name.trim())
-    && (caseChoice.kind === "existing" || motivo.trim());
+  const faltaPaciente = !(patientChoice.kind === "existing" || np.surname.trim() || np.given_name.trim());
+  const faltaCaso = !(caseChoice.kind === "existing" || motivo.trim());
+  const listo = !faltaPaciente && !faltaCaso;
+  const falta = [
+    faltaPaciente && "elige un paciente o escribe sus apellidos o nombres",
+    faltaCaso && "elige un caso o escribe el motivo del caso nuevo",
+  ].filter((x): x is string => !!x).join("; ");
 
   const adjuntar = async () => {
     setBusy(true);
@@ -102,7 +139,8 @@ export function AttachCaseSheet({
   const hayCabecera = !!s && !!(s.surname || s.given_name || s.hospital_id);
 
   return (
-    <Sheet open={open} onClose={onClose} title="Adjuntar a un caso" width={460}
+    <>
+    <Sheet open={open} onClose={pedirCerrar} title="Adjuntar a un caso" width={460}
       footer={
         <>
           {error && (
@@ -110,10 +148,16 @@ export function AttachCaseSheet({
               <ErrorNote>{error}</ErrorNote>
             </div>
           )}
+          {/* Apagado no decía qué faltaba. */}
+          {!listo && (
+            <div style={{ flexBasis: "100%", fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+              Para adjuntar: {falta}
+            </div>
+          )}
           <Button disabled={!listo || busy} onClick={() => void adjuntar()}>
             {busy ? "Archivando el estudio…" : "Adjuntar y archivar el estudio"}
           </Button>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button variant="outline" disabled={busy} onClick={pedirCerrar}>Cancelar</Button>
         </>
       }>
       <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 14 }}>
@@ -122,6 +166,10 @@ export function AttachCaseSheet({
         las capturas y la confirmación de lesión quedan en el caso. Las capturas que
         ya se descargaron no se recuperan.
       </div>
+      {sinCargar.length > 0 && (
+        <LoadState state="error" onRetry={() => setIntento((n) => n + 1)}
+          mensaje={`No se pudo cargar ${sinCargar.join(" ni ")}. Sin ello puedes duplicar un paciente o un caso que ya existe`} />
+      )}
 
       <SectionLabel>1 · Paciente</SectionLabel>
       {identity && identity.matches.length > 0 && (
@@ -198,5 +246,7 @@ export function AttachCaseSheet({
         </div>
       )}
     </Sheet>
+    <DiscardChanges open={askDiscard} onKeep={() => setAskDiscard(false)} onDiscard={descartar} />
+    </>
   );
 }

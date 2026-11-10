@@ -147,6 +147,34 @@ describe("ConfirmDialog con el teclado", () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onCloseSheet).not.toHaveBeenCalled();
   });
+
+  it("con la acción en curso, ni Escape ni el clic en el velo cancelan (ni cierran la ficha de debajo)", () => {
+    const onCloseSheet = vi.fn();
+    const onCancel = vi.fn();
+    render(
+      <Sheet open onClose={onCloseSheet} title="Talleres">
+        <ConfirmDialog open busy title="Borrar taller" destructive confirmLabel="Borrar"
+                       onCancel={onCancel} onConfirm={() => {}}>
+          cuerpo
+        </ConfirmDialog>
+      </Sheet>,
+    );
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getByRole("alertdialog").parentElement as HTMLElement);
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(onCloseSheet).not.toHaveBeenCalled();
+  });
+
+  it("sin acción en curso, el clic en el velo cancela", () => {
+    const onCancel = vi.fn();
+    render(
+      <ConfirmDialog open title="Borrar taller" destructive confirmLabel="Borrar" onCancel={onCancel} onConfirm={() => {}}>
+        cuerpo
+      </ConfirmDialog>,
+    );
+    fireEvent.click(screen.getByRole("alertdialog").parentElement as HTMLElement);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
 });
 
 /* F1-110: el aviso de salida solo ofrecía quedarse o perder el trabajo; la

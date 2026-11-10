@@ -4,6 +4,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import App from "./App";
 import { MotionConfig } from "./motion";
 import { Landing } from "./pages/Landing";
+import { ErrorDeRuta, NoEncontrado } from "./pages/NoEncontrado";
 import { ThemeProvider } from "./store/theme";
 import "./styles/index.css";
 import { SelectorTipografia } from "./tipografia/SelectorTipografia";
@@ -14,8 +15,9 @@ import { iniciar as iniciarTipografia } from "./tipografia/variantes";
 // button when the session has unsaved results. With the old router a Back press
 // walked out of the application and the work was gone without a prompt.
 const router = createBrowserRouter([
-  { path: "/", element: <Landing /> },
-  { path: "/app/*", element: <App /> },
+  { path: "/", element: <Landing />, errorElement: <ErrorDeRuta /> },
+  { path: "/app/*", element: <App />, errorElement: <ErrorDeRuta /> },
+  { path: "*", element: <NoEncontrado /> },
 ]);
 
 // UNI-135: variantes tipográficas para decidir, solo con ?tipografia=a|b|c.

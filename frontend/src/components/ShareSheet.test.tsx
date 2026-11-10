@@ -102,6 +102,31 @@ describe("ShareSheet", () => {
     await waitFor(() => expect(setPatientShares).toHaveBeenCalledWith(7, [4]));
   });
 
+  it("con marcas sin guardar, «Cancelar» y Escape preguntan antes de tirarlas", async () => {
+    abrir();
+    fireEvent.click(await screen.findByRole("checkbox", { name: /Ana Ruiz/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Descartar los cambios?" })).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Seguir editando" }));
+    expect((screen.getByRole("checkbox", { name: /Ana Ruiz/ }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Descartar cambios" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(setPatientShares).not.toHaveBeenCalled();
+  });
+
+  it("sin cambios (o tras deshacerlos), cerrar no pregunta; buscar no cuenta como cambio", async () => {
+    abrir();
+    const ana = await screen.findByRole("checkbox", { name: /Ana Ruiz/ });
+    fireEvent.click(ana);
+    fireEvent.click(ana);
+    fireEvent.change(screen.getByLabelText("Buscar cuenta"), { target: { value: "ana" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("quien creó al paciente no sale entre las cuentas (lo comparte un administrador)", async () => {
     user.id = 2; user.role = "admin";
     abrir([], 3);

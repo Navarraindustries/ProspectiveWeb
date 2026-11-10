@@ -14,6 +14,7 @@ import { Icon } from "../components/Icon";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
 import { EstadoVacio } from "../components/EstadoVacio";
+import { LoadState } from "../components/LoadState";
 import { Switch } from "../components/Switch";
 import { Sheet } from "../components/Sheet";
 import { ErrorNote } from "../components/PanelHead";
@@ -45,8 +46,13 @@ const MODALIDADES: [keyof Mods, string][] = [
 type Mods = { tac: boolean; angio: boolean; rm: boolean };
 
 export function NuevoEstudioSheet({
-  open, patientId, patientName, study, onClose, onCreated,
-}: { open: boolean; patientId: number | null; patientName?: string; study?: StudySummary | null; onClose: () => void; onCreated: (created?: StudySummary) => void }) {
+  open, patientId, patientName, study, onClose, onCreated, onCambiarPaciente,
+}: {
+  open: boolean; patientId: number | null; patientName?: string; study?: StudySummary | null; onClose: () => void; onCreated: (created?: StudySummary) => void;
+  /** Vuelve al selector de paciente. Solo quien abrió el formulario desde el
+   *  selector lo pasa: desde la ficha de un paciente no hay nada que cambiar. */
+  onCambiarPaciente?: () => void;
+}) {
   const editing = !!study;
   // Día local: con toISOString (UTC) pasadas las 19:00 en UTC−5 proponía el de mañana.
   const today = hoyLocal();
@@ -66,15 +72,19 @@ export function NuevoEstudioSheet({
   // F1-81: «Cancelar», Escape o el clic fuera tiraban el caso a medio escribir.
   // Lo que había al abrir, para saber si hay algo que perder.
   const [initial, setInitial] = useState("");
-  const [askDiscard, setAskDiscard] = useState(false);
+  // A dónde se iba cuando hubo que preguntar: cerrar o volver al selector.
+  const [askDiscard, setAskDiscard] = useState<"cerrar" | "paciente" | null>(null);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((s) => ({ ...s, [k]: e.target.value }));
   const snapshot = JSON.stringify({ f, trat, mods });
-  const requestClose = () => (snapshot !== initial ? setAskDiscard(true) : onClose());
+  const requestClose = () => (snapshot !== initial ? setAskDiscard("cerrar") : onClose());
+  // Cambiar de paciente tira lo escrito igual que cerrar: se pregunta lo mismo.
+  const cambiarPaciente = editing ? undefined : onCambiarPaciente;
+  const pedirCambio = () => (snapshot !== initial ? setAskDiscard("paciente") : cambiarPaciente?.());
 
   // Reset (or prefill from `study` when editing) each time it opens.
   useEffect(() => {
     if (!open) return;
-    setAskDiscard(false);
+    setAskDiscard(null);
     let nf: typeof f;
     let nt: Record<string, boolean>;
     let nm: Mods;
@@ -155,7 +165,17 @@ export function NuevoEstudioSheet({
           <Button type="button" variant="outline" onClick={requestClose}>Cancelar</Button>
         </>
       }>
-      {patientName && <div className="nc-nota" style={{ marginBottom: 12 }}>Paciente: <b style={{ color: "var(--foreground)" }}>{patientName}</b></div>}
+      {(patientName || cambiarPaciente) && (
+        <div className="nc-nota" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {patientName && <span>Paciente: <b style={{ color: "var(--foreground)" }}>{patientName}</b></span>}
+          {/* «Nuevo caso» son dos pasos y este no tenía vuelta al primero. */}
+          {cambiarPaciente && (
+            <Button type="button" size="sm" variant="ghost" leadingIcon={<Icon name="BACK" size={14} />} onClick={pedirCambio}>
+              Cambiar paciente
+            </Button>
+          )}
+        </div>
+      )}
       <form id="form-nuevo-caso" onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <Input label="Fecha del caso" hint="Fecha del diagnóstico" type="date" value={f.study_date} onChange={set("study_date")} />
 
@@ -203,9 +223,14 @@ export function NuevoEstudioSheet({
       </form>
     </Sheet>
     <DiscardChanges
-      open={askDiscard}
-      onKeep={() => setAskDiscard(false)}
-      onDiscard={() => { setAskDiscard(false); onClose(); }}
+      open={askDiscard !== null}
+      onKeep={() => setAskDiscard(null)}
+      onDiscard={() => {
+        const destino = askDiscard;
+        setAskDiscard(null);
+        if (destino === "paciente") cambiarPaciente?.();
+        else onClose();
+      }}
     />
     </>
   );
@@ -217,13 +242,18 @@ export function NuevoEstudioSheet({
    uno primero. Reemplaza al antiguo NuevoCasoSheet (que creaba paciente+caso a
    la vez y duplicaba pacientes). */
 export function CasePatientPicker({
-  open, patients, onPick, onClose, onCreatePatient,
+  open, patients, onPick, onClose, onCreatePatient, loading = false, error = null, onRetry,
 }: {
   open: boolean;
   patients: PatientSummary[];
   onPick: (p: PatientSummary) => void;
   onClose: () => void;
   onCreatePatient: () => void;
+  /** La lista aún se está pidiendo: sin pacientes todavía, no es «no hay». */
+  loading?: boolean;
+  /** La lista no se pudo cargar: se dice, en vez de invitar a crear «el primero». */
+  error?: string | null;
+  onRetry?: () => void;
 }) {
   const [q, setQ] = useState("");
   const rows = patients.filter(
@@ -238,11 +268,16 @@ export function CasePatientPicker({
   );
   return (
     <Sheet open={open} onClose={onClose} title="Nuevo caso — elegir paciente" width={460}
-      footer={patients.length === 0 ? undefined : nuevoPaciente}>
+      footer={error || patients.length === 0 ? undefined : nuevoPaciente}>
       <div className="nc-nota" style={{ marginBottom: 12 }}>
         Selecciona el paciente al que pertenece este caso. Un caso se adjunta a un solo paciente.
       </div>
-      {patients.length === 0 ? (
+      {error ? (
+        // Con la lista caída, «Aún no hay pacientes» invitaba a duplicar a uno que ya existe.
+        <LoadState state="error" mensaje={`No se pudo cargar la lista de pacientes: ${error}`} onRetry={onRetry} />
+      ) : loading && patients.length === 0 ? (
+        <LoadState state="cargando" />
+      ) : patients.length === 0 ? (
         <EstadoVacio icono="USER" titulo="Aún no hay pacientes registrados"
           accion={<Button onClick={onCreatePatient} leadingIcon={<Icon name="PLUS" size={14} />}>Crear el primer paciente</Button>}>
           Crea el primero para poder abrirle un caso.

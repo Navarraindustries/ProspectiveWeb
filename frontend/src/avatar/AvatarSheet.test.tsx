@@ -102,16 +102,55 @@ describe("AvatarSheet", () => {
     fireEvent.click(screen.getByRole("button", { name: "Desde mi foto" }));
     fireEvent.click(screen.getByRole("button", { name: que }));
   };
+  // Con algo sin guardar, «Cancelar» pregunta antes de tirarlo.
+  const cancelarYDescartar = () => {
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Descartar cambios" }));
+  };
 
   it("«Mi foto» no sube nada hasta «Guardar»; «Cancelar» no sube ni copia", () => {
     const onClose = vi.fn();
     render(<AvatarSheet open onClose={onClose} />);
     entrarFoto("fake-foto");
     expect(api.uploadProfilePhoto).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    cancelarYDescartar();
     expect(onClose).toHaveBeenCalled();
     expect(api.uploadProfilePhoto).not.toHaveBeenCalled();
     expect(api.copyRegistroPhoto).not.toHaveBeenCalled();
+  });
+
+  it("con una foto elegida sin guardar, «Cancelar» y Escape preguntan; «Seguir editando» la conserva", () => {
+    const onClose = vi.fn();
+    render(<AvatarSheet open onClose={onClose} />);
+    entrarFoto("fake-foto");
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Descartar los cambios?" })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Seguir editando" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "Mi foto" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("alertdialog", { name: "¿Descartar los cambios?" })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("sin tocar nada, «Cancelar» cierra sin preguntar", () => {
+    const onClose = vi.fn();
+    render(<AvatarSheet open onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("«Quitar mi foto» se guarda al momento: cerrar después no pregunta", async () => {
+    user.has_profile_photo = true;
+    const onClose = vi.fn();
+    render(<AvatarSheet open onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Quitar mi foto" }));
+    await waitFor(() => expect(refreshUser).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("«Cancelar» suelta en el acto la foto pendiente y revoca su URL de vista previa", () => {
@@ -124,7 +163,7 @@ describe("AvatarSheet", () => {
       entrarFoto("fake-foto");
       expect(screen.getByRole("img", { name: "Vista previa de tu foto" })).toHaveAttribute("src", "blob:vista");
       expect(URL.revokeObjectURL).not.toHaveBeenCalled();
-      fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+      cancelarYDescartar();
       expect(onClose).toHaveBeenCalledTimes(1);
       // Sin esperar a volver a abrir: la hoja sigue montada (open lo controla quien llama).
       expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:vista");

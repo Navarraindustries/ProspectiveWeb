@@ -22,6 +22,7 @@ import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icon";
 import { EstadoVacio } from "../components/EstadoVacio";
+import { EnlaceFicha } from "../components/patients/EnlaceFicha";
 import { Input } from "../components/Input";
 import { Pastillas } from "../components/Pastillas";
 import { Sheet } from "../components/Sheet";
@@ -188,7 +189,9 @@ function Detail({ order, onChanged, onClose, onOpenSession, enHoja = false }: {
   const [receiving, setReceiving] = useState(false);
   // F1-97, F1-98: firmar y rechazar la pieza ocurrían al primer clic. Firmar
   // genera la documentación y compromete al médico; rechazar cierra el pedido.
-  const [asking, setAsking] = useState<"firmar" | "rechazar" | null>(null);
+  // «Marcar enviado» y «En fabricación» tampoco tienen vuelta (el servidor no
+  // deja retroceder desde ahí), y aceptar la pieza cierra el pedido.
+  const [asking, setAsking] = useState<"firmar" | "rechazar" | "enviado" | "en_fabricacion" | "aceptar" | "borrar" | null>(null);
   const { user } = useAuth();
   // Sin usuario conocido no se apaga nada: decide el servidor.
   const cannotSign = !!user && !SIGNING_ROLES.includes(user.role);
@@ -220,7 +223,7 @@ function Detail({ order, onChanged, onClose, onOpenSession, enHoja = false }: {
 
       <dl className="po-datos">
         {([
-          ["Paciente", order.patient || "—"],
+          ["Paciente", order.patient ? <EnlaceFicha patientId={order.patient_id}>{order.patient}</EnlaceFicha> : "—"],
           ["Caso", order.case_label || "—"],
           // El nombre de la pieza en sans («T1 recto»); mono solo en la cifra.
           ["Pieza", <>{nombrePieza(order)} · mordaza <Cifra>{cifra(order.jaw_mm, 1)}</Cifra> mm</>],
@@ -310,7 +313,7 @@ function Detail({ order, onChanged, onClose, onOpenSession, enHoja = false }: {
             </Button>
           ) : (
             <Button key={s} size="sm" variant={variante} disabled={busy}
-                    onClick={() => act(api.advanceClipOrder(order.part_no, s))}>
+                    onClick={() => setAsking(s as "enviado" | "en_fabricacion")}>
               {ADVANCE_LABEL[s]}
             </Button>
           );
@@ -318,7 +321,7 @@ function Detail({ order, onChanged, onClose, onOpenSession, enHoja = false }: {
         {order.status === "recibida" && (
           <>
             <Button size="sm" variant="default" disabled={busy}
-                    onClick={() => act(api.verifyClipOrder(order.part_no, deviation))}>
+                    onClick={() => setAsking("aceptar")}>
               Aceptar la pieza
             </Button>
             <Button size="sm" variant="destructive" disabled={busy}
@@ -341,6 +344,14 @@ function Detail({ order, onChanged, onClose, onOpenSession, enHoja = false }: {
                       .finally(() => setBusy(false));
                   }}>
             Abrir el caso
+          </Button>
+        )}
+        {/* Como en el quirófano: solo un borrador se borra; firmado ya es registro. */}
+        {order.status === "borrador" && (
+          <Button size="sm" variant="destructive-ghost" disabled={busy}
+                  leadingIcon={<Icon name="DELETE" size={14} />}
+                  onClick={() => setAsking("borrar")}>
+            Borrar borrador
           </Button>
         )}
       </div>
@@ -374,6 +385,45 @@ function Detail({ order, onChanged, onClose, onOpenSession, enHoja = false }: {
         La pieza queda rechazada{deviation ? ` con el motivo «${deviation}»` : " como «Pieza no conforme»"} y
         el pedido se cierra. No se puede aceptar después.
       </ConfirmDialog>
+      <ConfirmDialog
+        open={asking === "enviado"}
+        title={`¿Marcar el pedido ${order.part_no} como enviado?`}
+        confirmLabel="Marcar enviado"
+        onCancel={() => setAsking(null)}
+        onConfirm={() => { setAsking(null); act(api.advanceClipOrder(order.part_no, "enviado")); }}
+      >
+        El pedido pasa a «Enviado al taller». No se puede devolver a «Firmado» después.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={asking === "en_fabricacion"}
+        title={`¿Pasar el pedido ${order.part_no} a fabricación?`}
+        confirmLabel="Pasar a fabricación"
+        onCancel={() => setAsking(null)}
+        onConfirm={() => { setAsking(null); act(api.advanceClipOrder(order.part_no, "en_fabricacion")); }}
+      >
+        Anotas que el taller ha empezado la pieza. No se puede volver a «Enviado al
+        taller» después.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={asking === "aceptar"}
+        title={`¿Aceptar la pieza ${order.part_no}?`}
+        confirmLabel="Aceptar la pieza"
+        onCancel={() => setAsking(null)}
+        onConfirm={() => { setAsking(null); act(api.verifyClipOrder(order.part_no, deviation)); }}
+      >
+        La pieza queda verificada{outOfSpec && deviation ? ` con la justificación «${deviation}»` : ""} y
+        el pedido se cierra. No se puede rechazar después.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={asking === "borrar"}
+        title={`¿Borrar el borrador ${order.part_no}?`}
+        confirmLabel="Borrar borrador"
+        destructive
+        onCancel={() => setAsking(null)}
+        onConfirm={() => { setAsking(null); act(api.deleteClipOrder(order.part_no)); }}
+      >
+        El borrador desaparece del registro con lo que tenía escrito. No se puede deshacer.
+      </ConfirmDialog>
 
       <ErrorNote>{error}</ErrorNote>
     </>
@@ -388,8 +438,11 @@ const ALL = "todos";
 const CLOSED: string[] = ["verificada", "rechazada"];
 
 export function ClipOrdersPage({
-  patientFilter, onClearPatient, onBackToPatient, onCrumbPatients, onOpenSession,
+  patientFilter, onClearPatient, onBackToPatient, onCrumbPatients, onOpenSession, initialQuery = "",
 }: {
+  /** Búsqueda con la que abre la vista (p. ej. el nombre de un taller, desde Talleres).
+   *  Con ella se enseñan también los pedidos cerrados: son parte de lo que se busca. */
+  initialQuery?: string;
   /** Cuando llega desde la ficha de un paciente, la vista abre ya filtrada. */
   patientFilter?: PatientSummary | null;
   onClearPatient?: () => void;
@@ -408,8 +461,8 @@ export function ClipOrdersPage({
   const [base, setBase] = useState<ClipOrder[]>([]);
   const [labels, setLabels] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<string>(ALL);
-  const [q, setQ] = useState("");
-  const [openOnly, setOpenOnly] = useState(true);
+  const [q, setQ] = useState(initialQuery);
+  const [openOnly, setOpenOnly] = useState(!initialQuery);
   const [sel, setSel] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);

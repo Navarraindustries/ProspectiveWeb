@@ -381,3 +381,58 @@ describe("«Limpiar candidatos y morfometría»", () => {
     await vi.waitFor(() => expect(clearDetection).toHaveBeenCalledWith("s1"));
   });
 });
+
+/* Elegir otro candidato descarta la medida y la decisión, y «Re-detectar»
+   puede invalidarlas: actuaban al primer clic. Solo se pregunta con algo medido. */
+describe("lo que borra la morfometría pregunta antes", () => {
+  it("con medida, elegir otro candidato pide confirmación y hasta entonces no la borra", async () => {
+    render(<WithMeasure />);
+    fireEvent.click(await screen.findByRole("button", { name: /Descartados/ }));
+    fireEvent.click(screen.getByText("Descartado D3"));
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Elegir otro candidato?" });
+    expect(dialogo).toHaveTextContent("La morfometría y la recomendación de tratamiento");
+    expect(screen.getByTestId("medida")).toHaveTextContent("con medida");
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.getByTestId("medida")).toHaveTextContent("con medida");
+    expect(screen.queryByText(/compruébalo en el 3D/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Descartado D3"));
+    fireEvent.click(screen.getByRole("button", { name: "Elegir y descartar la medida" }));
+    expect(screen.getByTestId("medida")).toHaveTextContent("sin medida");
+    expect(screen.getByText(/compruébalo en el 3D/)).toBeInTheDocument();
+  });
+
+  it("sin medida, elegir otro candidato no pregunta", async () => {
+    render(<Wrapped />);
+    fireEvent.click(await screen.findByRole("button", { name: /Descartados/ }));
+    fireEvent.click(screen.getByText("Descartado D3"));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByText(/compruébalo en el 3D/)).toBeInTheDocument();
+  });
+
+  it("con medida, «Re-detectar» pide confirmación; sin medida detecta directamente", async () => {
+    render(<WithMeasure />);
+    await screen.findByText("Candidato 1");
+    const antes = detect.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: /Re-detectar/ }));
+    expect(screen.getByRole("alertdialog", { name: "¿Volver a detectar?" })).toHaveTextContent("se pierden la morfometría");
+    expect(detect.mock.calls.length).toBe(antes);
+    fireEvent.click(screen.getByRole("button", { name: "Volver a detectar" }));
+    await vi.waitFor(() => expect(detect.mock.calls.length).toBe(antes + 1));
+  });
+});
+
+describe("«Analizar morfometría» apagado dice por qué", () => {
+  it("sin candidatos enseña el motivo bajo el pie; con candidatos no", async () => {
+    mockDetect({ candidates: [], rejected: [], found: false });
+    const { unmount } = render(<Wrapped />);
+    expect(await screen.findByText("Detecta un candidato primero")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Analizar morfometría/ })).toBeDisabled();
+    unmount();
+    mockDetect();
+    render(<Wrapped />);
+    await screen.findByText("Candidato 1");
+    expect(screen.queryByText("Detecta un candidato primero")).toBeNull();
+  });
+});

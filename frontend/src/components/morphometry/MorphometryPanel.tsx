@@ -8,6 +8,8 @@ import { Badge, riskVariant } from "../Badge";
 import { MorphoRiskBadge, MORPHO_RISK_CRITERIA } from "./MorphoRiskBadge";
 import { PHASES_CUTS, crossedCut, isProvisional, nearCut } from "./diameterCut";
 import { Button } from "../Button";
+import { ConfirmDialog } from "../ConfirmDialog";
+import { NEEDS_MORPHOMETRY } from "../../pipeline/steps";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { Odometro } from "./Odometro";
@@ -109,6 +111,13 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
   /** La que se está guardando: el selector la enseña ya, el store la recibe al guardarse. */
   const [sitePending, setSitePending] = useState<AneurysmLocation | null>(null);
   const [siteNotice, setSiteNotice] = useState<string | null>(null);
+  // Cambiar la localización o volver a medir el cuello borra la recomendación
+  // de tratamiento: con una ya calculada se pregunta antes.
+  const [askingSite, setAskingSite] = useState<AneurysmLocation | null>(null);
+  const [askingRemeasure, setAskingRemeasure] = useState(false);
+  // El cálculo automático que falla se puede repetir sin salir del paso.
+  const [autoFailed, setAutoFailed] = useState(false);
+  const [autoTry, setAutoTry] = useState(0);
 
   // F1-165 (fusión nº 21): la localización se elige aquí, una vez, y la heredan
   // PHASES, ELAPSS, UIATS y Decisión. Se guarda en `clinical.site` para el PDF,
@@ -199,6 +208,7 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
     let alive = true;
     setBusy(true);
     setError(null);
+    setAutoFailed(false);
     api
       .morphometry(sessionId, candidateId)
       .then((m) => { if (alive) planning.setMorphometry(m); })
@@ -209,14 +219,14 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
       .catch((e) => {
         if (!alive) return;
         const msg = e instanceof Error ? e.message : "Error en morfometría";
-        if (!(manualSel && msg === MANUAL_NO_SAC)) setError(msg);
+        if (!(manualSel && msg === MANUAL_NO_SAC)) { setError(msg); setAutoFailed(true); }
       })
       .finally(() => { if (alive) setBusy(false); });
     // Una respuesta que llega tras cambiar de candidato (o tras medir a mano)
     // es de otro sitio: se descarta, y la barra no se queda colgada.
     return () => { alive = false; setBusy(false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, candidateId, morphometry === null]);
+  }, [sessionId, candidateId, morphometry === null, autoTry]);
 
   useEffect(() => {
     if (tab === "Seguimiento" && sessionId && !longi) {
@@ -336,7 +346,7 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
           </Button>
         )}
         <Button
-          onClick={recomputeWithNeckPlane}
+          onClick={() => (planning.treatment ? setAskingRemeasure(true) : void recomputeWithNeckPlane())}
           disabled={!canMeasure || neckBusy}
         >
           {neckBusy ? "Midiendo…" : "Medir saco cerrado"}
@@ -375,6 +385,34 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
         </div>
       )}
       <ErrorNote>{error}</ErrorNote>
+      {autoFailed && !m && !busy && (
+        <Button variant="outline" size="sm" style={{ marginBottom: 12 }}
+                onClick={() => setAutoTry((n) => n + 1)} leadingIcon={<Icon name="REFRESH" size={14} />}>
+          Reintentar
+        </Button>
+      )}
+      <ConfirmDialog
+        open={askingSite !== null}
+        title="¿Cambiar la localización?"
+        confirmLabel="Cambiar y borrar la decisión"
+        destructive
+        onCancel={() => setAskingSite(null)}
+        onConfirm={() => { const s = askingSite; setAskingSite(null); if (s) void changeSite(s); }}
+      >
+        La recomendación de tratamiento se calculó con la localización actual: se borra y habrá
+        que evaluarla otra vez. Lo escrito a mano en las escalas se conserva.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={askingRemeasure}
+        title="¿Volver a medir el saco?"
+        confirmLabel="Medir y borrar la decisión"
+        destructive
+        onCancel={() => setAskingRemeasure(false)}
+        onConfirm={() => { setAskingRemeasure(false); void recomputeWithNeckPlane(); }}
+      >
+        La medida actual se sustituye y la recomendación de tratamiento calculada con ella se
+        borra: habrá que evaluarla otra vez.
+      </ConfirmDialog>
 
       {/* Revisión de F1-146: sin esto el panel decía «marca cuello y ápice»
           y los botones solo existían con una medida ya hecha. */}
@@ -421,7 +459,10 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
               options={siteOptions(sitePending ?? planning.aneurysmSite)}
               value={sitePending ?? planning.aneurysmSite ?? ANEURYSM_LOCATIONS[0]}
               disabled={siteBusy}
-              onChange={(e) => void changeSite(e.target.value as AneurysmLocation)}
+              onChange={(e) => {
+                const next = e.target.value as AneurysmLocation;
+                if (planning.treatment) setAskingSite(next); else void changeSite(next);
+              }}
             />
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
               La usan PHASES, ELAPSS, UIATS, la decisión terapéutica y el informe.
@@ -601,7 +642,13 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
       {/* F1-171: se podía pasar a Decisión con «Medición no fiable» arriba y
           nada junto al botón. Sigue encendido (el carril deja pasar), pero dice
           qué falta: la nota va encima del botón, en el pie. */}
-      <PanelFooter note={m && !m.reliable ? "La medida no es fiable: marca cuello y ápice antes de decidir" : undefined}>
+      {/* Y apagado (sin medida) tampoco decía por qué. */}
+      <PanelFooter note={m
+        ? (!m.reliable ? "La medida no es fiable: marca cuello y ápice antes de decidir" : undefined)
+        : busy ? "Calculando la morfometría…"
+        : manualSel ? "Marca cuello y ápice y mide el saco para continuar"
+        : autoFailed ? "Sin medida no se puede decidir: reintenta el cálculo"
+        : NEEDS_MORPHOMETRY}>
         <Button
           style={{ width: "100%" }}
           onClick={onNext}

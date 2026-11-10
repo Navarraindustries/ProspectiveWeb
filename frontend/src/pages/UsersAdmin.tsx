@@ -8,6 +8,7 @@ import { api } from "../api/client";
 import type { UserAdminInfo, UserBrief } from "../api/types";
 import { Badge } from "../components/Badge";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { DiscardChanges } from "../components/DiscardChanges";
 import { Button } from "../components/Button";
 import { FileField } from "../components/FileField";
 import { Icon } from "../components/Icon";
@@ -100,9 +101,22 @@ function EditUserSheet({
   const [photo, setPhoto] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [askDiscard, setAskDiscard] = useState(false);
+
+  // «Cancelar», el ✕, Escape y el clic fuera tiraban lo cambiado sin preguntar.
+  const dirty = !!user && (
+    fullName !== (user.full_name || "") || role !== (user.role || "viewer") || active !== user.is_active
+    || specialty !== (user.specialty || "") || hospital !== (user.hospital || "")
+    || university !== (user.university || "") || position !== (user.position || "") || photo !== null
+  );
+  const requestClose = () => {
+    if (dirty) setAskDiscard(true);
+    else onClose();
+  };
 
   useEffect(() => {
     if (!open || !user) return;
+    setAskDiscard(false);
     setFullName(user.full_name || "");
     setRole(user.role || "viewer");
     setActive(user.is_active);
@@ -137,7 +151,8 @@ function EditUserSheet({
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Editar usuario" width={460}
+    <>
+    <Sheet open={open} onClose={requestClose} title="Editar usuario" width={460}
       footer={user ? (
         <>
           {error && (
@@ -146,7 +161,7 @@ function EditUserSheet({
             </div>
           )}
           <Button disabled={busy} onClick={submit}>{busy ? "Guardando…" : "Guardar cambios"}</Button>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button variant="outline" onClick={requestClose}>Cancelar</Button>
         </>
       ) : undefined}>
       {user && (
@@ -170,6 +185,12 @@ function EditUserSheet({
         </div>
       )}
     </Sheet>
+    <DiscardChanges
+      open={askDiscard}
+      onKeep={() => setAskDiscard(false)}
+      onDiscard={() => { setAskDiscard(false); onClose(); }}
+    />
+    </>
   );
 }
 
@@ -189,9 +210,18 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [intentado, setIntentado] = useState(false);
+  const [askDiscard, setAskDiscard] = useState(false);
+
+  // Un alta a medio escribir no se tira con un Escape o un clic fuera.
+  const dirty = (Object.keys(BLANK) as (keyof typeof BLANK)[]).some((k) => form[k] !== BLANK[k])
+    || photo !== null || cv !== null;
+  const requestClose = () => {
+    if (dirty) setAskDiscard(true);
+    else onClose();
+  };
 
   useEffect(() => {
-    if (open) { setForm({ ...BLANK }); setPhoto(null); setCv(null); setError(null); setIntentado(false); }
+    if (open) { setForm({ ...BLANK }); setPhoto(null); setCv(null); setError(null); setIntentado(false); setAskDiscard(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -233,7 +263,8 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Nuevo usuario" width={460}
+    <>
+    <Sheet open={open} onClose={requestClose} title="Nuevo usuario" width={460}
       footer={
         <>
           {error && (
@@ -242,7 +273,7 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
             </div>
           )}
           <Button disabled={busy} onClick={submit}>{busy ? "Creando…" : "Crear usuario"}</Button>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button variant="outline" onClick={requestClose}>Cancelar</Button>
         </>
       }>
       <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginBottom: 12 }}>
@@ -278,6 +309,12 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
         </Collapsible>
       </div>
     </Sheet>
+    <DiscardChanges
+      open={askDiscard}
+      onKeep={() => setAskDiscard(false)}
+      onDiscard={() => { setAskDiscard(false); onClose(); }}
+    />
+    </>
   );
 }
 

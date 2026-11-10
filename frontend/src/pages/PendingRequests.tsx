@@ -17,6 +17,7 @@ import { TablaTarjetas, type ColumnaTabla } from "../components/TablaTarjetas";
 import { useMovil } from "../hooks/useEstrecho";
 import { AppShell } from "../components/shell/AppShell";
 import { useAuth } from "../store/auth";
+import { useNav } from "../store/nav";
 import { PENDING_CHANGED_EVENT } from "../components/shell/pendingEvents";
 import { ErrorNote, Card } from "../components/PanelHead";
 import { LoadState, loadErrorText } from "../components/LoadState";
@@ -143,6 +144,7 @@ export function PendingRequests({ onBack }: { onBack: () => void }) {
 
 function PendingRequestsPage() {
   const movil = useMovil();
+  const nav = useNav();
   const [tab, setTab] = useState<Pestana>("Pendientes");
   const [pending, setPending] = useState<PendingUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -274,7 +276,8 @@ function PendingRequestsPage() {
                     </div>
                     {/* F1-90: quien aprueba no ve con qué rol entra la cuenta. */}
                     <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8 }}>
-                      Entrará como {ROLE_LABEL[ROL_AL_APROBAR]}; cambia el rol en Usuarios.
+                      Entrará como {ROLE_LABEL[ROL_AL_APROBAR]}; cambia el rol en{" "}
+                      <Button variant="link" size="sm" aria-label="Ir a Usuarios" onClick={() => nav.go("users")}>Usuarios</Button>.
                     </div>
                   </div>
                   </div>

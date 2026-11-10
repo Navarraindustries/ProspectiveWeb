@@ -119,8 +119,8 @@ export function UserMenu() {
 
   const doLogout = () => {
     setOpen(false);
-    logout();
-    nav.go("login");
+    if (nav.salir) nav.salir();
+    else { logout(); nav.go("login"); }
   };
 
   return (

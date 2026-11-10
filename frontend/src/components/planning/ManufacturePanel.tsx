@@ -227,16 +227,22 @@ export function ManufacturePanel({ onNext }: { onNext: () => void }) {
     return () => { vivo = false; };
   }, [sessionId, caseId, ordersKey]);
 
+  // Si la lectura falla, el paso se quedaba sin ficha ni pedido hasta salir y
+  // volver a entrar: «Reintentar» la repite.
+  const [intento, setIntento] = useState(0);
   useEffect(() => {
     if (!sessionId) { setLoading(false); return; }
+    let vivo = true;
     setLoading(true);
+    setError(null);
     // `verify: false` — aquí no se coloca nada, así que la comprobación
     // geométrica contra la malla no aporta y cuesta segundos.
     api.clipSelection(sessionId, caseId, false)
-      .then(setSel)
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo leer la selección de clip"))
-      .finally(() => setLoading(false));
-  }, [sessionId, caseId]);
+      .then((s) => { if (vivo) setSel(s); })
+      .catch((e) => { if (vivo) setError(e instanceof Error ? e.message : "No se pudo leer la selección de clip"); })
+      .finally(() => { if (vivo) setLoading(false); });
+    return () => { vivo = false; };
+  }, [sessionId, caseId, intento]);
 
   return (
     <div className="fade-rise">
@@ -289,6 +295,11 @@ export function ManufacturePanel({ onNext }: { onNext: () => void }) {
       )}
 
       <ErrorNote>{error}</ErrorNote>
+      {error && !loading && (
+        <Button size="sm" variant="outline" style={{ marginBottom: 14 }} onClick={() => setIntento((n) => n + 1)}>
+          Reintentar
+        </Button>
+      )}
 
       {sessionId && !loading && sel?.manufacture && (
         <div style={{ marginBottom: 14 }}>

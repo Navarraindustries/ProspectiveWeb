@@ -15,6 +15,7 @@ import { api } from "../../api/client";
 import type { PerforatorsResult } from "../../api/types";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
+import { LoadState, loadErrorText } from "../LoadState";
 import { SectionLabel, Card } from "../PanelHead";
 import { usePlanning } from "../../store/planning";
 import { cifra } from "../../lib/numero";
@@ -22,11 +23,16 @@ import { cifra } from "../../lib/numero";
 export function PerforatorsPanel() {
   const { sessionId, setPerforators, visiblePerforators, togglePerforator, setVisiblePerforators } = usePlanning();
   const [result, setResult] = useState<PerforatorsResult | null>(null);
-  const [error, setError] = useState(false);
+  // Dos fallos distintos: «sin-malla» (el 422 del servidor: aún no hay nada que
+  // analizar) y cualquier otro (red, 500, sesión caducada), que antes salía
+  // igual, como si faltara ejecutar la detección, y sin forma de repetirlo.
+  const [error, setError] = useState<"sin-malla" | string | null>(null);
+  const [intento, setIntento] = useState(0);
 
   useEffect(() => {
     if (!sessionId) return;
     let alive = true;
+    setError(null);
     api.perforators(sessionId)
       .then((r) => {
         if (!alive) return;
@@ -38,9 +44,12 @@ export function PerforatorsPanel() {
           z && z.length === 3 ? [z[0], z[1], z[2]] : null,
         );
       })
-      .catch(() => { if (alive) setError(true); });
+      .catch((e) => {
+        if (!alive) return;
+        setError((e as { status?: number } | null)?.status === 422 ? "sin-malla" : loadErrorText(e));
+      });
     return () => { alive = false; };
-  }, [sessionId, setPerforators]);
+  }, [sessionId, setPerforators, intento]);
 
   // Leaving the panel must not leave stale markers in a scene the user is now
   // using for something else.
@@ -89,10 +98,14 @@ export function PerforatorsPanel() {
         </div>
       )}
       <div style={{ marginTop: 10 }}>
-        {error && (
+        {error === "sin-malla" && (
           <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
             No disponible — ejecuta primero la detección y morfometría.
           </div>
+        )}
+        {error && error !== "sin-malla" && (
+          <LoadState state="error" mensaje={`No se pudieron leer las ramas: ${error}`}
+                     onRetry={() => setIntento((n) => n + 1)} />
         )}
         {result && result.candidates.length === 0 && (
           <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>

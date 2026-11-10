@@ -51,6 +51,74 @@ describe("descartar el caso a medio escribir", () => {
   });
 });
 
+/* «Nuevo caso» son dos pasos (elegir paciente → formulario) y el segundo no
+   tenía vuelta al primero: había que cancelar y empezar de nuevo. */
+describe("cambiar de paciente desde el formulario", () => {
+  const onCambiar = vi.fn();
+  beforeEach(() => onCambiar.mockReset());
+  const conVuelta = () =>
+    render(<NuevoEstudioSheet open patientId={1} patientName="Restrepo, María" onClose={onClose}
+                              onCreated={() => {}} onCambiarPaciente={onCambiar} />);
+
+  it("sin nada escrito, «Cambiar paciente» vuelve al selector sin preguntar ni cerrar", () => {
+    conVuelta();
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar paciente" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(onCambiar).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("con el caso a medio escribir pregunta antes; al descartar vuelve al selector, no cierra", () => {
+    conVuelta();
+    fireEvent.change(screen.getByLabelText("Diagnóstico"), { target: { value: "Aneurisma ACM" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar paciente" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Descartar los cambios?" })).toBeInTheDocument();
+    expect(onCambiar).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Descartar cambios" }));
+    expect(onCambiar).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("abierto desde la ficha de un paciente (sin vuelta) no lo ofrece; al editar, tampoco", () => {
+    const { unmount } = montar();
+    expect(screen.queryByRole("button", { name: "Cambiar paciente" })).toBeNull();
+    unmount();
+    render(<NuevoEstudioSheet open patientId={1} patientName="Restrepo, María" onClose={onClose} onCreated={() => {}}
+                              onCambiarPaciente={onCambiar}
+                              study={{ id: 3, dx_principal: "Aneurisma ACM" } as import("../api/types").StudySummary} />);
+    expect(screen.queryByRole("button", { name: "Cambiar paciente" })).toBeNull();
+  });
+});
+
+/* Con la lista caída, el selector decía «Aún no hay pacientes registrados» y
+   ofrecía crear «el primero»: invitaba a duplicar a un paciente que ya existe. */
+describe("el selector de paciente con la lista sin cargar", () => {
+  const selector = (extra: Partial<Parameters<typeof CasePatientPicker>[0]>) =>
+    render(<CasePatientPicker open patients={[]} onPick={vi.fn()} onClose={vi.fn()} onCreatePatient={vi.fn()} {...extra} />);
+
+  it("con error dice que no se pudo cargar y ofrece «Reintentar», no crear el primero", () => {
+    const onRetry = vi.fn();
+    selector({ error: "Sin conexión con el servidor", onRetry });
+    expect(screen.getByRole("alert")).toHaveTextContent("No se pudo cargar la lista de pacientes: Sin conexión con el servidor");
+    expect(screen.queryByText(/Aún no hay pacientes/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Crear el primer paciente|Nuevo paciente/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("mientras carga dice «Cargando…», no que no hay pacientes", () => {
+    selector({ loading: true });
+    expect(screen.getByRole("status")).toHaveTextContent("Cargando…");
+    expect(screen.queryByText(/Aún no hay pacientes/)).toBeNull();
+  });
+
+  it("vacía de verdad, sigue invitando a crear el primero", () => {
+    selector({});
+    expect(screen.getByText("Aún no hay pacientes registrados")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Crear el primer paciente" })).toBeInTheDocument();
+  });
+});
+
 describe("la fecha propuesta (F1-77)", () => {
   it("a las 22:15 en UTC−5 propone el día local, no el de mañana en UTC", () => {
     vi.useFakeTimers();

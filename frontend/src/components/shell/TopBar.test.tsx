@@ -147,6 +147,23 @@ describe("TopBar", () => {
     expect(screen.getByRole("menuitem", { name: "Paleta de mandos" })).toBeInTheDocument();
     p.restaurar();
   });
+  it("a 390 el tramo anterior de la miga queda como flecha de vuelta; en escritorio no hay flecha", () => {
+    const volver = vi.fn();
+    const conVuelta = <TopBar crumbs={[{ label: "Pacientes", onClick: volver }, { label: LARGO }]} acciones={acciones} />;
+    const p = simularPantalla({ ancho: 390 });
+    const { unmount } = render(conVuelta);
+    fireEvent.click(screen.getByRole("button", { name: "Volver a Pacientes" }));
+    expect(volver).toHaveBeenCalledTimes(1);
+    unmount();
+    // Una sección raíz (un solo tramo, sin destino) no lleva flecha.
+    const raiz = render(<TopBar crumbs={[{ label: "Pacientes" }]} acciones={acciones} />);
+    expect(screen.queryByRole("button", { name: /^Volver a/ })).toBeNull();
+    raiz.unmount();
+    p.restaurar();
+    render(conVuelta);
+    expect(screen.queryByRole("button", { name: /^Volver a/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Pacientes" })).toBeInTheDocument();
+  });
   it("«Paleta de mandos» del menú «⋯» abre la paleta", () => {
     const p = simularPantalla({ ancho: 390 });
     const fn = vi.fn();

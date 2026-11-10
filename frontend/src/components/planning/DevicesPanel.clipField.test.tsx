@@ -521,3 +521,47 @@ describe("DevicesPanel · rótulos y una sola lista de clips", () => {
     expect(screen.getAllByRole("spinbutton")).toHaveLength(6);
   });
 });
+
+/* Navegabilidad: el ✕ de un clip colocado y «Quitar del catálogo» de un clip
+   importado (que borra en el servidor) actuaban al primer clic; y Fabricación,
+   que es opcional, no ofrecía saltársela. */
+describe("DevicesPanel · quitar pregunta antes y el pie deja saltar Fabricación", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("el ✕ de un clip colocado no lo quita hasta confirmar", async () => {
+    await colocar();
+    await screen.findByText(/Estimación geométrica/);
+    fireEvent.click(screen.getByRole("button", { name: "Quitar el clip #1" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Quitar este clip?" }))
+      .toHaveTextContent("se pierden su posición y sus ángulos");
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.getByText("Clips colocados (1)")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Quitar el clip #1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Quitar el clip" }));
+    await waitFor(() => expect(screen.queryByText("Clips colocados (1)")).toBeNull());
+  });
+
+  it("«Quitar del catálogo» de un clip importado no borra en el servidor hasta confirmar", async () => {
+    const borrar = vi.spyOn(api, "deleteCustomClip").mockResolvedValue([]);
+    vi.mocked(api.listCustomClips).mockResolvedValueOnce([{ clip_id: "custom:1", name: "Mi clip" }] as never);
+    render(<PlanningProvider><Seed><DevicesPanel onNext={() => {}} /></Seed></PlanningProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: "Quitar del catálogo: Mi clip" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Quitar el clip importado?" }))
+      .toHaveTextContent("Se borra «Mi clip» de los clips importados de esta sesión");
+    expect(borrar).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Quitar del catálogo" }));
+    await waitFor(() => expect(borrar).toHaveBeenCalledWith("s1", "custom:1"));
+    borrar.mockRestore();
+  });
+
+  it("junto a «Continuar a fabricación» hay «Saltar al informe»", async () => {
+    const onNext = vi.fn();
+    const onSkip = vi.fn();
+    render(<PlanningProvider><Seed><DevicesPanel onNext={onNext} onSkipToReport={onSkip} /></Seed></PlanningProvider>);
+    expect(await screen.findByText(/Fabricación es opcional/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Saltar al informe" }));
+    expect(onSkip).toHaveBeenCalledTimes(1);
+    expect(onNext).not.toHaveBeenCalled();
+  });
+});

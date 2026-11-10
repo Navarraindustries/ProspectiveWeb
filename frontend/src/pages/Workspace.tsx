@@ -9,7 +9,8 @@ import type { PatientSummary } from "../api/types";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
-import { STEPS } from "../pipeline/steps";
+import { STEPS, stepIndex } from "../pipeline/steps";
+import { StepNavProvider, backLabel } from "../pipeline/stepNav";
 import { stepAviso, stepDone, stepMissing } from "../pipeline/stepGate";
 import { CONSULTA_SOLO_ICONO, QuirofanoBar, estiloAccion, rotuloAccion } from "../components/stepper/QuirofanoBar";
 import { SaveStatus } from "../components/stepper/SaveStatus";
@@ -258,6 +259,10 @@ export function Workspace({
     setStepIdx(i);
   };
   const next = () => go(Math.min(stepIdx + 1, STEPS.length - 1));
+  // «Volver» del pie de cada panel: al paso anterior, sin pasar por stepGate
+  // (ya se estuvo allí) y sin borrar nada.
+  const rotuloVolver = backLabel(stepIdx);
+  const stepNav = { back: rotuloVolver ? { label: rotuloVolver, go: () => go(stepIdx - 1) } : null };
 
   // Paleta ⌘K: los pasos y las acciones de la barra, con las mismas
   // condiciones de deshabilitado que sus botones.
@@ -370,7 +375,7 @@ export function Workspace({
       </div>
     ),
     treatment: <TreatmentPanel onNext={next} onChangeSite={() => go(STEPS.findIndex((st) => st.key === "morpho"))} />,
-    devices: <DevicesPanel onNext={next} />,
+    devices: <DevicesPanel onNext={next} onSkipToReport={() => go(stepIndex("report"))} />,
     manufacture: <ManufacturePanel onNext={next} />,
     report: <ReportPanel onFinish={onFinish} />,
   }[step];
@@ -554,7 +559,7 @@ export function Workspace({
           wide={step === "treatment" || step === "report"}
           badge={sessionId && annotations.length > 0 ? <Badge variant="subtle">{annotations.length}</Badge> : undefined}
         >
-          {panel}
+          <StepNavProvider value={stepNav}>{panel}</StepNavProvider>
           {/* En todos los pasos con sesión: una medida se toma cuando hace falta,
               no en un paso concreto del flujo. */}
           {sessionId && (

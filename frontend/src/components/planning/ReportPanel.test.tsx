@@ -1,8 +1,8 @@
 /* Paso de informe: la exportación de la escena a GLB. */
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../api/client", () => ({
   api: {
@@ -31,6 +31,10 @@ vi.mock("./PrintPrepPanel", () => ({ PrintPrepPanel: () => null }));
 import { api } from "../../api/client";
 import { ReportPanel } from "./ReportPanel";
 import { PlanningProvider, usePlanning } from "../../store/planning";
+import { clearReportDrafts } from "./reportDraft";
+
+// El borrador del informe vive en el módulo: cada prueba empieza sin el de la anterior.
+afterEach(() => { clearReportDrafts(); });
 
 function montar() {
   function Seed({ children }: { children: ReactNode }) {
@@ -216,6 +220,56 @@ describe("guardar desde el informe", () => {
     montarConCaso(4);
     expect(await screen.findByText("La sesión se vincula al paciente y estudio en la base de datos."))
       .toBeInTheDocument();
+  });
+
+  /* «Guardar y cerrar» guardaba por su cuenta (sin vaciar las anotaciones ni
+     `overwrite_origin`) y cerraba aunque fallara a medias. Ahora usa el
+     guardado que presta Workspace y solo cierra si devolvió true. */
+  function montarConGuardado(saver: () => Promise<boolean>, onFinish: () => void) {
+    function Seed({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => {
+        if (!p.sessionId) p.setSession("s1");
+        p.registerSaver(saver);
+      }, [p]);
+      return p.sessionId ? <>{children}</> : null;
+    }
+    return render(<PlanningProvider><Seed><ReportPanel onFinish={onFinish} /></Seed></PlanningProvider>);
+  }
+
+  it("guarda con el guardado común y cierra", async () => {
+    const saver = vi.fn(async () => true);
+    const onFinish = vi.fn();
+    montarConGuardado(saver, onFinish);
+    fireEvent.click(await screen.findByText("Guardar y cerrar"));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect(saver).toHaveBeenCalledTimes(1);
+    expect(api.saveSession).not.toHaveBeenCalled();
+  });
+
+  it("si el guardado falla no cierra y lo dice", async () => {
+    const saver = vi.fn(async () => false);
+    const onFinish = vi.fn();
+    montarConGuardado(saver, onFinish);
+    fireEvent.click(await screen.findByText("Guardar y cerrar"));
+    expect(await screen.findByText(/No se pudo guardar la sesión y no se ha cerrado/)).toBeInTheDocument();
+    expect(onFinish).not.toHaveBeenCalled();
+    expect(screen.getByText("Guardar y cerrar").closest("button")).not.toBeDisabled();
+  });
+});
+
+/* Notas, cirujano y capturas eran estado local: cambiar de paso desmonta el
+   panel y volvían en blanco. */
+describe("lo escrito sobrevive a cambiar de paso", () => {
+  it("al volver a montar el panel en la misma sesión siguen las notas y el cirujano", async () => {
+    auth.user = { username: "jruiz", full_name: "Dra. Ruiz", role: "medico" };
+    const primera = montar();
+    fireEvent.change(await screen.findByLabelText("Notas clínicas"), { target: { value: "Cuello ancho" } });
+    fireEvent.change(screen.getByLabelText("Cirujano responsable"), { target: { value: "Dr. Soto" } });
+    primera.unmount();
+    montar();
+    expect((await screen.findByLabelText("Notas clínicas") as HTMLInputElement).value).toBe("Cuello ancho");
+    expect((screen.getByLabelText("Cirujano responsable") as HTMLInputElement).value).toBe("Dr. Soto");
   });
 });
 

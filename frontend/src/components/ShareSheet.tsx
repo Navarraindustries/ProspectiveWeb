@@ -15,6 +15,7 @@ import type { PatientShareOut, UserBrief } from "../api/types";
 import { ROLE_LABEL } from "../lib/roles";
 import { useAuth } from "../store/auth";
 import { Button } from "./Button";
+import { DiscardChanges } from "./DiscardChanges";
 import { Icon } from "./Icon";
 import { Input } from "./Input";
 import { LoadState, loadErrorText } from "./LoadState";
@@ -54,6 +55,7 @@ export function ShareSheet({
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [askDiscard, setAskDiscard] = useState(false);
 
   // Al abrir se parte de lo guardado, no de lo que quedó marcado la vez
   // anterior sin guardar. `current` va por su contenido: el padre lo rehace en
@@ -64,8 +66,17 @@ export function ShareSheet({
     setSelected(new Set(current.map((c) => c.user_id)));
     setQ("");
     setError(null);
+    setAskDiscard(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentKey]);
+
+  // Lo marcado no se guarda hasta «Guardar»: «Cancelar», Escape o un clic fuera
+  // lo tiraban sin preguntar. La búsqueda no cuenta: no es nada que se pierda.
+  const dirty = selected.size !== current.length || current.some((c) => !selected.has(c.user_id));
+  const requestClose = () => {
+    if (dirty) setAskDiscard(true);
+    else onClose();
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -122,7 +133,8 @@ export function ShareSheet({
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Compartir con…" eyebrow={patientName} width={440}
+    <>
+    <Sheet open={open} onClose={requestClose} title="Compartir con…" eyebrow={patientName} width={440}
       footer={
         <>
           {error && (
@@ -133,7 +145,7 @@ export function ShareSheet({
           <Button onClick={save} disabled={busy || loading || !!loadError}>
             {busy ? "Guardando…" : "Guardar"}
           </Button>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button variant="outline" onClick={requestClose}>Cancelar</Button>
         </>
       }>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -193,5 +205,11 @@ export function ShareSheet({
         )}
       </div>
     </Sheet>
+    <DiscardChanges
+      open={askDiscard}
+      onKeep={() => setAskDiscard(false)}
+      onDiscard={() => { setAskDiscard(false); onClose(); }}
+    />
+    </>
   );
 }

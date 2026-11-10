@@ -14,11 +14,11 @@ import { PanelFooter } from "../PanelFooter";
 import { PrintPrepPanel } from "./PrintPrepPanel";
 import { useAuth } from "../../store/auth";
 import { usePlanning } from "../../store/planning";
-import { STEPS } from "../../pipeline/steps";
 import { approachSummary } from "./approachSummary";
 import { captureFramed } from "../../vtk/captureRenderWindow";
 import { surgeonPrefill } from "../../lib/cirujano";
 import { cifra } from "../../lib/numero";
+import { readReportDraft, writeReportDraft } from "./reportDraft";
 
 /** F1-220: las palabras del informe para la decisión del equipo y la estrategia. */
 const TEAM_LABEL: Record<string, string> = {
@@ -42,11 +42,6 @@ function teamSummary(t: TeamDecision | null): string {
   const what = t.team_decision === "otra" && t.other_text ? `Otra: ${t.other_text}` : TEAM_LABEL[t.team_decision]!;
   return t.decided_by ? `${what} · por ${t.decided_by}` : what;
 }
-
-/** Index of this step in the workspace rail — what a session saved here resumes at. */
-// Por su clave, no por un número: era un 6 fijo, y desde que «Fabricación»
-// entró antes del informe el 6 es Fabricación.
-const REPORT_STEP = STEPS.findIndex((s) => s.key === "report");
 
 /** A download link that stops offering a file once the plan has moved on.
  *
@@ -75,13 +70,23 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
   const planning = usePlanning();
   const {
     sessionId, patient, caseId, imagingStudyId, morphometry, treatment,
-    captureViewport, markSaved, reportUrls,
+    captureViewport, saveNow, reportUrls,
   } = planning;
-  const [includeShot, setIncludeShot] = useState(true);
+  // Lo escrito aquí sobrevive a cambiar de paso (ver reportDraft): se lee al
+  // montar y se apunta en cada cambio.
+  const [draft] = useState(() => readReportDraft(sessionId));
+  const [includeShot, setIncludeShot] = useState(draft?.includeShot ?? true);
   // Cuáles de las capturas guardadas entran, en el orden en que se marcan.
-  const [captureIds, setCaptureIds] = useState<number[]>([]);
-  const [surgeon, setSurgeon] = useState(() => surgeonPrefill(user));
-  const [notes, setNotes] = useState("");
+  const [captureIds, setCaptureIds] = useState<number[]>(draft?.captureIds ?? []);
+  const [surgeon, setSurgeon] = useState(() => draft?.surgeon ?? surgeonPrefill(user));
+  const [notes, setNotes] = useState(draft?.notes ?? "");
+  const touched = useRef(draft !== null);
+  useEffect(() => {
+    // Sin tocar nada no se apunta: el cirujano prerrellenado sigue saliendo de la cuenta.
+    if (!touched.current) return;
+    writeReportDraft(sessionId, { surgeon, notes, captureIds, includeShot });
+  }, [sessionId, surgeon, notes, captureIds, includeShot]);
+  const edit = <T,>(set: (v: T) => void) => (v: T) => { touched.current = true; set(v); };
   const [report, setReport] = useState<ReportResult | null>(null);
   const [stl, setStl] = useState<ReportResult | null>(null);
   const [glb, setGlb] = useState<GlbExportResult | null>(null);
@@ -230,30 +235,19 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
     }
   };
 
-  // Saving from the last step used to file the session under step 5 and drop the
-  // case link, so a finished plan came back listed as «Dispositivos» and its
-  // acquisition lost the case the gallery reads progress from. Same payload as
-  // «Guardar progreso» in the topbar, at the step the user is actually on.
+  // El mismo guardado que «Guardar progreso» (Workspace lo presta al store):
+  // este botón guardaba por su cuenta, sin esperar a las anotaciones pendientes
+  // y sin `overwrite_origin`, así que una sesión reanudada dejaba otra fila y
+  // podía cerrar con anotaciones sin escribir. Estando en este paso, guarda
+  // con «Informe» como paso. Solo se cierra si se guardó.
   const save = async () => {
     if (!sessionId) return;
     setBusy("save");
     setError(null);
-    try {
-      await api.saveSession({
-        session_id: sessionId,
-        label: patient ? `${patient.full_name} · Informe` : "Informe",
-        patient_id: patient?.id ?? null,
-        study_id: caseId,
-        imaging_study_id: imagingStudyId,
-        current_step: REPORT_STEP,
-      });
-      markSaved();
-      onFinish();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error guardando la sesión");
-    } finally {
-      setBusy(null);
-    }
+    const ok = await saveNow();
+    setBusy(null);
+    if (ok) onFinish();
+    else setError("No se pudo guardar la sesión y no se ha cerrado. Vuelve a intentarlo");
   };
 
   return (
@@ -295,20 +289,20 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
       </Card>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
-        <Input label="Cirujano responsable" value={surgeon} onChange={(e) => setSurgeon(e.target.value)} placeholder="Dr. …"
+        <Input label="Cirujano responsable" value={surgeon} onChange={(e) => edit(setSurgeon)(e.target.value)} placeholder="Dr. …"
           invalid={!surgeon.trim()} />
-        <Input label="Notas clínicas" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observaciones para el informe…" />
+        <Input label="Notas clínicas" value={notes} onChange={(e) => edit(setNotes)(e.target.value)} placeholder="Observaciones para el informe…" />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--foreground)", cursor: "pointer" }}>
-          <input type="checkbox" checked={includeShot} onChange={(e) => setIncludeShot(e.target.checked)} />
+          <input type="checkbox" checked={includeShot} onChange={(e) => edit(setIncludeShot)(e.target.checked)} />
           Incluir captura 3D de la escena en el PDF
         </label>
         {/* Y, aparte de esa foto del momento, las que el profesional fue
             guardando durante la planificación. */}
         <CapturePicker caseId={caseId} imagingStudyId={imagingStudyId}
-          value={captureIds} onChange={setCaptureIds} />
+          value={captureIds} onChange={edit(setCaptureIds)} />
         {/* El cirujano es obligatorio: un PDF clínico sin responsable, o con
             el nombre de la cuenta que lo generó, no sirve (F1-221). */}
         <Button leadingIcon={<Icon name="DOC" />} onClick={() => void genPdf()}

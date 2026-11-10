@@ -66,6 +66,9 @@ export function Patients({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [caseSheet, setCaseSheet] = useState(false);
   const [casePatient, setCasePatient] = useState<PatientSummary | null>(null);
+  // El formulario del caso se abrió desde el selector: solo entonces tiene
+  // sentido «Cambiar paciente» (desde el aviso de «Paciente creado», no).
+  const [desdeSelector, setDesdeSelector] = useState(false);
   const [aviso, setAviso] = useState<Aviso | null>(null);
   // Pedidos de clip abiertos para el aviso de parados; null = sin acceso o fallo.
   const [orders, setOrders] = useState<ClipOrder[] | null>(null);
@@ -212,7 +215,7 @@ export function Patients({
               </span>
               {aviso.tipo === "paciente" ? (
                 <Button size="sm" leadingIcon={<Icon name="PLUS" />}
-                        onClick={() => { setCasePatient(aviso.paciente); setAviso(null); }}>
+                        onClick={() => { setDesdeSelector(false); setCasePatient(aviso.paciente); setAviso(null); }}>
                   {`Crear un caso para ${aviso.paciente.full_name}`}
                 </Button>
               ) : (
@@ -287,14 +290,18 @@ export function Patients({
       <CasePatientPicker
         open={caseSheet}
         patients={patients}
+        loading={loading}
+        error={loadError}
+        onRetry={load}
         onClose={() => setCaseSheet(false)}
-        onPick={(p) => { setCaseSheet(false); setCasePatient(p); }}
+        onPick={(p) => { setCaseSheet(false); setDesdeSelector(true); setCasePatient(p); }}
         onCreatePatient={() => { setCaseSheet(false); openCreate(); }}
       />
       <NuevoEstudioSheet
         open={!!casePatient}
         patientId={casePatient?.id ?? null}
         patientName={casePatient?.full_name}
+        onCambiarPaciente={desdeSelector ? () => { setCasePatient(null); setCaseSheet(true); } : undefined}
         onClose={() => setCasePatient(null)}
         onCreated={(caso) => {
           const p = casePatient;

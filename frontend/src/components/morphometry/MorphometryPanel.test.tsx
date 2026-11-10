@@ -476,3 +476,76 @@ describe("F1-171: avanzar con una medida no fiable", () => {
     expect(screen.queryByText(/La medida no es fiable/)).toBeNull();
   });
 });
+
+/* Navegabilidad: lo que borra la decisión pregunta antes, el cálculo que falla
+   se puede repetir y el botón apagado dice por qué. */
+const decision = { recommendation: "CLIPAJE", recommendation_key: "clip" } as never;
+
+describe("cambiar la localización con una decisión calculada", () => {
+  it("pregunta antes y no guarda hasta confirmar", async () => {
+    setClinicalSite.mockClear();
+    withStore(openCap);
+    await screen.findByText("7,0");
+    act(() => { store!.setTreatment(decision); });
+    fireEvent.change(screen.getByLabelText("Localización"), { target: { value: "Tronco basilar" } });
+    const dialogo = screen.getByRole("alertdialog", { name: "¿Cambiar la localización?" });
+    expect(dialogo).toHaveTextContent("La recomendación de tratamiento");
+    expect(setClinicalSite).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar y borrar la decisión" }));
+    await waitFor(() => expect(setClinicalSite).toHaveBeenCalledWith("s1", "Tronco basilar"));
+  });
+
+  it("sin decisión no pregunta", async () => {
+    setClinicalSite.mockClear();
+    withStore(openCap);
+    await screen.findByText("7,0");
+    fireEvent.change(screen.getByLabelText("Localización"), { target: { value: "Tronco basilar" } });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(setClinicalSite).toHaveBeenCalledWith("s1", "Tronco basilar");
+  });
+});
+
+describe("volver a medir el saco con una decisión calculada", () => {
+  it("pregunta antes de medir", async () => {
+    vi.mocked(api.morphometryNeckPlane).mockClear();
+    vi.mocked(api.morphometryNeckPlane).mockResolvedValue(valid);
+    withStore(openCap);
+    await screen.findByText("7,0");
+    act(() => {
+      store!.setTreatment(decision);
+      store!.setNeckRim([[0, 3, 1], [1, 3, 0], [0, 3, -1]]);
+      store!.setNeckDome([0, 7, 0]);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Medir saco cerrado" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Volver a medir el saco?" })).toHaveTextContent("recomendación de tratamiento");
+    expect(api.morphometryNeckPlane).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Medir y borrar la decisión" }));
+    await waitFor(() => expect(api.morphometryNeckPlane).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe("el cálculo automático que falla", () => {
+  function sinMedida() {
+    function Seed({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => { if (!p.sessionId) p.setSession("s1"); }, [p]);
+      return p.sessionId ? <>{children}</> : null;
+    }
+    return render(<PlanningProvider><Seed><MorphometryPanel onNext={() => {}} /></Seed></PlanningProvider>);
+  }
+
+  it("ofrece «Reintentar», que vuelve a pedirlo, y el pie dice por qué no se continúa", async () => {
+    vi.mocked(api.morphometry).mockClear();
+    sinMedida();
+    const reintentar = await screen.findByRole("button", { name: "Reintentar" });
+    expect(screen.getByText("no auto-run in test")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Continuar a decisión/ })).toBeDisabled();
+    expect(screen.getByText("Sin medida no se puede decidir: reintenta el cálculo")).toBeInTheDocument();
+    const antes = vi.mocked(api.morphometry).mock.calls.length;
+    vi.mocked(api.morphometry).mockResolvedValueOnce(valid);
+    fireEvent.click(reintentar);
+    expect(await screen.findByText("7,0")).toBeInTheDocument();
+    expect(vi.mocked(api.morphometry).mock.calls.length).toBe(antes + 1);
+    expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
+  });
+});

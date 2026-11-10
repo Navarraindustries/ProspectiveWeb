@@ -65,6 +65,8 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
   // El detalle del 403 cuando el paciente es de otro profesional.
   const [denied, setDenied] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // El 404: el paciente no existe (borrado, o un enlace viejo). Reintentar no lo trae.
+  const [notFound, setNotFound] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [seccion, setSeccion] = useState<SeccionFicha | null>(seccionInicial.current);
   const [formOpen, setFormOpen] = useState(false);
@@ -90,6 +92,7 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
     setSummary(null);
     setDenied(null);
     setLoadError(null);
+    setNotFound(false);
     setSeccion(seccionInicial.current);
     setCasos(null);
     setCasosError(null);
@@ -103,6 +106,7 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
       .catch((e) => {
         if (!vigente) return;
         if (e instanceof ApiError && e.status === 403) setDenied(e.message);
+        else if (e instanceof ApiError && e.status === 404) setNotFound(true);
         else setLoadError(loadErrorText(e));
       })
       .finally(() => { if (vigente) setLoading(false); });
@@ -391,6 +395,14 @@ export function PatientPage({ patientId, onResume, onPlanCase, onOpenStudy, onOp
           <div role="alert" style={{ display: "grid", gap: 12, justifyItems: "start" }}>
             <h2 style={{ margin: 0, fontSize: 18 }}>Paciente no autorizado</h2>
             <p style={{ margin: 0, color: "var(--muted-foreground)", fontSize: 13 }}>{denied}</p>
+            <Button type="button" variant="outline" onClick={volverALista}>Volver a Pacientes</Button>
+          </div>
+        ) : notFound ? (
+          <div role="alert" style={{ display: "grid", gap: 12, justifyItems: "start" }}>
+            <h2 style={{ margin: 0, fontSize: 18 }}>Paciente no encontrado</h2>
+            <p style={{ margin: 0, color: "var(--muted-foreground)", fontSize: 13 }}>
+              Este paciente no existe o se ha eliminado. Puede que el enlace sea antiguo.
+            </p>
             <Button type="button" variant="outline" onClick={volverALista}>Volver a Pacientes</Button>
           </div>
         ) : loadError ? (

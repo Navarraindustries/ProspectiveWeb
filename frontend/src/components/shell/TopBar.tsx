@@ -136,6 +136,9 @@ export function TopBar({ crumbs, subtitle, status, acciones, extra, onAbrirSecci
   // En móvil solo se pinta el último segmento de la miga. El subtítulo solo
   // por encima de 1024: en tableta le quitaba el sitio al título (R2).
   const migas = crumbs && movil ? crumbs.slice(-1) : crumbs;
+  // …y el tramo anterior con destino queda como flecha de vuelta: sin ella, en
+  // móvil la ficha no tenía más salida que el cajón o el «Atrás» del navegador.
+  const vuelta = movil && crumbs ? crumbs.slice(0, -1).reverse().find((c) => c.onClick) : undefined;
   const extraNodo = extra ? <div className="shell-extra">{extra}</div> : null;
   return (
     <header className="shell-top" style={{ ...glass("normal"), borderWidth: "0 0 1px", boxShadow: "var(--glass-highlight)" }} data-glass>
@@ -151,6 +154,11 @@ export function TopBar({ crumbs, subtitle, status, acciones, extra, onAbrirSecci
           onClick={onAbrirSecciones}
         >
           <Icon name="MENU" size={18} />
+        </button>
+      )}
+      {vuelta && (
+        <button type="button" className="shell-top-menu" aria-label={`Volver a ${vuelta.label}`} title={`Volver a ${vuelta.label}`} onClick={vuelta.onClick}>
+          <Icon name="BACK" size={18} />
         </button>
       )}
       {migas && migas.length > 0 && (

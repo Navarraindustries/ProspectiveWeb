@@ -68,7 +68,9 @@ export function ConfirmDialog({
       // corta ahí: escuchando en `document`, la ficha de debajo (Sheet) y los
       // atajos del visor también recibían el mismo Escape, y cancelar «¿Descartar
       // los cambios?» cerraba la ficha que se quería conservar.
-      if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); onCancelRef.current(); return; }
+      // Con la acción en curso (`busy`) la tecla se sigue cortando, pero no
+      // cancela: cerrar a medias dejaba pulsar otra vez y repetir la petición.
+      if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); if (!busy) onCancelRef.current(); return; }
       if (e.key !== "Enter") return;
       e.stopPropagation();
       e.preventDefault();
@@ -113,7 +115,7 @@ export function ConfirmDialog({
       initial={reduced ? "initial" : false}
       animate="animate"
       transition={fundidoTransition}
-      onClick={onCancel}
+      onClick={busy ? undefined : onCancel}
       style={{ position: "fixed", inset: 0, zIndex: 400, background: "var(--scrim-dense)", display: "flex", alignItems: "center", justifyContent: "center" }}
     >
       <motion.div

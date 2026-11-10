@@ -229,7 +229,12 @@ export function StudyGallery({
       ) : error ? (
         <LoadState state="error" mensaje={error} onRetry={() => setAttempt((n) => n + 1)} />
       ) : rows.length === 0 ? (
-        <EstadoVacio icono="STUDIES" titulo={q.trim() ? "Sin coincidencias" : "Aún no hay estudios"}>
+        <EstadoVacio icono="STUDIES" titulo={q.trim() ? "Sin coincidencias" : "Aún no hay estudios"}
+          // «Subir un estudio nuevo» solo existía como última tarjeta de la
+          // rejilla: sin estudios, la pantalla no dejaba subir el primero.
+          accion={onNew && !q.trim()
+            ? <Button leadingIcon={<Icon name="UPLOAD" size={14} />} onClick={onNew}>Subir un estudio nuevo</Button>
+            : undefined}>
           {q.trim()
             ? `Ningún estudio coincide con «${q.trim()}».`
             : (emptyHint ?? "Aún no hay estudios archivados. Abre un caso con «Planificar este caso», carga el DICOM y pulsa «Guardar estudio» en el Paso 1.")}

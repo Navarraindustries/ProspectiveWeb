@@ -17,6 +17,7 @@ vi.mock("../../api/client", async (orig) => {
     listStents: vi.fn(),
     planStent: vi.fn(),
     deployClStent: vi.fn(),
+    clearDevices: vi.fn(async () => ({ status: "ok" })),
     placedDevices: vi.fn(async () => ({ remaining: [], mesh_urls: {}, strategy: null, placed_counts: {} })),
     getTeamDecision: vi.fn(async () => ({ team_decision: null, decided_by: "", other_text: "" })),
   } };
@@ -139,6 +140,28 @@ describe("stent recto", () => {
     await abrir();
     fireEvent.click(screen.getByRole("button", { name: "Desplegar y evaluar" }));
     expect(await screen.findByText("Tubo recto")).toBeInTheDocument();
+  });
+});
+
+/* «Retirar stent» actuaba al primer clic, cuando limpiar clips, coils o la
+   trayectoria sí preguntaban. */
+describe("«Retirar stent» pregunta antes", () => {
+  it("no retira hasta confirmar y dice qué se pierde", async () => {
+    montar();
+    fireEvent.click(await screen.findByRole("tab", { name: "Stent recto" }));
+    await screen.findByLabelText("Diámetro nominal");
+    fireEvent.click(screen.getByRole("button", { name: "Desplegar y evaluar" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Retirar stent" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Retirar stent" }));
+    expect(screen.getByRole("alertdialog", { name: "¿Retirar el stent?" }))
+      .toHaveTextContent("Se pierden el stent desplegado y su evaluación");
+    expect(api.clearDevices).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(api.clearDevices).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retirar stent" }));
+    fireEvent.click(screen.getByRole("button", { name: "Retirar el stent" }));
+    await waitFor(() => expect(api.clearDevices).toHaveBeenCalledWith("s1", "stent"));
   });
 });
 

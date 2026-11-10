@@ -27,6 +27,8 @@ export function PreprocessSection() {
   // al primer clic. Solo se pregunta si hay algo que perder.
   const hasWork = segmentation !== null || candidates.length > 0 || morphometry !== null || annotations.length > 0;
   const [asking, setAsking] = useState(false);
+  // «Restaurar volumen original» borra lo mismo y no preguntaba.
+  const [askingRevert, setAskingRevert] = useState(false);
   const isHu = isHuModality(series?.modality);
   const [open, setOpen] = useState(false);
   // Only offered pre-ticked where it means something: on a 3DRA/XA volume the
@@ -182,6 +184,17 @@ export function PreprocessSection() {
           >
             Se reinicia la segmentación y se borran las anotaciones.
           </ConfirmDialog>
+          <ConfirmDialog
+            open={askingRevert}
+            title="¿Restaurar el volumen original?"
+            confirmLabel="Restaurar y reiniciar"
+            destructive
+            onCancel={() => setAskingRevert(false)}
+            onConfirm={() => { setAskingRevert(false); void revert(); }}
+          >
+            Se reinicia la segmentación, con la detección y las medidas hechas sobre ella, y se
+            borran las anotaciones.
+          </ConfirmDialog>
           <Button variant="outline" style={{ width: "100%" }} disabled={busy || reverting || !sessionId || (!clip && !isoOn && !smooth)}
                   onClick={() => (hasWork ? setAsking(true) : void apply())}>
             {busy ? "Procesando…" : "Aplicar preprocesamiento"}
@@ -190,7 +203,7 @@ export function PreprocessSection() {
             <Button
               variant="ghost" style={{ width: "100%", marginTop: 8 }}
               disabled={busy || reverting}
-              onClick={() => void revert()}
+              onClick={() => (hasWork ? setAskingRevert(true) : void revert())}
               leadingIcon={<Icon name="UNDO" size={14} />}
             >
               {reverting ? "Restaurando…" : "Restaurar volumen original"}

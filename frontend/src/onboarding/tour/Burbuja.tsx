@@ -21,6 +21,8 @@ export interface BurbujaProps {
   extra?: ReactNode;
   rect?: DOMRect | null;
   etiquetaSiguiente?: string;
+  /** Permite «Anterior» (y ←) también en la primera parada: quien lo usa decide adónde lleva. */
+  anteriorEnPrimera?: boolean;
 }
 
 const ANCHO = 360, ALTO = 300, HUECO = 14, BORDE = 12;
@@ -85,7 +87,7 @@ export function Burbuja(p: BurbujaProps) {
       if (editable) return;
       if (e.key === "ArrowRight") return manejar(onSiguiente);
       if (e.key === "Enter" && !interactivo) return manejar(onSiguiente);
-      if (e.key === "ArrowLeft") return manejar(() => { if (indice > 0) onAnterior(); });
+      if (e.key === "ArrowLeft") return manejar(() => { if (indice > 0 || vivo.current.anteriorEnPrimera) onAnterior(); });
     };
     window.addEventListener("keydown", alPulsar, true);
     return () => {
@@ -127,7 +129,7 @@ export function Burbuja(p: BurbujaProps) {
         {Array.from({ length: total }, (_, i) => <span key={i} className="tour-punto" data-activo={i === indice} />)}
       </div>
       <div className="tour-acciones">
-        <Button variant="outline" style={boton} disabled={indice === 0} onClick={p.onAnterior}>Anterior</Button>
+        <Button variant="outline" style={boton} disabled={indice === 0 && !p.anteriorEnPrimera} onClick={p.onAnterior}>Anterior</Button>
         <Button style={boton} onClick={p.onSiguiente}>{p.etiquetaSiguiente ?? (ultima ? "Terminar" : "Siguiente")}</Button>
         <Button variant="ghost" style={boton} className="tour-saltar" onClick={p.onSaltar}>Saltar recorrido</Button>
       </div>

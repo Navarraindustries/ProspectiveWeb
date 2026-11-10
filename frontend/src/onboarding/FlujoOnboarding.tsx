@@ -47,7 +47,8 @@ function MomentoQuirofano() {
     if (proximo) ir(proximo);
     else void terminar("completado");
   }, [ir, terminar]);
-  return <QuirofanoZonas onFin={fin} />;
+  const atras = useCallback(() => { const previo = vecino("quirofano", -1); if (previo) ir(previo); }, [ir]);
+  return <QuirofanoZonas onFin={fin} onAtras={atras} />;
 }
 
 const PANTALLAS: Partial<Record<Momento, ComponentType<PropsMomento>>> = {

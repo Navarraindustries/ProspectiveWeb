@@ -73,3 +73,4 @@
 .qz-aviso { margin: 8px 0 0; font-size: 13px; color: var(--muted-foreground); }
 
 @media (prefers-reduced-motion: reduce) { .qz-pin > span { transition: none; } }
+.qz__ejemplo { position: absolute; right: 0.8em; bottom: 0.8em; z-index: 1; }

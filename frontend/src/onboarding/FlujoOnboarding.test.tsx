@@ -221,6 +221,13 @@ describe("FlujoOnboarding", () => {
       expect(terminar).toHaveBeenCalledWith("saltado");
     });
 
+    it("«Anterior» en la zona 1 vuelve al panel de pacientes", () => {
+      momento = "quirofano";
+      render(<MontarQuirofano />);
+      fireEvent.click(screen.getByRole("button", { name: "Anterior" }));
+      expect(ir).toHaveBeenCalledWith("pacientes");
+    });
+
     it("«Siguiente» en la zona 5 lleva a «Listo»", () => {
       momento = "quirofano";
       render(<MontarQuirofano />);

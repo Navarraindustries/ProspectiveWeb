@@ -2,7 +2,7 @@
    tocar en cualquier orden; la 2 añade los cinco tramos; «Siguiente» en la 5
    termina el momento y «Saltar» (o Esc) salta el onboarding entero, una vez. */
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AVISO_PISTAS, ZONAS_QUIROFANO } from "./copy";
 
@@ -95,5 +95,38 @@ describe("QuirofanoZonas", () => {
     expect(container.querySelectorAll("[data-paso]")).toHaveLength(8);
     expect(container.querySelector('[data-paso="1"]')?.getAttribute("data-estado")).toBe("hecho");
     expect(container.querySelector('[data-paso="3"]')?.getAttribute("data-estado")).toBe("activo");
+  });
+
+  it("tras usar un marcador el foco vuelve a la burbuja: Esc salta una vez y → avanza", () => {
+    render(<QuirofanoZonas onFin={onFin} />);
+    const pin = screen.getByRole("button", { name: "Marcador de la zona 3" });
+    // El ratón no debe llevarse el foco (mousedown cancelado)…
+    expect(fireEvent.mouseDown(pin)).toBe(false);
+    // …y si el navegador lo llevara igualmente, el clic lo devuelve.
+    act(() => pin.focus());
+    fireEvent.click(pin);
+    expect(document.activeElement).toBe(dialogo("El panel del paso"));
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" });
+    expect(dialogo("Dónde estás")).toBeTruthy();
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(terminar).toHaveBeenCalledTimes(1);
+    expect(terminar).toHaveBeenCalledWith("saltado");
+  });
+
+  it("«Anterior» en la zona 1 vuelve al momento previo (onAtras); sin onAtras sigue desactivado", () => {
+    const onAtras = vi.fn();
+    const { unmount } = render(<QuirofanoZonas onFin={onFin} onAtras={onAtras} />);
+    fireEvent.click(screen.getByRole("button", { name: "Anterior" }));
+    expect(onAtras).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(dialogo("El visor"), { key: "ArrowLeft" });
+    expect(onAtras).toHaveBeenCalledTimes(2);
+    unmount();
+    render(<QuirofanoZonas onFin={onFin} />);
+    expect((screen.getByRole("button", { name: "Anterior" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("la maqueta se marca como «Ejemplo»", () => {
+    const { container } = render(<QuirofanoZonas onFin={onFin} />);
+    expect(container.querySelector(".qz__ejemplo")?.textContent).toBe("Ejemplo");
   });
 });

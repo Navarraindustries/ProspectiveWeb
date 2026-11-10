@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MutableRefObject } from "react";
 import { createPortal } from "react-dom";
+import { Badge } from "../components/Badge";
 import { useMovil } from "../hooks/useEstrecho";
 import { tramoDePaso, type TramoFlujo } from "../lib/pacientes";
 import { STEPS } from "../pipeline/steps";
@@ -111,6 +112,7 @@ function Ilustracion({ refs, movil }: { refs: MutableRefObject<(HTMLElement | nu
             <span>DESDE ▸</span><span>ENCUADRAR</span><span>ARRIBA</span><span>DELANTE</span><span>LADO</span><span>CANDIDATO</span><span>ABORDAJE</span>
           </div>
         </div>
+        <span className="qz__ejemplo"><Badge variant="brand">Ejemplo</Badge></span>
         <div ref={ref(1)} className="qz__zona-dock"><Dock /></div>
       </div>
       <aside className="qz-panel" ref={ref(2)} aria-hidden="true">
@@ -145,7 +147,7 @@ function FilaTramos() {
   );
 }
 
-export function QuirofanoZonas({ onFin }: { onFin: () => void }) {
+export function QuirofanoZonas({ onFin, onAtras }: { onFin: () => void; onAtras?: () => void }) {
   const { terminar } = useOnboarding();
   const movil = useMovil();
   const refs = useRef<(HTMLElement | null)[]>([]);
@@ -205,7 +207,8 @@ export function QuirofanoZonas({ onFin }: { onFin: () => void }) {
             const estilo = { left: r.left + r.width * fx - PIN / 2, top: r.top + r.height * fy - PIN / 2 };
             return (
               <button key={i} type="button" className="qz-pin" data-activo={i === zona} style={estilo}
-                aria-label={`Marcador de la zona ${i + 1}`} tabIndex={-1} onClick={() => setZona(i)}>
+                aria-label={`Marcador de la zona ${i + 1}`} tabIndex={-1}
+                onMouseDown={(e) => e.preventDefault()} onClick={() => { setZona(i); document.querySelector<HTMLElement>(".tour-burbuja")?.focus(); }}>
                 <span aria-hidden="true">{i + 1}</span>
               </button>
             );
@@ -215,7 +218,8 @@ export function QuirofanoZonas({ onFin }: { onFin: () => void }) {
             indice={zona}
             total={total}
             onSiguiente={siguiente}
-            onAnterior={() => setZona((z) => Math.max(0, z - 1))}
+            onAnterior={() => (zona === 0 ? onAtras?.() : setZona(zona - 1))}
+            anteriorEnPrimera={!!onAtras}
             onSaltar={saltar}
             extra={extra}
             rect={rect}

@@ -2,7 +2,7 @@
 .tour-velo { background: var(--scrim); pointer-events: auto; }
 .tour-tira { position: absolute; pointer-events: auto; background: transparent;
   transition: all 450ms cubic-bezier(.2, .8, .2, 1); }
-.tour-hueco { position: absolute; pointer-events: none; border-radius: var(--radius-md, 10px);
+.tour-hueco { position: absolute; pointer-events: auto; border-radius: var(--radius-md, 10px);
   border: 2px solid var(--primary); box-shadow: 0 0 0 100vmax var(--scrim);
   transition: left 450ms cubic-bezier(.2, .8, .2, 1), top 450ms cubic-bezier(.2, .8, .2, 1),
     width 450ms cubic-bezier(.2, .8, .2, 1), height 450ms cubic-bezier(.2, .8, .2, 1); }

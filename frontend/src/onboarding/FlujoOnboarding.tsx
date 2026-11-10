@@ -5,7 +5,12 @@
    el foco y las teclas (Tab, Esc) son de la burbuja del recorrido. ⌘K sigue
    bloqueado: la paleta se abriría debajo del foco.
    «quirofano» sigue a pantalla completa (la ilustración vive en la capa), pero
-   su burbuja también manda en Tab y Esc: la capa no los toca. */
+   su burbuja también manda en Tab y Esc: la capa no los toca.
+   Con la capa a pantalla completa, ninguna tecla llega al trabajo de debajo
+   (si se lanzó desde el quirófano, los dígitos cambiarían de paso, P plegaría
+   el panel…): lo que nace fuera de la capa se para en la captura de window;
+   lo que nace dentro, en la propia capa, después de sus manejadores. Escribir
+   en un campo de la capa no se toca. «pacientes» no se aísla: va sobre la app. */
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import { Button } from "../components/Button";
 import { Logo } from "../components/shell/Logo";
@@ -62,6 +67,9 @@ const SOBRE_LA_APP: ReadonlySet<Momento> = new Set<Momento>(["pacientes"]);
     «quirofano» sigue a pantalla completa, pero la capa no toca el teclado. */
 const BURBUJA_MANDA: ReadonlySet<Momento> = new Set<Momento>(["pacientes", "quirofano"]);
 
+const esEditable = (t: EventTarget | null) =>
+  t instanceof HTMLElement && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
+
 function vecino(m: Momento, paso: 1 | -1): Momento | null {
   for (let i = ORDEN.indexOf(m) + paso; i >= 0 && i < ORDEN.length; i += paso) {
     if (PANTALLAS[ORDEN[i]]) return ORDEN[i];
@@ -86,7 +94,10 @@ export function FlujoOnboarding() {
 
   useEffect(() => {
     if (!activo) return;
-    const alPulsar = (e: KeyboardEvent) => {
+    // Dentro de la capa cuenta también la burbuja del quirófano, que va por portal a <body>.
+    const enLaCapa = (t: EventTarget | null) =>
+      t instanceof Element && (!!capa.current?.contains(t) || !!t.closest(".tour-burbuja"));
+    const atender = (e: KeyboardEvent) => {
       // ⌘K nunca: ni con la capa (es modal) ni durante el recorrido (abriría la paleta bajo el foco).
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); e.stopPropagation(); return; }
       // Sobre la app, Esc y Tab son de la burbuja del recorrido: dos trampas a la vez se pelean.
@@ -109,6 +120,12 @@ export function FlujoOnboarding() {
         } else if (e.shiftKey && actual === primero) { e.preventDefault(); ultimo.focus(); }
         else if (!e.shiftKey && actual === ultimo) { e.preventDefault(); primero.focus(); }
       }
+    };
+    const alPulsar = (e: KeyboardEvent) => {
+      atender(e);
+      // A pantalla completa, lo que nace fuera de la capa (el cuerpo, un control oculto
+      // del quirófano que conservara el foco) no sigue hacia la app de debajo.
+      if (!sobreLaApp && !enLaCapa(e.target)) e.stopPropagation();
     };
     window.addEventListener("keydown", alPulsar, true);
     return () => window.removeEventListener("keydown", alPulsar, true);
@@ -162,7 +179,8 @@ export function FlujoOnboarding() {
   };
 
   return (
-    <div ref={capa} className="ob-capa" role="dialog" aria-modal={momento === "quirofano" ? undefined : true} aria-label="Bienvenida a Prospective" tabIndex={-1}>
+    <div ref={capa} className="ob-capa" role="dialog" aria-modal={momento === "quirofano" ? undefined : true} aria-label="Bienvenida a Prospective" tabIndex={-1}
+      onKeyDown={(e) => { if (!esEditable(e.target)) e.stopPropagation(); }}>
       <header className="ob-barra">
         <Logo size={26} />
         {progreso}

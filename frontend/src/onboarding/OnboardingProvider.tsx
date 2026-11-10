@@ -34,7 +34,13 @@ const POR_DEFECTO: OnboardingState = {
   estado: "pendiente", fecha: null, pistas_vistas: [], pistas_activas: true, tarjeta_cerrada: false,
 };
 
-const completar = (s: OnboardingState | undefined): OnboardingState => ({ ...POR_DEFECTO, ...(s ?? {}) });
+const completar = (s: OnboardingState): OnboardingState => ({ ...POR_DEFECTO, ...s });
+
+/** `/me` sin «onboarding» (servidor más viejo que el cliente, o una vuelta atrás):
+    no es «pendiente». Nada arranca solo, ni invitación, ni tarjeta, ni pistas. */
+const SIN_DATOS: OnboardingState = {
+  estado: "completado", fecha: null, pistas_vistas: [], pistas_activas: false, tarjeta_cerrada: true,
+};
 
 const INERTE: OnboardingApi = {
   estado: POR_DEFECTO,
@@ -58,7 +64,7 @@ export function useOnboarding(): OnboardingApi {
 
 export function OnboardingProvider({ children }: { children: ReactNode }) {
   const { user, refreshUser } = useAuth();
-  const delServidor = completar(user?.onboarding);
+  const delServidor = user?.onboarding ? completar(user.onboarding) : SIN_DATOS;
   const [estado, setEstado] = useState<OnboardingState>(delServidor);
   const [momento, setMomento] = useState<Momento | null>(null);
   const ultimo = useRef<OnboardingState>(estado); // último estado pedido (base de la siguiente escritura)
@@ -123,9 +129,11 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       return vistas.includes(paso) ? s : { ...s, pistas_vistas: [...vistas, paso].sort((a, b) => a - b) };
     }),
     setPistasActivas: (v) => escribir((s) => ({ ...s, pistas_activas: v })),
-    reiniciarPistas: () => escribir((s) => ({ ...s, pistas_vistas: [] })),
+    // Reiniciar es volver a verlas: también se reactivan si se habían apagado.
+    reiniciarPistas: () => escribir((s) => ({ ...s, pistas_vistas: [], pistas_activas: true })),
     cerrarTarjeta: () => escribir((s) => ({ ...s, tarjeta_cerrada: true })),
-    descartarInvitacion: () => escribir((s) => ({ ...s, estado: "saltado", fecha: new Date().toISOString() })),
+    // «Primeros pasos sugeridos» es para quien hizo el recorrido: «Ahora no» no la abre en su lugar.
+    descartarInvitacion: () => escribir((s) => ({ ...s, estado: "saltado", fecha: new Date().toISOString(), tarjeta_cerrada: true })),
   }), [estado, momento, empezar, terminar, escribir]);
 
   return (

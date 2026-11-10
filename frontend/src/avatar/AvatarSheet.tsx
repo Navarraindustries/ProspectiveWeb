@@ -121,7 +121,8 @@ export function AvatarSheet({ open, onClose }: {
   );
 }
 
-function pildora(activa: boolean, deshabilitada: boolean): CSSProperties {
+/** Pastilla de la elección «Mostrar»: también la usa el paso «Tu avatar» de la bienvenida. */
+export function pildora(activa: boolean, deshabilitada: boolean): CSSProperties {
   return {
     minHeight: 44, padding: "0 14px", borderRadius: 999, fontSize: 13, color: "var(--foreground)",
     cursor: deshabilitada ? "not-allowed" : "pointer", opacity: deshabilitada ? 0.5 : 1,

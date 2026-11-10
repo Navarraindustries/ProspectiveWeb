@@ -198,6 +198,29 @@ describe("RecorridoPacientes", () => {
     expect(onFin).not.toHaveBeenCalled();
   });
 
+  it("tocar lo resaltado (la tarjeta real) no abre la ficha ni corta el recorrido", async () => {
+    listPatients.mockResolvedValue([fila({ id: 1, full_name: "Uno, A" })]);
+    montar();
+    await screen.findByText(/^Parada 1 de/);
+    hasta("La ficha del paciente");
+    const hueco = document.querySelector<HTMLElement>("[data-foco-hueco]")!;
+    expect(hueco.style.pointerEvents).toBe("auto");
+    fireEvent.pointerDown(hueco);
+    fireEvent.mouseDown(hueco);
+    fireEvent.click(hueco);
+    expect(burbuja()).toHaveAttribute("aria-label", "La ficha del paciente");
+    expect(screen.queryByText("otra pantalla")).toBeNull();
+    expect(terminar).not.toHaveBeenCalled();
+    expect(onFin).not.toHaveBeenCalled();
+    siguiente();
+    expect(burbuja()).not.toHaveAttribute("aria-label", "La ficha del paciente");
+  });
+
+  it("la parada de la ficha no pide tocar nada durante el recorrido", () => {
+    expect(PARADAS_PACIENTES.ficha.como).not.toMatch(/^Toca/);
+    expect(PARADAS_PACIENTES.ficha.como).toMatch(/Al acabar el recorrido/);
+  });
+
   it("«Saltar recorrido» salta todo el onboarding una sola vez", async () => {
     montar();
     await screen.findByText(/^Parada 1 de/);

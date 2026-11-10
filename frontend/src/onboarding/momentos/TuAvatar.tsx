@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AvatarCreator } from "../../avatar/AvatarCreator";
+import { pildora } from "../../avatar/AvatarSheet";
 import { DesdeMiFoto } from "../../avatar/DesdeMiFoto";
 import { AvatarSvg } from "../../avatar/AvatarSvg";
 import { configPorDefecto, type AvatarConfig } from "../../avatar/config";
@@ -18,7 +19,9 @@ export function TuAvatar({ registrarAvance }: PropsMomento) {
   // Se parte de lo guardado, como en la hoja «Tu avatar»: quien muestra su foto no la pierde al avanzar.
   const [modo, setModo] = useState<ModoAvatar>(user?.avatar_mode === "foto" && user.has_profile_photo ? "foto" : "avatar");
   const [desdeFoto, setDesdeFoto] = useState(false);
-  const { vistaPendiente, error, aplicarFoto, guardar } = useGuardarAvatar();
+  const { pendiente, vistaPendiente, error, aplicarFoto, guardar } = useGuardarAvatar();
+  // «Mi foto» solo si hay una que mostrar: la guardada o la recién elegida (aún sin subir).
+  const hayFoto = !!user?.has_profile_photo || !!pendiente;
 
   // «Siguiente» guarda antes de avanzar; si falla, se queda y avisa.
   useEffect(() => {
@@ -46,6 +49,13 @@ export function TuAvatar({ registrarAvance }: PropsMomento) {
             onListo={(r) => { setConfig(r.config); setModo(r.mostrar); setDesdeFoto(false); aplicarFoto(r); }} />
         ) : (
           <>
+            <div className="ob-avatar__mostrar" role="group" aria-label="Qué ven los demás"
+              style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button type="button" aria-pressed={modo === "avatar"} onClick={() => setModo("avatar")}
+                style={pildora(modo === "avatar", false)}>{AVATAR.mostrarAvatar}</button>
+              <button type="button" aria-pressed={modo === "foto"} disabled={!hayFoto} onClick={() => setModo("foto")}
+                style={pildora(modo === "foto", !hayFoto)}>{AVATAR.mostrarFoto}</button>
+            </div>
             <AvatarCreator value={config} onChange={setConfig} compacto />
             <Button variant="outline" leadingIcon={<Icon name="LOCK" size={14} />}
               onClick={() => setDesdeFoto(true)}>

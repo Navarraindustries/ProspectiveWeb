@@ -34,6 +34,9 @@ describe("TarjetasPacientes", () => {
     await waitFor(() => expect(saveOnboarding).toHaveBeenCalled());
     expect((saveOnboarding.mock.calls[0][0] as OnboardingState).estado).toBe("saltado");
     expect(screen.queryByText("Hay un recorrido nuevo de 4 minutos")).toBeNull();
+    // Tampoco aparece en su lugar «Primeros pasos sugeridos»: es para quien hizo el recorrido.
+    expect(screen.queryByText("Primeros pasos sugeridos")).toBeNull();
+    expect((saveOnboarding.mock.calls[0][0] as OnboardingState).tarjeta_cerrada).toBe(true);
   });
 
   it("«Verlo» arranca el recorrido y las tarjetas se apartan", async () => {

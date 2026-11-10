@@ -97,6 +97,26 @@ describe("Foco", () => {
     rerender(<Foco rect={rectDe(10)} />);
     expect(container.querySelector("[data-foco]")).not.toBeNull();
   });
+
+  it("el hueco también bloquea: el clic no llega a lo de debajo ni se lleva el foco", () => {
+    const { container } = render(<Foco rect={rectDe(10)} />);
+    const hueco = container.querySelector<HTMLElement>("[data-foco-hueco]")!;
+    expect(hueco.style.pointerEvents).toBe("auto");
+    // Las cuatro tiras y el hueco cubren la pantalla entera y todos atrapan el puntero.
+    container.querySelectorAll<HTMLElement>(".tour-tira").forEach((t) => expect(getComputedStyle(t).pointerEvents).not.toBe("none"));
+    const fuera = vi.fn();
+    document.addEventListener("click", fuera);
+    document.addEventListener("mousedown", fuera);
+    const clic = new MouseEvent("click", { bubbles: true, cancelable: true });
+    const baja = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+    hueco.dispatchEvent(baja);
+    hueco.dispatchEvent(clic);
+    document.removeEventListener("click", fuera);
+    document.removeEventListener("mousedown", fuera);
+    expect(fuera).not.toHaveBeenCalled();
+    expect(clic.defaultPrevented).toBe(true);
+    expect(baja.defaultPrevented).toBe(true); // sin mover el foco del teclado fuera de la burbuja
+  });
 });
 
 describe("Burbuja", () => {

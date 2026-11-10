@@ -47,11 +47,17 @@ describe("OnboardingProvider", () => {
     await waitFor(() => expect(refreshUser).toHaveBeenCalled());
   });
 
-  it("sin onboarding en el usuario se trata como pendiente", async () => {
+  it("sin onboarding en /me (servidor viejo o vuelta atrás) queda inerte: no arranca, no guarda, sin tarjeta ni pistas", async () => {
     onboarding = undefined;
     montar();
-    expect(screen.getByTestId("m").textContent).toBe("hola");
-    await waitFor(() => expect(saveOnboarding).toHaveBeenCalled());
+    expect(screen.getByTestId("m").textContent).toBe("-");
+    expect(ctx.activo).toBe(false);
+    expect(ctx.estado.estado).not.toBe("pendiente");
+    expect(ctx.estado.estado).not.toBe("invitado");
+    expect(ctx.estado.tarjeta_cerrada).toBe(true);
+    expect(ctx.estado.pistas_activas).toBe(false);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(saveOnboarding).not.toHaveBeenCalled();
   });
 
   it.each(["invitado", "completado", "saltado"] as const)("%s: no arranca ni guarda", async (e) => {
@@ -90,6 +96,25 @@ describe("OnboardingProvider", () => {
     expect(saveOnboarding.mock.calls.at(-1)![0].tarjeta_cerrada).toBe(true);
     await act(async () => { await ctx.descartarInvitacion(); });
     expect(saveOnboarding.mock.calls.at(-1)![0].estado).toBe("saltado");
+  });
+
+  it("reiniciarPistas vuelve a encender las pistas apagadas", async () => {
+    onboarding = base("completado", { pistas_vistas: [1, 4], pistas_activas: false });
+    montar();
+    await act(async () => { await ctx.reiniciarPistas(); });
+    const s = saveOnboarding.mock.calls.at(-1)![0] as OnboardingState;
+    expect(s.pistas_vistas).toEqual([]);
+    expect(s.pistas_activas).toBe(true);
+    expect(ctx.estado.pistas_activas).toBe(true);
+  });
+
+  it("descartarInvitacion («Ahora no») cierra también «Primeros pasos sugeridos»", async () => {
+    onboarding = base("invitado");
+    montar();
+    await act(async () => { await ctx.descartarInvitacion(); });
+    const s = saveOnboarding.mock.calls.at(-1)![0] as OnboardingState;
+    expect(s.estado).toBe("saltado");
+    expect(s.tarjeta_cerrada).toBe(true);
   });
 
   it("empezar() manual abre «hola» y ir() cambia de momento", async () => {

@@ -140,6 +140,98 @@ describe("FlujoOnboarding", () => {
     expect(ir).not.toHaveBeenCalled();
   });
 
+  describe("«Tu avatar»: qué ven los demás", () => {
+    it("con foto guardada se puede volver al avatar: la vista previa lo sigue y se guarda «avatar»", async () => {
+      momento = "avatar";
+      extraUser = { avatar_mode: "foto", has_profile_photo: true };
+      render(<Montar />);
+      const foto = screen.getByRole("button", { name: "Mostrar mi foto" });
+      const avatar = screen.getByRole("button", { name: "Mostrar mi avatar" });
+      expect(foto).toHaveAttribute("aria-pressed", "true");
+      expect(screen.queryByRole("img", { name: "Vista previa de tu avatar" })).toBeNull();
+      fireEvent.click(avatar);
+      expect(avatar).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("img", { name: "Vista previa de tu avatar" })).toBeInTheDocument();
+      fireEvent.click(foto);
+      expect(screen.queryByRole("img", { name: "Vista previa de tu avatar" })).toBeNull();
+      fireEvent.click(avatar);
+      siguiente();
+      await waitFor(() => expect(api.saveAvatar).toHaveBeenCalled());
+      expect((api.saveAvatar as ReturnType<typeof vi.fn>).mock.calls[0][1]).toBe("avatar");
+      expect(api.uploadProfilePhoto).not.toHaveBeenCalled();
+    });
+
+    it("sin foto guardada ni elegida, «Mostrar mi foto» está deshabilitado", () => {
+      momento = "avatar";
+      render(<Montar />);
+      expect(screen.getByRole("button", { name: "Mostrar mi foto" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Mostrar mi avatar" })).toHaveAttribute("aria-pressed", "true");
+    });
+  });
+
+  describe("con la capa a pantalla completa no se escapan teclas a la app de debajo", () => {
+    const escuchar = () => {
+      const app = vi.fn();
+      window.addEventListener("keydown", app);
+      document.addEventListener("keydown", app);
+      return { app, quitar: () => { window.removeEventListener("keydown", app); document.removeEventListener("keydown", app); } };
+    };
+
+    it.each(["hola", "avatar", "intro", "listo"])("%s: dígitos, P, S y espacio no llegan, ni desde la capa ni desde el cuerpo", (m) => {
+      momento = m;
+      render(<Montar />);
+      const { app, quitar } = escuchar();
+      const boton = screen.getAllByRole("button").find((b) => !(b as HTMLButtonElement).disabled)!;
+      for (const key of ["1", "4", "p", "s", "c", "h", " "]) {
+        fireEvent.keyDown(document.body, { key });
+        fireEvent.keyDown(boton, { key });
+      }
+      quitar();
+      expect(app).not.toHaveBeenCalled();
+    });
+
+    it("quirofano: tampoco desde la burbuja (por portal) ni desde un control oculto del trabajo", () => {
+      momento = "quirofano";
+      const fuera = document.createElement("button");
+      document.body.appendChild(fuera);
+      render(<MemoryRouter><FlujoOnboarding /></MemoryRouter>);
+      const b = screen.getByRole("dialog", { name: "El visor" });
+      const { app, quitar } = escuchar();
+      for (const key of ["2", "p", "s", " "]) {
+        fireEvent.keyDown(b, { key });
+        fireEvent.keyDown(fuera, { key });
+        fireEvent.keyDown(document.body, { key });
+      }
+      quitar();
+      fuera.remove();
+      expect(app).not.toHaveBeenCalled();
+      // Las teclas de la burbuja siguen funcionando.
+      fireEvent.keyDown(b, { key: "ArrowRight" });
+      expect(screen.getByRole("dialog", { name: "Los pasos" })).toBeInTheDocument();
+    });
+
+    it("escribir en un campo de la capa no se toca", () => {
+      momento = "avatar";
+      render(<Montar />);
+      const campo = document.createElement("input");
+      document.querySelector(".ob-capa")!.appendChild(campo);
+      const { app, quitar } = escuchar();
+      fireEvent.keyDown(campo, { key: "p" });
+      quitar();
+      expect(app).toHaveBeenCalled();
+    });
+
+    it("pacientes (sobre la app) no se aísla", async () => {
+      momento = "pacientes";
+      render(<MemoryRouter initialEntries={["/app/pacientes"]}><div data-tour="buscar" /><FlujoOnboarding /></MemoryRouter>);
+      await screen.findByRole("dialog", { name: "Tus secciones" });
+      const { app, quitar } = escuchar();
+      fireEvent.keyDown(document.body, { key: "1" });
+      quitar();
+      expect(app).toHaveBeenCalled();
+    });
+  });
+
   describe("momento «pacientes» (recorrido sobre la app)", () => {
     const MontarPacientes = () => (
       <MemoryRouter initialEntries={["/app/pacientes"]}>

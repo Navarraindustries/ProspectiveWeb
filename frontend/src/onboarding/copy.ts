@@ -54,7 +54,7 @@ export const PARADAS_PACIENTES: Record<ParadaPacientes, Explicacion> = {
   },
   ficha: {
     titulo: "La ficha del paciente",
-    como: "Toca la tarjeta: las columnas se abren hacia la derecha.",
+    como: "Al acabar el recorrido, toca una tarjeta: sus columnas se abren hacia la derecha.",
     cuando: "Para ver casos, estudios de imagen y sesiones guardadas.",
     porque: "Todo su historial en una sola pantalla.",
   },

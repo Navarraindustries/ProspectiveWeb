@@ -40,12 +40,33 @@ export function FlujoOnboarding() {
   const [ocupado, setOcupado] = useState(false);
   const registrarAvance = useCallback((fn: (() => Promise<boolean>) | null) => { avance.current = fn; }, []);
 
+  const vivo = useRef(true); // false cuando el flujo se cierra (Esc, «Saltar todo») o se desmonta
+  useEffect(() => { vivo.current = !!activo; }, [activo]);
+  useEffect(() => () => { vivo.current = false; }, []);
+  const saltar = useCallback(() => { vivo.current = false; void terminar("saltado"); }, [terminar]);
+
   useEffect(() => {
     if (!activo) return;
-    const alPulsar = (e: KeyboardEvent) => { if (e.key === "Escape") void terminar("saltado"); };
-    document.addEventListener("keydown", alPulsar);
-    return () => document.removeEventListener("keydown", alPulsar);
-  }, [activo, terminar]);
+    const alPulsar = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { saltar(); return; }
+      // La capa es modal: ni la paleta (⌘K) ni Tab llegan a la app de debajo.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); e.stopPropagation(); return; }
+      if (e.key === "Tab" && capa.current) {
+        const foco = Array.from(capa.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        )).filter((el) => !(el as HTMLButtonElement).disabled);
+        if (foco.length === 0) return;
+        const primero = foco[0], ultimo = foco[foco.length - 1];
+        const actual = document.activeElement;
+        if (!capa.current.contains(actual) || actual === capa.current) {
+          e.preventDefault(); (e.shiftKey ? ultimo : primero).focus();
+        } else if (e.shiftKey && actual === primero) { e.preventDefault(); ultimo.focus(); }
+        else if (!e.shiftKey && actual === ultimo) { e.preventDefault(); primero.focus(); }
+      }
+    };
+    window.addEventListener("keydown", alPulsar, true);
+    return () => window.removeEventListener("keydown", alPulsar, true);
+  }, [activo, saltar]);
 
   useEffect(() => { if (activo) capa.current?.focus(); }, [activo, momento]);
 
@@ -61,7 +82,9 @@ export function FlujoOnboarding() {
     if (!proximo) return;
     if (avance.current) {
       setOcupado(true);
-      try { if (!(await avance.current())) return; } finally { setOcupado(false); }
+      let ok = false;
+      try { ok = await avance.current(); } finally { setOcupado(false); }
+      if (!ok || !vivo.current) return;
     }
     ir(proximo);
   };
@@ -79,7 +102,7 @@ export function FlujoOnboarding() {
             </li>
           ))}
         </ol>
-        <Button variant="ghost" size="sm" onClick={() => void terminar("saltado")}>{HOLA.saltar}</Button>
+        <Button variant="ghost" onClick={saltar}>{HOLA.saltar}</Button>
       </header>
 
       <main className="ob-cuerpo">
@@ -93,7 +116,7 @@ export function FlujoOnboarding() {
         </span>
         {momento === "hola" ? (
           <span className="ob-pie__acciones">
-            <Button variant="ghost" onClick={() => void terminar("saltado")}>{HOLA.ahoraNo}</Button>
+            <Button variant="ghost" onClick={saltar}>{HOLA.ahoraNo}</Button>
             <Button onClick={() => void siguiente()}>{HOLA.empezar}</Button>
           </span>
         ) : proximo ? (

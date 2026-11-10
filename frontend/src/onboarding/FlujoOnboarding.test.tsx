@@ -10,11 +10,12 @@ let momento = "hola";
 const ir = vi.fn((m: string) => { momento = m; });
 let reducido = false;
 
+let extraUser: Record<string, unknown> = {};
 vi.mock("../store/auth", () => ({
-  useAuth: () => ({ user: { id: 7, full_name: "Ana Pérez", avatar_config: configPorDefecto(7), avatar_mode: "avatar" }, refreshUser }),
+  useAuth: () => ({ user: { id: 7, full_name: "Ana Pérez", avatar_config: configPorDefecto(7), avatar_mode: "avatar", ...extraUser }, refreshUser }),
 }));
 vi.mock("../api/client", () => ({
-  api: { saveAvatar: vi.fn().mockResolvedValue({}), uploadProfilePhoto: vi.fn(), copyRegistroPhoto: vi.fn() },
+  api: { myProfilePhotoObjectUrl: vi.fn().mockResolvedValue("blob:x"), saveAvatar: vi.fn().mockResolvedValue({}), uploadProfilePhoto: vi.fn(), copyRegistroPhoto: vi.fn() },
 }));
 vi.mock("./OnboardingProvider", () => ({
   useOnboarding: () => ({ activo: true, momento, ir, terminar, empezar }),
@@ -31,7 +32,7 @@ const siguiente = () => fireEvent.click(screen.getByRole("button", { name: /Sigu
 
 beforeEach(() => {
   vi.clearAllMocks();
-  momento = "hola"; reducido = false;
+  momento = "hola"; reducido = false; extraUser = {};
 });
 
 describe("FlujoOnboarding", () => {
@@ -100,5 +101,44 @@ describe("FlujoOnboarding", () => {
     reducido = false;
     rerender(<Montar />);
     container.querySelectorAll("[data-tarjeta-tramo]").forEach((t) => expect(t.getAttribute("data-animada")).toBe("true"));
+  });
+
+  it("con foto guardada, avanzar sin cambios mantiene el modo «foto»", async () => {
+    momento = "avatar";
+    extraUser = { avatar_mode: "foto", has_profile_photo: true };
+    render(<Montar />);
+    siguiente();
+    await waitFor(() => expect(api.saveAvatar).toHaveBeenCalled());
+    expect((api.saveAvatar as ReturnType<typeof vi.fn>).mock.calls[0][1]).toBe("foto");
+  });
+
+  it("Ctrl+K no llega a la paleta y Tab se queda dentro de la capa", () => {
+    render(<Montar />);
+    const paleta = vi.fn();
+    window.addEventListener("keydown", paleta);
+    fireEvent.keyDown(document.body, { key: "k", ctrlKey: true });
+    window.removeEventListener("keydown", paleta);
+    expect(paleta).not.toHaveBeenCalled();
+    const botones = screen.getAllByRole("button").filter((b) => !(b as HTMLButtonElement).disabled);
+    botones[botones.length - 1].focus();
+    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+    expect(document.activeElement).toBe(botones[0]);
+    fireEvent.keyDown(document.activeElement!, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(botones[botones.length - 1]);
+  });
+
+  it("si se salta mientras guarda el avatar, no avanza después", async () => {
+    momento = "avatar";
+    let fin: () => void = () => {};
+    (api.saveAvatar as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise((r) => { fin = () => r({}); }));
+    render(<Montar />);
+    siguiente();
+    await waitFor(() => expect(api.saveAvatar).toHaveBeenCalled());
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(terminar).toHaveBeenCalledWith("saltado");
+    fin();
+    await waitFor(() => expect(refreshUser).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 20));
+    expect(ir).not.toHaveBeenCalled();
   });
 });

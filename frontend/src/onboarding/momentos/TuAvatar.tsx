@@ -7,6 +7,7 @@ import { useGuardarAvatar, type ModoAvatar } from "../../avatar/useGuardarAvatar
 import { Button } from "../../components/Button";
 import { Icon } from "../../components/Icon";
 import { ErrorNote } from "../../components/PanelHead";
+import { UserAvatar } from "../../avatar/UserAvatar";
 import { useAuth } from "../../store/auth";
 import { AVATAR } from "../copy";
 import type { PropsMomento } from "./tipos";
@@ -14,7 +15,8 @@ import type { PropsMomento } from "./tipos";
 export function TuAvatar({ registrarAvance }: PropsMomento) {
   const { user } = useAuth();
   const [config, setConfig] = useState<AvatarConfig>(() => user?.avatar_config ?? configPorDefecto(user?.id ?? 0));
-  const [modo, setModo] = useState<ModoAvatar>("avatar");
+  // Se parte de lo guardado, como en la hoja «Tu avatar»: quien muestra su foto no la pierde al avanzar.
+  const [modo, setModo] = useState<ModoAvatar>(user?.avatar_mode === "foto" && user.has_profile_photo ? "foto" : "avatar");
   const [desdeFoto, setDesdeFoto] = useState(false);
   const { vistaPendiente, error, aplicarFoto, guardar } = useGuardarAvatar();
 
@@ -33,6 +35,8 @@ export function TuAvatar({ registrarAvance }: PropsMomento) {
           {modo === "foto" && vistaPendiente
             ? <img src={vistaPendiente} alt="Vista previa de tu foto" width={240} height={240}
                 style={{ borderRadius: "50%", objectFit: "cover" }} />
+            : modo === "foto" && user?.has_profile_photo
+            ? <UserAvatar user={{ ...user, avatar_mode: "foto" }} self size={240} />
             : <AvatarSvg config={config} size={240} title="Vista previa de tu avatar" />}
         </div>
       </div>
@@ -43,7 +47,7 @@ export function TuAvatar({ registrarAvance }: PropsMomento) {
         ) : (
           <>
             <AvatarCreator value={config} onChange={setConfig} compacto />
-            <Button variant="outline" size="sm" leadingIcon={<Icon name="LOCK" size={14} />}
+            <Button variant="outline" leadingIcon={<Icon name="LOCK" size={14} />}
               onClick={() => setDesdeFoto(true)}>
               {AVATAR.desdeFoto}
             </Button>

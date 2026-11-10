@@ -41,7 +41,7 @@ export function Listo({ nombre }: PropsMomento) {
                 <div>{p.texto}</div>
                 <div className="ob-listo__lugar">{p.lugar}</div>
               </div>
-              <Button variant="outline" size="sm" onClick={() => hacer(p.accion)}>{p.cta}</Button>
+              <Button variant="outline" onClick={() => hacer(p.accion)}>{p.cta}</Button>
             </li>
           ))}
         </ul>

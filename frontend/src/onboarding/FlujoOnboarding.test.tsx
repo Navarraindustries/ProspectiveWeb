@@ -106,6 +106,14 @@ describe("FlujoOnboarding", () => {
     expect(terminar).toHaveBeenCalledWith("saltado");
   });
 
+  it("en «Listo» el avatar grande es decorativo: el nombre ya lo dice el saludo", () => {
+    momento = "listo";
+    const { container } = render(<Montar />);
+    expect(screen.getByRole("heading", { name: "Listo, Ana" })).toBeInTheDocument();
+    expect(container.querySelector(".ob-listo__cabecera .shell-avatar")!.getAttribute("aria-hidden")).toBe("true");
+    expect(screen.queryByRole("img", { name: "Ana Pérez" })).toBeNull();
+  });
+
   it("Listo no lleva marcas de progreso", () => {
     momento = "listo";
     render(<Montar />);

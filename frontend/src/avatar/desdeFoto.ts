@@ -94,15 +94,27 @@ export async function decodificarLocal(file: File): Promise<ImageData> {
   } catch {
     bmp = await createImageBitmap(file); // navegador sin opciones: decodificado normal
   }
-  const k = Math.min(1, LADO_MAX / Math.max(bmp.width, bmp.height));
-  const w = Math.max(1, Math.round(bmp.width * k)), h = Math.max(1, Math.round(bmp.height * k));
   const c = document.createElement("canvas");
-  c.width = w; c.height = h;
-  const ctx = c.getContext("2d");
-  if (!ctx) throw new Error("sin canvas");
-  ctx.drawImage(bmp, 0, 0, w, h);
-  bmp.close?.();
-  return ctx.getImageData(0, 0, w, h);
+  try {
+    const k = Math.min(1, LADO_MAX / Math.max(bmp.width, bmp.height));
+    const w = Math.max(1, Math.round(bmp.width * k)), h = Math.max(1, Math.round(bmp.height * k));
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    if (!ctx) throw new Error("sin canvas");
+    ctx.drawImage(bmp, 0, 0, w, h);
+    return ctx.getImageData(0, 0, w, h);
+  } finally {
+    // También si falla el contexto: el bitmap y el lienzo se sueltan ya (iOS Safari los retiene).
+    bmp.close?.();
+    liberarLienzo(c);
+  }
+}
+
+/** Suelta la memoria de un lienzo: en iOS Safari un canvas sin usar sigue contando hasta que mide 0. */
+export function liberarLienzo(c: HTMLCanvasElement | null | undefined): void {
+  if (!c) return;
+  c.width = 0;
+  c.height = 0;
 }
 
 /** Recorta al óvalo (caja del óvalo, fuera del óvalo en neutro) y devuelve un JPEG ≤ 1024 px. */
@@ -122,6 +134,7 @@ export async function recortarLocal(img: ImageData, g: Guia): Promise<Blob> {
   ctx.ellipse(w / 2, h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
   ctx.clip();
   ctx.drawImage(src, g.cx - g.rx, g.cy - g.ry, bw, bh, 0, 0, w, h);
+  liberarLienzo(src);
   return new Promise((res, rej) =>
-    out.toBlob((b) => (b ? res(b) : rej(new Error("sin blob"))), "image/jpeg", 0.88));
+    out.toBlob((b) => { liberarLienzo(out); if (b) res(b); else rej(new Error("sin blob")); }, "image/jpeg", 0.88));
 }

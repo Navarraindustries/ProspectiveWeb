@@ -22,7 +22,8 @@ export function Listo({ nombre }: PropsMomento) {
   return (
     <div className="ob-listo">
       <div className="ob-listo__cabecera">
-        {user && <UserAvatar user={user} self size={120} />}
+        {/* El nombre va al lado, en el saludo: el avatar es decorativo. */}
+        {user && <UserAvatar user={user} self size={120} decorativo />}
         <h1 className="ob-titulo ob-titulo--grande">{LISTO.saludo(nombre)}</h1>
       </div>
       <section className="ob-tarjeta ob-listo__pasos" aria-label={LISTO.primerosPasos}>

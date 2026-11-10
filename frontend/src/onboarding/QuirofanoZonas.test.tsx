@@ -3,7 +3,7 @@
    termina el momento y «Saltar» (o Esc) salta el onboarding entero, una vez. */
 
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AVISO_PISTAS, ZONAS_QUIROFANO } from "./copy";
 
 let movil = false;
@@ -24,6 +24,7 @@ const zona = (n: number) => screen.getByRole("button", { name: new RegExp(`^Zona
 const dialogo = (titulo: string) => screen.getByRole("dialog", { name: titulo });
 
 beforeEach(() => { vi.clearAllMocks(); movil = false; });
+afterEach(() => { vi.restoreAllMocks(); });
 
 describe("QuirofanoZonas", () => {
   it("empieza en el visor y pulsar el 4 muestra «Dónde estás»", () => {
@@ -170,7 +171,34 @@ describe("QuirofanoZonas", () => {
       fireEvent.click(zona(1)); // ya a la vista: no se mueve
       expect(scrollBy).not.toHaveBeenCalled();
       expect((container.querySelector(".qz") as HTMLElement).style.getPropertyValue("--qz-hoja")).toBe(`${HOJA}px`);
-      vi.restoreAllMocks();
+    });
+
+    it("al girar el teléfono (resize / orientationchange) vuelve a medir la hoja y recoloca la zona", () => {
+      movil = true;
+      const H = window.innerHeight;
+      let hoja = 300;
+      vi.spyOn(window, "requestAnimationFrame").mockImplementation((f) => { f(0); return 1; });
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        if (this.classList.contains("tour-burbuja")) return caja(H - hoja, H);
+        if (this.classList.contains("qz-panel")) return caja(H - 500, H - 320); // justo encima de la hoja de 300
+        return caja(100, 200);
+      });
+      const scrollBy = vi.fn();
+      const { container } = render(<div style={{ overflowY: "auto" }}><QuirofanoZonas onFin={onFin} /></div>);
+      (container.firstElementChild as HTMLElement).scrollBy = scrollBy as unknown as HTMLElement["scrollBy"];
+      fireEvent.click(zona(3));
+      expect(scrollBy).not.toHaveBeenCalled(); // cabe sobre la hoja de 300
+      const qz = container.querySelector(".qz") as HTMLElement;
+      expect(qz.style.getPropertyValue("--qz-hoja")).toBe("300px");
+      // En apaisado la hoja ocupa más: el panel queda tapado y hay que subirlo.
+      const antes = H - 300 - 20;
+      hoja = 420;
+      act(() => { window.dispatchEvent(new Event("orientationchange")); });
+      expect(qz.style.getPropertyValue("--qz-hoja")).toBe("420px");
+      expect(scrollBy).toHaveBeenLastCalledWith({ top: antes - (H - 420 - 12), behavior: "auto" });
+      hoja = 360;
+      act(() => { window.dispatchEvent(new Event("resize")); });
+      expect(qz.style.getPropertyValue("--qz-hoja")).toBe("360px");
     });
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { COLORES_PELO, ETIQUETAS, PIELES } from "./config";
-import { LADO_MAX, decodificarLocal, leerRasgos, masCercano, medianaRegion, opcionesDecodificado } from "./desdeFoto";
+import { LADO_MAX, decodificarLocal, leerRasgos, liberarLienzo, masCercano, medianaRegion, opcionesDecodificado } from "./desdeFoto";
 
 type Img = { data: Uint8ClampedArray; width: number; height: number };
 
@@ -94,6 +94,33 @@ describe("decodificado local reducido", () => {
       getContext.mockRestore();
       globalThis.createImageBitmap = orig.cib; globalThis.Image = orig.img; globalThis.fetch = orig.fetch;
       URL.createObjectURL = orig.cou; URL.revokeObjectURL = orig.rou;
+    }
+  });
+});
+
+describe("memoria de los lienzos (iOS Safari)", () => {
+  it("liberarLienzo deja el canvas a 0 × 0 y tolera null", () => {
+    const c = document.createElement("canvas");
+    c.width = 800; c.height = 600;
+    liberarLienzo(c);
+    expect([c.width, c.height]).toEqual([0, 0]);
+    expect(() => liberarLienzo(null)).not.toThrow();
+  });
+
+  it("decodificarLocal cierra el bitmap aunque falle el contexto 2D", async () => {
+    const close = vi.fn();
+    const orig = globalThis.createImageBitmap;
+    const origImg = globalThis.Image;
+    globalThis.Image = undefined as unknown as typeof Image; // sin sonda de tamaño: va directo al decodificado
+    globalThis.createImageBitmap = vi.fn(async () => ({ width: 50, height: 40, close }) as unknown as ImageBitmap) as unknown as typeof createImageBitmap;
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+    try {
+      await expect(decodificarLocal(new File(["x"], "a.jpg", { type: "image/jpeg" }))).rejects.toThrow("sin canvas");
+      expect(close).toHaveBeenCalledTimes(1);
+    } finally {
+      getContext.mockRestore();
+      globalThis.createImageBitmap = orig;
+      globalThis.Image = origImg;
     }
   });
 });

@@ -95,7 +95,9 @@ describe("UserMenu", () => {
   it("con el análisis sin guardar, «Ver el recorrido de bienvenida» está deshabilitado y dice por qué", () => {
     bloqueoPipeline = "Guarda o descarta los cambios del análisis antes";
     abrir();
-    const item = screen.getByRole("menuitem", { name: /Ver el recorrido de bienvenida/ });
+    // Nombre exacto: el rótulo solo; la pista no se repite en él.
+    const item = screen.getByRole("menuitem", { name: "Ver el recorrido de bienvenida" });
+    expect(item).toHaveAccessibleName("Ver el recorrido de bienvenida");
     expect(item).toHaveAttribute("aria-disabled", "true");
     expect(item).toHaveAccessibleDescription("Guarda o descarta los cambios del análisis antes");
     expect(screen.getByText("Guarda o descarta los cambios del análisis antes")).toBeInTheDocument();

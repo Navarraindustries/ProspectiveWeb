@@ -10,7 +10,7 @@ import { useAuth } from "../store/auth";
 import { AvatarCreator } from "./AvatarCreator";
 import { AvatarSvg } from "./AvatarSvg";
 import "./avatar.css";
-import { leerRasgos, decodificarLocal, recortarLocal, MAX_BYTES, type Guia } from "./desdeFoto";
+import { leerRasgos, decodificarLocal, liberarLienzo, recortarLocal, MAX_BYTES, type Guia } from "./desdeFoto";
 import type { AvatarConfig } from "./config";
 
 export type ResultadoFoto = {
@@ -67,15 +67,20 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
   const fuente = useRef<{ img: ImageData; lienzo: HTMLCanvasElement } | null>(null);
   const lienzoDe = useCallback((d: ImageData): HTMLCanvasElement | null => {
     if (fuente.current?.img === d) return fuente.current.lienzo;
+    liberarLienzo(fuente.current?.lienzo);
+    fuente.current = null;
     const c = document.createElement("canvas");
     c.width = d.width; c.height = d.height;
     let ctx: CanvasRenderingContext2D | null = null;
     try { ctx = c.getContext("2d"); } catch { ctx = null; }
-    if (!ctx) return null;
+    if (!ctx) { liberarLienzo(c); return null; }
     ctx.putImageData(d, 0, 0);
     fuente.current = { img: d, lienzo: c };
     return c;
   }, []);
+  // Al cerrar el panel, el lienzo de la foto se suelta ya (Safari de iOS no lo recoge solo a tiempo).
+  useEffect(() => () => { liberarLienzo(fuente.current?.lienzo); fuente.current = null; }, []);
+  const raiz = useRef<HTMLDivElement>(null);
   const onCancelRef = useRef(onCancel);
   onCancelRef.current = onCancel;
 
@@ -90,6 +95,10 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
   useEffect(() => {
     const alPulsar = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
+      // Otro diálogo encima (una confirmación, la paleta…) que no contiene este panel: su Esc es suyo.
+      const t = e.target instanceof Element ? e.target : null;
+      const otro = t?.closest('[role="dialog"], [aria-modal="true"]');
+      if (otro && raiz.current && !otro.contains(raiz.current)) return;
       e.preventDefault();
       e.stopPropagation();
       onCancelRef.current();
@@ -218,7 +227,7 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
   const PASOS = ["Elige tu foto", "Encuadra tu cara", "Ajusta y elige"];
 
   return (
-    <div data-escape-propio="" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div ref={raiz} data-escape-propio="" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <ol className="dmf-pasos" aria-label="Pasos" style={{ listStyle: "none", margin: 0, padding: 0 }}>
         {PASOS.map((t, i) => (
           <li key={t} className="dmf-paso" aria-current={paso === i + 1 ? "step" : undefined}

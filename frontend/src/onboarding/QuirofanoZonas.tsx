@@ -196,19 +196,37 @@ export function QuirofanoZonas({ onFin, onAtras }: { onFin: () => void; onAtras?
   const [altoHoja, setAltoHoja] = useState(0);
   useEffect(() => {
     if (!movil) return;
-    const el = refs.current[zona];
-    if (!el) return;
-    const hoja = Math.round(document.querySelector<HTMLElement>(".tour-burbuja")?.getBoundingClientRect().height ?? 0);
-    setAltoHoja(hoja);
-    // También ya, en el DOM: si esta hoja es más alta que la anterior, el hueco de abajo
-    // tiene que existir antes de desplazar o el desplazamiento se quedaría corto.
-    if (hoja > 0) el.closest<HTMLElement>(".qz")?.style.setProperty("--qz-hoja", `${hoja}px`);
-    const delta = desplazamientoParaVer(el.getBoundingClientRect(), window.innerHeight - hoja);
-    if (!delta) return;
-    const caja = contenedorConScroll(el);
-    const suave = !(typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-    if (typeof caja.scrollBy === "function") caja.scrollBy({ top: delta, behavior: suave ? "smooth" : "auto" });
-    else caja.scrollTop += delta;
+    const traer = (suave: boolean) => {
+      const el = refs.current[zona];
+      if (!el) return;
+      const hoja = Math.round(document.querySelector<HTMLElement>(".tour-burbuja")?.getBoundingClientRect().height ?? 0);
+      setAltoHoja(hoja);
+      // También ya, en el DOM: si esta hoja es más alta que la anterior, el hueco de abajo
+      // tiene que existir antes de desplazar o el desplazamiento se quedaría corto.
+      if (hoja > 0) el.closest<HTMLElement>(".qz")?.style.setProperty("--qz-hoja", `${hoja}px`);
+      const delta = desplazamientoParaVer(el.getBoundingClientRect(), window.innerHeight - hoja);
+      if (!delta) return;
+      const caja = contenedorConScroll(el);
+      const reducido = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const behavior: ScrollBehavior = suave && !reducido ? "smooth" : "auto";
+      if (typeof caja.scrollBy === "function") caja.scrollBy({ top: delta, behavior });
+      else caja.scrollTop += delta;
+    };
+    traer(true);
+    // Girar el teléfono o cambiar el alto útil (barra del navegador) cambia la hoja y la pantalla:
+    // se vuelve a medir y a colocar, una vez por fotograma.
+    let pendiente = 0;
+    const alCambiar = () => {
+      cancelAnimationFrame(pendiente);
+      pendiente = requestAnimationFrame(() => traer(false));
+    };
+    window.addEventListener("resize", alCambiar);
+    window.addEventListener("orientationchange", alCambiar);
+    return () => {
+      cancelAnimationFrame(pendiente);
+      window.removeEventListener("resize", alCambiar);
+      window.removeEventListener("orientationchange", alCambiar);
+    };
   }, [zona, movil]);
 
   const acabar = useCallback(() => {

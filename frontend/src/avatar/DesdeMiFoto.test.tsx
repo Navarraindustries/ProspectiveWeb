@@ -224,4 +224,39 @@ describe("DesdeMiFoto", () => {
     const css = readFileSync(join(__dirname, "avatar.css"), "utf-8");
     expect(css).toMatch(/@media \(max-width: 640px\) \{\s*\.dmf-acciones__cambiar \{\s*flex: 1 1 100%;/);
   });
+
+  it("Esc que nace en otro diálogo encima (que no contiene el panel) no cierra la foto", () => {
+    const onCancel = vi.fn();
+    render(<><DesdeMiFoto base={base} onListo={() => {}} onCancel={onCancel} />
+      <div role="dialog" aria-modal="true"><button type="button">confirmar</button></div></>);
+    fireEvent.keyDown(screen.getByRole("button", { name: "confirmar" }), { key: "Escape" });
+    expect(onCancel).not.toHaveBeenCalled();
+    // Desde un diálogo que SÍ lo contiene (la hoja, la capa de bienvenida), Esc cierra la foto.
+    const { unmount } = render(<div role="dialog"><DesdeMiFoto base={base} onListo={() => {}} onCancel={onCancel} /></div>);
+    fireEvent.keyDown(screen.getAllByRole("button", { name: "Cancelar" })[1], { key: "Escape" });
+    expect(onCancel).toHaveBeenCalled();
+    unmount();
+  });
+
+  it("al cerrar el panel suelta el lienzo de la foto (0 × 0)", async () => {
+    const lienzos: HTMLCanvasElement[] = [];
+    const crear = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation(((tag: string) => {
+      const el = crear(tag);
+      if (tag === "canvas") lienzos.push(el as HTMLCanvasElement);
+      return el;
+    }) as typeof document.createElement);
+    const ctx = new Proxy({}, { get: (_t, k) => (k === "canvas" ? undefined : vi.fn()), set: () => true });
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
+    const { unmount } = render(<DesdeMiFoto base={base} onListo={() => {}} onCancel={() => {}} decodificar={async () => imgFalsa()} />);
+    subir(jpg());
+    await screen.findByLabelText("Encaja tu cara en el óvalo");
+    // El del visor lo pinta React; el de la foto es el que no está en la página.
+    const cache = lienzos.filter((c) => !c.isConnected);
+    expect(cache).toHaveLength(1);
+    expect(cache[0].width).toBe(100);
+    unmount();
+    expect([cache[0].width, cache[0].height]).toEqual([0, 0]);
+    vi.restoreAllMocks();
+  });
 });

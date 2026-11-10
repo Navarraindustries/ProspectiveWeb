@@ -28,15 +28,18 @@ function MenuItem({ icon, label, danger, bloqueo, onClick }: {
   icon: IconName; label: string; danger?: boolean; bloqueo?: string; onClick: () => void;
 }) {
   const idPista = useId();
+  const idRotulo = useId();
+  // Bloqueado, el nombre es solo el rótulo (aria-labelledby) y la pista va como descripción: sin ello se leería dos veces.
   return (
     <button type="button" role="menuitem" className="shell-menu-item" data-danger={danger ? "true" : undefined}
-      aria-disabled={bloqueo ? true : undefined} aria-describedby={bloqueo ? idPista : undefined}
+      aria-disabled={bloqueo ? true : undefined} aria-labelledby={bloqueo ? idRotulo : undefined}
+      aria-describedby={bloqueo ? idPista : undefined}
       title={bloqueo} onClick={bloqueo ? undefined : onClick}
       style={bloqueo ? { opacity: 0.6, cursor: "not-allowed", alignItems: "flex-start" } : undefined}>
       <Icon name={icon} size={15} />
       {bloqueo ? (
         <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <span>{label}</span>
+          <span id={idRotulo}>{label}</span>
           <span id={idPista} style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{bloqueo}</span>
         </span>
       ) : <span>{label}</span>}

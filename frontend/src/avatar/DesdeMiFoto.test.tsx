@@ -4,6 +4,11 @@ import { configPorDefecto } from "./config";
 
 let user: Record<string, unknown>;
 vi.mock("../store/auth", () => ({ useAuth: () => ({ user }) }));
+let movil = false;
+vi.mock("../hooks/useEstrecho", async (orig) => ({
+  ...(await orig<typeof import("../hooks/useEstrecho")>()),
+  useMovil: () => movil,
+}));
 
 import { DesdeMiFoto } from "./DesdeMiFoto";
 
@@ -21,6 +26,7 @@ const fetchOriginal = globalThis.fetch;
 const xhrOriginal = globalThis.XMLHttpRequest;
 beforeEach(() => {
   user = { id: 3, has_photo: false };
+  movil = false;
   fetchSpy = vi.fn(); xhrSpy = vi.fn();
   globalThis.fetch = fetchSpy as unknown as typeof fetch;
   globalThis.XMLHttpRequest = xhrSpy as unknown as typeof XMLHttpRequest;
@@ -98,6 +104,31 @@ describe("DesdeMiFoto", () => {
     subir(new File(["x"], "a.pdf", { type: "application/pdf" }));
     expect(await screen.findByText("No hemos podido leer esa imagen. Prueba con un JPG o PNG.")).toBeInTheDocument();
     expect(dec).not.toHaveBeenCalled();
+  });
+
+  it("en el móvil no fuerza la cámara: sin `capture`, con galería y cámara vía accept", () => {
+    movil = true;
+    render(<DesdeMiFoto base={base} onListo={() => {}} onCancel={() => {}} />);
+    const input = document.querySelector('input[type="file"]')!;
+    expect(input.hasAttribute("capture")).toBe(false);
+    expect(input.getAttribute("accept")).toBe("image/*");
+  });
+
+  it("fichero sin tipo (algunos selectores de Android): se intenta decodificar y sigue", async () => {
+    const dec = vi.fn(async () => imgFalsa());
+    render(<DesdeMiFoto base={base} onListo={() => {}} onCancel={() => {}} decodificar={dec} />);
+    subir(new File(["x"], "IMG_0001", { type: "" }));
+    expect(await screen.findByRole("button", { name: "Leer colores" })).toBeInTheDocument();
+    expect(dec).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("No hemos podido leer esa imagen. Prueba con un JPG o PNG.")).toBeNull();
+  });
+
+  it("fichero sin tipo que no se decodifica: el mismo aviso", async () => {
+    const dec = vi.fn(async () => { throw new Error("x"); });
+    render(<DesdeMiFoto base={base} onListo={() => {}} onCancel={() => {}} decodificar={dec} />);
+    subir(new File(["x"], "raro", { type: "" }));
+    expect(await screen.findByText("No hemos podido leer esa imagen. Prueba con un JPG o PNG.")).toBeInTheDocument();
+    expect(dec).toHaveBeenCalledTimes(1);
   });
 
   it("fichero > 6 MB: «La foto supera 6 MB.» sin decodificar", async () => {

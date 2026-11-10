@@ -60,3 +60,17 @@ describe("configPorDefecto", () => {
     valida(configAleatoria(() => 0));
   });
 });
+
+describe("configPorDefecto: valores fijos", () => {
+  // Si este test cambia, cambia el avatar por defecto de TODAS las cuentas que no
+  // eligieron el suyo. Tocar el hash o el orden de las listas solo a propósito.
+  it.each([
+    [1, { v: 1, piel: 1, peinado: "rapado", pelo: "#A4492A", cabeza: "gorro_amplio", ojos: "lupas", mascarilla: false, pijama: "#E0A84A", fondo: "#10233D" }],
+    [2, { v: 1, piel: 1, peinado: "rizado", pelo: "#A4492A", cabeza: "nada", ojos: "nada", mascarilla: false, pijama: "#4A5263", fondo: "#12141A" }],
+    [7, { v: 1, piel: 1, peinado: "rizado", pelo: "#121212", cabeza: "nada", ojos: "gafas", mascarilla: false, pijama: "#B5485A", fondo: "#10233D" }],
+    [42, { v: 1, piel: 4, peinado: "largo", pelo: "#121212", cabeza: "gorro", ojos: "gafas", mascarilla: false, pijama: "#B5485A", fondo: "#0F2E28" }],
+    [1000, { v: 1, piel: 4, peinado: "mono", pelo: "#A4492A", cabeza: "gorro_amplio", ojos: "nada", mascarilla: false, pijama: "#E0A84A", fondo: "#10233D" }],
+  ])("id %i", (id, esperado) => {
+    expect(configPorDefecto(id)).toEqual(esperado);
+  });
+});

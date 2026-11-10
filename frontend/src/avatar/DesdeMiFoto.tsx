@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Button } from "../components/Button";
 import { ErrorNote } from "../components/PanelHead";
-import { useMovil } from "../hooks/useEstrecho";
 import { useAuth } from "../store/auth";
 import { AvatarCreator } from "./AvatarCreator";
 import { leerRasgos, decodificarLocal, recortarLocal, MAX_BYTES, type Guia } from "./desdeFoto";
@@ -31,7 +30,6 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
   recortar?: (img: ImageData, guia: Guia) => Promise<Blob>;
 }) {
   const { user } = useAuth();
-  const movil = useMovil();
   const [img, setImg] = useState<ImageData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -77,7 +75,9 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
     if (!f) return;
     setError(null); setImg(null); setConfig(null);
     if (f.size > MAX_BYTES) { setError("La foto supera 6 MB."); return; }
-    if (!f.type.startsWith("image/")) { setError(MSG_ILEGIBLE); return; }
+    // Algunos selectores de Android entregan el fichero sin tipo: entonces se intenta
+    // decodificar y solo si falla se avisa. Un tipo declarado que no es imagen, fuera.
+    if (f.type !== "" && !f.type.startsWith("image/")) { setError(MSG_ILEGIBLE); return; }
     try {
       const d = await decodificar(f);
       setImg(d); setZoom(1); setOff({ x: 0, y: 0 });
@@ -136,7 +136,9 @@ export function DesdeMiFoto({ base, onListo, onCancel, decodificar = decodificar
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <input type="file" accept="image/*" {...(movil ? { capture: "user" as const } : {})}
+      {/* Sin `capture`: en el móvil abriría directamente la cámara frontal, sin galería;
+          accept="image/*" ya ofrece las dos cosas. */}
+      <input type="file" accept="image/*"
         aria-label="Elegir una foto" onChange={(e) => void elegir(e.target.files?.[0])}
         style={{ minHeight: 44, fontSize: 13, color: "var(--foreground)" }} />
       {error && <ErrorNote>{error}</ErrorNote>}

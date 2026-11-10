@@ -182,7 +182,7 @@ Panel de pacientes:
 | 4 | Avisos clínicos | Pulsa «Ver» y vas directo al caso. | Cuando aparezca un chip aquí arriba. | Lo urgente no se pierde entre pacientes. |
 | 5 | Encuentra a cualquiera | Escribe nombre o número de historia. | Cuando la lista crezca. | La lista va por actividad; buscar es lo más rápido. |
 | 6 | La tarjeta del paciente | El botón cambia solo: Planificar, Reanudar o Informe. | Para retomar justo donde lo dejaste. | Ves paso, riesgo y progreso sin abrir nada. |
-| 7 | La ficha del paciente | Toca la tarjeta: las columnas se abren hacia la derecha. | Para ver casos, estudios y sesiones guardadas. | Todo su historial en una sola pantalla. |
+| 7 | La ficha del paciente | Al acabar el recorrido, toca una tarjeta: sus columnas se abren hacia la derecha. | Para ver casos, estudios y sesiones guardadas. | Todo su historial en una sola pantalla. |
 | 8 | Tu día | Mira «Hoy» y la actividad reciente. | Al empezar la jornada. | Sabes qué está en curso sin abrir pacientes. |
 | 9 | Atajos y tu menú | ⌘K para ir a cualquier sitio; tu menú para avatar, contraseña y este recorrido. | Cuando quieras ir rápido o repasar. | Menos clics; el recorrido siempre está a mano. |
 

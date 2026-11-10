@@ -215,3 +215,17 @@ export const LISTO = {
   irPacientes: "Ir a mis pacientes",
   repetir: "Repetir el recorrido",
 } as const;
+
+export const INVITACION = {
+  texto: "Hay un recorrido nuevo de 4 minutos",
+  ver: "Verlo",
+  ahoraNo: "Ahora no",
+} as const;
+
+export const PISTAS_UI = {
+  entendido: "Entendido",
+  noMostrar: "No mostrar más pistas",
+  cerrarTarjeta: "Cerrar «Primeros pasos sugeridos»",
+  plegar: "Plegar",
+  desplegar: "Desplegar",
+} as const;

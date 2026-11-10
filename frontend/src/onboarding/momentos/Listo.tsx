@@ -1,29 +1,22 @@
 import { useNavigate } from "react-router-dom";
 import { UserAvatar } from "../../avatar/UserAvatar";
 import { Button } from "../../components/Button";
-import { getCommands } from "../../lib/commands";
 import { SCREEN_PATH } from "../../store/nav";
 import { useAuth } from "../../store/auth";
 import { LISTO, PRIMEROS_PASOS } from "../copy";
+import { usePrimerosPasos, type AccionPrimerosPasos } from "../primerosPasos";
 import { useOnboarding } from "../OnboardingProvider";
 import type { PropsMomento } from "./tipos";
-
-type Accion = (typeof PRIMEROS_PASOS)[number]["accion"];
 
 export function Listo({ nombre }: PropsMomento) {
   const { user } = useAuth();
   const { terminar, empezar } = useOnboarding();
   const navigate = useNavigate();
 
-  const hacer = (accion: Accion) => {
+  const ejecutar = usePrimerosPasos();
+  const hacer = (accion: AccionPrimerosPasos) => {
     void terminar("completado");
-    const pacientes = SCREEN_PATH.patients;
-    if (accion === "nuevo-paciente") navigate(`${pacientes}?nuevo=paciente`);
-    else if (accion === "nuevo-caso") navigate(`${pacientes}?nuevo=caso`);
-    else if (accion === "prueba-rapida") {
-      const cmd = getCommands().find((c) => c.id === "prueba-rapida" && !c.disabled);
-      if (cmd) cmd.run(); else navigate(pacientes);
-    } else navigate(pacientes);
+    ejecutar(accion);
   };
 
   return (

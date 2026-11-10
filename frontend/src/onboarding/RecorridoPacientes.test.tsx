@@ -33,7 +33,7 @@ let momento: string | null = "pacientes";
 const terminar = vi.fn(async () => { momento = null; });
 const ir = vi.fn((m: string) => { momento = m; });
 vi.mock("./OnboardingProvider", () => ({
-  useOnboarding: () => ({ activo: momento !== null, momento, ir, terminar }),
+  useOnboarding: () => ({ activo: momento !== null, momento, ir, terminar, estado: { estado: "pendiente", pistas_vistas: [], pistas_activas: true, tarjeta_cerrada: false } }),
 }));
 
 import { Patients } from "../pages/Patients";

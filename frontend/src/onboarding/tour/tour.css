@@ -27,3 +27,9 @@
 @media (prefers-reduced-motion: reduce) {
   .tour-tira, .tour-hueco, .tour-burbuja { transition: none; }
 }
+
+/* Pista por paso: no modal, pequeña, sin velo. */
+.tour-pista { position: fixed; z-index: 100; box-sizing: border-box; width: min(320px, calc(100vw - 24px));
+  max-width: 320px; padding: 14px 16px; border-radius: 16px; color: var(--foreground); animation: tour-pista-entra var(--dur-2, 200ms) var(--ease-out, ease-out); }
+@keyframes tour-pista-entra { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tour-pista { animation: none; } }

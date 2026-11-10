@@ -26,6 +26,7 @@ import { filtraPestana, hayCompartidos, recuentoPacientes, ultimaActividad, type
 import { PageBody } from "../components/shell/PageBody";
 import { useOnboarding } from "../onboarding/OnboardingProvider";
 import { TarjetaEjemplo } from "../onboarding/TarjetaEjemplo";
+import { TarjetasPacientes } from "../onboarding/TarjetasPacientes";
 
 /** El aviso tras crear: el siguiente paso, para no tener que buscarlo (F2-22). */
 type Aviso =
@@ -172,6 +173,8 @@ export function Patients({
     >
 
       <PageBody className="fade-rise">
+          <TarjetasPacientes />
+
           {avisos.length > 0 && (
             // Franja de chips: cada aviso es una pastilla de cristal, no una tarjeta de la rejilla.
             <div role="list" aria-label="Avisos clínicos" className="pt-avisos" data-tour="avisos">

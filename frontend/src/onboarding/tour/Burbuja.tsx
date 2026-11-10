@@ -9,6 +9,7 @@ import { Button } from "../../components/Button";
 import { useMovil } from "../../hooks/useEstrecho";
 import { glass } from "../../styles/glass";
 import type { Explicacion } from "../copy";
+import { ContenidoExplicacion } from "./ContenidoExplicacion";
 import "./tour.css";
 
 export interface BurbujaProps {
@@ -102,9 +103,6 @@ export function Burbuja(p: BurbujaProps) {
   const sitio: CSSProperties = movil ? {}
     : rect ? posicion(rect, alto)
     : { left: "50%", top: "50%", transform: "translate(-50%, -50%)", transition: "none" };
-  const linea = (etiqueta: string, texto: string) => (
-    <p className="tour-linea"><span className="tour-etiqueta">{etiqueta}</span>{texto}</p>
-  );
   const boton: CSSProperties = { minHeight: 44 };
 
   return (
@@ -120,10 +118,7 @@ export function Burbuja(p: BurbujaProps) {
       style={{ ...glass("dense"), ...sitio }}
     >
       <span className="tour-solo-lectores" aria-live="polite">{`Parada ${indice + 1} de ${total}: ${x.titulo}`}</span>
-      <h2 className="tour-titulo">{x.titulo}</h2>
-      {linea("Cómo", x.como)}
-      {linea("Cuándo", x.cuando)}
-      {linea("Por qué", x.porque)}
+      <ContenidoExplicacion explicacion={x} />
       {p.extra}
       <div className="tour-puntos" aria-hidden="true">
         {Array.from({ length: total }, (_, i) => <span key={i} className="tour-punto" data-activo={i === indice} />)}

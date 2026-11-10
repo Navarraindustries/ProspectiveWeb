@@ -11,6 +11,7 @@ import { AnimatePresence, motion, panelSwap, panelTransition } from "../motion";
 import { tramoDePaso } from "../lib/pacientes";
 import { glass } from "../styles/glass";
 import { useCompacto } from "../hooks/useEstrecho";
+import { PistaPaso } from "../onboarding/PistaPaso";
 import { anchoInspector, BANDA_SUPERIOR, MARGEN_INSPECTOR } from "../pipeline/zonaLibre";
 
 /** Plegado o no es una manera de trabajar de quien mira, como el nivel del HUD. */
@@ -109,6 +110,7 @@ export function RightPanelColumn({
             }}
         >
           <div
+            data-tour="cabecera-paso"
             style={{
               flex: "none", display: "flex", alignItems: "center", gap: 8,
               padding: "14px 18px 12px", fontFamily: "var(--font-mono)",
@@ -135,6 +137,7 @@ export function RightPanelColumn({
           </AnimatePresence>
         </div>
       </section>
+      {!plegada && <PistaPaso paso={stepIndex + 1} />}
       {plegada && (
         <aside className="ws-panel-strip" aria-label="Panel del paso plegado" data-glass
                style={{ ...glass("dense"), top: BANDA_SUPERIOR, right: MARGEN_INSPECTOR }}>

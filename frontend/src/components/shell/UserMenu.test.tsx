@@ -15,6 +15,9 @@ vi.mock("../ChangePasswordSheet", () => ({
   ChangePasswordSheet: ({ open }: { open: boolean }) => (open ? <div>hoja de contraseña</div> : null),
 }));
 
+const onb = { estado: { pistas_activas: true }, empezar: vi.fn(), setPistasActivas: vi.fn(), reiniciarPistas: vi.fn() };
+vi.mock("../../onboarding/OnboardingProvider", () => ({ useOnboarding: () => onb }));
+
 import { UserMenu } from "./UserMenu";
 
 const base = { id: 1, username: "admin", full_name: "Administrador", avatar_initials: "AD", has_photo: false };
@@ -30,6 +33,8 @@ beforeEach(() => {
   user = { ...base, role: "admin", institution: "Hospital Universitario" };
   logout.mockReset();
   go.mockReset();
+  onb.estado = { pistas_activas: true };
+  onb.empezar.mockReset(); onb.setPistasActivas.mockReset(); onb.reiniciarPistas.mockReset();
 });
 
 describe("UserMenu", () => {
@@ -78,6 +83,36 @@ describe("UserMenu", () => {
     expect(go).toHaveBeenCalledWith("login");
   });
 
+  it("«Ver el recorrido de bienvenida» lo empieza y cierra el menú", () => {
+    abrir();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Ver el recorrido de bienvenida" }));
+    expect(onb.empezar).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("«Pistas» es un interruptor que refleja y cambia el estado", () => {
+    abrir();
+    const sw = screen.getByRole("menuitemcheckbox", { name: "Pistas: activadas" });
+    expect(sw).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(sw);
+    expect(onb.setPistasActivas).toHaveBeenCalledWith(false);
+  });
+
+  it("con las pistas apagadas el interruptor lo dice y las activa", () => {
+    onb.estado = { pistas_activas: false };
+    abrir();
+    const sw = screen.getByRole("menuitemcheckbox", { name: "Pistas: desactivadas" });
+    expect(sw).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(sw);
+    expect(onb.setPistasActivas).toHaveBeenCalledWith(true);
+  });
+
+  it("«Volver a ver todas las pistas» las reinicia", () => {
+    abrir();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Volver a ver todas las pistas" }));
+    expect(onb.reiniciarPistas).toHaveBeenCalledTimes(1);
+  });
+
   it("Escape cierra el menú", () => {
     abrir();
     fireEvent.keyDown(document, { key: "Escape" });
@@ -98,7 +133,8 @@ describe("UserMenu", () => {
 });
 
 describe("UserMenu con teclado (UNI-85, patrón menu button)", () => {
-  const items = () => screen.getAllByRole("menuitem");
+  const items = () => [...screen.getAllByRole("menuitem"), ...screen.getAllByRole("menuitemcheckbox")]
+    .sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
   const tecla = (key: string) => fireEvent.keyDown(document.activeElement!, { key });
 
   it("al abrir, el foco va al primer elemento", () => {
@@ -109,13 +145,13 @@ describe("UserMenu con teclado (UNI-85, patrón menu button)", () => {
   it("↑ y ↓ recorren en círculo; Inicio y Fin van a los extremos", () => {
     abrir();
     const [primero, ultimo] = [items()[0], items()[items().length - 1]];
-    // 3 elementos (Tu avatar, Cambiar contraseña, Cerrar sesión): ↓ desde el primero va al segundo.
+    // 6 elementos (avatar, recorrido, pistas, volver a ver, contraseña, salir; el interruptor incluido).
+    expect(items()).toHaveLength(6);
     tecla("ArrowUp");
     expect(document.activeElement).toBe(ultimo);
     tecla("ArrowDown");
     expect(document.activeElement).toBe(primero);
-    tecla("ArrowDown");
-    tecla("ArrowDown");
+    for (let i = 0; i < 5; i++) tecla("ArrowDown");
     expect(document.activeElement).toBe(ultimo);
     tecla("ArrowDown");
     expect(document.activeElement).toBe(primero);

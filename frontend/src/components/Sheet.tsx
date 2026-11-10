@@ -28,6 +28,14 @@ export function isSheetOpen(): boolean {
   return openSheets.length > 0;
 }
 
+/** Avisa cuando se abre o cierra una hoja (para `useSyncExternalStore`). */
+const oyentesHojas = new Set<() => void>();
+export function suscribirHojas(cb: () => void): () => void {
+  oyentesHojas.add(cb);
+  return () => { oyentesHojas.delete(cb); };
+}
+const avisarHojas = () => oyentesHojas.forEach((f) => f());
+
 /** Capa fija de la hoja. Hijo directo de AnimatePresence: en cuanto empieza la
     salida suelta el puntero, y los clics atraviesan velo y panel hasta la página
     en vez de perderse durante los 480 ms de la animación. */
@@ -76,6 +84,7 @@ export function Sheet({
     if (!open) return;
     const token = {};
     openSheets.push(token);
+    avisarHojas();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && openSheets[openSheets.length - 1] === token) onCloseRef.current();
     };
@@ -88,6 +97,7 @@ export function Sheet({
     return () => {
       document.removeEventListener("keydown", onKey);
       openSheets.splice(openSheets.indexOf(token), 1);
+      avisarHojas();
       previous?.focus?.();
     };
   }, [open]);

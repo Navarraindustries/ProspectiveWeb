@@ -21,6 +21,7 @@ import { useAuth } from "../../store/auth";
 import { useNav } from "../../store/nav";
 import { ROLE_LABEL, ROLE_PERMITE } from "../../lib/roles";
 import { useTableta } from "../../hooks/useEstrecho";
+import { useOnboarding } from "../../onboarding/OnboardingProvider";
 
 function MenuItem({ icon, label, danger, onClick }: { icon: IconName; label: string; danger?: boolean; onClick: () => void }) {
   return (
@@ -33,11 +34,22 @@ function MenuItem({ icon, label, danger, onClick }: { icon: IconName; label: str
 
 /* Cuelga de una barra de cristal: un backdrop-filter dentro de otro no ve la página y
    el texto de detrás se leería a través. Por eso va sobre el fondo opaco del cristal. */
+function MenuSwitch({ icon, label, checked, onClick }: { icon: IconName; label: string; checked: boolean; onClick: () => void }) {
+  return (
+    <button type="button" role="menuitemcheckbox" aria-checked={checked} className="shell-menu-item" onClick={onClick}>
+      <Icon name={icon} size={15} />
+      <span>{label}</span>
+    </button>
+  );
+}
+
 const MENU = { ...glass("flat"), background: "var(--glass-solid)", boxShadow: "var(--glass-highlight), var(--shadow-md)" };
 
 export function UserMenu() {
   const { user, logout } = useAuth();
   const nav = useNav();
+  const { estado, empezar, setPistasActivas, reiniciarPistas } = useOnboarding();
+  const pistasOn = estado.pistas_activas !== false;
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -68,7 +80,7 @@ export function UserMenu() {
   }, [open]);
 
   function elementos(): HTMLElement[] {
-    return [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    return [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]') ?? [])];
   }
 
   function cerrarAlBoton() {
@@ -124,6 +136,10 @@ export function UserMenu() {
           </div>
           <div className="shell-menu-sep" role="separator" />
           <MenuItem icon="USER" label="Tu avatar" onClick={() => { setOpen(false); setAvatarOpen(true); }} />
+          <MenuItem icon="INFO" label="Ver el recorrido de bienvenida" onClick={() => { setOpen(false); empezar(); }} />
+          <MenuSwitch icon="INFO" label={`Pistas: ${pistasOn ? "activadas" : "desactivadas"}`} checked={pistasOn}
+                      onClick={() => void setPistasActivas(!pistasOn)} />
+          <MenuItem icon="INFO" label="Volver a ver todas las pistas" onClick={() => { setOpen(false); void reiniciarPistas(); }} />
           <MenuItem icon="PASSWORD" label="Cambiar contraseña" onClick={() => { setOpen(false); setPwOpen(true); }} />
           <MenuItem icon="LOGOUT" label="Cerrar sesión" danger onClick={doLogout} />
         </div>

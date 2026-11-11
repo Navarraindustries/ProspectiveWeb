@@ -62,10 +62,10 @@ export function FdSizing({
 
   return (
     <div style={{ marginBottom: 18 }}>
-      <SectionLabel>Dimensionado de flow-diverter</SectionLabel>
+      <SectionLabel>Dimensionado del desviador de flujo</SectionLabel>
       <div style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "6px 0 10px", lineHeight: 1.5 }}>
         Mide el vaso antes y después del cuello y propone diámetro y longitud de
-        cada flow-diverter del catálogo. Necesita la morfometría.
+        cada desviador de flujo del catálogo. Necesita la morfometría.
       </div>
       <Button variant="outline" style={{ width: "100%" }} onClick={() => void run()} disabled={busy}>
         {busy ? "Midiendo anclajes…" : r ? "Volver a medir" : "Dimensionar"}

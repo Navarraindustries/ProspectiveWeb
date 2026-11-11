@@ -109,11 +109,17 @@ export function channelLabel(ch: string): string {
   return ch === SMALL_SAC_CHANNEL ? "saco pequeño" : ch;
 }
 
-/** Explicación al pasar el ratón: solo el canal de la cuota necesita una. */
+/** Explicación al pasar el ratón, en palabras de la consulta (auditoría F3:
+ *  «cociente» es la menos clínica de las tres y no decía nada). */
+const CHANNEL_TITLE: Record<string, string> = {
+  [SMALL_SAC_CHANNEL]: "Cuota del 5.º puesto: el mejor saco de 3 – 5 mm con forma de esfera cuando ninguno estaba entre los 5. No vota ni mueve a los demás.",
+  curvatura: "La superficie se abomba.",
+  calibre: "Más gruesa que el resto de la vasculatura.",
+  cociente: "Más gruesa que el vaso de al lado.",
+};
+
 export function channelTitle(ch: string): string | undefined {
-  return ch === SMALL_SAC_CHANNEL
-    ? "Cuota del 5.º puesto: el mejor saco de 3 – 5 mm con forma de esfera cuando ninguno estaba entre los 5. No vota ni mueve a los demás."
-    : undefined;
+  return CHANNEL_TITLE[ch];
 }
 
 /** Canal (y `patch_kind`) de un candidato que viene de un punto marcado a

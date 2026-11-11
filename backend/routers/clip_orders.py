@@ -590,7 +590,7 @@ async def prefill(session_id: str, user: CurrentUser, db: Db,
                                   list_variants)
 
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     _require_case_session(db, user, session_id, case_id)
 
     case, spec, piece, caveats = _advice(session_id, case_id)
@@ -673,7 +673,7 @@ async def create_order(session_id: str, req: OrderIn, user: CurrentUser, db: Db)
     from dataclasses import asdict
 
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     _require_case_session(db, user, session_id, req.case_id)
 
     case, advised, advised_piece, _caveats = _advice(session_id, req.case_id)

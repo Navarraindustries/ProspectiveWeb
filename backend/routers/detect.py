@@ -381,7 +381,7 @@ def _clear_morphometry_state(session_id: str, meshes_dir: Path) -> int:
 )
 async def clear_detection(session_id: str) -> dict:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     meshes_dir = session_subdir(session_id, "meshes")
     removed = await asyncio.to_thread(
         _clear_detection_state, session_id, meshes_dir, morphometry=True
@@ -416,7 +416,7 @@ async def detect_aneurysm(
     ),
 ) -> AneurysmDetectionResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     if cached:
         stored = cached_detection(session_id)
         if stored is None:
@@ -456,7 +456,7 @@ async def detect_aneurysm(
     except Exception as exc:
         logger.error("Detection failed for session %s: %s", session_id, exc, exc_info=True)
         progress.finish(session_id, ok=False, message=str(exc) or type(exc).__name__)
-        raise HTTPException(status_code=500, detail=f"Detection error: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"La detección falló: {exc}") from exc
 
     progress.finish(session_id, ok=True)
     return result
@@ -1133,7 +1133,7 @@ async def get_morphometry(
     ),
 ) -> MorphometryResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     best_vtp_name = read_state(session_id, "detect.best_vtp_name", "")
     # Aceptados + descartados: los dos tienen malla y cualquiera se puede medir.
@@ -1200,7 +1200,7 @@ async def get_morphometry(
     if not vtp_path.exists():
         raise HTTPException(
             status_code=422,
-            detail=f"Candidate mesh '{best_vtp_name}' not found on disk. Re-run detection.",
+            detail=f"No se encuentra la malla del candidato ('{best_vtp_name}'). Vuelve a detectar.",
         )
 
     # A neck plane the user defined earlier is sticky: re-measuring the session
@@ -1234,7 +1234,7 @@ async def get_morphometry(
         )
     except Exception as exc:
         logger.error("Morphometry failed for session %s: %s", session_id, exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Morphometry error: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"La morfometría falló: {exc}") from exc
 
     result.candidate_id = measured_id
     # «Reanudar» repite esta ruta: la localización vuelve con la medida.
@@ -1352,7 +1352,7 @@ async def morphometry_neck_plane(
     request:    NeckPlaneRequest,
 ) -> MorphometryResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     meshes_dir  = session_subdir(session_id, "meshes")
     vessel_path = meshes_dir / "vessel_tree.vtp"
@@ -1386,7 +1386,7 @@ async def morphometry_neck_plane(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("Neck-plane morphometry failed for %s: %s", session_id, exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Morphometry error: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"La morfometría falló: {exc}") from exc
 
     # El candidato que mide este plano pasa a ser el elegido. Con uno
     # detectado ya lo era (GET /morphometry lo guardó); con uno marcado a mano
@@ -1460,7 +1460,7 @@ async def set_clinical_site(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> ClinicalSiteResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     # Cambiar la localización recalcula PHASES/ELAPSS/UIATS y puede borrar la
     # decisión: sin esta guarda, cualquiera con la UUID tocaba el plan de otro.
     require_session(db, current_user, session_id)

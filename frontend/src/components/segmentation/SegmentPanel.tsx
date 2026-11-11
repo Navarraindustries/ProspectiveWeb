@@ -14,7 +14,7 @@ import { Button } from "../Button";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
-import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
+import { PanelHead, SectionLabel, ErrorNote, Card, Collapsible } from "../PanelHead";
 import { PanelActions, PanelFooter } from "../PanelFooter";
 import { ProgressBar } from "../ProgressBar";
 import { Slider } from "../Slider";
@@ -319,6 +319,8 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           techo y su comparación solo existen para el umbral clásico). */}
       <SectionLabel style={{ marginBottom: 0 }}>Método</SectionLabel>
       <TubularControls method={method} reclaimMm={reclaimMm} onMethod={chooseMethod} onReclaim={setReclaimMm} />
+      {/* Antes de los umbrales: actúa antes que ellos (auditoría F3). */}
+      <PreprocessSection />
 
       <SectionLabel style={{ marginTop: 18, marginBottom: 10 }}>
         Umbral de intensidad
@@ -332,6 +334,8 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         {method === "tubular"
           ? "Mueve el umbral y observa la vista previa; el método tubular decide luego qué es vaso por su forma, no solo por su brillo."
           : "Mueve los umbrales y observa la vista previa: la malla será lo que quede dentro de la banda."}
+        {/* El tinte de los cortes no tenía leyenda (auditoría F3). */}
+        {" En los cortes, en verde lo que entra en la banda."}
       </div>
       {/* F1-134: la previa gruesa («3D · MALLA GRUESA») es solo el umbral y
           enseña el hueso; sin decirlo parecía que la segmentación lo iba a
@@ -350,10 +354,18 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             {lower === suggestedLower
               ? `${lower} · sugerido por el histograma de este estudio`
               : `${lower} · sugerido: ${suggestedLower}`}
+            {/* Junto a lo que restablece, no al fondo en un enlace gris (auditoría F3). */}
+            {lower !== suggestedLower && (
+              <Button variant="link" size="sm" onClick={resetBand} style={{ marginLeft: 8, height: "auto", padding: 0, fontSize: 11 }}>
+                Restablecer banda sugerida
+              </Button>
+            )}
           </div>
         )}
         <div style={{ height: 14 }} />
-        <CeilingControls method={method}>
+        <CeilingControls method={method} nota={techoTubular > 0
+          ? `En TC el método tubular aplica su propio techo, ${Math.round(techoTubular)} HU, para dejar fuera el hueso`
+          : undefined}>
         <Slider
           label="Umbral superior"
           min={range.min}
@@ -381,13 +393,6 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
                  onChange={(e) => setSinTecho(e.target.checked)} />
           Sin límite superior — conserva todo lo más brillante que el umbral inferior
         </label>
-        )}
-        {method === "tubular" && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.45 }}>
-            {techoTubular > 0
-              ? `En TC el método tubular aplica un techo de ${Math.round(techoTubular)} HU para dejar el hueso fuera: se aplica después de rellenar, así que un vaso cuyo centro lo supere sigue macizo. La vista previa enseña esa misma banda; el slider superior no manda aquí.`
-              : "El método tubular no usa el límite superior en esta modalidad (en 3DRA no hay hueso que quitar y el techo partía los vasos más llenos); la vista previa tampoco."}
-          </div>
         )}
         {sinTecho && method !== "tubular" && (
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.45 }}>
@@ -542,14 +547,6 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           </span>
         </label>
       </div>
-      <div style={{ marginTop: 6, textAlign: "right" }}>
-        <button
-          onClick={resetBand}
-          style={{ background: "transparent", border: "none", color: "var(--brand-deep)", fontSize: 11, cursor: "pointer", padding: 0 }}
-        >
-          Restablecer banda sugerida
-        </button>
-      </div>
       {/* Habla de «Limpieza», que solo existe con el umbral clásico. */}
       {method === "threshold" && (
         <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
@@ -559,7 +556,6 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         </div>
       )}
 
-      <PreprocessSection />
 
       {busy && (
         <>
@@ -592,18 +588,8 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
               {segmentation.fallback_note}
             </div>
           )}
-          <Metric label="Vértices" value={segmentation.vertices.toLocaleString("es")} />
-          <Metric label="Caras" value={segmentation.faces.toLocaleString("es")} />
-          {/* Decisión 18: «Salida vessel_tree.vtp» era el nombre del archivo
-              interno; no le dice nada al cirujano. */}
-          {segmentation.voxel_fraction !== null && (
-            <Metric
-              label="Fracción de vóxeles"
-              value={cifra(segmentation.voxel_fraction * 100, 1)}
-              unit=" %"
-              badge={segmentation.voxel_fraction > 0.15 ? ["Permisivo", "warning"] : ["OK", "success"]}
-            />
-          )}
+          {/* La resolución va primero: la detección empeora a media resolución.
+              Vértices y caras no le dicen nada al cirujano: van a «Detalles». */}
           <Metric
             label="Resolución de la malla"
             value={segmentation.downsample_factor > 1
@@ -613,11 +599,14 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
               ? ["Submuestreada", "warning"]
               : ["Nativa", "success"]}
           />
-          {tubular && hasQuality && (
+          {/* Decisión 18: «Salida vessel_tree.vtp» era el nombre del archivo
+              interno; no le dice nada al cirujano. */}
+          {segmentation.voxel_fraction !== null && (
             <Metric
-              label="Estanqueidad"
-              value={`${boundaryEdges} aristas`}
-              badge={boundaryEdges === 0 ? ["Estanca", "success"] : ["Con bordes", "warning"]}
+              label="Volumen captado (del estudio)"
+              value={cifra(segmentation.voxel_fraction * 100, 1)}
+              unit=" %"
+              badge={segmentation.voxel_fraction > 0.15 ? ["Permisivo", "warning"] : ["OK", "success"]}
             />
           )}
           {/* What the cleanup threw away. Without this the loss is invisible:
@@ -649,9 +638,19 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           {/* Decisión 19: piezas, semillas, mm³ y los segundos por fase son
               cifras de depuración; a la vista queda solo cuánto tardó. */}
           {elapsed !== null && <div style={hudLine}>Segmentada en {elapsed} s</div>}
-          {((tubular && hasQuality) || (tubular && phases)) && (
+          {(
             <details style={{ marginTop: 4, fontSize: 11, color: "var(--muted-foreground)" }}>
               <summary style={{ cursor: "pointer" }}>Detalles</summary>
+              <Metric label="Vértices" value={segmentation.vertices.toLocaleString("es")} />
+              <Metric label="Caras" value={segmentation.faces.toLocaleString("es")} />
+              {/* «Estanca» importa para imprimir el modelo, no para planificar. */}
+              {tubular && hasQuality && (
+                <Metric
+                  label="Estanqueidad (para imprimir)"
+                  value={`${boundaryEdges} aristas abiertas`}
+                  badge={boundaryEdges === 0 ? ["Cerrada", "success"] : ["Con bordes", "warning"]}
+                />
+              )}
               {tubular && hasQuality && (
                 <div style={hudLine}>
                   {pieces(segmentation.components ?? 0, "pieza", "piezas")} ·{" "}
@@ -694,7 +693,18 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         </Card>
       )}
 
-      <MeshEditTools />
+      {/* Plegadas cuando la malla sale de una pieza: eran cinco tarjetas entre
+          el resultado y el avance (auditoría F3). Con piezas sueltas, abiertas. */}
+      {segmentation && (
+        <div style={{ marginTop: 20 }}>
+          <Collapsible title="Herramientas de malla" subtitle="Borrador, recorte, tijera e historial"
+            storageKey="ws.seg.meshtools"
+            defaultOpen={(segmentation.components ?? 2) > 1}
+            forceOpen={(segmentation.components ?? 0) > 1}>
+            <MeshEditTools sinCabecera />
+          </Collapsible>
+        </div>
+      )}
 
       {segmentation && (
         <Button
@@ -717,7 +727,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             disabled={busy || discarding || !sessionId}
             leadingIcon={<Icon name="GROWTH" />}
           >
-            {segmentation ? "Re-segmentar" : "Segmentar"}
+            {busy ? "Segmentando…" : segmentation ? "Re-segmentar" : "Segmentar"}
           </Button>
           {segmentation && (
             // F1-140: glosario, todo botón de avance dice «Continuar a …».

@@ -3,7 +3,7 @@
 export const READOUT_CHAR_PX = 6.72; // 10,5 px × (0,6 + 0,04 de tracking)
 export const READOUT_INSET_PX = 14;
 export const HEADING_GAP_PX = 16;
-export const HEADING_MIN_PX = 200; // HEADING_READOUT_PX (110) + 90 de banda
+export const HEADING_MIN_PX = 200; // cabe ANT/IZQ/POST/DER con margen a los dos lados
 export const HEADING_ROW_TOP_PX = 24;
 
 export interface HeadingPlacement { top: number; left: number; right: number }

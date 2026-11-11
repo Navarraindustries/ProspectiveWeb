@@ -1,6 +1,6 @@
 /* Paso 4 — Morfometría. GET /api/morphometry/{session} + seguimiento longitudinal. */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../../api/client";
 import { ANEURYSM_LOCATIONS, LEGACY_BASILAR, LEGACY_BASILAR_LABEL } from "../../api/types";
 import type { AneurysmLocation, ClinicalSiteResult, LongitudinalResult } from "../../api/types";
@@ -21,16 +21,15 @@ import { Tabs } from "../Tabs";
 import { EI_MOD, THRESHOLD_TIP, badgeFor } from "./thresholds";
 import { NECK_DOME_COLOR, NECK_ORIGIN_COLOR, rgbCss, type Rgb } from "../../vtk/markerColors";
 import { FollowupOverlay } from "./FollowupOverlay";
-import { UiatsCalculator } from "./UiatsCalculator";
-import { ElapssCalculator } from "./ElapssCalculator";
-import { PhasesCalculator } from "./PhasesCalculator";
 import { LongitudinalChart } from "./LongitudinalChart";
 import { usePlanning } from "../../store/planning";
 import type { MorphometryResult } from "../../api/types";
 import { MANUAL_NO_SAC, isManual } from "../planning/detectCopy";
 import { cifra, coordenadas } from "../../lib/numero";
 
-const TABS = ["Métricas", "Índices", "PHASES", "ELAPSS", "UIATS", "Seguimiento"] as const;
+/* PHASES, ELAPSS y UIATS pasaron a Decisión (`planning/EscalasClinicas`):
+   son escalas que piden datos del paciente, no medidas de forma (decidido el 11-11). */
+const TABS = ["Métricas", "Índices", "Seguimiento"] as const;
 
 /** Lo que ha pasado al cambiar la localización, en una línea; «» si nada. */
 export function siteChangeNotice(r: Pick<ClinicalSiteResult, "cleared" | "recalculated" | "pending">): string {
@@ -95,7 +94,10 @@ const MORE_TIP = {
   eq: "Diámetro de la esfera con el mismo volumen",
 };
 
-export function MorphometryPanel({ onNext }: { onNext: () => void }) {
+/** `children`: las herramientas auxiliares (ramas, línea central). Van ANTES
+ *  del pie: con el botón de avance encima de ellas se pasaba de largo
+ *  (auditoría F3, filas «Línea central» y «Decisión terapéutica»). */
+export function MorphometryPanel({ onNext, children }: { onNext: () => void; children?: ReactNode }) {
   const planning = usePlanning();
   const {
     sessionId, morphometry, allCandidates, selectedCandidate,
@@ -590,18 +592,6 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
                 </div>
               </div>
             )}
-            {tab === "PHASES" && (
-              <PhasesCalculator maxDiameterMm={m.max_diameter_mm} sessionId={sessionId}
-                                bodyDiameterMm={bodyMm} provisional={provisional} />
-            )}
-            {tab === "UIATS" && (
-              <UiatsCalculator m={m} sessionId={sessionId} dob={planning.patient?.dob} />
-            )}
-            {tab === "ELAPSS" && (
-              <ElapssCalculator maxDiameterMm={m.max_diameter_mm} sessionId={sessionId} dob={planning.patient?.dob}
-                                bodyDiameterMm={bodyMm} provisional={provisional}
-                                measuredUi={m.volume_valid ? m.ui : null} />
-            )}
             {tab === "Seguimiento" && (
               <div>
                 {sessionId && <FollowupOverlay sessionId={sessionId} />}
@@ -638,6 +628,8 @@ export function MorphometryPanel({ onNext }: { onNext: () => void }) {
           </div>
         </>
       )}
+
+      {children && <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>{children}</div>}
 
       {/* F1-171: se podía pasar a Decisión con «Medición no fiable» arriba y
           nada junto al botón. Sigue encendido (el carril deja pasar), pero dice

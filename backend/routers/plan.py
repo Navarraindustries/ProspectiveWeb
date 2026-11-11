@@ -96,7 +96,7 @@ async def compute_plan(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> PlanResult:
     if not session_exists(req.session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{req.session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     import time
     from services import devices
@@ -278,7 +278,7 @@ def _run_web_sizing(session_id: str):
 async def web_sizing(session_id: str) -> WebSizingResult:
     import asyncio
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     try:
         d = await asyncio.to_thread(_run_web_sizing, session_id)
     except ValueError as exc:

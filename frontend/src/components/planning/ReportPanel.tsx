@@ -11,7 +11,6 @@ import { Input } from "../Input";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
 import { PanelFooter } from "../PanelFooter";
-import { PrintPrepPanel } from "./PrintPrepPanel";
 import { useAuth } from "../../store/auth";
 import { usePlanning } from "../../store/planning";
 import { approachSummary } from "./approachSummary";
@@ -291,7 +290,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
         <Input label="Cirujano responsable" value={surgeon} onChange={(e) => edit(setSurgeon)(e.target.value)} placeholder="Dr. …"
           invalid={!surgeon.trim()} />
-        <Input label="Notas clínicas" value={notes} onChange={(e) => edit(setNotes)(e.target.value)} placeholder="Observaciones para el informe…" />
+        <Input label="Notas clínicas" multiline value={notes} onChange={(e) => edit(setNotes)(e.target.value)} placeholder="Observaciones para el informe…" />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
@@ -368,8 +367,9 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
 
       <ErrorNote>{error}</ErrorNote>
 
-      <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
-        <PrintPrepPanel />
+      {/* La preparación para imprimir pasó a Fabricación (decidido el 11-11). */}
+      <div style={{ marginTop: 16, fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+        La preparación del modelo para impresión 3D está en el paso 7, Fabricación.
       </div>
 
       {/* F1-240: lo prometía siempre, también en una sesión sin caso, que se

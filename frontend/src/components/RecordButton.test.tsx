@@ -45,7 +45,7 @@ describe("el botón de grabar", () => {
     expect(b.textContent).toBe("");
     expect(b.getAttribute("title")).toMatch(/^Graba el visor en vídeo/);
     fireEvent.click(b);
-    expect((await screen.findByRole("button", { name: /Detener/ })).textContent).toContain("REC 00:");
+    expect((await screen.findByRole("button", { name: /Detener/ })).textContent).toContain("● 00:");
   });
 
   it("sin visor no deja empezar", () => {

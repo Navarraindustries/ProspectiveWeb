@@ -17,6 +17,8 @@ const clipManufacture = vi.fn();
 const listClipOrders = vi.fn(async () => []);
 const clipOrderPrefill = vi.fn(async () => ({ can_order: false, reason: "" }));
 
+// La preparación para imprimir tiene sus propios tests; aquí no llama al API.
+vi.mock("./PrintPrepPanel", () => ({ PrintPrepPanel: () => null }));
 vi.mock("../../api/client", () => ({
   api: {
     clipSelection: (...a: unknown[]) => clipSelection(...a),

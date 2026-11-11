@@ -182,7 +182,7 @@ async def followup(
     from services.segmentation import read_vtp
 
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     if req.previous_session_id == session_id:
         raise HTTPException(status_code=422, detail="Elige otro estudio, no el mismo.")
     # Los dos estudios tienen que ser de pacientes que este usuario puede ver.

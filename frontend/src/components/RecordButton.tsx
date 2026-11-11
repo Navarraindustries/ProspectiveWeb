@@ -149,8 +149,11 @@ export function RecordButton({ step, onMessage, soloIcono = false, size = "sm" }
       <Button variant="outline" size={size} onClick={parar}
               title={ctx.current.imagingStudyId ? "Parar y descargar; queda también en el caso" : "Parar y descargar"}
               leadingIcon={<Icon name="STOP" color="var(--destructive)" />}
+              aria-label={`Detener la grabación (${formatElapsed(ms)})`}
               style={{ marginRight: 8, color: "var(--destructive)", borderColor: "var(--destructive)" }}>
-        <span aria-live="polite">REC {formatElapsed(ms)} · Detener</span>
+        {/* Corto: «REC 00:00 · Detener» era más largo que el botón y ensanchaba
+            la barra hasta recortar la miga (auditoría F3). */}
+        <span aria-hidden="true">● {formatElapsed(ms)}</span>
       </Button>
     );
   }

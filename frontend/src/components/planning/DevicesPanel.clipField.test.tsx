@@ -67,13 +67,13 @@ function numeros() {
   return screen.getAllByRole("spinbutton");
 }
 
-/** Monta el panel, añade el clip recomendado y pulsa «Colocar 1 y verificar». */
+/** Monta el panel, añade el clip recomendado y pulsa «Colocar y verificar (1 clip)». */
 async function colocar() {
   render(<PlanningProvider><Seed><DevicesPanel onNext={() => {}} /></Seed></PlanningProvider>);
   const addBtn = () => screen.getByRole("button", { name: /Añadir al plan y colocar/ });
   await waitFor(() => expect(addBtn()).not.toBeDisabled());
   fireEvent.click(addBtn());
-  fireEvent.click(screen.getByRole("button", { name: /Colocar 1 y verificar/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Colocar y verificar (1 clip)" }));
 }
 
 describe("DevicesPanel · campo del clip", () => {
@@ -130,7 +130,7 @@ describe("DevicesPanel · campo del clip", () => {
     const addBtn = () => screen.getByRole("button", { name: /Añadir al plan y colocar/ });
     await waitFor(() => expect(addBtn()).not.toBeDisabled());
     fireEvent.click(addBtn());
-    fireEvent.click(screen.getByRole("button", { name: /Colocar 1 y verificar/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Colocar y verificar (1 clip)" }));
     await screen.findByText(/Estimación geométrica/);
     expect(screen.queryByText("DESFASADO")).toBeNull();
     // El 3D enseña el campo, pero con otro fichero (el de la pose anterior).
@@ -151,7 +151,7 @@ describe("DevicesPanel · campo del clip", () => {
     const addBtn = () => screen.getByRole("button", { name: /Añadir al plan y colocar/ });
     await waitFor(() => expect(addBtn()).not.toBeDisabled());
     fireEvent.click(addBtn());
-    fireEvent.click(screen.getByRole("button", { name: /Colocar 1 y verificar/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Colocar y verificar (1 clip)" }));
     await screen.findByText(/Estimación geométrica/);
     expect(store!.clipsTabActive).toBe(true);
     fireEvent.click(screen.getByRole("tab", { name: "Coils" }));
@@ -473,9 +473,9 @@ describe("DevicesPanel · rótulos y una sola lista de clips", () => {
   beforeEach(() => { vi.clearAllMocks(); });
   const montar = () => render(<PlanningProvider><Seed><DevicesPanel onNext={() => {}} /></Seed></PlanningProvider>);
 
-  it("entradilla nueva (F1-184)", async () => {
+  it("entradilla (F1-184; el abordaje pasó a Clips el 11-11)", async () => {
     montar();
-    expect(await screen.findByText("Traza el abordaje y prueba clip, coils, stent o WEB sobre el saco medido")).toBeInTheDocument();
+    expect(await screen.findByText("Prueba clip, coils, stent o WEB sobre el saco medido; el abordaje quirúrgico se traza en Clips")).toBeInTheDocument();
     expect(screen.queryByText(/Elige clip, coils o stent del catálogo/)).toBeNull();
   });
 

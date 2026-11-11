@@ -37,7 +37,7 @@ FILE = "annotations.json"
 
 def _check(db: Session, user: User | None, session_id: str) -> None:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     require_session(db, user, session_id)
 
 

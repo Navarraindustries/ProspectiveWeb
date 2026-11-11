@@ -567,7 +567,7 @@ def _load_float(session_id: str, key: str, default: float) -> float:
 )
 async def get_thresholds(session_id: str) -> AutoThresholdResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     # Read DICOM metadata persisted by upload router
     modality      = read_state(session_id, "dicom.modality",       "CT")
@@ -633,7 +633,7 @@ async def segment(
     ),
 ):
     if not session_exists(req.session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{req.session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     dicom_dir  = session_subdir(req.session_id, "dicom")
     meshes_dir = session_subdir(req.session_id, "meshes")
@@ -749,7 +749,7 @@ async def segment(
         if not isinstance(exc, Exception):
             raise
         logger.error("Segmentation failed for session %s: %s", req.session_id, exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Segmentation error: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"La segmentación falló: {exc}") from exc
 
     progress.finish(req.session_id, ok=True)
     _audit_segmentation(req.session_id, result, req.method, usuario)
@@ -802,7 +802,7 @@ def _store_result(session_id: str, fut, method: str, usuario: str) -> None:
         return
     except BaseException as exc:  # noqa: BLE001 — se informa, no se propaga a un hilo
         logger.error("Segmentation failed for session %s: %s", session_id, exc, exc_info=exc)
-        _keep_result(session_id, {"status": 500, "detail": f"Segmentation error: {exc}"})
+        _keep_result(session_id, {"status": 500, "detail": f"La segmentación falló: {exc}"})
         progress.finish(session_id, ok=False, message=str(exc) or type(exc).__name__)
         return
     _keep_result(session_id, {"status": 200, "result": result})
@@ -833,7 +833,7 @@ def _audit_segmentation(session_id: str, result: SegmentResult, method: str, usu
 )
 async def segment_result(session_id: str):
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     r = _RESULTS.get(session_id)
     if r is None:
         p = progress.get(session_id)
@@ -861,7 +861,7 @@ async def segment_result(session_id: str):
 )
 async def suggested_band(session_id: str) -> SuggestedBand:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     loop = asyncio.get_event_loop()
     sample = await loop.run_in_executor(_executor, partial(_threshold_volume, session_id))
     if sample is None or sample.size == 0:
@@ -915,7 +915,7 @@ async def suggested_band(session_id: str) -> SuggestedBand:
 )
 async def segment_preview(session_id: str, req: PreviewRequest) -> PreviewResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     meshes_dir = session_subdir(session_id, "meshes")
     loop = asyncio.get_event_loop()
     try:
@@ -1348,7 +1348,7 @@ async def compare_ceiling(
     session_id: str, req: CeilingCompareRequest
 ) -> CeilingCompareResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     from services.ceiling_compare import comparar_techo
     from services.mpr import _get_volume, ensure_volume_cached

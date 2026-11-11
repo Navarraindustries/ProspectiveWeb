@@ -257,7 +257,7 @@ export function AnnotationsPanel() {
                     <Button variant="ghost" size="sm" title={a.visible ? "Ocultar" : "Mostrar"}
                             aria-label={a.visible ? "Ocultar" : "Mostrar"}
                             onClick={(e) => { e.stopPropagation(); patch(a.id, { visible: !a.visible }); }} style={smallBtn}>
-                      <Icon name={a.visible ? "EYE" : "EYE_HIDDEN"} size={13} />
+                      <Icon name={a.visible ? "EYE" : "EYE_HIDDEN"} size={16} />
                     </Button>
                     <Button variant="ghost" size="sm" title="Ir a la anotación en el visor"
                             onClick={(e) => { e.stopPropagation(); goTo(a); }} style={smallBtn}>

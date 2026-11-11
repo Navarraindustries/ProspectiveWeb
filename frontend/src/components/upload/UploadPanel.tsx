@@ -64,12 +64,25 @@ function hoursEs(h: number): string {
   return cifra(r, Number.isInteger(r) ? 0 : 1);
 }
 
+/** «Subiendo 45 / 113 MB (40 %)» mientras suben los bytes; luego el servidor
+ *  detecta las series y de eso no hay porcentaje. */
+export function textoSubida(nFiles: number, subida: { enviados: number; total: number } | null): string {
+  const archivos = `${nFiles} archivo${nFiles === 1 ? "" : "s"}`;
+  if (!subida || subida.total <= 0) return `Subiendo ${archivos} y detectando series…`;
+  if (subida.enviados >= subida.total) return `${archivos} subido${nFiles === 1 ? "" : "s"} · detectando series…`;
+  const mb = (b: number) => (b / (1024 * 1024)).toLocaleString("es", { maximumFractionDigits: b < 10 * 1024 * 1024 ? 1 : 0 });
+  const pct = Math.floor((subida.enviados / subida.total) * 100);
+  return `Subiendo ${archivos}: ${mb(subida.enviados)} / ${mb(subida.total)} MB (${pct} %)`;
+}
+
 export function UploadPanel({ onNext }: { onNext: () => void }) {
   const planning = usePlanning();
   const fileInput = useRef<HTMLInputElement>(null);
   const dirInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [nFiles, setNFiles] = useState(0);
+  // Bytes enviados de la subida en curso (null hasta el primer aviso del navegador).
+  const [subida, setSubida] = useState<{ enviados: number; total: number } | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<UploadResult | null>(null);
@@ -112,13 +125,14 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
       return;
     }
     setBusy(true);
+    setSubida(null);
     setNFiles(files.length);
     setError(null);
     // A new upload invalidates any previous segmentation/detection/morphometry.
     planning.resetDownstream();
     planning.setSegmentation(null);
     try {
-      const res = await api.upload(files);
+      const res = await api.upload(files, (enviados, total) => setSubida({ enviados, total }));
       setResult(res);
       planning.setSession(res.session_id);
       // Volumen nuevo, sesión nueva y sin archivo: su lista es la vacía. Va
@@ -264,7 +278,9 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
       />
 
       <div
-        onClick={() => fileInput.current?.click()}
+        // El texto dice «carpeta»: el clic abre el selector de carpetas, no el
+        // de archivos (que sigue en «Seleccionar archivos»). Auditoría F3.
+        onClick={() => dirInput.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
@@ -314,10 +330,10 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
 
       {busy && (
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 6 }}>
-            Subiendo {nFiles} archivo{nFiles === 1 ? "" : "s"} y detectando series…
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 6 }} aria-live="polite">
+            {textoSubida(nFiles, subida)}
           </div>
-          <ProgressBar marca />
+          <ProgressBar marca value={subida && subida.enviados < subida.total ? (subida.enviados / subida.total) * 100 : undefined} />
         </div>
       )}
       <ErrorNote>{error}</ErrorNote>

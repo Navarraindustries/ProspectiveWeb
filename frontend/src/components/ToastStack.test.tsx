@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { ToastStack } from "./ToastStack";
+import { AUTOCIERRE_MS, ToastStack } from "./ToastStack";
 
 describe("ToastStack", () => {
   it("pinta cada aviso con su rol y su cristal", () => {
@@ -31,5 +31,25 @@ describe("ToastStack", () => {
   it("sin avisos no pinta nada", () => {
     const { container } = render(<ToastStack top={84} right={0} items={[]} />);
     expect(container.firstChild).toBeNull();
+  });
+
+  it("los «ok» e «info» se cierran solos; los errores se quedan hasta pulsarlos", () => {
+    vi.useFakeTimers();
+    try {
+      const err = vi.fn(); const ok = vi.fn(); const info = vi.fn();
+      render(<ToastStack top={84} right={0} items={[
+        { id: "e", tono: "error", texto: "Fallo", role: "alert", onClose: err },
+        { id: "o", tono: "ok", texto: "Hecho", role: "status", onClose: ok },
+        { id: "i", tono: "info", texto: "Ojo", role: "status", onClose: info },
+      ]} />);
+      vi.advanceTimersByTime(AUTOCIERRE_MS - 1);
+      expect(ok).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(ok).toHaveBeenCalledTimes(1);
+      expect(info).toHaveBeenCalledTimes(1);
+      expect(err).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

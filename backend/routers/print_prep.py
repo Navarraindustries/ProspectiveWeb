@@ -69,7 +69,7 @@ def _run_prep(vessel_path: Path, out_path: Path, req: PrintPrepRequest) -> Print
 )
 async def print_prep(session_id: str, req: PrintPrepRequest) -> PrintPrepResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     vessel_path = session_subdir(session_id, "meshes") / "vessel_tree.vtp"
     if not vessel_path.exists():

@@ -17,6 +17,7 @@ import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { Card, ErrorNote, PanelHead, SectionLabel } from "../PanelHead";
 import { PanelFooter } from "../PanelFooter";
+import { PrintPrepPanel } from "./PrintPrepPanel";
 import { usePlanning } from "../../store/planning";
 import { useNav } from "../../store/nav";
 import { ClipOrderForm, ClipOrderList } from "./ClipOrderForm";
@@ -45,6 +46,7 @@ function ManufactureSheet({
 }) {
   const [built, setBuilt] = useState<ManufactureSpecOut | null>(null);
   const [busy, setBusy] = useState(false);
+  const [copiado, setCopiado] = useState<"ok" | "error" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const shown = built ?? spec;
 
@@ -90,7 +92,10 @@ function ManufactureSheet({
       "A confirmar antes de fabricar:",
       ...shown.confidence_notes.map((n) => `- ${comaDecimal(n)}`),
     ].join("\n");
-    void navigator.clipboard?.writeText(text);
+    // Copiaba sin ninguna señal, y si fallaba tampoco lo decía (auditoría F3).
+    const escribir = navigator.clipboard?.writeText(text) ?? Promise.reject(new Error("sin portapapeles"));
+    escribir.then(() => setCopiado("ok"), () => setCopiado("error"));
+    window.setTimeout(() => setCopiado(null), 2500);
   };
 
   return (
@@ -171,7 +176,9 @@ function ManufactureSheet({
             Descargar STL
           </Button>
         )}
-        <Button size="sm" variant="ghost" onClick={copy}>Copiar especificación</Button>
+        <Button size="sm" variant="ghost" onClick={copy} aria-live="polite">
+          {copiado === "ok" ? "Especificación copiada ✓" : copiado === "error" ? "No se pudo copiar" : "Copiar especificación"}
+        </Button>
       </div>
 
       {/* Dos documentos, y la diferencia importa: el del taller no lleva ningún
@@ -339,6 +346,12 @@ export function ManufacturePanel({ onNext }: { onNext: () => void }) {
           <ClipOrderList sessionId={sessionId} caseId={caseId} refreshKey={ordersKey} />
         </>
       )}
+
+      {/* El modelo físico de la malla es fabricación, no informe: estaba bajo
+          el informe (auditoría F3; decidido el 11-11). */}
+      <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+        <PrintPrepPanel />
+      </div>
 
       <PanelFooter>
         <Button

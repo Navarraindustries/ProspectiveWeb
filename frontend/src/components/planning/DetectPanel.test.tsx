@@ -127,10 +127,10 @@ describe("DetectPanel", () => {
     expect(await screen.findByText(/La morfometría se ha limpiado/)).toBeInTheDocument();
   });
 
-  it("el pie envuelve «Re-detectar» y «Analizar morfometría» en .ws-panel-actions sin flex en línea", async () => {
+  it("el pie envuelve «Re-detectar» y «Continuar a morfometría» en .ws-panel-actions sin flex en línea", async () => {
     mockDetect({});
     render(<Wrapped />);
-    for (const n of [/Re-detectar/, /Analizar morfometría/]) {
+    for (const n of [/Re-detectar/, /Continuar a morfometría/]) {
       const b = await screen.findByRole("button", { name: n });
       expect(b.closest(".ws-panel-actions")).not.toBeNull();
       expect(b.style.flex).toBe("");
@@ -260,8 +260,8 @@ describe("DetectPanel", () => {
     expect(await screen.findByText("marcado a mano")).toBeInTheDocument();
     expect(screen.getAllByText(/de grosor local/)).toHaveLength(1);
     expect(screen.queryByText("Puesto #0")).not.toBeInTheDocument();
-    // «encontrados» cuenta lo que encontró el detector.
-    expect(screen.getByText("1 encontrados")).toBeInTheDocument();
+    // La insignia cuenta lo que encontró el detector (no lo marcado a mano).
+    expect(screen.getByText("1 candidato")).toBeInTheDocument();
   });
 
   it("sin candidatos sigue explicando el vacío y no muestra el desplegable", async () => {
@@ -294,7 +294,7 @@ describe("DetectPanel", () => {
     expect(screen.getByText(/Todos los sitios encontrados se descartaron/)).toBeInTheDocument();
     expect(screen.queryByText(/No se encontraron candidatos/)).not.toBeInTheDocument();
     expect(screen.queryByText("Por qué no se encontró nada")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Analizar morfometría/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Continuar a morfometría/ })).toBeEnabled();
     // El elegido (índice 0) es el descartado: su advertencia se ve con la lista plegada.
     expect(screen.getByText(/Descartado D2: Descartado por «Recorte de la malla»/)).toBeInTheDocument();
   });
@@ -423,12 +423,12 @@ describe("lo que borra la morfometría pregunta antes", () => {
   });
 });
 
-describe("«Analizar morfometría» apagado dice por qué", () => {
+describe("«Continuar a morfometría» apagado dice por qué", () => {
   it("sin candidatos enseña el motivo bajo el pie; con candidatos no", async () => {
     mockDetect({ candidates: [], rejected: [], found: false });
     const { unmount } = render(<Wrapped />);
     expect(await screen.findByText("Detecta un candidato primero")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Analizar morfometría/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Continuar a morfometría/ })).toBeDisabled();
     unmount();
     mockDetect();
     render(<Wrapped />);

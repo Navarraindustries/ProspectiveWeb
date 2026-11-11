@@ -177,7 +177,7 @@ async def compute_treatment_decision(
 ) -> TreatmentDecisionResult:
     # Validate session (soft check — morpho may not be available yet in early development)
     if not session_exists(req.session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{req.session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     # Load morphometric values persisted by the morphometry step (Session C).
     # Keys are written by routers/detect.py after compute_morphometrics().
@@ -315,7 +315,7 @@ async def set_team_decision(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> TeamDecision:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     require_session(db, current_user, session_id)
     if req.team_decision is None:
         for key in TEAM_KEYS:
@@ -349,7 +349,7 @@ async def get_team_decision(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> TeamDecision:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     require_session(db, current_user, session_id)
     return stored_team(session_id) or TeamDecision()
 
@@ -374,7 +374,7 @@ async def get_treatment_decision(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> TreatmentDecisionResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     # Es el trabajo de una sesión ligada a un paciente: solo quien lo ve.
     require_session(db, current_user, session_id)
     stored = stored_decision(session_id)
@@ -453,7 +453,7 @@ async def clear_treatment(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> dict:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     # Borra trabajo de una sesión ligada a un paciente: solo quien lo ve.
     require_session(db, current_user, session_id)
     clear_treatment_state(session_id)

@@ -35,6 +35,31 @@ export const TEXTO_MIN_TABLETA = 13;
  *  respuesta de la última petición escribe. */
 let detectSeq = 0;
 
+/** «5 candidatos · 1 descartado»: «5 encontrados» no contaba los descartados. */
+export function cuentaCandidatos(n: number, descartados: number): string {
+  const base = `${n} ${n === 1 ? "candidato" : "candidatos"}`;
+  return descartados > 0 ? `${base} · ${descartados} ${descartados === 1 ? "descartado" : "descartados"}` : base;
+}
+
+/** Qué es la barra bajo cada tarjeta: sin rótulo se leía como acierto. */
+const SCORE_TITLE = "Puntuación relativa del detector entre estos candidatos; no es una probabilidad.";
+
+/** Props para que una tarjeta elegible se pueda usar con teclado (Enter o
+ *  Espacio) y se anuncie como botón con su estado; antes solo tenía onClick. */
+function pulsable(elegir: () => void, on: boolean, nombre: string) {
+  return {
+    role: "button" as const,
+    tabIndex: 0,
+    "aria-pressed": on,
+    "aria-label": nombre,
+    onClick: elegir,
+    onKeyDown: (e: { key: string; preventDefault: () => void; target: EventTarget; currentTarget: EventTarget }) => {
+      if (e.target !== e.currentTarget) return;
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); elegir(); }
+    },
+  };
+}
+
 /** Turn the rejection counts into the one sentence that matters.
  *
  *  Measured over the corpus, the size gate accounts for 61-94% of rejections,
@@ -197,9 +222,11 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
   return (
     <div className="fade-rise">
       <PanelHead
-        title="Candidatos detectados"
-        desc="Zonas de la vasculatura que merece la pena mirar, en una lista corta para recorrer."
-        right={ran && <Badge variant="subtle">{found} encontrados</Badge>}
+        // Un nombre para la pantalla, el del paso (auditoría F3: «Candidatos
+        // detectados», «Detectar» y «CANDIDATOS ANEURISMÁTICOS»).
+        title="Detección"
+        desc="Candidatos: zonas de la vasculatura que merece la pena mirar, en una lista corta para recorrer."
+        right={ran && <Badge variant="subtle">{cuentaCandidatos(found, rejectedCandidates.length)}</Badge>}
       />
 
       {busy && (
@@ -260,7 +287,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
             <div
               key={c.id}
               className="tarjeta-lente"
-              onClick={() => selectCandidate(i)}
+              {...pulsable(() => selectCandidate(i), on, `Elegir ${candidateName(c, false, i)}`)}
               style={{
                 cursor: "pointer",
                 border: `var(--glass-rim) solid ${on ? "var(--primary)" : "var(--glass-border)"}`,
@@ -316,7 +343,8 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                     dando la puntuación relativa. */}
               </div>
               {!manual && (
-                <div style={{ height: 4, borderRadius: 2, background: "var(--muted)", marginTop: 6, overflow: "hidden" }}>
+                <div title={SCORE_TITLE} role="img" aria-label={`${SCORE_TITLE} ${Math.round(c.confidence * 100)} de 100.`}
+                  style={{ height: 4, borderRadius: 2, background: "var(--muted)", marginTop: 6, overflow: "hidden" }}>
                   <div style={{ height: "100%", width: `${c.confidence * 100}%`, background: "var(--primary)" }} />
                 </div>
               )}
@@ -363,7 +391,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
                   <div
                     key={c.id}
                     className="tarjeta-lente"
-                    onClick={() => selectCandidate(idx)}
+                    {...pulsable(() => selectCandidate(idx), on, `Elegir el descartado ${i + 1}`)}
                     style={{
                       cursor: "pointer",
                       border: `1px ${on ? "solid var(--warning)" : "dashed var(--border)"}`,
@@ -480,7 +508,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
             disabled={!canAdvanceFromDetect(candidates, rejectedCandidates)}
             trailingIcon={<Icon name="STEP_MORPHO" />}
           >
-            Analizar morfometría
+            Continuar a morfometría
           </Button>
         </PanelActions>
       </PanelFooter>

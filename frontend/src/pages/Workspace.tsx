@@ -16,7 +16,7 @@ import { CONSULTA_SOLO_ICONO, QuirofanoBar, estiloAccion, rotuloAccion } from ".
 import { SaveStatus } from "../components/stepper/SaveStatus";
 import { BANDA_SUPERIOR, HOJA_ASOMAR, zonaLibre } from "../pipeline/zonaLibre";
 import { MQ_MOVIL, MQ_TACTIL } from "../pipeline/puntosCorte";
-import { StepDock } from "../components/stepper/StepDock";
+import { STEP_MOTIVO_EVENT, StepDock } from "../components/stepper/StepDock";
 import { Z_SOBRE_HOJA, type AlturaHoja } from "../components/BottomSheet";
 import { useCompacto, useEstrecho, useMediaQuery } from "../hooks/useEstrecho";
 import { ToastStack, type ToastItem } from "../components/ToastStack";
@@ -161,6 +161,8 @@ export function Workspace({
       // dice, igual que con la grabación, para que nadie crea que está guardada.
       if (destino === "downloaded") {
         setRecMessage({ tone: "info", text: sinCasoAviso("Captura descargada") });
+      } else {
+        setRecMessage({ tone: "ok", text: "Captura guardada en el caso." });
       }
     } catch (e) {
       setShot("err");
@@ -344,6 +346,9 @@ export function Workspace({
       if (id.startsWith("step-")) {
         const i = Number(id.slice(5)) - 1;
         if (i < STEPS.length && (i === stepIdx || !stepMissing(i, planning))) { e.preventDefault(); go(i); }
+        // Bloqueado: la tecla no hacía nada y parecía que el teclado no
+        // respondía (auditoría F3). El dock enseña el motivo, como al clic.
+        else if (i < STEPS.length) { e.preventDefault(); window.dispatchEvent(new CustomEvent(STEP_MOTIVO_EVENT, { detail: i })); }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -359,20 +364,19 @@ export function Workspace({
       // Morfometría queda siempre a la vista; las tres herramientas auxiliares
       // se pliegan y recuerdan su estado, para que la columna no pase de mil
       // píxeles de scroll con la línea central enterrada al fondo.
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <MorphometryPanel onNext={next} />
+      <MorphometryPanel onNext={next}>
         <Collapsible title="Ramas cerca del cuello" subtitle="Orígenes visibles, con su calibre" storageKey="ws.morpho.perforators">
           <PerforatorsPanel />
         </Collapsible>
         <Collapsible
           title="Línea central del vaso"
-          subtitle="Longitud, tortuosidad y calibre · base del stent guiado"
+          subtitle="Longitud, tortuosidad y calibre · base del stent guiado · recorrido del Oblicuo"
           storageKey="ws.morpho.centerline"
           badge={centerlineMesh ? <Badge variant="success">Extraída</Badge> : undefined}
         >
           <CenterlinePanel />
         </Collapsible>
-      </div>
+      </MorphometryPanel>
     ),
     treatment: <TreatmentPanel onNext={next} onChangeSite={() => go(STEPS.findIndex((st) => st.key === "morpho"))} />,
     devices: <DevicesPanel onNext={next} onSkipToReport={() => go(stepIndex("report"))} />,
@@ -462,8 +466,9 @@ export function Workspace({
           onClick={() => void tomarCaptura()}
           disabled={!captureCase || shot === "busy"}
           {...rotuloAccion(soloIcono,
+            // El éxito lo dicen el icono ✓ y el aviso: «Captura descargada ✓»
+            // ensanchaba la barra y recortaba la miga (auditoría F3).
             shot === "busy" ? "Capturando…"
-              : shot === "ok" ? (imagingStudyId ? "Captura guardada ✓" : "Captura descargada ✓")
               : shot === "err" ? "No se guardó" : "Captura",
             !captureCase
               ? "Abre un paso con el visor para capturar lo que se ve"
@@ -557,13 +562,20 @@ export function Workspace({
           stepIndex={stepIdx}
           stepKey={step}
           wide={step === "treatment" || step === "report"}
-          badge={sessionId && annotations.length > 0 ? <Badge variant="subtle">{annotations.length}</Badge> : undefined}
+          badge={sessionId && annotations.length > 0 ? (
+            // Con el panel plegado el número iba solo: nada decía que eran anotaciones.
+            <span title={`${annotations.length} ${annotations.length === 1 ? "anotación" : "anotaciones"}`}
+                  aria-label={`${annotations.length} ${annotations.length === 1 ? "anotación" : "anotaciones"}`}>
+              <Badge variant="subtle">{annotations.length}</Badge>
+            </span>
+          ) : undefined}
         >
-          <StepNavProvider value={stepNav}>{panel}</StepNavProvider>
           {/* En todos los pasos con sesión: una medida se toma cuando hace falta,
-              no en un paso concreto del flujo. */}
+              no en un paso concreto del flujo. Arriba de la columna: al fondo,
+              debajo del panel del paso, había que bajar para encontrarla
+              (auditoría F3; decidido el 11-11). */}
           {sessionId && (
-            <div style={{ marginTop: 16 }}>
+            <div style={{ marginBottom: 16 }}>
               <Collapsible
                 title="Anotaciones"
                 subtitle={annotationsSubtitle(annotationsLoadState, annotationsSync, annotations.length)}
@@ -575,6 +587,11 @@ export function Workspace({
               >
                 <AnnotationsPanel />
               </Collapsible>
+            </div>
+          )}
+          <StepNavProvider value={stepNav}>{panel}</StepNavProvider>
+          {sessionId && (
+            <div style={{ marginTop: 16 }}>
               <Collapsible title="Registro" storageKey="ws.sessionlog">
                 <SessionLog entries={registro} />
               </Collapsible>

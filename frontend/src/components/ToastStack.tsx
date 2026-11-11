@@ -1,8 +1,10 @@
 /* Avisos del pipeline como pastillas de cristal apiladas: columna centrada en
-   la zona libre del visor (recibe `right` de `zonaLibre`). Cada aviso se cierra
-   solo al pulsarlo; los textos y roles (`alert`/`status`) los pone quien avisa. */
+   la zona libre del visor (recibe `right` de `zonaLibre`). Los errores se
+   quedan hasta pulsarlos; los «ok» e «info» se cierran solos a los
+   `AUTOCIERRE_MS` (auditoría F3: se quedaban tapando el visor hasta que se
+   pulsaban). Los textos y roles (`alert`/`status`) los pone quien avisa. */
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Icon } from "./Icon";
 import { glide, glideTransition, motion, useReducedMotion } from "../motion";
 import { glass } from "../styles/glass";
@@ -22,8 +24,24 @@ const COLOR = {
   info: "var(--muted-foreground)",
 } as const;
 
+export const AUTOCIERRE_MS = 6000;
+
+/** Cierra solo un aviso que no es error; el temporizador es por aviso (id) y
+ *  no se reinicia porque cambie el texto o la función de cerrar. */
+function useAutocierre(items: ToastItem[]) {
+  const cerrar = useRef(new Map<string, () => void>());
+  for (const t of items) if (t.onClose) cerrar.current.set(t.id, t.onClose);
+  const claves = items.filter((t) => t.tono !== "error" && t.onClose).map((t) => t.id).join("|");
+  useEffect(() => {
+    if (!claves) return;
+    const timers = claves.split("|").map((id) => window.setTimeout(() => cerrar.current.get(id)?.(), AUTOCIERRE_MS));
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [claves]);
+}
+
 export function ToastStack({ items, top, right }: { items: ToastItem[]; top: number; right: number }) {
   const reducido = useReducedMotion();
+  useAutocierre(items);
   if (items.length === 0) return null;
   return (
     <div

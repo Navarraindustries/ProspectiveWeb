@@ -6,7 +6,7 @@ export const MAIN_NAMES: Record<PaneId, string> = { scene: "3D", axial: "AXIAL",
 
 /* Niveles de la banda de cabecera según lo que mide la banda (no la ventana).
    Cifras estimadas a 11 px mono con `.08em` (≈ 7,5 px por carácter), con
-   PLANOS · VINCULAR · CALOR · «?» encendidos:
+   REFERENCIAS · VINCULAR · CALOR · «?» encendidos:
      ancho    ≥ 1400  las vistas y sus mandos, COMPLETO ESENCIAL LIMPIO y el
                       aviso de nivel en texto entero (≈ 1360). El
                       aviso no se recorta con elipsis en la misma fila: si no
@@ -20,6 +20,10 @@ export const MAIN_NAMES: Record<PaneId, string> = { scene: "3D", axial: "AXIAL",
    Si una cifra falla, la estructura de la banda (flex-wrap, grupo izquierdo
    rígido, derecho elástico) baja a otra línea en vez de pisar. El título de
    cada botón sigue diciendo el nombre entero. */
+/** «PLANOS» se entendía a medias y apagarlo quita también los cruces y el
+ *  teñido (auditoría F3): en radiología son «líneas de referencia». */
+export const REFERENCIAS_TITLE = "Líneas de referencia en el 3D: rectángulos de los cortes, sus cruces y el teñido de la malla";
+
 export const WIDE_HEADER_PX = 1400;
 export const NARROW_HEADER_PX = 1100;
 export const ICON_HEADER_PX = 800;

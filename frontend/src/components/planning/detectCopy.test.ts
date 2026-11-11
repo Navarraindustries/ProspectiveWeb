@@ -16,11 +16,12 @@ describe("canal de saco pequeño", () => {
     expect(channelTitle(SMALL_SAC_CHANNEL)).toMatch(/No vota/);
   });
 
-  it("los demás canales van tal cual y sin explicación", () => {
-    for (const ch of ["curvatura", "calibre", "cociente"]) {
-      expect(channelLabel(ch)).toBe(ch);
-      expect(channelTitle(ch)).toBeUndefined();
-    }
+  it("los demás canales van tal cual y explican en palabras de la consulta qué miran", () => {
+    for (const ch of ["curvatura", "calibre", "cociente"]) expect(channelLabel(ch)).toBe(ch);
+    expect(channelTitle("curvatura")).toBe("La superficie se abomba.");
+    expect(channelTitle("calibre")).toBe("Más gruesa que el resto de la vasculatura.");
+    expect(channelTitle("cociente")).toBe("Más gruesa que el vaso de al lado.");
+    expect(channelTitle("otro")).toBeUndefined();
   });
 
   it("el desplegable «Más» cuenta que es una cuota, no un cuarto voto", () => {

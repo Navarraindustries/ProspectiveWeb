@@ -226,3 +226,21 @@ describe("paciente sin casos", () => {
     )).toBeInTheDocument();
   });
 });
+
+/* Auditoría F3: con estudios grandes la subida duraba minutos sin decir cuánto faltaba. */
+describe("textoSubida", () => {
+  it("sin aviso del navegador, el texto de siempre", async () => {
+    const { textoSubida } = await import("./UploadPanel");
+    expect(textoSubida(1, null)).toBe("Subiendo 1 archivo y detectando series…");
+  });
+  it("durante la subida, MB enviados de los totales y el porcentaje", async () => {
+    const { textoSubida } = await import("./UploadPanel");
+    const MB = 1024 * 1024;
+    expect(textoSubida(113, { enviados: 45 * MB, total: 113 * MB })).toBe("Subiendo 113 archivos: 45 / 113 MB (39 %)");
+    expect(textoSubida(2, { enviados: 1.5 * MB, total: 3 * MB })).toBe("Subiendo 2 archivos: 1,5 / 3 MB (50 %)");
+  });
+  it("con todo enviado, dice que el servidor está detectando las series", async () => {
+    const { textoSubida } = await import("./UploadPanel");
+    expect(textoSubida(3, { enviados: 10, total: 10 })).toBe("3 archivos subidos · detectando series…");
+  });
+});

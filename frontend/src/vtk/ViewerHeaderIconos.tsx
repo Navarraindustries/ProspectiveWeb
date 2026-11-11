@@ -16,6 +16,7 @@ import type { CSSProperties } from "react";
 import { Icon } from "../components/Icon";
 import type { ViewerHeaderProps } from "./ViewerHeader";
 import { ViewerLayoutControls } from "./ViewerLayoutControls";
+import { REFERENCIAS_TITLE } from "./mainOptions";
 import { nextHudLevel } from "./viewerPrefs";
 
 export interface ViewerHeaderIconosProps extends ViewerHeaderProps {
@@ -52,7 +53,7 @@ export function ViewerHeaderIconos({
           (atenuado, subrayado si están pulsados, foco discontinuo). */}
       <div data-banda="der" className="hud-toggle"
            style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", columnGap: 6, rowGap: 0, alignItems: "center", flex: "1 1 auto", minWidth: 0 }}>
-        <button type="button" aria-label="Planos de corte en el 3D" title="Mostrar/ocultar los planos de corte en el 3D"
+        <button type="button" aria-label="Líneas de referencia en el 3D" title={REFERENCIAS_TITLE}
                 aria-pressed={!planesHidden} onClick={() => onPlanesHiddenChange(!planesHidden)} style={OBJETIVO}>
           <Icon name="MPR_VIEW" size={iconSize} />
         </button>

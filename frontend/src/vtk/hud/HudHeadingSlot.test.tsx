@@ -15,7 +15,7 @@ describe("HudHeadingSlot", () => {
   it("coloca la cinta a la derecha del rótulo", () => {
     conAncho(800);
     render(<HudHeadingSlot tl={TL} tr={["3D"]} azimuthDeg={0} elevationDeg={0} known />);
-    const tape = screen.getByTestId("heading-readout").parentElement!;
+    const tape = screen.getByTestId("heading-band").parentElement!;
     expect(tape.style.left).toBe("198px");
     expect(tape.style.top).toBe("24px");
   });
@@ -23,6 +23,6 @@ describe("HudHeadingSlot", () => {
     conAncho(450);
     render(<HudHeadingSlot tl={TL} tr={["3D"]} azimuthDeg={0} elevationDeg={0} known />);
     expect(screen.getByTestId("heading-slot")).toBeInTheDocument();
-    expect(screen.queryByTestId("heading-readout")).toBeNull();
+    expect(screen.queryByTestId("heading-band")).toBeNull();
   });
 });

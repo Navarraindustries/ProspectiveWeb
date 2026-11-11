@@ -363,11 +363,11 @@ Ningún atajo actúa con el cursor en un campo de texto.
 |---|---|---|
 | ? | Abrir o cerrar la hoja de atajos | Visor |
 | Alt+B | Plegar o desplegar la barra lateral | Aplicación |
-| Alt+1 · Alt+2 · Alt+3 · Alt+4 | Distribución SOLA · DERECHA · ABAJO · CUATRO | Visor |
+| Alt+1 · Alt+2 · Alt+3 · Alt+4 · Alt+5 | Solo esta vista · Vista grande a la izquierda · Vista grande arriba · Todas iguales · Rotar | Visor |
 | S | Encender o apagar VINCULAR | Visor |
 | L | Centrar en la lesión (3D y cortes) | Visor |
 | H | Nivel de textos: completo · esencial · limpio | Visor |
-| R · A · G · T | Armar o desarmar la herramienta Regla · Ángulo · Región · Marcador | Visor |
+| R · A · G · T | Arman o desarman Regla · Ángulo · Región · Marcador; luego se pincha en un corte (dos puntos, tres puntos, el contorno o un punto y la nota) | Visor |
 | Supr | Borrar la anotación seleccionada | Visor |
 | Retroceso | Quitar el último punto de la anotación en curso | Visor |
 | C | Encuadrar la celda enfocada | Celda |
@@ -393,7 +393,7 @@ asa de la celda y el divisor, de la rejilla del visor.
 | Arrastrar | Ventana y nivel del corte |
 | Mayús+arrastrar o botón central | Desplazar el corte |
 | Doble clic en W/L | Volver a la ventana del estudio |
-| Doble clic | Hacer principal una vista pequeña |
+| Doble clic en el asa | Dejar solo esa vista (otro doble clic devuelve las demás) |
 | Arrastrar la celda | Intercambiar dos vistas (desde el borde de arriba de la celda) |
 | Arrastrar el divisor | Repartir el sitio entre la principal y las demás |
 | Doble clic en el divisor | Volver al reparto por defecto |
@@ -406,9 +406,9 @@ Qué hace cada control y cuándo usarlo. Lo que no está aquí no existe.
 | Herramienta | Qué hace | Cuándo |
 |---|---|---|
 | PRINCIPAL ▸ 3D · AX · COR · SAG · VOLUMEN | Elige la celda grande; las pequeñas siguen siempre el orden 3D · AX · COR · SAG · VOLUMEN | Para trabajar en una vista |
-| Distribución (Alt+1…4) | SOLA · DERECHA · ABAJO · CUATRO | Según cuántas vistas quieras a la vez |
+| Distribución (Alt+1…5) | Solo esta vista · GRANDE IZQ · GRANDE ARR · IGUALAR · ROTAR | Según cuántas vistas quieras a la vez |
 | VINCULAR ●/○ (S) | Encendido: un clic en una vista centra las demás en ese punto | Casi siempre encendido |
-| PLANOS ●/○ | Dibuja los rectángulos de los cortes en el 3D | Para situar un corte en el árbol |
+| REFERENCIAS ●/○ | Líneas de referencia en el 3D: rectángulos de los cortes, sus cruces y el teñido de la malla | Para situar un corte en el árbol |
 | CALOR ●/○ | Mapa de calor del clip sobre la malla | En el paso de dispositivos |
 | TEXTOS ▸ COMPLETO · ESENCIAL · LIMPIO (H) | Cuánto texto se pinta sobre la imagen; limpio deja lateralidad y escala | Limpio para capturas y presentaciones |
 | ? | Hoja de atajos | — |
@@ -457,13 +457,13 @@ Qué hace cada control y cuándo usarlo. Lo que no está aquí no existe.
 | Cargar | Carga DICOM de paciente y caso |
 | Segmentar | Preprocesamiento avanzado (recorte HU, remuestreo), método tubular o umbral con vista previa, borrado por radio, pieza suelta y región pegada, tijera, recorte de malla por ROI esférico (radio), caja de recorte, historial de la malla |
 | Detectar | Candidatos y descartados, confirmación de la lesión |
-| Morfometría | Cuello y ápice (o borde), métricas e índices, PHASES · ELAPSS · UIATS (edad desde la ficha), seguimiento, ramas cerca del cuello, línea central y calibre (clic, arrastre o flechas en la gráfica llevan al sitio) |
-| Decisión | Factores y recomendación terapéutica |
-| Dispositivos | Clips (campo, ensayo de colocación), coils, stents, Stent CL, WEB, trayectoria de abordaje con valoración del corredor y su ángulo respecto al eje del aneurisma (sin morfometría, respecto al eje vertical del estudio) |
-| Fabricación | Fabricación de la pieza a medida y pedidos de clips |
-| Informe | Informe PDF, malla STL, escena GLB, DICOM SR, DICOM SEG, preparación de impresión, Guardar sesión |
+| Morfometría | Cuello y ápice (o borde), métricas e índices, seguimiento, ramas cerca del cuello, línea central y calibre (clic, arrastre o flechas en la gráfica llevan al sitio) |
+| Decisión | Factores y recomendación terapéutica; escalas de riesgo PHASES · ELAPSS · UIATS (edad desde la ficha), plegadas |
+| Dispositivos | Clips (trayectoria de abordaje con valoración del corredor y su ángulo respecto al eje del aneurisma —sin morfometría, respecto al eje vertical del estudio—, campo, ensayo de colocación), coils, stents, Stent CL, WEB |
+| Fabricación | Fabricación de la pieza a medida, pedidos de clips y preparación del modelo para impresión 3D |
+| Informe | Informe PDF, malla STL, escena GLB, DICOM SR, DICOM SEG, Guardar sesión |
 
-La captura y la grabación están en la barra superior y las anotaciones en la columna derecha, en cualquier paso.
+La captura y la grabación están en la barra superior (y en ⌘K / Ctrl+K); no tienen tecla propia. Las anotaciones están en la columna derecha, en cualquier paso, y entran en el informe PDF.
 
 ---
 

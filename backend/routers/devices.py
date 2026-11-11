@@ -148,7 +148,7 @@ async def put_placed_clips(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> PlacedClipsState:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     # Es el trabajo de una sesión ligada a un paciente: solo quien lo ve.
     require_session(db, current_user, session_id)
     save_placed_clips(session_id, req.model_dump(mode="json"))
@@ -167,7 +167,7 @@ async def put_placed_clips(
 )
 async def list_placed_devices(session_id: str) -> DeviceClearResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     remaining = _placed(session_id)
     return DeviceClearResult(
         cleared=[], remaining=remaining, meshes_removed=0,
@@ -197,7 +197,7 @@ async def put_device_strategy(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> DeviceStrategyState:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     require_session(db, current_user, session_id)
     write_state(session_id, STRATEGY_KEY, req.strategy or "")
     return DeviceStrategyState(strategy=stored_strategy(session_id))
@@ -225,7 +225,7 @@ async def clear_devices_endpoint(
     ),
 ) -> DeviceClearResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     if kind is not None and kind not in DEVICE_KINDS:
         raise HTTPException(

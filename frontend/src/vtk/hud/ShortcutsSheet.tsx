@@ -11,7 +11,14 @@ import { useMediaQuery } from "../../hooks/useEstrecho";
 import { MQ_MOVIL, MQ_TACTIL, OBJETIVO_TACTIL_PX } from "../../pipeline/puntosCorte";
 import { shortcutsByScope, type Shortcut, type ShortcutScope } from "../shortcuts";
 
-const HEADINGS: [ShortcutScope, string][] = [["visor", "Visor"], ["celda", "Celda"], ["flujo", "Flujo"], ["raton", "Ratón"]];
+/** Con una línea debajo: «L» (todas las vistas) y «C» (solo la enfocada) no
+ *  se distinguían por el título de la columna (auditoría F3). */
+const HEADINGS: [ShortcutScope, string, string][] = [
+  ["visor", "Visor", "todas las vistas"],
+  ["celda", "Celda", "solo la vista con el foco"],
+  ["flujo", "Flujo", "pasos y panel"],
+  ["raton", "Ratón", "gestos sobre las vistas"],
+];
 
 /** Los ocho saltos de paso son una sola fila «1 … 8 · Ir al paso N»: ocho filas
  *  iguales salvo el número tapaban el resto de la columna. */
@@ -73,9 +80,10 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
           </button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))", gap: "12px 24px" }}>
-          {HEADINGS.map(([scope, title]) => (
+          {HEADINGS.map(([scope, title, sub]) => (
             <section key={scope}>
               <h3 style={{ margin: "0 0 6px", fontSize: tactil ? 13 : 10, fontWeight: 400, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--hud-text-dim)", borderBottom: "1px solid var(--hud-text-dim)", paddingBottom: 3 }}>{title}</h3>
+              <div style={{ margin: "-3px 0 6px", fontSize: tactil ? 12 : 10, color: "var(--hud-text-dim)" }}>{sub}</div>
               <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "minmax(0, 22ch) minmax(0, 1fr)", gap: "4px 12px" }}>
                 {rows(groups[scope]).map((r) => (
                   <div key={r.keys} style={{ display: "contents" }}>

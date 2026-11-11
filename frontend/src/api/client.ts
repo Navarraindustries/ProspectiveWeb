@@ -395,6 +395,47 @@ async function getBlob(path: string): Promise<Blob> {
   return res.blob();
 }
 
+/** POST de un FormData informando del avance de la subida. Mismas reglas que
+ *  `request`: cookie de sesión, cabecera CSRF, límite de tiempo, 401 → entrar
+ *  otra vez y el `detail` del servidor como mensaje. */
+function postConProgreso<T>(path: string, form: FormData, timeoutMs: number,
+  onProgress: (enviados: number, total: number) => void): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", path);
+    xhr.withCredentials = true;
+    xhr.timeout = timeoutMs;
+    const csrf = csrfToken();
+    if (csrf) xhr.setRequestHeader("X-CSRF-Token", csrf);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded, e.total); };
+    const sinRespuesta = (msg: string) => {
+      const err = new ApiError(0, msg);
+      noteConnectionFailure("POST", () => postConProgreso<T>(path, form, timeoutMs, onProgress));
+      reject(err);
+    };
+    xhr.onerror = () => sinRespuesta("Sin conexión con el servidor");
+    xhr.ontimeout = () => sinRespuesta("El servidor tardó demasiado en responder");
+    xhr.onload = () => {
+      if (xhr.status === 401 && !isAuthAttempt(path)) handleUnauthorized();
+      let body: unknown = null;
+      try { body = xhr.responseText ? JSON.parse(xhr.responseText) : null; } catch { body = null; }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        noteServerAnswered();
+        resolve(body as T);
+        return;
+      }
+      const d = (body as { detail?: unknown } | null)?.detail;
+      const detail = typeof d === "string" ? d
+        : d && typeof d === "object" && typeof (d as { message?: unknown }).message === "string" ? (d as { message: string }).message
+        : `Error ${xhr.status}`;
+      const answered = d !== undefined || xhr.status < 500;
+      if (answered) noteServerAnswered();
+      reject(new ApiError(xhr.status, detail, answered, typeof d === "object" ? d : undefined));
+    };
+    xhr.send(form);
+  });
+}
+
 const get = <T>(path: string) => request<T>(path);
 const post = <T>(path: string, body?: unknown, timeoutMs?: number) =>
   request<T>(path, {
@@ -509,9 +550,13 @@ export const api = {
   usersBrief: () => get<UserBrief[]>("/api/auth/users/brief"),
 
   /* dicom pipeline */
-  upload: (files: File[]) => {
+  /** Con `onProgress` va por XMLHttpRequest, que sí informa de los bytes
+   *  enviados (fetch no): con 113 MB por la red del hospital eran minutos sin
+   *  saber cuánto faltaba (auditoría F3). Sin él, el camino de siempre. */
+  upload: (files: File[], onProgress?: (enviados: number, total: number) => void) => {
     const form = new FormData();
     for (const f of files) form.append("files", f, f.name);
+    if (onProgress) return postConProgreso<UploadResult>("/api/upload", form, UPLOAD_TIMEOUT_MS, onProgress);
     return post<UploadResult>("/api/upload", form, UPLOAD_TIMEOUT_MS);
   },
   /** Lanza la segmentación en segundo plano y espera su resultado preguntando

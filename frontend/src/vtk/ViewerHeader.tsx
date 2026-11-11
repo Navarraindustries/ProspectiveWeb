@@ -18,7 +18,7 @@ import { useMediaQuery } from "../hooks/useEstrecho";
 import { MQ_MOVIL, MQ_TACTIL } from "../pipeline/puntosCorte";
 import type { ViewerLayout } from "./layout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
-import { bandTier } from "./mainOptions";
+import { REFERENCIAS_TITLE, bandTier } from "./mainOptions";
 import { ViewerHeaderIconos } from "./ViewerHeaderIconos";
 import { ViewerLayoutControls } from "./ViewerLayoutControls";
 import { HUD_LEVELS, type HudLevel } from "./viewerPrefs";
@@ -118,7 +118,7 @@ export function ViewerHeader(props: ViewerHeaderProps) {
       </div>
       <div data-banda="der" style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", columnGap: 10, rowGap: 0, alignItems: "center", flex: "1 1 auto", minWidth: 0, minHeight: 22 }}>
         <HudToggleGroup
-          options={[{ key: "planes", label: planesHidden ? "PLANOS ○" : "PLANOS ●", title: "Mostrar/ocultar los planos de corte en el 3D" }]}
+          options={[{ key: "planes", label: `${compact ? "REF" : "REFERENCIAS"} ${planesHidden ? "○" : "●"}`, title: REFERENCIAS_TITLE }]}
           value={planesHidden ? "" : "planes"} onChange={() => onPlanesHiddenChange(!planesHidden)} />
         {/* La banda queda fuera de `data-hud`: en limpio estos botones siguen
             ahí para volver (además de la H). En banda estrecha, C · E · L. */}

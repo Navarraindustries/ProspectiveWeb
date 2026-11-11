@@ -42,7 +42,7 @@ _PLANES = {"axial", "coronal", "sagital"}
 )
 async def volume_meta(session_id: str) -> dict:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     loop = asyncio.get_event_loop()
     try:
         meta = await loop.run_in_executor(_executor, partial(ensure_volume_cached, session_id))
@@ -68,7 +68,7 @@ class ManualOrientation(BaseModel):
 )
 async def put_orientation(session_id: str, body: ManualOrientation) -> dict:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     write_state(session_id, "dicom.orientation_manual", body.model_dump_json())
     loop = asyncio.get_event_loop()
     try:
@@ -95,7 +95,7 @@ async def put_window(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> ViewerWindow:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     # Es el trabajo de una sesión ligada a un paciente: solo quien lo ve.
     require_session(db, current_user, session_id)
     write_state(session_id, "viewer.wc", repr(float(body.wc)))
@@ -135,7 +135,7 @@ async def get_volume_chunk(
     accept_encoding: str | None = Header(default=None),
 ) -> Response:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     if level not in ("full", "coarse"):
         raise HTTPException(status_code=422, detail="level debe ser 'full' o 'coarse'")
     use_gzip = "gzip" in (accept_encoding or "").lower()
@@ -204,7 +204,7 @@ async def get_oblique_slice(
     ww: float | None = Query(None),
 ) -> Response:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     loop = asyncio.get_event_loop()
     try:
         png = await loop.run_in_executor(
@@ -236,7 +236,7 @@ async def get_slice(
     upper: float | None = Query(None, description="Threshold-preview upper HU"),
 ) -> Response:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     if plane not in _PLANES:
         raise HTTPException(status_code=422, detail=f"plane debe ser uno de {sorted(_PLANES)}")
 

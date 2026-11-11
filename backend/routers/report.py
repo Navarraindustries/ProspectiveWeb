@@ -136,7 +136,7 @@ async def generate_report(
     if not session_exists(req.session_id):
         raise HTTPException(
             status_code=404,
-            detail=f"Session '{req.session_id}' not found",
+            detail=f"Sesión '{req.session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio",
         )
 
     loop = asyncio.get_event_loop()
@@ -169,7 +169,7 @@ async def generate_report(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Report generation failed for session %s", req.session_id)
-        raise HTTPException(status_code=500, detail=f"Report generation error: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"No se pudo generar el informe: {exc}") from exc
 
     # Build the page count from the file (reportlab writes it as part of the PDF)
     # We can get an approximate page count by reading the PDF trailer — simpler:
@@ -230,7 +230,7 @@ async def generate_dicom_sr(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> ReportResult:
     if not session_exists(req.session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{req.session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     loop = asyncio.get_event_loop()
 
@@ -297,7 +297,7 @@ async def generate_dicom_sr(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("DICOM SR generation failed for session %s", req.session_id)
-        raise HTTPException(status_code=500, detail=f"DICOM SR error: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"No se pudo generar el DICOM SR: {exc}") from exc
 
     sr_url = _versioned(f"/data/sessions/{req.session_id}/reports/{req.session_id}_sr.dcm")
     write_state(req.session_id, SR_SIGNATURE_KEY, firma)
@@ -340,7 +340,7 @@ async def export_stl_endpoint(
     if not session_exists(req.session_id):
         raise HTTPException(
             status_code=404,
-            detail=f"Session '{req.session_id}' not found",
+            detail=f"Sesión '{req.session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio",
         )
 
     meshes_dir = session_subdir(req.session_id, "meshes")
@@ -397,7 +397,7 @@ async def export_stl_endpoint(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("STL export failed for session %s", req.session_id)
-        raise HTTPException(status_code=500, detail=f"STL export error: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"No se pudo exportar el STL: {exc}") from exc
 
     stl_url = _versioned(f"/data/sessions/{req.session_id}/exports/{req.session_id}_export.stl")
 
@@ -444,7 +444,7 @@ _DOME_COLOR = (0.32, 0.55, 0.75)
 )
 async def export_glb_endpoint(session_id: str) -> GlbExportResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     meshes_dir = session_subdir(session_id, "meshes")
 
     def _sync():
@@ -495,7 +495,7 @@ async def export_dicom_seg(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> DicomSegResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     from services.dicom_seg import build_dicom_seg
     out = session_subdir(session_id, "exports") / "segmentacion.dcm"
     try:
@@ -540,7 +540,7 @@ async def export_dicom_seg(
 )
 async def set_trajectory(session_id: str, req: TrajectoryRequest) -> TrajectoryResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     write_state(session_id, "trajectory.entry_x", str(req.entry.x))
     write_state(session_id, "trajectory.entry_y", str(req.entry.y))
     write_state(session_id, "trajectory.entry_z", str(req.entry.z))
@@ -659,7 +659,7 @@ def _corridor_out(a) -> CorridorAssessmentOut:
 )
 async def clear_trajectory(session_id: str) -> None:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     # El veredicto se borra con los puntos. Dejarlo dejaría en el informe un
     # «corredor bloqueado» de una trayectoria que ya no existe.
     for k in ("entry_x", "entry_y", "entry_z", "target_x", "target_y", "target_z"):
@@ -712,7 +712,7 @@ async def suggest_corridors(
     session_id: str, req: SuggestCorridorsRequest
 ) -> SuggestCorridorsResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     meshes = session_subdir(session_id, "meshes")
     vtp = meshes / "vessel_tree.vtp"
@@ -867,7 +867,7 @@ def _suggest_for_session(
 )
 async def get_trajectory(session_id: str) -> "TrajectoryResult | None":
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     return stored_trajectory(session_id)
 
 

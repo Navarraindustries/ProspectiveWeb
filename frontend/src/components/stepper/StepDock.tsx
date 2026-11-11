@@ -45,6 +45,9 @@ const ALCANCE = 120; // px de distancia horizontal a partir de la cual no hay am
 const AMPLIACION_MAX = 0.25;
 /** Lo que dura la burbuja a la vista si nadie toca nada. */
 export const BURBUJA_MS = 3000;
+/** Evento de ventana (detail = índice del paso) para enseñar el motivo de un
+ *  paso bloqueado desde fuera del dock: la tecla 1–8 del espacio de trabajo. */
+export const STEP_MOTIVO_EVENT = "stepdock:motivo";
 
 /** La burbuja del modo táctil: el motivo de un bloqueo o el aviso de un paso. */
 interface Burbuja {
@@ -75,6 +78,16 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
     document.addEventListener("pointerdown", fuera);
     return () => { window.clearTimeout(t); document.removeEventListener("pointerdown", fuera); };
   }, [burbuja]);
+
+  useEffect(() => {
+    const alPedir = (e: Event) => {
+      const i = (e as CustomEvent<number>).detail;
+      const motivo = typeof i === "number" ? missingFor(i) : null;
+      if (motivo) setBurbuja({ texto: `Paso ${i + 1}, ${steps[i].label} — ${motivo}`, paso: i, tipo: "motivo" });
+    };
+    window.addEventListener(STEP_MOTIVO_EVENT, alPedir);
+    return () => window.removeEventListener(STEP_MOTIVO_EVENT, alPedir);
+  }, [missingFor, steps]);
 
   /** Toque en un paso. Un bloqueado dice su motivo en la burbuja, con ratón o
    *  con dedo. Con ratón, lo demás navega al primer clic. En táctil, uno con
@@ -241,7 +254,6 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
       data-modo={modo}
       onPointerMove={onMove}
       onPointerLeave={() => setEscalas([])}
-      title={tactil ? undefined : `Atajos: 1–${steps.length} para cambiar de paso · Esc cancela el marcado`}
       style={{
         ...glass("viewer"),
         ...posicion,
@@ -288,7 +300,10 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
               aria-current={active ? "step" : undefined}
               aria-disabled={locked ? "true" : undefined}
               aria-label={locked ? `Paso ${i + 1}, ${nombre} — ${missing}` : `Paso ${i + 1}, ${nombre}${aviso ? `. ${aviso}` : ""}`}
-              title={locked ? (missing ?? s.label) : aviso ? `${nombre} — ${aviso}` : nombre}
+              // La tecla va en el tooltip de cada paso: en el del carril solo
+              // salía entre botones (auditoría F3).
+              title={`${locked ? (missing ?? s.label) : aviso ? `${nombre} — ${aviso}` : nombre} (tecla ${i + 1})`}
+              aria-keyshortcuts={String(i + 1)}
               onClick={() => pulsar(i, locked ? missing : null, aviso, `Paso ${i + 1}, ${nombre}`)}
               animate={{ scale: escala }}
               transition={{ duration: 0.12, ease: "easeOut" }}

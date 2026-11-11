@@ -92,7 +92,7 @@ describe("ViewerHeader — ancho de la banda", () => {
   it("con sitio los mandos van enteros", () => {
     stubBandWidth(1200);
     setup();
-    expect(screen.getByRole("button", { name: "Poner la vista grande arriba" })).toHaveTextContent("GRANDE IZQ");
+    expect(screen.getByRole("button", { name: "Poner la vista grande arriba" })).toHaveTextContent("GRANDE ARR");
     expect(screen.getByRole("button", { name: "Igualar las vistas" })).toHaveTextContent("IGUALAR");
   });
 
@@ -100,7 +100,7 @@ describe("ViewerHeader — ancho de la banda", () => {
     stubBandWidth(900);
     const { container } = setup();
     expect(container.querySelector('[data-banda="raiz"]')).toHaveAttribute("data-tier", "estrecho");
-    expect(screen.getByRole("button", { name: "Poner la vista grande arriba" })).toHaveTextContent(/^IZQ$/);
+    expect(screen.getByRole("button", { name: "Poner la vista grande arriba" })).toHaveTextContent(/^ARR$/);
     expect(screen.getByRole("button", { name: "Igualar las vistas" })).toHaveTextContent(/^IGUAL$/);
   });
 
@@ -135,9 +135,9 @@ describe("ViewerHeader — ancho de la banda", () => {
 });
 
 describe("ViewerHeader — conmutadores y teclas", () => {
-  it("PLANOS y VINCULAR avisan con el valor contrario", () => {
+  it("REFERENCIAS y VINCULAR avisan con el valor contrario", () => {
     const { props } = setup({ planesHidden: true, syncViews: true });
-    fireEvent.click(screen.getByRole("button", { name: /PLANOS ○/ }));
+    fireEvent.click(screen.getByRole("button", { name: /REFERENCIAS ○/ }));
     fireEvent.click(screen.getByRole("button", { name: /VINCULAR ●/ }));
     expect(props.onPlanesHiddenChange).toHaveBeenCalledWith(false);
     expect(props.onSyncViewsChange).toHaveBeenCalledWith(false);
@@ -169,10 +169,10 @@ describe("ViewerHeader — conmutadores y teclas", () => {
     expect(screen.getByRole("button", { name: /^L$/ })).toBeInTheDocument();
   });
 
-  it("PLANOS emite con cualquier nivel del HUD", () => {
+  it("REFERENCIAS emite con cualquier nivel del HUD", () => {
     for (const hudLevel of ["completo", "esencial", "limpio"] as const) {
       const { props, unmount } = setup({ hudLevel, planesHidden: false });
-      fireEvent.click(screen.getByRole("button", { name: /PLANOS ●/ }));
+      fireEvent.click(screen.getByRole("button", { name: /REFERENCIAS ●/ }));
       expect(props.onPlanesHiddenChange).toHaveBeenCalledWith(true);
       unmount();
     }
@@ -281,7 +281,7 @@ describe("ViewerHeader — modo iconos (táctil ≤ 1024, móvil ≤ 640)", () =
     if (w <= 640) expect(raiz).toHaveAttribute("data-movil", "true");
     else expect(raiz).not.toHaveAttribute("data-movil");
     expect(screen.getByRole("button", { name: "Vista AXIAL" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Planos de corte en el 3D" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Líneas de referencia en el 3D" })).toBeInTheDocument();
     if (w <= 640) expect(screen.queryByTitle("Atajos (?)")).toBeNull();
     else expect(screen.getByTitle("Atajos (?)")).toBeInTheDocument();
   });
@@ -291,7 +291,7 @@ describe("ViewerHeader — modo iconos (táctil ≤ 1024, móvil ≤ 640)", () =
     const { props } = setup();
     fireEvent.click(screen.getByRole("button", { name: "Vista AXIAL" }));
     expect(props.onLayoutChange).toHaveBeenLastCalledWith(togglePane(DEFAULT_LAYOUT, "axial"));
-    expect(screen.getByRole("button", { name: "Poner la vista grande arriba" })).toHaveTextContent(/^IZQ$/);
+    expect(screen.getByRole("button", { name: "Poner la vista grande arriba" })).toHaveTextContent(/^ARR$/);
   });
 
   it("en iconos, TEXTOS rota completo → esencial → limpio → completo", () => {
@@ -311,10 +311,10 @@ describe("ViewerHeader — modo iconos (táctil ≤ 1024, móvil ≤ 640)", () =
     expect(props.onHudLevelChange).toHaveBeenLastCalledWith("completo");
   });
 
-  it("en iconos, PLANOS, VINCULAR y CALOR dicen su estado con aria-pressed y avisan del contrario", () => {
+  it("en iconos, REFERENCIAS, VINCULAR y CALOR dicen su estado con aria-pressed y avisan del contrario", () => {
     simularPantalla(390); stubBandWidth(anchoBanda(390));
     const { props } = setup({ planesHidden: true, syncViews: true, hasClipField: true, showClipField: true });
-    const planos = screen.getByRole("button", { name: "Planos de corte en el 3D" });
+    const planos = screen.getByRole("button", { name: "Líneas de referencia en el 3D" });
     const vincular = screen.getByRole("button", { name: "Vincular las vistas" });
     const calor = screen.getByRole("button", { name: "Mapa de calor del clip" });
     expect(planos).toHaveAttribute("aria-pressed", "false");

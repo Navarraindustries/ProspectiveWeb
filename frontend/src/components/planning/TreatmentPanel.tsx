@@ -14,7 +14,8 @@ import { Icon } from "../Icon";
 import { Input } from "../Input";
 import { Metric } from "../Metric";
 import { PanelFooter } from "../PanelFooter";
-import { Card, ErrorNote, PanelHead, SectionLabel } from "../PanelHead";
+import { Card, Collapsible, ErrorNote, PanelHead, SectionLabel } from "../PanelHead";
+import { EscalasClinicas } from "./EscalasClinicas";
 import { Select } from "../Select";
 import { usePlanning } from "../../store/planning";
 import { ageFromDob } from "../patientAge";
@@ -147,7 +148,7 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
           label="Estado"
           options={[
             { value: "no", label: "No roto (electivo)" },
-            { value: "si", label: "Roto (SAH)" },
+            { value: "si", label: "Roto (HSA)" },
           ]}
           value={ruptured ? "si" : "no"}
           onChange={(e) => setRuptured(e.target.value === "si")}
@@ -166,12 +167,8 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
           que sí tienen fuente. La edad ya no está en ese grupo. */}
       <div style={{ display: "flex", gap: 6, marginTop: 6, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
         <Icon name="INFO" size={13} color="var(--muted-foreground)" />
-        <span>
-          La edad puntúa <b>sólo en aneurismas no rotos</b>: en los rotos la cuenta el
-          modelo del Japan Stroke Data Bank, que es de donde salen los cortes de 72 y
-          80 años, y sumarla en los dos sitios sería contarla dos veces. La
-          comorbilidad no puntúa en ninguno: se registra y aparece en el informe,
-          porque no hay puntuación publicada que trasladar.
+        <span title="En los rotos la cuenta el modelo del Japan Stroke Data Bank (cortes de 72 y 80 años): sumarla también aquí sería contarla dos veces. La comorbilidad se registra y sale en el informe, pero no hay puntuación publicada que trasladar.">
+          La edad puntúa <b>solo en no rotos</b> (en rotos la cuenta el JSDB); la comorbilidad no puntúa.
         </span>
       </div>
 
@@ -529,6 +526,16 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
             </>
           )}
         </>
+      )}
+
+      {/* Las escalas de riesgo venían de Morfometría (decidido el 11-11): se
+          consultan al decidir. Plegadas, para no tapar la recomendación. */}
+      {planning.morphometry && (
+        <div style={{ marginTop: 16 }}>
+          <Collapsible title="Escalas de riesgo" subtitle="PHASES, ELAPSS y UIATS" storageKey="ws.treatment.escalas">
+            <EscalasClinicas />
+          </Collapsible>
+        </div>
       )}
 
       {/* F1-183: se apagaba sin recomendación, aunque el carril deja entrar en

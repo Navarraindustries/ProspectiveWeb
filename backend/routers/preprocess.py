@@ -129,7 +129,7 @@ def _run(session_id: str, req: PreprocessRequest) -> PreprocessResult:
 )
 async def preprocess(session_id: str, req: PreprocessRequest) -> PreprocessResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     try:
         return await asyncio.to_thread(_run, session_id, req)
     except ValueError as exc:
@@ -216,7 +216,7 @@ def _revert(session_id: str) -> PreprocessResult:
 )
 async def preprocess_status(session_id: str) -> PreprocessStatus:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     ops = read_state(session_id, _OPS_KEY, "") or ""
     return PreprocessStatus(applied=bool(ops), ops=ops)
 
@@ -234,7 +234,7 @@ async def preprocess_status(session_id: str) -> PreprocessStatus:
 )
 async def revert_preprocess(session_id: str) -> PreprocessResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     try:
         return await asyncio.to_thread(_revert, session_id)
     except FileNotFoundError as exc:

@@ -179,7 +179,7 @@ async def save_session(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> SessionSaveResult:
     if not session_exists(req.session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{req.session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     require_patient(db, current_user, req.patient_id)
 

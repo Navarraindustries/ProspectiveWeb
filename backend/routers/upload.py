@@ -258,7 +258,7 @@ def _activate_series(session_id: str, s: SeriesInfo) -> None:
 )
 async def set_active_series(session_id: str, series_id: str) -> SeriesInfo:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     dicom_dir = session_subdir(session_id, "dicom")
     try:

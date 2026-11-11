@@ -66,7 +66,7 @@ async def phases(req: PhasesRequest) -> PhasesResult:
     if req.session_id:
         if not session_exists(req.session_id):
             raise HTTPException(
-                status_code=404, detail=f"Session '{req.session_id}' not found"
+                status_code=404, detail=f"Sesión '{req.session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio"
             )
         # Una decisión ya tomada pudo consultar este riesgo: el atajo del
         # aneurisma pequeño devuelve «vigilancia» o «discusión multidisciplinaria»
@@ -98,7 +98,7 @@ async def elapss(req: ElapssRequest) -> ElapssResult:
     result = compute_elapss(req)
     if req.session_id:
         if not session_exists(req.session_id):
-            raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
+            raise HTTPException(status_code=404, detail=f"Sesión '{req.session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
         write_state(req.session_id, "elapss.json", json.dumps(elapss_record(req, result)))
         logger.info("ELAPSS recorded for %s — score=%d", req.session_id, result.total_score)
     return result
@@ -122,7 +122,7 @@ async def uiats(req: UiatsRequest) -> UiatsResult:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if req.session_id:
         if not session_exists(req.session_id):
-            raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
+            raise HTTPException(status_code=404, detail=f"Sesión '{req.session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
         write_state(req.session_id, "uiats.json", json.dumps(record))
         logger.info("UIATS recorded for %s — %d vs %d", req.session_id, result.repair, result.conservative)
     return result

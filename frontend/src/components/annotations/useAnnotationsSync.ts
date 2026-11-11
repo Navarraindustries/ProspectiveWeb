@@ -148,5 +148,6 @@ export function annotationsSubtitle(
   if (loadState === "error") return "no se pudieron cargar: sin guardado automático";
   if (sync === "guardando") return "guardando…";
   if (sync === "error") return "sin guardar";
-  return count > 0 ? "guardado en esta sesión; usa Guardar progreso para conservarlo" : "Reglas, ángulos, regiones y notas";
+  // Que entran en el informe solo se decía al borrar (auditoría F3).
+  return count > 0 ? "guardado en esta sesión; usa Guardar progreso para conservarlo · entran en el informe" : "Reglas, ángulos, regiones y notas · entran en el informe";
 }

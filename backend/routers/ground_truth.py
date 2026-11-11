@@ -205,7 +205,7 @@ async def confirm_lesion(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> LesionConfirmOut:
     if not session_exists(req.session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{req.session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     img = None
     if req.imaging_study_id is not None:

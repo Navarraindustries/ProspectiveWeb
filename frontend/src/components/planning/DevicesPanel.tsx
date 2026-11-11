@@ -595,6 +595,10 @@ function ClipsTab() {
 
   return (
     <div style={{ marginTop: 12 }}>
+      {/* El abordaje es de la vía quirúrgica: iba arriba del paso, fuera de las
+          pestañas, también para quien planifica coils o stent (auditoría F3;
+          decidido el 11-11). Es lo primero de Clips. */}
+      <TrajectoryTool />
       {/* Dos preguntas, dos pantallas. «Qué clip» y «dónde va» se hacían en una
           sola columna de más de mil píxeles, con el razonamiento, el ensayo, el
           selector, los colocados, sus coordenadas y la verificación seguidos:
@@ -850,7 +854,7 @@ function ClipsTab() {
           <ErrorNote>{error}</ErrorNote>
 
           <Button style={{ marginTop: 14, width: "100%" }} onClick={() => void place(placed)} disabled={busy || placed.length === 0} leadingIcon={<Icon name="CLIP_PLACE" />}>
-            {busy ? "Verificando…" : `Colocar ${placed.length || ""} y verificar`}
+            {busy ? "Verificando…" : `Colocar y verificar${placed.length ? ` (${placed.length} ${placed.length === 1 ? "clip" : "clips"})` : ""}`}
           </Button>
           {/* Once placed, editing or removing a clip in the list re-places the
               set after the debounce; emptying the list leaves the last placement
@@ -2172,8 +2176,7 @@ export function DevicesPanel({ onNext, onSkipToReport }: {
   return (
     <div className="fade-rise">
       {/* El paso empieza por el abordaje y tiene WEB: la entradilla no lo decía (F1-184). */}
-      <PanelHead title="Planificación de dispositivos" desc="Traza el abordaje y prueba clip, coils, stent o WEB sobre el saco medido" />
-      <TrajectoryTool />
+      <PanelHead title="Planificación de dispositivos" desc="Prueba clip, coils, stent o WEB sobre el saco medido; el abordaje quirúrgico se traza en Clips" />
       <PlacedDevicesBar />
       <Tabs tabs={TABS} value={tab} onChange={setTab} />
       {tab === "Clips" && <ClipsTab />}

@@ -57,7 +57,7 @@ def _run_extraction(vessel_path, source, target, voxel_size, out_path, points_pa
 )
 async def compute_centerline(session_id: str, req: CenterlineRequest) -> CenterlineResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     meshes_dir = session_subdir(session_id, "meshes")
     vessel_path = meshes_dir / "vessel_tree.vtp"
@@ -121,7 +121,7 @@ def _to_out(result, url: str) -> CenterlineResult:
 )
 async def get_centerline(session_id: str) -> CenterlineResult | None:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     meshes_dir = session_subdir(session_id, "meshes")
     points_path = meshes_dir / "centerline_points.npz"
     if not points_path.exists() or not (meshes_dir / "centerline.vtp").exists():
@@ -153,7 +153,7 @@ async def get_centerline(session_id: str) -> CenterlineResult | None:
 )
 async def get_centerline_points(session_id: str) -> CenterlinePoints:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     points_path = session_subdir(session_id, "meshes") / "centerline_points.npz"
     if not points_path.exists():
         raise HTTPException(status_code=404, detail="No hay línea central extraída.")
@@ -197,7 +197,7 @@ def _run_cross_section(vessel_path, points_path, n_samples):
 )
 async def compute_cross_section(session_id: str, req: CrossSectionRequest) -> CrossSectionResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     meshes_dir = session_subdir(session_id, "meshes")
     vessel_path = meshes_dir / "vessel_tree.vtp"
@@ -340,7 +340,7 @@ async def deploy_cl_stent(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> ClStentResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     meshes_dir = session_subdir(session_id, "meshes")
     points_path = meshes_dir / "centerline_points.npz"
@@ -453,7 +453,7 @@ def _run_fd_sizing(session_id: str, vessel_path, points_path):
 )
 async def fd_sizing(session_id: str) -> FdSizingResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     meshes_dir = session_subdir(session_id, "meshes")
     points_path = meshes_dir / "centerline_points.npz"
     vessel_path = meshes_dir / "vessel_tree.vtp"
@@ -490,7 +490,7 @@ async def fd_sizing(session_id: str) -> FdSizingResult:
 )
 async def clear_centerline(session_id: str) -> CenterlineClearResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     meshes_dir = session_subdir(session_id, "meshes")
     had = (meshes_dir / "centerline.vtp").exists() or (meshes_dir / "centerline_points.npz").exists()

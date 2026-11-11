@@ -37,7 +37,9 @@ export function ViewerLayoutControls({ layout, onLayoutChange, corto = false }: 
         <button type="button" className="viewer-accion" aria-label={lado ? "Poner la vista grande arriba" : "Poner la vista grande a la izquierda"}
                 title={lado ? "Poner la vista grande arriba (Alt+3)" : "Poner la vista grande a la izquierda (Alt+2)"}
                 onClick={() => onLayoutChange(flipSide(layout))}>
-          {corto ? (lado ? "IZQ" : "ARR") : (lado ? "GRANDE IZQ" : "GRANDE ARR")}
+          {/* El texto dice lo que hace el botón, como su nombre accesible: decía
+              dónde está ahora la grande, al revés de la acción (auditoría F3). */}
+          {corto ? (lado ? "ARR" : "IZQ") : (lado ? "GRANDE ARR" : "GRANDE IZQ")}
         </button>
       )}
       {!unica && (

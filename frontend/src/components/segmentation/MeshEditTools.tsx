@@ -11,7 +11,8 @@ import { Slider } from "../Slider";
 import type { MeshBounds, MeshHistoryResult } from "../../api/types";
 import { usePlanning } from "../../store/planning";
 
-export function MeshEditTools() {
+/** `sinCabecera`: dentro de un plegable que ya lleva el título. */
+export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean } = {}) {
   const {
     sessionId, segmentation,
     pickMode, setPickMode,
@@ -408,8 +409,8 @@ export function MeshEditTools() {
 
 
   return (
-    <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
-      <SectionLabel style={{ marginBottom: 10 }}>Herramientas de malla</SectionLabel>
+    <div style={sinCabecera ? undefined : { marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+      {!sinCabecera && <SectionLabel style={{ marginBottom: 10 }}>Herramientas de malla</SectionLabel>}
       <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 14 }}>
         Refina la malla segmentada: borra el ruido o el hueso, y recorta lo que sobra.
       </div>

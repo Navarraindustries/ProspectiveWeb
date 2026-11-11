@@ -165,7 +165,7 @@ async def session_identity(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> SessionIdentity:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     sug, study_date, modality = read_dicom_identity(session_id)
 
     matches: list[PatientMatch] = []
@@ -207,7 +207,7 @@ async def attach_session(
     from routers.studies import archive_into_case
 
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     ps = _session_row(db, session_id)
     if ps is not None and ps.imaging_study_id:
         raise HTTPException(status_code=409, detail="Esta sesión ya está adjunta a un caso.")

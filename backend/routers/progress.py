@@ -19,7 +19,7 @@ _IDLE = {"phase": "", "pct": 0.0, "running": False, "ok": None, "message": "", "
 @router.get("/progress/{session_id}", summary="Fase y porcentaje del trabajo en curso")
 async def get_progress(session_id: str) -> dict:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     return progress.get(session_id) or dict(_IDLE)
 
 

@@ -11,11 +11,13 @@ import { OPEN_PALETTE_EVENT } from "../../lib/commands";
 import { QuirofanoBar } from "./QuirofanoBar";
 
 describe("QuirofanoBar", () => {
-  it("la miga «Pacientes» es un botón que llama a su destino", () => {
+  it("la miga del paciente es un botón que llama a su destino, y «Pacientes» no se repite junto a «Volver»", () => {
     const onClick = vi.fn();
-    render(<QuirofanoBar crumbs={[{ label: "Pacientes", onClick }, { label: "Sesión" }]} onBack={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Pacientes" }));
+    render(<QuirofanoBar crumbs={[{ label: "Pacientes", onClick: vi.fn() }, { label: "García, Ana", onClick }, { label: "Sesión" }]} onBack={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "García, Ana" }));
     expect(onClick).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Pacientes" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Volver a Pacientes" })).toBeInTheDocument();
   });
   it("«Volver a Pacientes» llama a onBack", () => {
     const onBack = vi.fn();
@@ -115,10 +117,12 @@ describe("QuirofanoBar", () => {
     const { container } = render(<QuirofanoBar crumbs={TRES} onBack={vi.fn()} />);
     expect(container.firstElementChild?.hasAttribute("data-quirofano-bar")).toBe(true);
   });
-  it("ancho: ⌘K y tema siguen, sin «Más acciones»", () => {
+  // El tema ya no está en el quirófano (decidido el 11-11): en claro, el visor
+  // negro quedaba entre paneles blancos. Se cambia desde la paleta (⌘K).
+  it("ancho: ⌘K sigue, sin tema ni «Más acciones»", () => {
     render(<QuirofanoBar crumbs={TRES} onBack={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Abrir la paleta de mandos (Ctrl+K)" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Cambiar a tema claro/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /tema/i })).toBeNull();
     expect(screen.queryByRole("button", { name: "Más acciones" })).toBeNull();
   });
   it("lleva estado, acciones y el botón ⌘K que abre la paleta", () => {

@@ -117,7 +117,7 @@ def _run_crop(vessel_path: Path, req: MeshCropRequest) -> "tuple[object, int, in
 )
 async def mesh_crop(session_id: str, req: MeshCropRequest) -> MeshCropResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     vessel_path = session_subdir(session_id, "meshes") / "vessel_tree.vtp"
     if not vessel_path.exists():
@@ -184,7 +184,7 @@ async def mesh_bounds(session_id: str) -> MeshBoundsResult:
 
 def _mesh_or_404(session_id: str) -> Path:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     path = session_subdir(session_id, "meshes") / "vessel_tree.vtp"
     if not path.exists():
         raise HTTPException(
@@ -299,7 +299,7 @@ def _mesh_counts(path: Path) -> tuple[int, int]:
 )
 async def mesh_history(session_id: str) -> MeshHistoryResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     d = mesh_backup.depth(session_id)
     return MeshHistoryResult(
         undo_depth=d,
@@ -327,7 +327,7 @@ async def mesh_history(session_id: str) -> MeshHistoryResult:
 )
 async def mesh_restore(session_id: str, req: MeshRestoreRequest) -> MeshRestoreResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     vessel_path = session_subdir(session_id, "meshes") / "vessel_tree.vtp"
 

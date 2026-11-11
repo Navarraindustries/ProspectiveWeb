@@ -144,7 +144,7 @@ describe("una sesión reanudada", () => {
     expect(screen.queryByText("Nativa")).toBeNull();
     expect(screen.getByText(/no cabe en memoria/)).toBeInTheDocument();
     // La instantánea no guarda aristas ni piezas: no se afirma «Estanca».
-    expect(screen.queryByText("Estanca")).toBeNull();
+    expect(screen.queryByText("Cerrada")).toBeNull();
     expect(screen.queryByText(/0 piezas/)).toBeNull();
     // Ni un «100 % conservado del umbral» que nadie midió en esta carga.
     expect(screen.queryByText("Volumen conservado")).toBeNull();
@@ -664,7 +664,7 @@ describe("método tubular", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
     await waitFor(() => expect(mockApi.segment).toHaveBeenCalled());
     expect(mockApi.segment.mock.calls[0][0]).toMatchObject({ method: "tubular", reclaim_mm: 3, half_resolution: false });
-    expect(await screen.findByText(/Estanca/)).toBeInTheDocument();
+    expect(await screen.findByText("Cerrada")).toBeInTheDocument();
     expect(screen.getByText(/1 pieza/)).toBeInTheDocument();
     expect(screen.getByText(/8 semillas/)).toBeInTheDocument();
     // 1800,5 y 120,2 redondeados; el texto va en varios nodos, así que se lee el bloque.
@@ -779,7 +779,7 @@ describe("método tubular", () => {
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
 
     await act(async () => { terminar(baseResult); });
-    expect(await screen.findByText(/Estanca/)).toBeInTheDocument();
+    expect(await screen.findByText("Cerrada")).toBeInTheDocument();
     expect(screen.queryByText(/Sin conexión con el progreso/)).toBeNull();
     // Con el resultado, el hook se para: el vigilante no sigue abierto.
     expect(progreso.activos.at(-1)).toBe(false);
@@ -858,7 +858,7 @@ describe("método tubular", () => {
     mockApi.segment.mockResolvedValue(baseResult);
     renderPanel();
     fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
-    expect(await screen.findByText(/Estanca/)).toBeInTheDocument();
+    expect(await screen.findByText("Cerrada")).toBeInTheDocument();
     expect(screen.queryByText("Salida")).toBeNull();
     expect(screen.queryByText(/vessel_tree\.vtp/)).toBeNull();
     // 12,1 + 3,4 + 0,4 s sin «total» del servidor → 16 s.
@@ -886,7 +886,7 @@ describe("método tubular", () => {
     const { mockApi } = await mocks();
     mockApi.suggestedBand.mockResolvedValue({ lower: 150, upper: 1500, vmin: -500, vmax: 2000, tubular_upper: 700 });
     renderPanel();
-    expect(await screen.findByText(/techo de 700 HU para dejar el hueso fuera/)).toBeInTheDocument();
+    expect(await screen.findByText(/propio techo, 700 HU, para dejar fuera el hueso/)).toBeInTheDocument();
     await waitFor(() => expect(mockApi.segmentPreview).toHaveBeenCalled());
     const ultima = mockApi.segmentPreview.mock.calls.at(-1)?.[1] as { upper: number };
     expect(ultima.upper).toBe(700);
@@ -896,7 +896,7 @@ describe("método tubular", () => {
     const { mockApi } = await mocks();
     mockApi.suggestedBand.mockResolvedValue({ lower: 1470, upper: 4717, vmin: -1000, vmax: 5000, tubular_upper: 0 });
     renderPanel();
-    expect(await screen.findByText(/no usa el límite superior en esta modalidad/)).toBeInTheDocument();
+    expect(await screen.findByText("Sin techo en el método tubular")).toBeInTheDocument();
     await waitFor(() => expect(mockApi.segmentPreview).toHaveBeenCalled());
     const ultima = mockApi.segmentPreview.mock.calls.at(-1)?.[1] as { upper: number };
     expect(ultima.upper).toBe(0);

@@ -26,7 +26,7 @@ const auth = vi.hoisted(() => ({
   user: { username: "admin", full_name: "", role: "admin" } as Record<string, unknown>,
 }));
 vi.mock("../../store/auth", () => ({ useAuth: () => ({ user: auth.user }) }));
-vi.mock("./PrintPrepPanel", () => ({ PrintPrepPanel: () => null }));
+// La preparación para imprimir ya no está en el Informe (va en Fabricación).
 
 import { api } from "../../api/client";
 import { ReportPanel } from "./ReportPanel";

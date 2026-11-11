@@ -209,7 +209,7 @@ async def get_clip_library() -> list[ClipLibraryItem]:
 )
 async def get_clip_recommendations(session_id: str) -> list[ClipRecommendation]:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     # One ranker for the whole application. There used to be two: this endpoint
     # ran the legacy scorer over the commercial reference table while the panel
@@ -262,7 +262,7 @@ async def upload_custom_clip(
     file: UploadFile = File(...),
 ) -> CustomClipInfo:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     name = file.filename or "clip"
     ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
@@ -335,7 +335,7 @@ async def plan_clips(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> ClipPlanResult:
     if not session_exists(req.session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{req.session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     import time
     from services import devices
@@ -538,7 +538,7 @@ def _trajectory_mesh(entry, target):
 )
 async def list_custom_clips(session_id: str) -> list[CustomClipInfo]:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     registry = _custom_registry(session_id)
     return [
         CustomClipInfo(clip_id=cid, name=name)
@@ -560,7 +560,7 @@ async def list_custom_clips(session_id: str) -> list[CustomClipInfo]:
 )
 async def delete_custom_clip(session_id: str, clip_index: int) -> list[CustomClipInfo]:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     clip_id = f"custom:{clip_index}"
     registry = _custom_registry(session_id)
@@ -818,7 +818,7 @@ async def clip_selection(
     verify: bool = Query(True, description="Run the geometric check on the top candidates"),
 ) -> ClipSelectionResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     selection = _run_selection(session_id, case_id, verify)
     # La pieza colocada manda también aquí, no solo en Fabricación y el pedido.
@@ -904,7 +904,7 @@ async def clip_manufacture_spec(
     case_id: int | None = Query(None, description="Clinical case, when the session is not yet saved"),
 ) -> ManufactureSpecOut:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     case = _build_case(session_id, case_id)
     if case.neck_mm <= 0:
@@ -1020,7 +1020,7 @@ async def build_navarro_clip(
                              description="Inner window diameter, fenestrated only"),
 ) -> CustomJawOut:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     try:
         from services.navarro import build_jaw
@@ -1104,7 +1104,7 @@ async def clip_animation(
     req: ClipPlanRequest,
 ) -> ClipAnimationResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     if not req.placements:
         raise HTTPException(status_code=422, detail="Indica el clip que se va a colocar.")
 
@@ -1256,7 +1256,7 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
     # Manda la sesión de la ruta; `req.session_id` se ignora (el modelo es el
     # mismo que el de /clips/plan y lo trae por compatibilidad).
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     if not req.placements:
         raise HTTPException(status_code=409, detail="No hay ningún clip colocado que evaluar.")
     import vtk
@@ -1423,7 +1423,7 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
 )
 async def clip_occlusion(session_id: str) -> OcclusionOut:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     from services.clip_outcome import occlusion_after_clip
     from services.segmentation import read_vtp, write_vtp

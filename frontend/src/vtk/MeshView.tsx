@@ -667,6 +667,14 @@ export function MeshView({
         // resetCamera(bounds) conserva dirección y arriba: solo aleja la cámara hasta encuadrar el cubo.
         h.renderer.resetCamera([focal[0] - r, focal[0] + r, focal[1] - r, focal[1] + r, focal[2] - r, focal[2] + r]);
         h.renderer.resetCameraClippingRange();
+        // Lo que hay entre la cámara y la zona de la lesión no se pinta: con el
+        // clip colocado, la cámara caía dentro de la malla del clip o del
+        // aplicador y la celda salía verde de borde a borde (auditoría F3).
+        // Girar o desplazar vuelve a calcular el recorte normal.
+        const pos = cam.getPosition();
+        const dist = Math.hypot(pos[0] - focal[0], pos[1] - focal[1], pos[2] - focal[2]);
+        const [, lejos] = cam.getClippingRange();
+        if (dist > r) cam.setClippingRange(Math.max(0.1, dist - r), Math.max(lejos, dist + r));
         h.renderer.updateLightsGeometryToFollowCamera();
         h.renderWindow.render();
       },

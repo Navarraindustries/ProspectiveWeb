@@ -7,11 +7,15 @@ export type SegmentMethod = "tubular" | "threshold";
  *  clásico. F1-132, decisión 17: en tubular el backend ignora `upper`, y el
  *  panel enseñaba el deslizador apagado, la casilla apagada y dos párrafos
  *  explicando que no mandaban. Ahora queda una sola línea en su sitio. */
-export function CeilingControls({ method, children }: { method: SegmentMethod; children: ReactNode }) {
+/** En tubular, UNA línea en lugar del techo. `nota` la cambia cuando sí hay
+ *  techo propio (TC): «Sin techo» contradecía la explicación de al lado. */
+export function CeilingControls({ method, children, nota = "Sin techo en el método tubular" }: {
+  method: SegmentMethod; children: ReactNode; nota?: string;
+}) {
   if (method !== "tubular") return <>{children}</>;
   return (
     <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
-      Sin techo en el método tubular
+      {nota}
     </div>
   );
 }

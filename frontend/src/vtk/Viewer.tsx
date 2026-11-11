@@ -112,7 +112,7 @@ const HINT_TEXT: Record<HintKind, string> = {
 const STEP_SCENE: Record<string, string> = {
   upload: "Vista previa DICOM",
   segment: "Segmentación vascular",
-  detect: "Candidatos aneurismáticos",
+  detect: "Detección",
   morpho: "Análisis morfométrico",
   treatment: "Cuello y domo",
   devices: "Dispositivo + trayectoria",
@@ -180,6 +180,9 @@ const PERFORATOR_COLOR: Record<number, Vector3> = {
  *  is actually findable: nothing is competing for attention that the user did
  *  not switch on. The colour carries the severity, never the size. */
 const PERFORATOR_SCALE = 1.8;
+/** Opacidad en el 3D de las anotaciones que no están elegidas. */
+const ANNOTATION_IDLE_OPACITY = 0.45;
+const PERFORATOR_SCALE_MANY = 0.9;
 /** Tope del desplazamiento de un plano por gesto desde su asa (mm): con el eje
  *  casi paralelo al rayo, `screenToAxis` da saltos enormes por píxel. */
 const PLANE_DRAG_MAX_MM = 100;
@@ -1220,7 +1223,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
       out.push({
         pos: [p.position_mm.x, p.position_mm.y, p.position_mm.z],
         color: PERFORATOR_COLOR[p.risk_level] ?? PERFORATOR_COLOR[3],
-        scale: PERFORATOR_SCALE,
+        // Con varias encendidas a la vez, a 1,8 tapaban el saco y el cuello
+        // (auditoría F3): grandes solo cuando se busca una.
+        scale: visiblePerforators.length > 1 ? PERFORATOR_SCALE_MANY : PERFORATOR_SCALE,
       });
     }
     return out;
@@ -1254,10 +1259,14 @@ export function ViewerWorkspace({ step }: { step: string }) {
     for (const a of annotations) {
       if (!a.visible || a.kind === "marcador") continue;
       const color = hexToRgb01(ANNOTATION_HEX[a.kind]);
-      const scale = a.id === selectedAnnotation ? ANNOTATION_SELECTED_SCALE : 1;
+      const elegida = a.id === selectedAnnotation;
+      const scale = elegida ? ANNOTATION_SELECTED_SCALE : 1;
+      // Las no elegidas, translúcidas: los brazos de un ángulo cruzaban la
+      // escena y tapaban el árbol, lo primero que se veía al reanudar (auditoría F3).
+      const opacity = elegida ? undefined : ANNOTATION_IDLE_OPACITY;
       const pts = a.points;
       const n = a.kind === "region" ? pts.length : pts.length - 1;
-      for (let k = 0; k < n; k++) out.push({ a: pts[k], b: pts[(k + 1) % pts.length], color, scale });
+      for (let k = 0; k < n; k++) out.push({ a: pts[k], b: pts[(k + 1) % pts.length], color, scale, opacity });
     }
     // El abordaje no es una regla: es el CORREDOR por el que tiene que caber el
     // clip con su aplicador. Dibujarlo con su radio real y translúcido es lo
@@ -1987,7 +1996,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
                 options={[
                   { key: "default", label: meshVisible ? "3D" : "MPR" },
                   ...(meshVisible ? [{ key: "slices3d", label: "Cortes 3D", title: "Los tres cortes en su posición dentro de la escena" }] : []),
-                  { key: "oblique", label: "Oblicuo" },
+                  { key: "oblique", label: "Oblicuo", title: "Un plano libre que se inclina (azimut y elevación) o recorre el vaso; ocupa toda la celda" },
                 ]}
                 value={viewMode === "slices3d" && !meshVisible ? "default" : viewMode} onChange={(k) => setViewMode(k as typeof viewMode)} />
               {viewMode === "slices3d" && isMesh && (

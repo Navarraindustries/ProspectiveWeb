@@ -60,7 +60,8 @@ const PATHS = {
   ANGLE_MEAS: "M3 13.5h10M3 13.5L11 4M6.5 13.5a4 4 0 00-1-2.7",
   MEDICAL_SIGN: "M6 2.5h4V6h3.5v4H10v3.5H6V10H2.5V6H6z",
   // Visibilidad / MPR
-  EYE: `M1.5 8C3 5 5.3 3.5 8 3.5S13 5 14.5 8C13 11 10.7 12.5 8 12.5S3 11 1.5 8z${c(8, 8, 2)}`,
+  // Pupila fina: con radio 2 y trazo 1,5 el ojo se leía como un punto blanco (auditoría F3).
+  EYE: `M1.5 8C3 5 5.3 3.5 8 3.5S13 5 14.5 8C13 11 10.7 12.5 8 12.5S3 11 1.5 8z${c(8, 8, 1.4)}`,
   EYE_HIDDEN: "M1.5 8C3 5 5.3 3.5 8 3.5S13 5 14.5 8C13 11 10.7 12.5 8 12.5S3 11 1.5 8zM3 13L13 3",
   MPR_VIEW: "M2.5 2.5h11v11h-11zM8 2.5v11M2.5 8h11",
   OBLIQUE: "M8 2l6 6-6 6-6-6z",

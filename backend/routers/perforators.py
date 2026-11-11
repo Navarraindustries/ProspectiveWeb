@@ -56,7 +56,7 @@ _ZONE_RADII = (3.0, 5.0, 8.0)
 )
 async def get_perforators(session_id: str) -> PerforatorsResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     meshes_dir = session_subdir(session_id, "meshes")
     vtp_path   = meshes_dir / "vessel_tree.vtp"
@@ -87,7 +87,7 @@ async def get_perforators(session_id: str) -> PerforatorsResult:
         )
     except Exception as exc:
         logger.error("Perforators failed for session %s: %s", session_id, exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Perforator detection error: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"La detección de ramas falló: {exc}") from exc
 
     return result
 

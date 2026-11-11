@@ -72,7 +72,7 @@ async def get_coil_recommendations(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> CoilConstructResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     # La propuesta lleva las medidas del saco de esa sesión: un profesional que no
     # ve al paciente tampoco ve sus medidas por la puerta del montaje.
     require_session(db, current_user, session_id)
@@ -127,7 +127,7 @@ async def preview_coil_construct(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> CoilPreviewResult:
     if not session_exists(session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     # La proyección se calcula sobre el volumen medido de esa sesión: leerla es
     # leer datos de su paciente, así que pide la misma propiedad que guardar.
     require_session(db, current_user, session_id)
@@ -178,7 +178,7 @@ async def plan_coils(
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> CoilPlanResult:
     if not session_exists(req.session_id):
-        raise HTTPException(status_code=404, detail=f"Session '{req.session_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Sesión '{req.session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
     # Load aneurysm volume from session morphometry (written after morpho computation)
     aneurysm_vol = _load_float(req.session_id, "morpho.volume_mm3", 0.0)

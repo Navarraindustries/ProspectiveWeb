@@ -162,7 +162,7 @@ describe("useAnnotationsSync", () => {
    en la sesión viva y solo «Guardar progreso» las conserva para reanudar. */
 describe("annotationsSubtitle", () => {
   it("tras guardar sale el texto nuevo", () => {
-    expect(annotationsSubtitle("cargado", "guardado", 2)).toBe("guardado en esta sesión; usa Guardar progreso para conservarlo");
+    expect(annotationsSubtitle("cargado", "guardado", 2)).toBe("guardado en esta sesión; usa Guardar progreso para conservarlo · entran en el informe");
   });
   it("los demás estados no cambian", () => {
     expect(annotationsSubtitle("error", "guardado", 2)).toBe("no se pudieron cargar: sin guardado automático");
@@ -170,6 +170,6 @@ describe("annotationsSubtitle", () => {
     expect(annotationsSubtitle("cargado", "error", 2)).toBe("sin guardar");
   });
   it("sin ninguna anotación no presume de guardado: dice qué hay en el panel", () => {
-    expect(annotationsSubtitle("cargado", "guardado", 0)).toBe("Reglas, ángulos, regiones y notas");
+    expect(annotationsSubtitle("cargado", "guardado", 0)).toBe("Reglas, ángulos, regiones y notas · entran en el informe");
   });
 });

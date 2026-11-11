@@ -20,15 +20,16 @@ describe("StepDock", () => {
     render(<StepDock steps={steps} activeIndex={0} missingFor={(i) => (i === 2 ? "Segmenta el vaso primero" : null)} onGo={onGo} />);
     const b = screen.getByRole("button", { name: /Detección.*Segmenta el vaso primero/ });
     expect(b).toHaveAttribute("aria-disabled", "true");
-    expect(b).toHaveAttribute("title", "Segmenta el vaso primero");
+    expect(b).toHaveAttribute("title", "Segmenta el vaso primero (tecla 3)");
+    expect(b).toHaveAttribute("aria-keyshortcuts", "3");
     fireEvent.click(b);
     expect(onGo).not.toHaveBeenCalled();
   });
   it("un paso opcional lo dice en su nombre accesible y en el tooltip", () => {
     render(<StepDock steps={steps} activeIndex={0} missingFor={() => null} onGo={() => {}} />);
     const b = screen.getByRole("button", { name: "Paso 7, Fabricación (opcional)" });
-    expect(b).toHaveAttribute("title", "Fabricación (opcional)");
-    expect(screen.getByRole("button", { name: `Paso 1, ${steps[0].label}` })).toHaveAttribute("title", steps[0].label);
+    expect(b).toHaveAttribute("title", "Fabricación (opcional) (tecla 7)");
+    expect(screen.getByRole("button", { name: `Paso 1, ${steps[0].label}` })).toHaveAttribute("title", `${steps[0].label} (tecla 1)`);
   });
   it("un paso completado después del actual lleva la marca de hecho", () => {
     render(<StepDock steps={steps} activeIndex={0} missingFor={() => null} doneFor={(i) => i <= 2} onGo={() => {}} />);
@@ -40,7 +41,7 @@ describe("StepDock", () => {
     const onGo = vi.fn();
     render(<StepDock steps={steps} activeIndex={2} missingFor={() => null} avisoFor={(i) => (i === 3 ? MORPHO_AUTO_HINT : null)} onGo={onGo} />);
     const b = screen.getByRole("button", { name: `Paso 4, Morfometría. ${MORPHO_AUTO_HINT}` });
-    expect(b).toHaveAttribute("title", `Morfometría — ${MORPHO_AUTO_HINT}`);
+    expect(b).toHaveAttribute("title", `Morfometría — ${MORPHO_AUTO_HINT} (tecla 4)`);
     fireEvent.click(b);
     expect(onGo).toHaveBeenCalledWith(3);
   });

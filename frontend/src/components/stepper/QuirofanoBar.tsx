@@ -10,7 +10,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { Badge, riskVariant } from "../Badge";
 import { Icon } from "../Icon";
-import { ThemeToggle } from "../ThemeToggle";
 import { UserMenu } from "../shell/UserMenu";
 import type { Crumb } from "../shell/TopBar";
 import { glass } from "../../styles/glass";
@@ -80,9 +79,9 @@ export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions, modo 
   // el nombre del paciente caía a 0 px (R14). Pasa al title del nombre.
   const hcEnTitulo = useEstrecho();
   // Móvil: sin miga (el caso ya se ve en la hoja; a 390 la miga pisaba
-  // «Volver», R13). Táctil: sin la primera miga, «Pacientes», que repite el
-  // botón «Volver» (R14).
-  const migas = movil ? [] : tactil && crumbs.length > 1 ? crumbs.slice(1) : crumbs;
+  // «Volver», R13). En los demás, sin la primera miga, «Pacientes», que repite
+  // el botón «Volver a Pacientes» (R14 en táctil; auditoría F3 en ancho).
+  const migas = movil ? [] : crumbs.length > 1 ? crumbs.slice(1) : crumbs;
   const pastilla: CSSProperties = movil ? { ...PASTILLA, gap: 6, padding: "0 6px" } : PASTILLA;
   const fila: CSSProperties = movil ? { ...FILA, left: 12, right: 12, gap: 8 } : FILA;
   return (
@@ -151,7 +150,6 @@ export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions, modo 
             <button type="button" className="shell-cmdk" aria-label={rotuloPaleta()} aria-keyshortcuts={teclasPaleta()} title={`Paleta de mandos (${atajoPaleta()})`} onClick={openCommandPalette}>
               {atajoPaleta()}
             </button>
-            <ThemeToggle size="sm" />
           </>
         )}
         <UserMenu />

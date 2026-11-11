@@ -1,33 +1,31 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { HEADING_READOUT_PX, HudHeadingTape } from "./HudHeadingTape";
+import { HudHeadingTape } from "./HudHeadingTape";
 
 describe("HudHeadingTape", () => {
-  it("brackets the cardinals and the readout while the orientation is assumed", () => {
+  it("pone los cardinales entre corchetes mientras la orientación es supuesta", () => {
     render(<HudHeadingTape azimuthDeg={0} elevationDeg={0} known={false} />);
     expect(screen.getByText("[ANT]")).toBeInTheDocument();
-    expect(screen.getByTestId("heading-readout").textContent).toBe("[AZ 0° · EL 0°]");
   });
 
-  it("drops the brackets when the orientation is known", () => {
-    render(<HudHeadingTape azimuthDeg={90} elevationDeg={30} known />);
+  it("sin corchetes con la orientación conocida, y sin la cifra AZ · EL (decidido el 11-11)", () => {
+    const { container } = render(<HudHeadingTape azimuthDeg={90} elevationDeg={30} known />);
     expect(screen.getByText("IZQ")).toBeInTheDocument();
-    expect(screen.getByTestId("heading-readout").textContent).toBe("AZ 90° · EL 30°");
+    expect(container.textContent).not.toMatch(/AZ|EL \d/);
+    expect(screen.queryByTestId("heading-readout")).toBeNull();
   });
 
-  it("keeps the cardinals in a clipped band that ends before the readout", () => {
-    // Un rótulo cerca del borde derecho no puede pasar bajo «AZ … · EL …».
+  it("los cardinales van en una banda recortada a todo el ancho", () => {
     render(<HudHeadingTape azimuthDeg={-40} elevationDeg={0} known />);
     const band = screen.getByTestId("heading-band");
     expect(band.style.overflow).toBe("hidden");
-    expect(band.style.right).toBe(`${HEADING_READOUT_PX}px`);
+    expect(band.style.right).toBe("0px");
     expect(band.contains(screen.getByText("ANT"))).toBe(true);
-    expect(band.contains(screen.getByTestId("heading-readout"))).toBe(false);
   });
 
   it("sin colocación propia mantiene el 20 % y la línea 6 (el MIP no cambia)", () => {
     render(<HudHeadingTape azimuthDeg={0} elevationDeg={0} known />);
-    const tape = screen.getByTestId("heading-readout").parentElement!;
+    const tape = screen.getByTestId("heading-band").parentElement!;
     expect(tape.style.left).toBe("20%");
     expect(tape.style.top).toBe("6px");
   });

@@ -21,7 +21,8 @@ import { cifra } from "../../lib/numero";
 import { isSiteKnown, siteFor } from "./thresholds";
 
 const POPULATIONS: { value: PhasesPopulation; label: string }[] = [
-  { value: "other", label: "Otra población" },
+  // Como ELAPSS: decir qué cohortes son «el resto» (auditoría F3).
+  { value: "other", label: "Norteamérica o Europa (salvo Finlandia) y otras" },
   { value: "japan", label: "Japón" },
   { value: "finland", label: "Finlandia" },
 ];

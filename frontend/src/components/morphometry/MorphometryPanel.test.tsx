@@ -154,13 +154,13 @@ describe("SR con el cuello estimado", () => {
   });
 });
 
-describe("la pestaña PHASES", () => {
-  it("dice junto a la cifra que es una referencia poblacional", async () => {
-    // En series externas PHASES discrimina mal; dicho solo en el informe, nadie
-    // lo leía delante del número.
+/* PHASES, ELAPSS y UIATS pasaron a Decisión el 11-11 (EscalasClinicas.test.tsx). */
+describe("las pestañas de Morfometría", () => {
+  it("son Métricas, Índices y Seguimiento; las escalas ya no están aquí", async () => {
     withMorphometry(openCap);
-    fireEvent.click(await screen.findByText("PHASES"));
-    expect(await screen.findByText(/referencia poblacional, no una predicción/)).toBeInTheDocument();
+    await screen.findByText("7,0");
+    for (const t of ["Métricas", "Índices", "Seguimiento"]) expect(screen.getByRole("tab", { name: t })).toBeInTheDocument();
+    for (const t of ["PHASES", "ELAPSS", "UIATS"]) expect(screen.queryByRole("tab", { name: t })).toBeNull();
   });
 });
 
@@ -280,26 +280,18 @@ describe("un umbral por índice, a la vista", () => {
 /* F1-165: la localización se pedía en PHASES, ELAPSS, UIATS y Decisión, con
    cuatro listas y cuatro valores por defecto. Ahora se elige una vez. */
 describe("la localización, una sola vez", () => {
-  it("hay un único «Localización» y PHASES no tiene selector propio", async () => {
+  it("hay un único «Localización»", async () => {
     withMorphometry(openCap);
     await screen.findByText("7,0");
     expect(screen.getAllByLabelText("Localización")).toHaveLength(1);
-    fireEvent.click(screen.getByText("PHASES"));
-    await screen.findByText(/referencia poblacional/);
-    expect(screen.getAllByLabelText("Localización")).toHaveLength(1);
-    expect(screen.getByText("Elige la localización en Morfometría")).toBeInTheDocument();
   });
 
-  it("elegirla la guarda con la sesión y PHASES la hereda", async () => {
+  it("elegirla la guarda con la sesión (PHASES la hereda en Decisión)", async () => {
     withMorphometry(openCap);
     await screen.findByText("7,0");
     fireEvent.change(screen.getByLabelText("Localización"),
       { target: { value: "Tronco basilar" } });
     expect(setClinicalSite).toHaveBeenCalledWith("s1", "Tronco basilar");
-    fireEvent.click(screen.getByText("PHASES"));
-    await screen.findByText(/referencia poblacional/);
-    expect(screen.queryByText("Elige la localización en Morfometría")).not.toBeInTheDocument();
-    expect(screen.getByText("Tronco basilar", { selector: "b" })).toBeInTheDocument();
   });
 });
 

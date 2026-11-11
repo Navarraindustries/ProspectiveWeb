@@ -445,6 +445,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/users/{user_id}/cv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace a user's CV (admin)
+         * @description PDF, DOC o DOCX validado por contenido (413 si pasa de 6 MB, 415 si no es ninguno de los tres).
+         */
+        post: operations["set_user_cv_api_auth_users__user_id__cv_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/users/{user_id}/photo": {
         parameters: {
             query?: never;
@@ -3541,6 +3561,11 @@ export interface components {
         Body_measure_before_import_api_clip_library_measure_post: {
             /** File */
             file: string;
+        };
+        /** Body_set_user_cv_api_auth_users__user_id__cv_post */
+        Body_set_user_cv_api_auth_users__user_id__cv_post: {
+            /** Cv */
+            cv: string;
         };
         /** Body_set_user_photo_api_auth_users__user_id__photo_post */
         Body_set_user_photo_api_auth_users__user_id__photo_post: {
@@ -10323,10 +10348,25 @@ export interface components {
              */
             is_active: boolean;
             /**
+             * National Id
+             * @default
+             */
+            national_id: string;
+            /**
+             * Orcid
+             * @default
+             */
+            orcid: string;
+            /**
              * Position
              * @default
              */
             position: string;
+            /**
+             * Professional Id
+             * @default
+             */
+            professional_id: string;
             /**
              * Profile Photo Rev
              * @description Revisión de la foto de perfil (cambia al sustituirla); null si no hay
@@ -10468,8 +10508,14 @@ export interface components {
             hospital?: string | null;
             /** Is Active */
             is_active?: boolean | null;
+            /** National Id */
+            national_id?: string | null;
+            /** Orcid */
+            orcid?: string | null;
             /** Position */
             position?: string | null;
+            /** Professional Id */
+            professional_id?: string | null;
             /** Role */
             role?: ("admin" | "medico" | "residente" | "viewer") | null;
             /** Specialty */
@@ -11495,6 +11541,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_user_cv_api_auth_users__user_id__cv_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_set_user_cv_api_auth_users__user_id__cv_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAdminInfo"];
+                };
             };
             /** @description Validation Error */
             422: {

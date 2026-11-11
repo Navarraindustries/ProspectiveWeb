@@ -11,6 +11,9 @@ const createUser = vi.fn();
 const updateUser = vi.fn();
 const deleteUser = vi.fn();
 const usersBrief = vi.fn();
+const setUserPhoto = vi.fn();
+const setUserCv = vi.fn();
+const downloadPendingCv = vi.fn();
 
 vi.mock("../api/client", () => ({
   api: {
@@ -19,7 +22,9 @@ vi.mock("../api/client", () => ({
     updateUser: (...a: unknown[]) => updateUser(...a),
     deleteUser: (...a: unknown[]) => deleteUser(...a),
     usersBrief: () => usersBrief(),
-    setUserPhoto: vi.fn(),
+    setUserPhoto: (...a: unknown[]) => setUserPhoto(...a),
+    setUserCv: (...a: unknown[]) => setUserCv(...a),
+    downloadPendingCv: (...a: unknown[]) => downloadPendingCv(...a),
   },
   ApiError: class ApiError extends Error {},
 }));
@@ -40,6 +45,9 @@ beforeEach(() => {
   updateUser.mockReset().mockResolvedValue({});
   deleteUser.mockReset().mockResolvedValue(undefined);
   usersBrief.mockReset().mockResolvedValue([]);
+  setUserPhoto.mockReset().mockResolvedValue({});
+  setUserCv.mockReset().mockResolvedValue({});
+  downloadPendingCv.mockReset().mockResolvedValue(undefined);
   sessionStorage.clear();
   simularPantalla(1707);
 });
@@ -145,6 +153,75 @@ describe("«Editar usuario» (F2-45, F1-84)", () => {
     render(<UsersAdmin onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "Editar a María Restrepo" }));
     expect(screen.getByText(ROLE_PERMITE[rol])).toBeTruthy();
+  });
+});
+
+/* UNI-84: cédula, nº de colegiado, ORCID y CV se recogían en el alta y luego
+   no se podían corregir. */
+describe("«Editar usuario» corrige la identidad profesional y el CV (UNI-84)", () => {
+  const conIdentidad = (o: Record<string, unknown> = {}) =>
+    cuenta({ national_id: "1020", professional_id: "RM-1", orcid: "0000-0002-1825-0097", ...o });
+  const abrir = async () => {
+    render(<UsersAdmin onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar a María Restrepo" }));
+  };
+  const valor = (l: string) => (screen.getByLabelText(l) as HTMLInputElement).value;
+  const elegirCv = (f: File) => {
+    const input = document.querySelector('input[type="file"][accept=".pdf,.doc,.docx"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [f] } });
+  };
+
+  it("muestra los tres campos con su valor y los envía recortados", async () => {
+    listUsers.mockResolvedValue([conIdentidad()]);
+    await abrir();
+    expect([valor("Cédula o ID"), valor("ID profesional"), valor("ORCID")]).toEqual(["1020", "RM-1", "0000-0002-1825-0097"]);
+    fireEvent.change(screen.getByLabelText("Cédula o ID"), { target: { value: " 99887766 " } });
+    fireEvent.change(screen.getByLabelText("ORCID"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await waitFor(() => expect(updateUser).toHaveBeenCalledTimes(1));
+    expect(updateUser.mock.calls[0][1]).toMatchObject({ national_id: "99887766", professional_id: "RM-1", orcid: "" });
+    expect(setUserCv).not.toHaveBeenCalled();
+  });
+
+  it("cambiar la cédula cuenta como cambio sin guardar", async () => {
+    listUsers.mockResolvedValue([conIdentidad()]);
+    await abrir();
+    fireEvent.change(screen.getByLabelText("ID profesional"), { target: { value: "RM-2" } });
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("alertdialog", { name: "¿Descartar los cambios?" })).toBeTruthy();
+  });
+
+  it("sin CV dice «Currículum (CV)»; con CV, «Sustituir» y deja descargar el actual", async () => {
+    listUsers.mockResolvedValue([conIdentidad({ has_cv: true })]);
+    await abrir();
+    expect(screen.getByText("Sustituir el currículum (CV)")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Descargar el actual" }));
+    expect(downloadPendingCv).toHaveBeenCalledWith(2, "mrestrepo");
+  });
+
+  it("sube el CV elegido después de guardar los datos", async () => {
+    listUsers.mockResolvedValue([conIdentidad()]);
+    await abrir();
+    expect(screen.getByText("Currículum (CV)")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Descargar el actual" })).toBeNull();
+    const f = new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" });
+    elegirCv(f);
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await waitFor(() => expect(setUserCv).toHaveBeenCalledWith(2, f));
+    expect(updateUser.mock.invocationCallOrder[0]).toBeLessThan(setUserCv.mock.invocationCallOrder[0]);
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Editar usuario" })).toBeNull());
+  });
+
+  it("si el CV falla, dice que los datos sí se guardaron y la hoja sigue abierta", async () => {
+    listUsers.mockResolvedValue([conIdentidad()]);
+    setUserCv.mockRejectedValue(new Error("El CV debe ser PDF, DOC o DOCX."));
+    await abrir();
+    elegirCv(new File(["x"], "cv.txt", { type: "text/plain" }));
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    expect(await screen.findByText("Los datos se guardaron, pero el CV no: El CV debe ser PDF, DOC o DOCX.")).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Editar usuario" })).toBeTruthy();
+    // La lista se vuelve a pedir: lo guardado ya se ve detrás.
+    expect(listUsers.mock.calls.length).toBeGreaterThan(1);
   });
 });
 

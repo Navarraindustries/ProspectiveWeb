@@ -1,9 +1,11 @@
 """Authentication router — real JWT login/me (Session D)."""
 from __future__ import annotations
 
+import io
 import json
 import logging
 import os
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Literal
@@ -56,19 +58,6 @@ def _utc_iso(dt: datetime | None) -> str:
     return (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)).isoformat()
 
 _MAX_UPLOAD_BYTES = 6 * 1024 * 1024   # 6 MB
-
-
-async def _save_user_upload(upload: UploadFile, subdir: str, user_id: int) -> str:
-    """Persist an uploaded profile file; return its stored path. Raises on size."""
-    data = await upload.read()
-    if len(data) > _MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="El archivo supera el máximo de 6 MB.")
-    suffix = Path(upload.filename or "").suffix.lower()[:10]
-    dest_dir = _USER_FILES / subdir
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / f"{user_id}{suffix}"
-    dest.write_bytes(data)
-    return str(dest)
 
 
 def _avatar_fields(u: User) -> dict:
@@ -486,6 +475,7 @@ async def signup(
     cv: UploadFile | None = File(None),
 ) -> SignupResponse:
     foto = await _leer_foto_registro(photo)  # 413/415 antes de crear nada
+    curriculum = await _leer_cv_registro(cv)  # ídem: solo PDF, DOC o DOCX
     user, err = create_pending_user(
         db, username=username, password=password, full_name=full_name,
         national_id=national_id, professional_id=professional_id, specialty=specialty,
@@ -503,8 +493,8 @@ async def signup(
     if foto is not None:
         user.photo_path = _guardar_imagen(*foto, "photos", user.id)
         changed = True
-    if cv is not None and cv.filename:
-        user.cv_path = await _save_user_upload(cv, "cv", user.id)
+    if curriculum is not None:
+        user.cv_path = _guardar_cv(*curriculum, user.id)
         changed = True
     if changed:
         db.commit()
@@ -646,6 +636,9 @@ def _user_to_admin(u: User) -> UserAdminInfo:
         **_avatar_fields(u),
         university=u.university,
         position=u.position,
+        national_id=u.national_id or "",
+        professional_id=u.professional_id or "",
+        orcid=u.orcid or "",
         rejected_at=_utc_iso(u.rejected_at) if u.rejected_at else None,
     )
 
@@ -730,6 +723,7 @@ async def create_user(
     cv: UploadFile | None = File(None),
 ) -> UserAdminInfo:
     foto = await _leer_foto_registro(photo)  # 413/415 antes de crear nada
+    curriculum = await _leer_cv_registro(cv)  # ídem: solo PDF, DOC o DOCX
     user, err = create_pending_user(
         db, active=True, role=role,
         username=username, password=password, full_name=full_name,
@@ -743,8 +737,8 @@ async def create_user(
     if foto is not None:
         user.photo_path = _guardar_imagen(*foto, "photos", user.id)
         changed = True
-    if cv is not None and cv.filename:
-        user.cv_path = await _save_user_upload(cv, "cv", user.id)
+    if curriculum is not None:
+        user.cv_path = _guardar_cv(*curriculum, user.id)
         changed = True
     if changed:
         db.commit()
@@ -794,6 +788,12 @@ async def update_user(
         user.university = req.university.strip()
     if req.position is not None:
         user.position = req.position.strip()
+    if req.national_id is not None:
+        user.national_id = req.national_id.strip()
+    if req.professional_id is not None:
+        user.professional_id = req.professional_id.strip()
+    if req.orcid is not None:
+        user.orcid = req.orcid.strip()
     if req.is_active is not None:
         user.is_active = req.is_active
         user.status = User.STATUS_ACTIVE if req.is_active else User.STATUS_REJECTED
@@ -833,6 +833,79 @@ async def set_user_photo(
     user.photo_path = _guardar_imagen(data, _validar_imagen(data), "photos", user.id)
     db.commit()
     db.refresh(user)
+    return _user_to_admin(user)
+
+
+def _sniff_cv(data: bytes) -> str | None:
+    """Extensión canónica de un CV según su contenido (PDF, DOC, DOCX); None si no es ninguno."""
+    if data.startswith(b"%PDF-"):
+        return ".pdf"
+    if data.startswith(bytes.fromhex("d0cf11e0a1b11ae1")):  # contenedor OLE de Word 97-2003
+        return ".doc"
+    if data.startswith(b"PK\x03\x04"):  # un DOCX es un ZIP con word/document.xml
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as z:
+                if "word/document.xml" in z.namelist():
+                    return ".docx"
+        except zipfile.BadZipFile:
+            return None
+    return None
+
+
+def _validar_cv(data: bytes) -> str:
+    """Extensión de un CV validado por contenido; 413 si pesa de más, 415 si no es PDF/DOC/DOCX."""
+    if len(data) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="El archivo supera el máximo de 6 MB.")
+    ext = _sniff_cv(data)
+    if ext is None:
+        raise HTTPException(status_code=415, detail="El CV debe ser PDF, DOC o DOCX.")
+    return ext
+
+
+def _guardar_cv(data: bytes, ext: str, user_id: int) -> str:
+    """Escribe un CV ya validado con la extensión que dice su contenido, nunca la del cliente."""
+    dest_dir = _USER_FILES / "cv"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / f"{user_id}{ext}"
+    dest.write_bytes(data)
+    return str(dest)
+
+
+async def _leer_cv_registro(cv: UploadFile | None) -> tuple[bytes, str] | None:
+    """Lee y valida el CV del alta ANTES de crear la cuenta (413/415 si no vale), como la foto."""
+    if cv is None or not cv.filename:
+        return None
+    data = await cv.read()
+    return data, _validar_cv(data)
+
+
+@router.post(
+    "/users/{user_id}/cv",
+    response_model=UserAdminInfo,
+    summary="Replace a user's CV (admin)",
+    description="PDF, DOC o DOCX validado por contenido (413 si pasa de 6 MB, 415 si no es ninguno de los tres).",
+)
+async def set_user_cv(
+    user_id: int,
+    _admin: Annotated[User, Depends(require_admin)],
+    db: Annotated[Session, Depends(get_db)],
+    cv: UploadFile = File(...),
+) -> UserAdminInfo:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado.")
+    data = await cv.read()
+    dest = Path(_guardar_cv(data, _validar_cv(data), user.id))
+    # El anterior con otra extensión (5.docx → 5.pdf) no se queda huérfano.
+    anterior = user.cv_path
+    user.cv_path = str(dest)
+    db.commit()
+    db.refresh(user)
+    if anterior and Path(anterior).resolve() != dest.resolve():
+        try:
+            Path(anterior).unlink(missing_ok=True)
+        except OSError:
+            logger.warning("No se pudo borrar el CV anterior %s", anterior)
     return _user_to_admin(user)
 
 

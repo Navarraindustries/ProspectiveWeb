@@ -456,6 +456,12 @@ export const api = {
     fd.append("photo", photo, photo.name);
     return post<UserAdminInfo>(`/api/auth/users/${id}/photo`, fd);
   },
+  /** Sustituye el CV de una cuenta: PDF, DOC o DOCX, validado por contenido (UNI-84). */
+  setUserCv: (id: number, cv: File) => {
+    const fd = new FormData();
+    fd.append("cv", cv, cv.name);
+    return post<UserAdminInfo>(`/api/auth/users/${id}/cv`, fd);
+  },
   createUser: (fields: Record<string, string>, photo?: File | null, cv?: File | null) => {
     const fd = new FormData();
     for (const [k, v] of Object.entries(fields)) fd.append(k, v ?? "");

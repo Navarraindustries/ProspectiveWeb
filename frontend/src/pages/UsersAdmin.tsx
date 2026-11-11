@@ -98,7 +98,12 @@ function EditUserSheet({
   const [hospital, setHospital] = useState("");
   const [university, setUniversity] = useState("");
   const [position, setPosition] = useState("");
+  // Identidad profesional del alta: también se corrige después (UNI-84).
+  const [nationalId, setNationalId] = useState("");
+  const [professionalId, setProfessionalId] = useState("");
+  const [orcid, setOrcid] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
+  const [cv, setCv] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [askDiscard, setAskDiscard] = useState(false);
@@ -107,7 +112,9 @@ function EditUserSheet({
   const dirty = !!user && (
     fullName !== (user.full_name || "") || role !== (user.role || "viewer") || active !== user.is_active
     || specialty !== (user.specialty || "") || hospital !== (user.hospital || "")
-    || university !== (user.university || "") || position !== (user.position || "") || photo !== null
+    || university !== (user.university || "") || position !== (user.position || "")
+    || nationalId !== (user.national_id || "") || professionalId !== (user.professional_id || "")
+    || orcid !== (user.orcid || "") || photo !== null || cv !== null
   );
   const requestClose = () => {
     if (dirty) setAskDiscard(true);
@@ -124,7 +131,11 @@ function EditUserSheet({
     setHospital(user.hospital || "");
     setUniversity(user.university || "");
     setPosition(user.position || "");
+    setNationalId(user.national_id || "");
+    setProfessionalId(user.professional_id || "");
+    setOrcid(user.orcid || "");
     setPhoto(null);
+    setCv(null);
     setError(null);
   }, [open, user]);
 
@@ -132,18 +143,33 @@ function EditUserSheet({
     if (!user) return;
     setBusy(true);
     setError(null);
+    // Los datos van primero; si luego falla un fichero, se dice cuál y lo
+    // demás ya está guardado (la lista se refresca para que se vea).
+    let datosGuardados = false;
     try {
       await api.updateUser(user.id, {
         full_name: fullName.trim(), role, specialty, hospital: hospital.trim(),
         university: university.trim(), position,
+        national_id: nationalId.trim(), professional_id: professionalId.trim(), orcid: orcid.trim(),
         // F1-84: solo si la casilla cambió; si no, guardar otro dato reactivaba
         // (o desactivaba) una cuenta que otro administrador acababa de tocar.
         ...(active !== user.is_active ? { is_active: active } : {}),
       });
-      if (photo) await api.setUserPhoto(user.id, photo);
+      datosGuardados = true;
+      if (photo) {
+        try { await api.setUserPhoto(user.id, photo); }
+        catch (e) { throw new Error(`Los datos se guardaron, pero la foto no: ${e instanceof Error ? e.message : "error"}`); }
+        setPhoto(null);
+      }
+      if (cv) {
+        try { await api.setUserCv(user.id, cv); }
+        catch (e) { throw new Error(`Los datos se guardaron, pero el CV no: ${e instanceof Error ? e.message : "error"}`); }
+        setCv(null);
+      }
       onSaved();
       onClose();
     } catch (e) {
+      if (datosGuardados) onSaved();
       setError(e instanceof Error ? e.message : "Error al guardar el usuario");
     } finally {
       setBusy(false);
@@ -179,8 +205,23 @@ function EditUserSheet({
             <Select label="Cargo" options={opcionales(POSITIONS, user.position)} value={position} onChange={(e) => setPosition(e.target.value)} />
             <Input label="Universidad" value={university} onChange={(e) => setUniversity(e.target.value)} />
             <Input label="Hospital / Centro" value={hospital} onChange={(e) => setHospital(e.target.value)} />
+            <Input label="Cédula o ID" value={nationalId} maxLength={64} onChange={(e) => setNationalId(e.target.value)} />
+            <Input label="ID profesional" value={professionalId} maxLength={64} onChange={(e) => setProfessionalId(e.target.value)} />
+            <Input label="ORCID" value={orcid} maxLength={64} onChange={(e) => setOrcid(e.target.value)} placeholder="0000-0002-1825-0097" />
           </div>
           <FileField label="Foto de perfil" accept="image/png,image/jpeg,image/webp" file={photo} onPick={setPhoto} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <FileField label={user.has_cv ? "Sustituir el currículum (CV)" : "Currículum (CV)"} accept=".pdf,.doc,.docx" file={cv} onPick={setCv} />
+            {user.has_cv && (
+              <div style={{ fontSize: 13, color: "var(--muted-foreground)", display: "flex", alignItems: "center", gap: 8 }}>
+                Ya tiene un CV adjunto.
+                <Button variant="ghost" size="sm" type="button"
+                  onClick={() => api.downloadPendingCv(user.id, user.username).catch(() => setError("No se pudo descargar el CV."))}>
+                  Descargar el actual
+                </Button>
+              </div>
+            )}
+          </div>
           <Switch label="Cuenta activa (puede iniciar sesión)" checked={active} onChange={setActive} />
         </div>
       )}

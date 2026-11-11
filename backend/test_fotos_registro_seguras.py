@@ -99,9 +99,30 @@ def test_admin_no_puede_poner_html_como_foto():
     assert r.status_code == 415
 
 
-def test_cv_html_se_descarga_sin_ejecutarse():
-    _, nombre = _signup(cv=("cv.html", HTML, "text/html"))
-    r = admin.get(f"/api/auth/pending/{_id(nombre)}/cv")
+def test_signup_con_cv_que_no_es_documento_415_y_no_crea_la_cuenta():
+    # UNI-84: el CV se valida por contenido igual que la foto (PDF, DOC o DOCX).
+    codigo, nombre = _signup(cv=("cv.pdf", HTML, "application/pdf"))
+    assert codigo == 415
+    assert _id(nombre) is None
+
+
+def test_admin_crear_con_cv_que_no_es_documento_415():
+    nombre = f"alta-{uuid.uuid4().hex[:8]}"
+    r = admin.post("/api/auth/users", data={"username": nombre, "password": "x" * 12, "full_name": "Alta"},
+                   files={"cv": ("cv.docx", HTML, "application/octet-stream")})
+    assert r.status_code == 415
+    assert _id(nombre) is None
+
+
+def test_cv_html_guardado_antes_se_descarga_sin_ejecutarse(tmp_path):
+    # Un CV subido con el código antiguo (extensión del cliente, sin validar).
+    _, nombre = _signup()
+    uid = _id(nombre)
+    viejo = tmp_path / f"{uid}.html"
+    viejo.write_bytes(HTML)
+    db = SessionLocal()
+    u = db.get(User, uid); u.cv_path = str(viejo); db.commit(); db.close()
+    r = admin.get(f"/api/auth/pending/{uid}/cv")
     assert r.status_code == 200
     assert r.headers["content-type"] == "application/octet-stream"
     assert r.headers["content-disposition"].startswith("attachment")

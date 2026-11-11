@@ -116,6 +116,9 @@ export interface UserAdminInfo {
   created_at: string;
   university: string;
   position: string;
+  national_id?: string;
+  professional_id?: string;
+  orcid?: string;
   /** ISO UTC; solo si la solicitud se rechazó (F2-51). */
   rejected_at: string | null;
 }
@@ -128,6 +131,9 @@ export interface UserUpdate {
   hospital?: string;
   university?: string;
   position?: string;
+  national_id?: string;
+  professional_id?: string;
+  orcid?: string;
 }
 
 /* ── PHASES score ──────────────────────────────────────────────────────── */

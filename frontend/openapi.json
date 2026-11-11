@@ -900,6 +900,20 @@
     "title": "Body_measure_before_import_api_clip_library_measure_post",
     "type": "object"
    },
+   "Body_set_user_cv_api_auth_users__user_id__cv_post": {
+    "properties": {
+     "cv": {
+      "contentMediaType": "application/octet-stream",
+      "title": "Cv",
+      "type": "string"
+     }
+    },
+    "required": [
+     "cv"
+    ],
+    "title": "Body_set_user_cv_api_auth_users__user_id__cv_post",
+    "type": "object"
+   },
    "Body_set_user_photo_api_auth_users__user_id__photo_post": {
     "properties": {
      "photo": {
@@ -11132,9 +11146,24 @@
       "title": "Is Active",
       "type": "boolean"
      },
+     "national_id": {
+      "default": "",
+      "title": "National Id",
+      "type": "string"
+     },
+     "orcid": {
+      "default": "",
+      "title": "Orcid",
+      "type": "string"
+     },
      "position": {
       "default": "",
       "title": "Position",
+      "type": "string"
+     },
+     "professional_id": {
+      "default": "",
+      "title": "Professional Id",
       "type": "string"
      },
      "profile_photo_rev": {
@@ -11407,6 +11436,30 @@
       ],
       "title": "Is Active"
      },
+     "national_id": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "National Id"
+     },
+     "orcid": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Orcid"
+     },
      "position": {
       "anyOf": [
        {
@@ -11417,6 +11470,18 @@
        }
       ],
       "title": "Position"
+     },
+     "professional_id": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Professional Id"
      },
      "role": {
       "anyOf": [
@@ -13040,6 +13105,64 @@
      }
     ],
     "summary": "Update a user (admin)",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/auth/users/{user_id}/cv": {
+   "post": {
+    "description": "PDF, DOC o DOCX validado por contenido (413 si pasa de 6 MB, 415 si no es ninguno de los tres).",
+    "operationId": "set_user_cv_api_auth_users__user_id__cv_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_set_user_cv_api_auth_users__user_id__cv_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UserAdminInfo"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Replace a user's CV (admin)",
     "tags": [
      "auth"
     ]

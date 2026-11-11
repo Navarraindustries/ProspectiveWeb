@@ -193,6 +193,9 @@ class UserAdminInfo(BaseModel):
     created_at: str = ""
     university: str = ""
     position: str = ""
+    national_id: str = ""
+    professional_id: str = ""
+    orcid: str = ""
     rejected_at: str | None = Field(None, description="ISO UTC; solo si la solicitud se rechazó")
 
 
@@ -206,3 +209,7 @@ class UserUpdate(BaseModel):
     hospital: str | None = None
     university: str | None = None
     position: str | None = None
+    # Las columnas son VARCHAR(64): más largo no cabe en PostgreSQL.
+    national_id: str | None = Field(None, max_length=64)
+    professional_id: str | None = Field(None, max_length=64)
+    orcid: str | None = Field(None, max_length=64)

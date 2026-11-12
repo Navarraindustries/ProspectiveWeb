@@ -182,3 +182,56 @@
 .hud-recorrido-cifras { color: var(--hud-text); font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) { .hud-recorrido-titulo, .hud-recorrido-pista { display: none; } }
 [data-hud][data-tactil="true"] .hud-recorrido button { min-height: 44px; min-width: 44px; font-size: 13px; }
+/* ── Modo presentación (sesión clínica) ─────────────────────────────────
+   Para proyectar: letra grande, poco texto y un velo suave arriba y abajo
+   para que se lea sobre cualquier parte de la malla. */
+[data-presentacion="fija"] { position: fixed !important; inset: 0; z-index: 2000; }
+/* Lo de fuera de la celda, invisible; la celda, visible, y lo suyo hereda (sin
+   forzar lo que dentro ya estuviera oculto a propósito). */
+html[data-presentacion-activa] body *:not([data-presentacion="fija"]):not([data-presentacion="fija"] *) { visibility: hidden; }
+html[data-presentacion-activa] [data-presentacion="fija"] { visibility: visible; }
+.hud-pres { position: absolute; inset: 0; z-index: 8; pointer-events: none; color: var(--hud-text); }
+.hud-pres::before, .hud-pres::after { content: ""; position: absolute; left: 0; right: 0; pointer-events: none; }
+.hud-pres::before { top: 0; height: 160px; background: linear-gradient(to bottom, color-mix(in srgb, var(--viewer-bg) 85%, transparent), transparent); }
+.hud-pres::after { bottom: 0; height: 220px; background: linear-gradient(to top, color-mix(in srgb, var(--viewer-bg) 90%, transparent), transparent); }
+.hud-pres > * { position: absolute; z-index: 1; }
+.hud-pres button { pointer-events: auto; background: none; border: none; font: inherit; color: var(--hud-text-dim); cursor: pointer; }
+.hud-pres button:hover:not(:disabled) { color: var(--hud-text); }
+.hud-pres button:disabled { opacity: .35; cursor: default; }
+.hud-pres button:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 3px; }
+.hud-pres-caso { top: 28px; left: 36px; display: flex; flex-direction: column; gap: 6px; max-width: 60%; }
+.hud-pres-ceja { font-family: var(--font-mono); font-size: 12px; letter-spacing: .14em; color: var(--hud-text-dim); }
+.hud-pres-titulo { margin: 0; font-family: var(--font-display); font-size: clamp(24px, 3vw, 40px); font-weight: 600; line-height: 1.1; color: var(--hud-text); }
+.hud-pres-sub { font-family: var(--font-mono); font-size: 14px; letter-spacing: .06em; color: var(--hud-text-dim); }
+.hud-pres-salir { top: 30px; right: 36px; font-family: var(--font-mono) !important; font-size: 13px !important; letter-spacing: .08em; }
+.hud-pres-cifras { left: 36px; bottom: 34px; margin: 0; display: flex; gap: clamp(20px, 3vw, 48px); }
+.hud-pres-cifra { display: flex; flex-direction: column-reverse; gap: 4px; }
+.hud-pres-cifra dt { font-family: var(--font-mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--hud-text-dim); }
+.hud-pres-cifra dd { margin: 0; display: flex; align-items: baseline; gap: 6px; }
+.hud-pres-num { font-family: var(--font-display); font-size: clamp(32px, 4.4vw, 64px); font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; color: var(--hud-text); }
+.hud-pres-unidad { font-family: var(--font-mono); font-size: 16px; color: var(--hud-text-dim); }
+.hud-pres-escenas { right: 36px; bottom: 34px; display: grid; grid-template-columns: auto auto auto; align-items: center; gap: 4px 14px; }
+.hud-pres-escenas > button { font-size: 18px !important; padding: 6px 8px; }
+.hud-pres-escena { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 220px; text-align: right; animation: hud-pres-entra var(--dur-3) var(--ease-out) both; }
+.hud-pres-escena-n { font-family: var(--font-mono); font-size: 12px; letter-spacing: .1em; color: var(--hud-text-dim); }
+.hud-pres-escena-t { font-family: var(--font-display); font-size: clamp(18px, 2vw, 26px); font-weight: 600; color: var(--hud-text); }
+.hud-pres-escena-d { font-size: 13px; color: var(--hud-text-dim); }
+.hud-pres-puntos { grid-column: 1 / -1; justify-self: end; display: flex; gap: 6px; padding-right: 44px; }
+.hud-pres-puntos span { width: 6px; height: 6px; border-radius: 50%; background: var(--hud-text-dim); opacity: .5; transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); }
+.hud-pres-puntos span.on { opacity: 1; background: var(--hud-text); transform: scale(1.35); }
+.hud-pres-giro { right: 36px; top: 64px; font-family: var(--font-mono) !important; font-size: 12px !important; letter-spacing: .08em; }
+@keyframes hud-pres-entra { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .hud-pres-escena { animation-name: hud-pres-aparece; }
+  .hud-pres-puntos span { transition: opacity var(--dur-2) var(--ease-out); }
+  .hud-pres-puntos span.on { transform: none; }
+}
+@keyframes hud-pres-aparece { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 640px) {
+  .hud-pres-caso { left: 16px; top: 16px; max-width: calc(100% - 100px); }
+  .hud-pres-salir { right: 16px; top: 18px; }
+  .hud-pres-giro { right: 16px; }
+  .hud-pres-cifras { left: 16px; right: 16px; bottom: 120px; flex-wrap: wrap; gap: 14px 24px; }
+  .hud-pres-escenas { right: 16px; left: 16px; bottom: 16px; }
+  .hud-pres-escena { min-width: 0; }
+}

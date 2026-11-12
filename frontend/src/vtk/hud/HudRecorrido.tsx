@@ -30,15 +30,18 @@ export interface HudRecorridoProps {
   onPausa(): void;
   onSeguir(): void;
   onSalir(): void;
+  /** Sin SALIR propio (en el modo presentación sale la presentación entera). */
+  sinSalir?: boolean;
 }
 
 // Como la barra del cine: pulsarla no puede empezar a girar la escena.
 const stop = (e: SyntheticEvent) => e.stopPropagation();
 
-export function HudRecorrido({ progreso, totalMm, diametroEn, estado, onPausa, onSeguir, onSalir }: HudRecorridoProps) {
+export function HudRecorrido({ progreso, totalMm, diametroEn, estado, onPausa, onSeguir, onSalir, sinSalir = false }: HudRecorridoProps) {
   const mm = useSyncExternalStore(progreso.suscribir, progreso.leer);
   // Esc sale del vaso, esté donde esté el foco (salvo escribiendo en un campo).
   useEffect(() => {
+    if (sinSalir) return;
     const tecla = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       const t = e.target as HTMLElement | null;
@@ -48,7 +51,7 @@ export function HudRecorrido({ progreso, totalMm, diametroEn, estado, onPausa, o
     };
     window.addEventListener("keydown", tecla, { capture: true });
     return () => window.removeEventListener("keydown", tecla, { capture: true });
-  }, [onSalir]);
+  }, [onSalir, sinSalir]);
   const k = totalMm > 0 ? Math.min(1, Math.max(0, mm / totalMm)) : 0;
   const principal = estado === "andando"
     ? { label: "⏸", title: "Pausa (o toca el visor para mirar alrededor)", on: onPausa }
@@ -63,7 +66,7 @@ export function HudRecorrido({ progreso, totalMm, diametroEn, estado, onPausa, o
         <div className="hud-recorrido-avance" style={{ transform: `scaleX(${k})` }} />
       </div>
       <span className="hud-recorrido-cifras">{`${cifra(mm, 1)} / ${cifra(totalMm, 1)} mm · Ø ${cifra(diametroEn(mm), 1)} mm`}</span>
-      <button type="button" title="Salir del vaso (Esc)" onClick={onSalir}>SALIR ✕</button>
+      {!sinSalir && <button type="button" title="Salir del vaso (Esc)" onClick={onSalir}>SALIR ✕</button>}
     </div>
   );
 }

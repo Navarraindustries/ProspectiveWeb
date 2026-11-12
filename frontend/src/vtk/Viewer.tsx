@@ -53,6 +53,8 @@ import { useCenterlineTrack } from "./useCenterlineTrack";
 import { startClock } from "./cineClock";
 import { HudCineBar } from "./hud/HudCineBar";
 import { HudRecorrido, crearProgreso } from "./hud/HudRecorrido";
+import { HudPresentacion } from "./hud/HudPresentacion";
+import { GIRO_PRESENTACION_GRADOS_S, cifrasClave, escenasDisponibles } from "./presentation";
 import { diameterAtArc, longitudRecorrido } from "./vesselWalk";
 import { ShortcutsSheet } from "./hud/ShortcutsSheet";
 import { useAnnotationDelete } from "../components/annotations/useAnnotationDelete";
@@ -264,7 +266,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     slices3dMeshVisible, setSlices3dMeshVisible, cine, setCine, focusedPane, setFocusedPane,
     imagingStudyId, setCaptureCase, setViewerRecording,
     placedClips, setPlacedClips, plannedClips, fieldClips, fieldMeshOnScreen, setFieldMeshShown, setFieldMeshUrl, clipsTabActive, selectedClipKey,
-    centerline, obliqueWalk, setObliqueWalk, setVolumeReady, recorridoVaso, setRecorridoVaso,
+    centerline, obliqueWalk, setObliqueWalk, setVolumeReady, recorridoVaso, setRecorridoVaso, caseLabel,
     pickMiss, setPickMiss,
   } = usePlanning();
   // El recorrido VASO necesita los puntos aunque el panel de la línea central no se abra.
@@ -1501,6 +1503,102 @@ export function ViewerWorkspace({ step }: { step: string }) {
     setCenterOnLesion(canCenter ? () => centerRef.current() : null);
   }, [canCenter, setCenterOnLesion]);
   useEffect(() => () => setCenterOnLesion(null), [setCenterOnLesion]);
+
+  // ── Modo presentación (sesión clínica) ─────────────────────────────── #
+  // La celda de la escena a pantalla completa, sin paneles ni HUD de trabajo:
+  // escenas con ←/→ (árbol, lesión, abordaje, por dentro), cada una con su
+  // vuelo de cámara; giro lento en las dos primeras; cifras en grande. Al
+  // salir la cámara vuelve a la vista que había. Sin pantalla completa (el
+  // navegador la niega) la celda se fija sobre la página.
+  const escenaRef = useRef<HTMLDivElement | null>(null);
+  const [presentacion, setPresentacion] = useState<{ escena: number; modo: "pantalla" | "fija" } | null>(null);
+  const [girando, setGirando] = useState(true);
+  const camaraAntesPres = useRef<CameraState | null>(null);
+  const escenasPres = useMemo(
+    () => escenasDisponibles({ lesion: canCenter, abordaje: !!trajEntry && !!trajTarget, linea: !!centerline }),
+    [canCenter, trajEntry, trajTarget, centerline],
+  );
+  const escenaPres = presentacion ? escenasPres[presentacion.escena]?.id : undefined;
+  const escenaGira = escenaPres === "arbol" || escenaPres === "lesion";
+  /** Corta el recorrido por dentro sin volar a ningún sitio (lo siguiente ya
+   *  vuela), devolviendo el ángulo de visión de antes del endoscopio. */
+  const cortarRecorrido = (angulo: number | null) => {
+    const cam = camaraRecorrido.current;
+    if (cam) {
+      cam.salirRecorrido(null);
+      const st = cam.getState();
+      if (angulo !== null && st) cam.setState({ ...st, viewAngle: angulo });
+    }
+    camaraRecorrido.current = null;
+    setRecorrido(null);
+    setRecorridoVaso(false);
+  };
+  const irAEscena = (i: number) => {
+    const e = escenasPres[i];
+    if (!e || !camera || !presentacion || i === presentacion.escena) return;
+    if (e.id !== "dentro" && (recorrido || recorridoVaso)) cortarRecorrido(camaraAntesPres.current?.viewAngle ?? null);
+    setPresentacion({ ...presentacion, escena: i });
+    setGirando(true);
+    if (e.id === "arbol") camera.setView("fit", { volar: true });
+    else if (e.id === "lesion") centerOnLesion();
+    else if (e.id === "abordaje") viewApproach();
+    else setRecorridoVaso(true);
+  };
+  const entrarPresentacion = async () => {
+    if (!camera) return;
+    camaraAntesPres.current = camera.getState();
+    let modo: "pantalla" | "fija" = "fija";
+    const el = escenaRef.current;
+    try {
+      if (el && typeof el.requestFullscreen === "function") { await el.requestFullscreen(); modo = "pantalla"; }
+    } catch { /* sin pantalla completa: la celda se fija sobre la página */ }
+    setPresentacion({ escena: 0, modo });
+    setGirando(true);
+    // El lienzo sigue a la celda un fotograma después del cambio de tamaño:
+    // encuadrar antes dejaría el árbol a la medida de la celda pequeña.
+    window.setTimeout(() => camera.setView("fit", { volar: true }), 120);
+  };
+  const salirPresentacion = () => {
+    if (recorrido || recorridoVaso) cortarRecorrido(null);
+    setPresentacion(null);
+    if (typeof document !== "undefined" && document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
+    const antes = camaraAntesPres.current;
+    camaraAntesPres.current = null;
+    if (antes) window.setTimeout(() => camera?.setState(antes, { volar: true }), 120);
+  };
+  // Envolturas estables para la capa (sus teclas viven en un efecto).
+  const presRef = useRef({ irAEscena, salirPresentacion });
+  presRef.current = { irAEscena, salirPresentacion };
+  const irAEscenaEstable = useCallback((i: number) => presRef.current.irAEscena(i), []);
+  const salirEstable = useCallback(() => presRef.current.salirPresentacion(), []);
+  const alternarGiro = useCallback(() => setGirando((g) => !g), []);
+  const presentando = !!presentacion;
+  // Esc en pantalla completa lo coge el navegador: se sale al perderla.
+  useEffect(() => {
+    if (presentacion?.modo !== "pantalla") return;
+    const f = () => { if (!document.fullscreenElement) presRef.current.salirPresentacion(); };
+    document.addEventListener("fullscreenchange", f);
+    return () => document.removeEventListener("fullscreenchange", f);
+  }, [presentacion?.modo]);
+  // Sin pantalla completa la celda se fija sobre la página, pero la cabecera,
+  // el panel y el dock viven en otras capas y quedarían encima: se ocultan
+  // (visibility) mientras dura, sin tocar su estado.
+  useEffect(() => {
+    if (presentacion?.modo !== "fija") return;
+    document.documentElement.setAttribute("data-presentacion-activa", "");
+    return () => document.documentElement.removeAttribute("data-presentacion-activa");
+  }, [presentacion?.modo]);
+  // Otro paso del pipeline termina la presentación.
+  const presentandoRef = useRef(presentando);
+  presentandoRef.current = presentando;
+  useEffect(() => { if (presentandoRef.current) presRef.current.salirPresentacion(); }, [step]);
+  // El giro: declarativo, para que vuelva solo si la escena se rehace (la
+  // cámara nueva no sabe que giraba). Tocar el visor lo para.
+  useEffect(() => {
+    if (!camera || !escenaGira || !girando) return;
+    camera.girar(GIRO_PRESENTACION_GRADOS_S, () => setGirando(false));
+    return () => camera.girar(null);
+  }, [camera, escenaGira, girando, presentacion?.escena]);
   // F1-222: la foto del informe. El mismo encuadre que «Centrar en la lesión»
   // pero solo de la cámara 3D (los cortes no se mueven) y con la cámara de
   // antes guardada, para devolver al profesional la vista que tenía.
@@ -1985,7 +2083,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
             preserveCamera={step === "devices" || !cameraMayMove({ pickMode, justMeasuredManually: step === "morpho" && !!hudManualTag(morphometry) })}
             handles={recorrido ? SIN_ASAS : sceneHandles} onHandleDrag={onSceneHandleDrag} onHandleDoubleClick={onHandleDoubleClick}
             onLayerLoaded={onLayerLoaded} slicePlanes={slicePlanesProp}
-            orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} showInset={hudLevel !== "limpio"}
+            orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} showInset={hudLevel !== "limpio" && !presentando}
             entrada={entradaCandidatos} />
         </Suspense>
       );
@@ -2045,12 +2143,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const togglesTop = 22 + tl.length * 16 + 8;
 
     return (
-      <div style={{ position: "relative", width: "100%", height: "100%", background: "var(--viewer-bg)", overflow: "hidden" }}>
+      <div ref={escenaRef} data-presentacion={presentacion?.modo === "fija" ? "fija" : undefined}
+        style={{ position: "relative", width: "100%", height: "100%", background: "var(--viewer-bg)", overflow: "hidden" }}>
         {body}
         {/* Con el corte axial o el oblicuo dentro, su HudFrame ya dibuja esquinas
             y rótulo; aquí solo queda la lectura del paso (y, para el oblicuo, el
             nivel del volumen, que SliceView ya pinta por su cuenta). */}
-        {bodyFramed ? (
+        {presentando ? null : bodyFramed ? (
           !compact && (
             <div className="hud">
               <HudReadout at="tl" lines={tl} />
@@ -2082,10 +2181,16 @@ export function ViewerWorkspace({ step }: { step: string }) {
             estado={recorrido.estado}
             onPausa={() => { camaraRecorrido.current?.pausarRecorrido(); setRecorrido({ estado: "pausa" }); }}
             onSeguir={() => (recorrido.estado === "fin" ? lanzarRecorrido(0, "zambullida") : lanzarRecorrido(progresoRecorrido.leer(), "vuelo"))}
-            onSalir={salirDelVaso} />
+            onSalir={salirDelVaso} sinSalir={presentando} />
         )}
         {/* Dentro del vaso las vistas DESDE pelearían con el recorrido: se esconden hasta salir. */}
-        {!compact && sessionId && meta && !pickMode && !recorrido && (
+        {presentacion && (
+          <HudPresentacion titulo={caseLabel || "Caso sin paciente"}
+            subtitulo={candidate ? candidateNameAt(candidates, rejectedCandidates, selectedCandidate) : null}
+            cifras={cifrasClave(morphometry, candidate)} escenas={escenasPres} escena={presentacion.escena}
+            girando={escenaGira ? girando : null} onEscena={irAEscenaEstable} onGiro={alternarGiro} onSalir={salirEstable} />
+        )}
+        {!compact && sessionId && meta && !pickMode && !recorrido && !presentando && (
           <div className="hud-controls-col" style={{ position: "absolute", top: togglesTop, left: 14, maxWidth: "calc(100% - 28px)", zIndex: 5, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, fontFamily: "var(--font-mono)" }}>
             {/* Cortes 3D solo con malla: sin ella la escena es el corte axial
                 y no hay escena en la que colocar los cortes. */}
@@ -2101,6 +2206,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
                 <HudToggleGroup options={[{ key: "malla", label: slices3dMeshVisible ? "MALLA ●" : "MALLA ○",
                                             title: slices3dMeshVisible ? "Ocultar la malla para ver solo los cortes" : "Enseñar la malla translúcida" }]}
                   value={slices3dMeshVisible ? "malla" : ""} onChange={() => setSlices3dMeshVisible(!slices3dMeshVisible)} />
+              )}
+              {isMesh && camera && (
+                <HudToggleGroup options={[{ key: "presentar", label: "PRESENTAR", title: "Pantalla completa para la sesión clínica: escenas con ← →, giro lento y cifras en grande" }]}
+                  value="" onChange={() => void entrarPresentacion()} />
               )}
             </div>
             {/* Vistas estándar + reencuadre. Sin esto, perder la orientación

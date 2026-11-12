@@ -221,13 +221,16 @@ export interface CameraController {
   /** La cámara tal como está, para devolverla luego (F1-222: la foto del
    *  informe encuadra la lesión y deja la vista como el profesional la tenía). */
   getState(): CameraState | null;
-  setState(s: CameraState): void;
+  setState(s: CameraState, move?: CameraMove): void;
   /** Empieza (o sigue) el recorrido por dentro del vaso. */
   recorrer(r: RecorridoVaso): void;
   /** Para el recorrido donde va; la cámara se queda dentro. */
   pausarRecorrido(): void;
   /** Termina el recorrido: devuelve las capas como estaban y vuela a `volverA`. */
   salirRecorrido(volverA: CameraState | null): void;
+  /** Giro lento alrededor del foco (modo presentación); null lo para. Tocar
+   *  el visor lo para y llama a `alParar`. Espera mientras haya un vuelo o un recorrido. */
+  girar(gradosPorSegundo: number | null, alParar?: () => void): void;
 }
 
 /** Lo que hace falta para devolver la cámara exactamente a donde estaba. */
@@ -382,6 +385,8 @@ export function MeshView({
   // zambulle) y cómo deshacer lo que cambió en las capas para recorrerlo.
   const recorridoRef = useRef<{ raf: number | null; alParar?: RecorridoVaso["alParar"] } | null>(null);
   const capasRecorrido = useRef<(() => void) | null>(null);
+  // El giro lento del modo presentación.
+  const giroRef = useRef<{ raf: number; alParar?: () => void } | null>(null);
   // Set once the geometry is on screen; markers re-render at the new size.
   const [sceneDiagonal, setSceneDiagonal] = useState(0);
   const markerActors = useRef<vtkActor[]>([]);
@@ -805,7 +810,14 @@ export function MeshView({
       recorridoRef.current = null;
       if (motivo) r.alParar?.(motivo);
     };
-    const pararPorToque = () => { pararVuelo(); entradaViva.current?.fin(); pararRecorrido("toque"); };
+    const pararGiro = (avisar: boolean) => {
+      const g = giroRef.current;
+      if (!g) return;
+      cancelAnimationFrame(g.raf);
+      giroRef.current = null;
+      if (avisar) g.alParar?.();
+    };
+    const pararPorToque = () => { pararVuelo(); entradaViva.current?.fin(); pararRecorrido("toque"); pararGiro(true); };
     /** Para recorrer el vaso por dentro: la línea central (que va por el eje)
      *  y el punto compartido (que se pinta encima de todo) se apagan, y la pared
      *  se pinta opaca. Una sola vez por recorrido; `salirRecorrido` lo deshace
@@ -923,8 +935,8 @@ export function MeshView({
         const h = handles.current; if (!h) return null;
         return vueloRef.current?.hasta ?? leer(h.renderer.getActiveCamera());
       },
-      setState: (st: CameraState) => {
-        mover((cam) => escribir(cam, st), rematarComun);
+      setState: (st: CameraState, move?: CameraMove) => {
+        mover((cam) => escribir(cam, st), rematarComun, move);
       },
       // Vista de abordaje: desde fuera, por el corredor, hacia la diana.
       lookAlong: (dir: Vec3, focal: Vec3, r: number, move?: CameraMove) => {
@@ -1017,6 +1029,29 @@ export function MeshView({
           { volar: true, ms: r.llegada === "zambullida" ? ZAMBULLIDA_MS : undefined });
       },
       pausarRecorrido: () => pararRecorrido(),
+      girar: (gradosPorSegundo: number | null, alParar?: () => void) => {
+        pararGiro(false);
+        if (gradosPorSegundo === null || movimientoReducido()) return;
+        const h = handles.current; if (!h) return;
+        const este = { raf: 0, alParar };
+        let previo: number | null = null;
+        const paso = (ahora: number) => {
+          if (handles.current !== h || giroRef.current !== este) return;
+          // Tope por fotograma, como la entrada: un tirón no da medio giro.
+          const dt = previo === null ? 0 : Math.min(50, ahora - previo);
+          previo = ahora;
+          // Un vuelo o el recorrido mandan sobre la cámara: el giro espera.
+          if (dt > 0 && !vueloRef.current && !recorridoRef.current) {
+            const cam = h.renderer.getActiveCamera();
+            cam.azimuth((gradosPorSegundo * dt) / 1000);
+            cam.orthogonalizeViewUp();
+            rematarComun(h);
+          }
+          este.raf = requestAnimationFrame(paso);
+        };
+        giroRef.current = este;
+        este.raf = requestAnimationFrame(paso);
+      },
       salirRecorrido: (volverA: CameraState | null) => {
         pararRecorrido();
         const h = handles.current;
@@ -1200,6 +1235,7 @@ export function MeshView({
       // Los actores se van con la escena: no hay capas que devolver.
       pararRecorrido("corte");
       capasRecorrido.current = null;
+      pararGiro(false);
       container.removeEventListener("pointerdown", pararPorToque, { capture: true });
       container.removeEventListener("wheel", pararPorToque, { capture: true });
       stopFollowing();

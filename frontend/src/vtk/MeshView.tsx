@@ -40,6 +40,13 @@ import { matrixAfterSwap, shouldApplyMatrix, toColumnMajor } from "./layerMatrix
 import { chooseHandle, nextDrag, type DragEvent, type DragState } from "./handleDrag";
 import { cameraLike, type CameraLike, type Viewport } from "./dragController";
 import type { SlicePlaneSpec } from "./slicePlanes";
+import { flightDurationMs, interpolateCamera } from "./cameraFlight";
+import { cubicBezier, EASE_EN_MOVIMIENTO } from "../motion";
+
+/** Curva del vuelo de cámara: --ease-in-out, lo que se desplaza en pantalla. */
+const curvaVuelo = cubicBezier(...EASE_EN_MOVIMIENTO);
+const movimientoReducido = () =>
+  typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /** Un asa que se puede agarrar con el ratón (el clip, sus planos). Se dibuja en
  *  la capa superior, encima de la malla, porque el asa suele quedar dentro del
@@ -177,15 +184,19 @@ export interface MeshLabel { pos: Vec3; text: string; color: string }
 export type CameraView =
   | "fit" | "axial" | "axial_inf" | "coronal" | "coronal_post" | "sagital" | "sagital_izq";
 
+/** Cómo llega la cámara: de golpe (por defecto: sincronías, capturas, restaurar)
+ *  o volando (`volar`), cuando el profesional pide ir a otra vista con un clic. */
+export interface CameraMove { volar?: boolean }
+
 /** Lo que MeshView publica para mover su cámara desde fuera. */
 export interface CameraController {
-  setView(v: CameraView): void;
+  setView(v: CameraView, move?: CameraMove): void;
   /** Lleva el punto focal a `p` conservando distancia y orientación. */
-  focus(p: Vec3): void;
+  focus(p: Vec3, move?: CameraMove): void;
   /** Encuadra un cubo de lado 2·radiusMm centrado en `p`. */
-  frame(p: Vec3, radiusMm: number): void;
+  frame(p: Vec3, radiusMm: number, move?: CameraMove): void;
   /** Mira a lo largo de `dir` hacia `focal`, encuadrando un cubo de lado 2·radiusMm (spec §4.2). */
-  lookAlong(dir: Vec3, focal: Vec3, radiusMm: number): void;
+  lookAlong(dir: Vec3, focal: Vec3, radiusMm: number, move?: CameraMove): void;
   /** La cámara tal como está, para devolverla luego (F1-222: la foto del
    *  informe encuadra la lesión y deja la vista como el profesional la tenía). */
   getState(): CameraState | null;
@@ -332,6 +343,10 @@ export function MeshView({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handles = useRef<Handles | null>(null);
+  // Vuelo de cámara en curso: el fotograma pedido y a dónde llega. Vive en la
+  // vista y no en la escena porque el controlador se vuelve a publicar en cada
+  // reconstrucción y tiene que poder parar el vuelo que dejó el anterior.
+  const vueloRef = useRef<{ raf: number; hasta: CameraState } | null>(null);
   // Set once the geometry is on screen; markers re-render at the new size.
   const [sceneDiagonal, setSceneDiagonal] = useState(0);
   const markerActors = useRef<vtkActor[]>([]);
@@ -587,96 +602,153 @@ export function MeshView({
       () => handles.current?.renderWindow.render(),
     );
 
-    // Standard viewpoints. resetCamera() preserves the view direction and up
-    // vector, so pointing the camera and refitting is all it takes. Without this
-    // the only way back from a lost orientation was to change step and return.
-    const setView = (view: CameraView) => {
-      const h = handles.current;
-      if (!h) return;
-      const cam = h.renderer.getActiveCamera();
-      if (view !== "fit") {
-        // Segundo clic en la misma vista: la cara contraria (spec §5).
-        const target = resolveView(view, cam.getDirectionOfProjection() as Vec3, orientationRef.current);
-        // La cámara se pone del lado contrario a donde mira.
-        const { direction: dop, viewUp: up } = standardViewInVolume(target, orientationRef.current);
-        const dir: Vec3 = [-dop[0], -dop[1], -dop[2]];
-        cam.setFocalPoint(0, 0, 0);
-        cam.setPosition(dir[0], dir[1], dir[2]);
-        cam.setViewUp(up[0], up[1], up[2]);
-      }
-      h.renderer.resetCamera();
+    // ── Movimientos de cámara: colocar y rematar, de golpe o volando ── #
+    type Cam = ReturnType<Handles["renderer"]["getActiveCamera"]>;
+    const leer = (cam: Cam): CameraState => ({
+      position: [...cam.getPosition()] as Vec3,
+      focalPoint: [...cam.getFocalPoint()] as Vec3,
+      viewUp: [...cam.getViewUp()] as Vec3,
+      viewAngle: cam.getViewAngle(),
+      parallelScale: cam.getParallelScale(),
+    });
+    const escribir = (cam: Cam, st: CameraState) => {
+      cam.setPosition(...st.position);
+      cam.setFocalPoint(...st.focalPoint);
+      cam.setViewUp(...st.viewUp);
+      cam.setViewAngle(st.viewAngle);
+      cam.setParallelScale(st.parallelScale);
+    };
+    const rematarComun = (h: Handles) => {
       h.renderer.resetCameraClippingRange();
       h.renderer.updateLightsGeometryToFollowCamera();
       h.renderWindow.render();
+    };
+    const pararVuelo = () => {
+      const v = vueloRef.current;
+      if (v) { cancelAnimationFrame(v.raf); vueloRef.current = null; }
+    };
+    /** `colocar` deja la cámara en su sitio final sin pintar; `rematar` ajusta
+     *  recorte y luces y pinta. Con `volar`, la cámara recorre el camino desde
+     *  donde estaba (cameraFlight) y remata al llegar. Un vuelo nuevo, tocar el
+     *  visor o rehacer la escena paran el anterior allí donde iba. */
+    const mover = (colocar: (cam: Cam, h: Handles) => void, rematar: (h: Handles) => void, move?: CameraMove) => {
+      pararVuelo();
+      const h = handles.current; if (!h) return;
+      const cam = h.renderer.getActiveCamera();
+      const desde = leer(cam);
+      colocar(cam, h);
+      const hasta = leer(cam);
+      const ms = move?.volar && !movimientoReducido() ? flightDurationMs(desde, hasta) : 0;
+      if (ms === 0) { rematar(h); return; }
+      escribir(cam, desde);
+      let t0: number | null = null;
+      const paso = (ahora: number) => {
+        if (handles.current !== h) { vueloRef.current = null; return; }
+        if (t0 === null) t0 = ahora;
+        const k = Math.min(1, (ahora - t0) / ms);
+        if (k >= 1) {
+          vueloRef.current = null;
+          escribir(cam, hasta);
+          rematar(h);
+          return;
+        }
+        escribir(cam, interpolateCamera(desde, hasta, curvaVuelo(k)));
+        rematarComun(h);
+        vueloRef.current = { raf: requestAnimationFrame(paso), hasta };
+      };
+      vueloRef.current = { raf: requestAnimationFrame(paso), hasta };
+    };
+    // Tocar el visor (girar, desplazar, rueda) para el vuelo donde va: la
+    // cámara es del profesional en cuanto la toca.
+    const pararPorToque = () => pararVuelo();
+    container.addEventListener("pointerdown", pararPorToque, { capture: true });
+    container.addEventListener("wheel", pararPorToque, { capture: true, passive: true });
+
+    // Standard viewpoints. resetCamera() preserves the view direction and up
+    // vector, so pointing the camera and refitting is all it takes. Without this
+    // the only way back from a lost orientation was to change step and return.
+    const setView = (view: CameraView, move?: CameraMove) => {
+      const h0 = handles.current; if (!h0) return;
+      // Segundo clic en la misma vista: la cara contraria (spec §5). Si la
+      // cámara aún vuela, cuenta la vista a la que va, no la de en medio.
+      const enVuelo = vueloRef.current?.hasta;
+      const mira: Vec3 = enVuelo
+        ? [enVuelo.focalPoint[0] - enVuelo.position[0], enVuelo.focalPoint[1] - enVuelo.position[1], enVuelo.focalPoint[2] - enVuelo.position[2]]
+        : (h0.renderer.getActiveCamera().getDirectionOfProjection() as Vec3);
+      mover((cam, h) => {
+        if (view !== "fit") {
+          const target = resolveView(view, mira, orientationRef.current);
+          // La cámara se pone del lado contrario a donde mira.
+          const { direction: dop, viewUp: up } = standardViewInVolume(target, orientationRef.current);
+          const dir: Vec3 = [-dop[0], -dop[1], -dop[2]];
+          cam.setFocalPoint(0, 0, 0);
+          cam.setPosition(dir[0], dir[1], dir[2]);
+          cam.setViewUp(up[0], up[1], up[2]);
+        }
+        h.renderer.resetCamera();
+      }, rematarComun, move);
     };
     // Centrar en un punto (vistas sincronizadas): el foco se desplaza y la
     // cámara con él, así que ni el zoom ni la orientación cambian.
     const controller: CameraController = {
       setView,
-      focus: (p: Vec3) => {
-        const h = handles.current; if (!h) return;
-        const cam = h.renderer.getActiveCamera();
-        const f = cam.getFocalPoint(), pos = cam.getPosition();
-        cam.setFocalPoint(p[0], p[1], p[2]);
-        cam.setPosition(pos[0] + (p[0] - f[0]), pos[1] + (p[1] - f[1]), pos[2] + (p[2] - f[2]));
-        h.renderer.resetCameraClippingRange();
-        h.renderWindow.render();
+      focus: (p: Vec3, move?: CameraMove) => {
+        // «Centrar en la lesión» y ABORDAJE vuelan y además mueven el punto
+        // compartido al mismo sitio, que llega aquí un render después: si el
+        // vuelo ya va a ese foco no hay nada que hacer, y pararlo dejaría la
+        // cámara sin acercarse.
+        const va = vueloRef.current?.hasta.focalPoint;
+        if (va && Math.hypot(va[0] - p[0], va[1] - p[1], va[2] - p[2]) < 1e-3) return;
+        mover((cam) => {
+          const f = cam.getFocalPoint(), pos = cam.getPosition();
+          cam.setFocalPoint(p[0], p[1], p[2]);
+          cam.setPosition(pos[0] + (p[0] - f[0]), pos[1] + (p[1] - f[1]), pos[2] + (p[2] - f[2]));
+        }, (h) => {
+          h.renderer.resetCameraClippingRange();
+          h.renderWindow.render();
+        }, move);
       },
       // «Centrar en la lesión»: además encuadra un cubo de 2·r alrededor.
-      frame: (p: Vec3, r: number) => {
-        const h = handles.current; if (!h) return;
-        h.renderer.resetCamera([p[0] - r, p[0] + r, p[1] - r, p[1] + r, p[2] - r, p[2] + r]);
-        // resetCamera(bounds) ajusta también los planos de recorte al cubo:
-        // al alejarse o girar, el resto del árbol quedaba cortado. Se
-        // recalculan con lo que de verdad hay en escena.
-        h.renderer.resetCameraClippingRange();
-        h.renderer.updateLightsGeometryToFollowCamera();
-        h.renderWindow.render();
+      // resetCamera(bounds) ajusta también los planos de recorte al cubo: al
+      // alejarse o girar, el resto del árbol quedaba cortado. El remate los
+      // recalcula con lo que de verdad hay en escena.
+      frame: (p: Vec3, r: number, move?: CameraMove) => {
+        mover((_cam, h) => {
+          h.renderer.resetCamera([p[0] - r, p[0] + r, p[1] - r, p[1] + r, p[2] - r, p[2] + r]);
+        }, rematarComun, move);
       },
+      // Durante un vuelo, la cámara «tal como está» es a donde llega: quien la
+      // guarda para devolverla (la foto del informe) quiere la vista pedida.
       getState: () => {
         const h = handles.current; if (!h) return null;
-        const cam = h.renderer.getActiveCamera();
-        return {
-          position: [...cam.getPosition()] as Vec3,
-          focalPoint: [...cam.getFocalPoint()] as Vec3,
-          viewUp: [...cam.getViewUp()] as Vec3,
-          viewAngle: cam.getViewAngle(),
-          parallelScale: cam.getParallelScale(),
-        };
+        return vueloRef.current?.hasta ?? leer(h.renderer.getActiveCamera());
       },
       setState: (st: CameraState) => {
-        const h = handles.current; if (!h) return;
-        const cam = h.renderer.getActiveCamera();
-        cam.setPosition(...st.position);
-        cam.setFocalPoint(...st.focalPoint);
-        cam.setViewUp(...st.viewUp);
-        cam.setViewAngle(st.viewAngle);
-        cam.setParallelScale(st.parallelScale);
-        h.renderer.resetCameraClippingRange();
-        h.renderer.updateLightsGeometryToFollowCamera();
-        h.renderWindow.render();
+        mover((cam) => escribir(cam, st), rematarComun);
       },
       // Vista de abordaje: desde fuera, por el corredor, hacia la diana.
-      lookAlong: (dir: Vec3, focal: Vec3, r: number) => {
-        const h = handles.current; if (!h) return;
-        const cam = h.renderer.getActiveCamera();
-        const up = lookAlongUp(dir, orientationRef.current);
-        cam.setFocalPoint(focal[0], focal[1], focal[2]);
-        cam.setPosition(focal[0] - dir[0], focal[1] - dir[1], focal[2] - dir[2]);
-        cam.setViewUp(up[0], up[1], up[2]);
-        // resetCamera(bounds) conserva dirección y arriba: solo aleja la cámara hasta encuadrar el cubo.
-        h.renderer.resetCamera([focal[0] - r, focal[0] + r, focal[1] - r, focal[1] + r, focal[2] - r, focal[2] + r]);
-        h.renderer.resetCameraClippingRange();
-        // Lo que hay entre la cámara y la zona de la lesión no se pinta: con el
-        // clip colocado, la cámara caía dentro de la malla del clip o del
-        // aplicador y la celda salía verde de borde a borde (auditoría F3).
-        // Girar o desplazar vuelve a calcular el recorte normal.
-        const pos = cam.getPosition();
-        const dist = Math.hypot(pos[0] - focal[0], pos[1] - focal[1], pos[2] - focal[2]);
-        const [, lejos] = cam.getClippingRange();
-        if (dist > r) cam.setClippingRange(Math.max(0.1, dist - r), Math.max(lejos, dist + r));
-        h.renderer.updateLightsGeometryToFollowCamera();
-        h.renderWindow.render();
+      lookAlong: (dir: Vec3, focal: Vec3, r: number, move?: CameraMove) => {
+        mover((cam, h) => {
+          const up = lookAlongUp(dir, orientationRef.current);
+          cam.setFocalPoint(focal[0], focal[1], focal[2]);
+          cam.setPosition(focal[0] - dir[0], focal[1] - dir[1], focal[2] - dir[2]);
+          cam.setViewUp(up[0], up[1], up[2]);
+          // resetCamera(bounds) conserva dirección y arriba: solo aleja la cámara hasta encuadrar el cubo.
+          h.renderer.resetCamera([focal[0] - r, focal[0] + r, focal[1] - r, focal[1] + r, focal[2] - r, focal[2] + r]);
+        }, (h) => {
+          const cam = h.renderer.getActiveCamera();
+          h.renderer.resetCameraClippingRange();
+          // Lo que hay entre la cámara y la zona de la lesión no se pinta: con el
+          // clip colocado, la cámara caía dentro de la malla del clip o del
+          // aplicador y la celda salía verde de borde a borde (auditoría F3).
+          // Girar o desplazar vuelve a calcular el recorte normal.
+          const pos = cam.getPosition();
+          const dist = Math.hypot(pos[0] - focal[0], pos[1] - focal[1], pos[2] - focal[2]);
+          const [, lejos] = cam.getClippingRange();
+          if (dist > r) cam.setClippingRange(Math.max(0.1, dist - r), Math.max(lejos, dist + r));
+          h.renderer.updateLightsGeometryToFollowCamera();
+          h.renderWindow.render();
+        }, move);
       },
     };
 
@@ -845,6 +917,9 @@ export function MeshView({
 
     return () => {
       cancelled = true;
+      pararVuelo();
+      container.removeEventListener("pointerdown", pararPorToque, { capture: true });
+      container.removeEventListener("wheel", pararPorToque, { capture: true });
       stopFollowing();
       pickSub.unsubscribe();
       camSub.unsubscribe();

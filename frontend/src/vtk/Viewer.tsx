@@ -1331,16 +1331,23 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // siguiente punto caía en otro sitio. Por ref, para que desarmar el marcado
   // no dispare este efecto y recentre justo al terminar.
   const focusFromPick = useRef(false);
+  const volarAlFoco = useRef(false);
   const lastFocus = useRef<{ point: Vec3 | null; inDevices: boolean }>({ point: null, inDevices: false });
   const pickModeNow = useRef(pickMode);
   pickModeNow.current = pickMode;
   useEffect(() => {
+    // Elegir un candidato o «Ir» a una anotación son peticiones de un clic: la
+    // cámara vuela hasta allí. El resto de sincronías (cortes, cruz) van de
+    // golpe. La marca se consume siempre, se mueva o no la cámara, para que no
+    // haga volar a una sincronía posterior.
+    const volar = volarAlFoco.current;
+    volarAlFoco.current = false;
     if (focusFromPick.current) { focusFromPick.current = false; return; }
     if (!focusPoint || !syncViews || !camera) return;
     if (!cameraMayMove({ pickMode: pickModeNow.current, justMeasuredManually: false })) return;
     const inDevices = devicesCameras.current.has(camera);
     if (inDevices && lastFocus.current.inDevices && lastFocus.current.point === focusPoint) return;
-    camera.focus(focusPoint);
+    camera.focus(focusPoint, volar ? { volar: true } : undefined);
     lastFocus.current = { point: focusPoint, inDevices };
   }, [focusPoint, syncViews, camera]);
 
@@ -1363,7 +1370,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
   useEffect(() => {
     if (candidateFromScene.current) { candidateFromScene.current = false; return; }
     const c = allCandidates[selectedCandidate];
-    if (c && syncViews && meta && step === "detect") setFocusMm([c.center_mm.x, c.center_mm.y, c.center_mm.z], meta);
+    if (c && syncViews && meta && step === "detect") {
+      volarAlFoco.current = true;
+      setFocusMm([c.center_mm.x, c.center_mm.y, c.center_mm.z], meta);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCandidate, allCandidates, step, meta]);
 
@@ -1393,7 +1403,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const centerOnLesion = () => {
     if (!lesion || !meta) return;
     setFocusMm(lesion, meta);
-    camera?.frame(lesion, lesionFrameRadiusMm(lesionDiam));
+    camera?.frame(lesion, lesionFrameRadiusMm(lesionDiam), { volar: true });
   };
   // «ABORDAJE»: la cámara mira por el corredor hacia la diana y el plano
   // libre queda perpendicular a él en la diana (spec §4.2). Oblicuo y VOLUMEN
@@ -1402,7 +1412,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (!trajEntry || !trajTarget || !meta) return;
     const dir = approachDirection(trajEntry, trajTarget);
     if (!dir) return;
-    camera?.lookAlong(dir, trajTarget, lesionFrameRadiusMm(lesionDiam));
+    camera?.lookAlong(dir, trajTarget, lesionFrameRadiusMm(lesionDiam), { volar: true });
     setFocusMm(trajTarget, meta);
     setFreePlane(planeFromNormal(dir));
   };
@@ -1733,10 +1743,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const a = annotations.find((x) => x.id === id);
     if (!a || !meta || a.points.length === 0) return;
     const c = centroid(a.points);
+    volarAlFoco.current = syncViews;
     setFocusMm(c, meta);
     if (a.plane) setMprVoxel({ ...mmToVoxel(c, meta), [PLANE_AXIS[a.plane.plane]]: a.plane.index });
     // Sin SINCRO la cámara 3D no sigue al foco; «Ir» es una petición explícita.
-    if (!syncViews) camera?.focus(c);
+    if (!syncViews) camera?.focus(c, { volar: true });
   };
   const focusAnnotationRef = useRef(focusAnnotation);
   focusAnnotationRef.current = focusAnnotation;
@@ -2018,7 +2029,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
                   ...(lesion ? [{ key: "lesion", label: "CANDIDATO", title: "Acercar la cámara al candidato elegido" }] : []),
                   ...(trajEntry && trajTarget ? [{ key: "abordaje", label: "ABORDAJE", title: "Mirar a lo largo del corredor; el plano Oblicuo se pone perpendicular a él" }] : []),
                 ]}
-                value="" onChange={(k) => (k === "lesion" ? centerOnLesion() : k === "abordaje" ? viewApproach() : camera.setView(k as CameraView))} />
+                value="" onChange={(k) => (k === "lesion" ? centerOnLesion() : k === "abordaje" ? viewApproach() : camera.setView(k as CameraView, { volar: true }))} />
             )}
             {/* Solo sin orientación en el DICOM: con ella no hay nada que fijar. */}
             {meta.orientation_known === false && (

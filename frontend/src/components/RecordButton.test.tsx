@@ -78,6 +78,8 @@ describe("el botón de grabar", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Detener/ }));
     await waitFor(() => expect(onMessage).toHaveBeenLastCalledWith(
       expect.objectContaining({ tone: "info", text: expect.stringContaining("No queda en la ficha porque la sesión no tiene caso: «Archivar en un caso».") })));
+    // El aviso nombra el archivo, para encontrarlo entre las descargas.
+    expect(onMessage.mock.lastCall?.[0].text).toMatch(/como «prospective-\d{8}-\d{6}\.(webm|mp4)»/);
     expect(saveRecording).not.toHaveBeenCalled();
   });
 

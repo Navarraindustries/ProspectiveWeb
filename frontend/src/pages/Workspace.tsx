@@ -154,13 +154,13 @@ export function Workspace({
     setShot("busy");
     setShotError(null);
     try {
-      const destino = await captureCase();
+      const resultado = await captureCase();
       setShot("ok");
       setTimeout(() => setShot((v) => (v === "ok" ? "idle" : v)), 2500);
       // Sin estudio archivado la imagen se descarga y NO queda en el caso: se
       // dice, igual que con la grabación, para que nadie crea que está guardada.
-      if (destino === "downloaded") {
-        setRecMessage({ tone: "info", text: sinCasoAviso("Captura descargada") });
+      if (resultado.destino === "downloaded") {
+        setRecMessage({ tone: "info", text: sinCasoAviso("Captura descargada", resultado.archivo) });
       } else {
         setRecMessage({ tone: "ok", text: "Captura guardada en el caso." });
       }

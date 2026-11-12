@@ -8,7 +8,7 @@
    axial, coronal, sagital, MIP) leen el mismo volumen del navegador. */
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
-import { ANNOTATION_MODES, kindOfMode, usePlanning, type PickMode, type PlacedClip, type StentMap } from "../store/planning";
+import { ANNOTATION_MODES, kindOfMode, usePlanning, type DestinoCaptura, type PickMode, type PlacedClip, type StentMap } from "../store/planning";
 import { ANNOTATIONS_MAX, centroid, newId, nextLabel, type Annotation } from "./annotations";
 import { addPoint, closeRegion, removeLast } from "./annotationDraft";
 import { mainHintKind, shouldShowHint, type HintKind } from "./hint";
@@ -632,12 +632,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
     };
   }, []);
 
-  // Devuelve "saved" si quedó en el estudio y "downloaded" si solo se descargó
+  // Devuelve "saved" si quedó en el estudio y "downloaded" (con el nombre del
+  // archivo, para el aviso) si solo se descargó
   // porque no hay estudio archivado. Antes, sin estudio, el botón quedaba
   // desactivado mientras «Grabar» sí descargaba su vídeo: misma situación, dos
   // respuestas. Ahora la captura también se descarga, y el topbar dice que no
   // quedó en el caso.
-  const capturarVisor = useCallback(async (): Promise<"saved" | "downloaded"> => {
+  const capturarVisor = useCallback(async (): Promise<DestinoCaptura> => {
     const vista = leerVisor();
     if (!vista) throw new Error("No hay visor que capturar.");
     {
@@ -650,11 +651,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (!imagingStudyId) {
         const a = document.createElement("a");
         a.href = png;
-        a.download = captureFileName(ahora);
+        const archivo = captureFileName(ahora);
+        a.download = archivo;
         document.body.appendChild(a);
         a.click();
         a.remove();
-        return "downloaded";
+        return { destino: "downloaded", archivo };
       }
       await api.saveCapture({
         imaging_study_id: imagingStudyId,
@@ -667,7 +669,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         // no contesta qué candidato era ni desde dónde se estaba mirando.
         state: estadoVisor(root),
       });
-      return "saved";
+      return { destino: "saved" };
     }
   }, [imagingStudyId, sessionId, step, leerVisor, estadoVisor]);
   // Se publica UNA VEZ una envoltura estable que lee la versión vigente de una

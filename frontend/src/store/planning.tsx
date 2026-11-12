@@ -20,6 +20,10 @@ export interface PlacedClip {
   elevationDeg: number;
 }
 
+/** Dónde acabó una captura del visor: en el caso o, sin estudio archivado,
+ *  descargada con ese nombre de archivo (el aviso lo dice, fila 30 del F3). */
+export type DestinoCaptura = { destino: "saved" } | { destino: "downloaded"; archivo: string };
+
 /** Lo que el visor le da al grabador del topbar. */
 export interface ViewerRecordingSource extends FrameSource {
   /** El estado que se guarda con el vídeo, como con una captura. */
@@ -270,8 +274,8 @@ interface PlanningState {
   /** Guarda la vista actual del visor como captura del caso. La publica el
    *  visor —es el único que sabe componer sus cinco paneles— y la llama el
    *  botón del topbar, que es donde el profesional la busca. Lanza si falla. */
-  captureCase: (() => Promise<"saved" | "downloaded">) | null;
-  setCaptureCase: (fn: (() => Promise<"saved" | "downloaded">) | null) => void;
+  captureCase: (() => Promise<DestinoCaptura>) | null;
+  setCaptureCase: (fn: (() => Promise<DestinoCaptura>) | null) => void;
   /** Lo que el grabador del topbar necesita del visor: cómo leer cada
    *  fotograma y el estado que acompaña al vídeo. Lo publica el visor. */
   viewerRecording: ViewerRecordingSource | null;
@@ -615,9 +619,9 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   // esconderse algo que nadie miró. Se apaga si estorban en un caso con muchos.
   const [showRejectedIn3d, setShowRejectedIn3d] = useState(true);
   const [captureViewport, _setCaptureViewport] = useState<(() => Promise<string | null>) | null>(null);
-  const [captureCase, _setCaptureCase] = useState<(() => Promise<"saved" | "downloaded">) | null>(null);
+  const [captureCase, _setCaptureCase] = useState<(() => Promise<DestinoCaptura>) | null>(null);
   // Guardar una función en useState la INVOCA si se pasa directa; va envuelta.
-  const setCaptureCase = useCallback((fn: (() => Promise<"saved" | "downloaded">) | null) => _setCaptureCase(() => fn), []);
+  const setCaptureCase = useCallback((fn: (() => Promise<DestinoCaptura>) | null) => _setCaptureCase(() => fn), []);
   const [viewerRecording, setViewerRecording] = useState<ViewerRecordingSource | null>(null);
   // Guardar una función en useState exige envolverla: pasada tal cual, React
   // la toma por actualizador, la llama y guarda lo que devuelve (aquí, una

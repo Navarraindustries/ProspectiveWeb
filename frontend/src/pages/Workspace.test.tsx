@@ -84,12 +84,12 @@ describe("captura sin estudio archivado (F1-122)", () => {
   it("el aviso es informativo, no un error rojo", async () => {
     // Descargar la imagen es el comportamiento esperado sin caso: pintarlo como
     // alerta destructiva hacía creer que algo había fallado.
-    captureCase.mockReset().mockResolvedValue("downloaded");
+    captureCase.mockReset().mockResolvedValue({ destino: "downloaded", archivo: "prospective-20261111-101500.png" });
     montar();
     fireEvent.click(screen.getByRole("button", { name: /Captura/ }));
     // El estado del guardado también es un `status`: se busca el de la captura.
     const aviso = await screen.findByText(/Captura descargada en la carpeta/);
-    expect(aviso.textContent).toContain("Captura descargada en la carpeta de descargas. No queda en la ficha porque la sesión no tiene caso: «Archivar en un caso».");
+    expect(aviso.textContent).toContain("Captura descargada en la carpeta de descargas como «prospective-20261111-101500.png». No queda en la ficha porque la sesión no tiene caso: «Archivar en un caso».");
     expect(screen.queryByRole("alert")).toBeNull();
     expect(aviso.getAttribute("style") ?? "").not.toContain("var(--destructive)");
   });

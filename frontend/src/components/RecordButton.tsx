@@ -77,12 +77,13 @@ export function RecordButton({ step, onMessage, soloIcono = false, size = "sm" }
       onMessage({ tone: "err", text: "La grabación salió vacía: el navegador no entregó ningún fotograma." });
       return;
     }
-    downloadBlob(r.blob, recordingFileName(r.mimeType));
+    const archivo = recordingFileName(r.mimeType);
+    downloadBlob(r.blob, archivo);
     const { imagingStudyId: estudio, sessionId: sesion, step: paso, viewerRecording: fuente } = ctx.current;
     const aviso = r.hitLimit ? " Se paró sola al llegar a los 3 minutos." : "";
     if (!estudio) {
       setEstado("idle");
-      onMessage({ tone: "info", text: `${sinCasoAviso("Vídeo descargado")}${aviso}` });
+      onMessage({ tone: "info", text: `${sinCasoAviso("Vídeo descargado", archivo)}${aviso}` });
       return;
     }
     try {

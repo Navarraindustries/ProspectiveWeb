@@ -240,6 +240,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   const run = async () => {
     if (!sessionId || !series) return;
     setBusy(true);
+    planning.setSegmentando(true);
     setError(null);
     // Solo resegmentar (ya había malla) cambia aquello a lo que apuntan las
     // anotaciones 3D; la primera segmentación conserva lo medido en los cortes.
@@ -283,6 +284,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       setError(err instanceof Error ? err.message : "Error en la segmentación");
     } finally {
       setBusy(false);
+      planning.setSegmentando(false);
     }
   };
 

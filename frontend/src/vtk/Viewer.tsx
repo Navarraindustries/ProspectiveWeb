@@ -14,7 +14,7 @@ import { addPoint, closeRegion, removeLast } from "./annotationDraft";
 import { mainHintKind, shouldShowHint, type HintKind } from "./hint";
 import type { AnnotationPlane } from "../api/types";
 import { labelAnchor, labelFor, shapesForSlice, type Box } from "./annotationOverlay";
-import type { CameraController, CameraState, CameraView, Handle, HandleDragEvent, MeshFocus, MeshLabel, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
+import type { BarridoMalla, CameraController, CameraState, CameraView, Handle, HandleDragEvent, MeshFocus, MeshLabel, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
 import { slicePlaneSpecs, SLICES3D_MESH_OPACITY } from "./slicePlanes";
 import { beginDrag, clipHandles, dragPose, gizmoReadout, gizmoVisible, type DragStart } from "./clipGizmo";
 import { poseDelta } from "./clipPose";
@@ -55,6 +55,7 @@ import { HudCineBar } from "./hud/HudCineBar";
 import { HudRecorrido, crearProgreso } from "./hud/HudRecorrido";
 import { HudPresentacion } from "./hud/HudPresentacion";
 import { GIRO_PRESENTACION_GRADOS_S, cifrasClave, escenasDisponibles } from "./presentation";
+import { GIRO_ESPERA_GRADOS_S } from "./meshSweep";
 import { diameterAtArc, longitudRecorrido } from "./vesselWalk";
 import { ShortcutsSheet } from "./hud/ShortcutsSheet";
 import { useAnnotationDelete } from "../components/annotations/useAnnotationDelete";
@@ -266,7 +267,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     slices3dMeshVisible, setSlices3dMeshVisible, cine, setCine, focusedPane, setFocusedPane,
     imagingStudyId, setCaptureCase, setViewerRecording,
     placedClips, setPlacedClips, plannedClips, fieldClips, fieldMeshOnScreen, setFieldMeshShown, setFieldMeshUrl, clipsTabActive, selectedClipKey,
-    centerline, obliqueWalk, setObliqueWalk, setVolumeReady, recorridoVaso, setRecorridoVaso, caseLabel,
+    centerline, obliqueWalk, setObliqueWalk, setVolumeReady, recorridoVaso, setRecorridoVaso, caseLabel, segmentando,
     pickMiss, setPickMiss,
   } = usePlanning();
   // El recorrido VASO necesita los puntos aunque el panel de la línea central no se abra.
@@ -1592,6 +1593,30 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const presentandoRef = useRef(presentando);
   presentandoRef.current = presentando;
   useEffect(() => { if (presentandoRef.current) presRef.current.salirPresentacion(); }, [step]);
+  // ── Espera de la segmentación y llegada de la malla (meshSweep) ─────── #
+  // Mientras segmenta, la malla que haya en el 3D (la gruesa de la vista
+  // previa, o la anterior al re-segmentar) gira despacio; tocar el visor lo
+  // para hasta la próxima. La malla que llega se descubre de pies a cabeza
+  // con una franja en el frente: solo la de una segmentación lanzada aquí,
+  // no la que trae «Reanudar».
+  const giraEspera = segmentando && step === "segment" && meshScene && !!displayMeshUrl && !presentando && !recorrido;
+  const [esperaTocada, setEsperaTocada] = useState(false);
+  useEffect(() => { if (segmentando) setEsperaTocada(false); }, [segmentando]);
+  useEffect(() => {
+    if (!camera || !giraEspera || esperaTocada) return;
+    camera.girar(GIRO_ESPERA_GRADOS_S, () => setEsperaTocada(true));
+    return () => camera.girar(null);
+  }, [camera, giraEspera, esperaTocada]);
+  const urlAlSegmentar = useRef<string | null | undefined>(undefined);
+  const [barridoMalla, setBarridoMalla] = useState<BarridoMalla | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (segmentando) { if (urlAlSegmentar.current === undefined) urlAlSegmentar.current = meshUrl; return; }
+    const antes = urlAlSegmentar.current;
+    urlAlSegmentar.current = undefined;
+    if (antes === undefined || !meshUrl || meshUrl === antes) return;
+    setBarridoMalla((b) => ({ token: (b?.token ?? 0) + 1, url: meshUrl, color: HUD_RGB }));
+  }, [segmentando, meshUrl]);
+
   // El giro: declarativo, para que vuelva solo si la escena se rehace (la
   // cámara nueva no sabe que giraba). Tocar el visor lo para.
   useEffect(() => {
@@ -2084,7 +2109,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
             handles={recorrido ? SIN_ASAS : sceneHandles} onHandleDrag={onSceneHandleDrag} onHandleDoubleClick={onHandleDoubleClick}
             onLayerLoaded={onLayerLoaded} slicePlanes={slicePlanesProp}
             orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} showInset={hudLevel !== "limpio" && !presentando}
-            entrada={entradaCandidatos} />
+            entrada={entradaCandidatos} barrido={barridoMalla} />
         </Suspense>
       );
       mode = viewMode === "slices3d"

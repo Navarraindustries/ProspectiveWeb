@@ -122,6 +122,10 @@ interface PlanningState {
   /** Recorrido por dentro del vaso pedido (vesselWalk): el panel lo pide, el visor lo lleva y lo cierra. */
   recorridoVaso: boolean;
   setRecorridoVaso: (v: boolean) => void;
+  /** Hay una segmentación en marcha (el panel la lanza): el visor gira la malla
+   *  mientras se espera y, al llegar la nueva, la descubre con un barrido (meshSweep). */
+  segmentando: boolean;
+  setSegmentando: (v: boolean) => void;
   /** Total arc length (mm) of the extracted centreline — feeds the cl-stent range sliders. */
   centerlineArcMm: number | null;
   /** Qué se pinta sobre el stent de la línea central: a qué distancia queda
@@ -526,6 +530,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   // Sin puntos no hay vaso que recorrer: VASO se quedaría marcado sin efecto.
   // Estable: los efectos que piden los puntos la llevan en sus dependencias.
   const [recorridoVaso, setRecorridoVaso] = useState(false);
+  const [segmentando, setSegmentando] = useState(false);
   const setCenterline = useCallback((t: CenterlineTrack | null) => { _setCenterline(t); if (!t) { setObliqueWalk("plano"); setRecorridoVaso(false); } }, []);
   const [centerlineArcMm, setCenterlineArcMm] = useState<number | null>(null);
   const [stentMap, setStentMap] = useState<StentMap>("apposition");
@@ -876,7 +881,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
       value={{
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
         selectedCandidate, morphoInvalidatedNotice, morphometry, aneurysmSite, setAneurysmSite, treatment, deviceMeshes,
-        centerlineMesh, centerline, setCenterline, obliqueWalk, setObliqueWalk, recorridoVaso, setRecorridoVaso, centerlineArcMm, stentMap, setStentMap, mprWl, restoreWl, takeRestoredWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
+        centerlineMesh, centerline, setCenterline, obliqueWalk, setObliqueWalk, recorridoVaso, setRecorridoVaso, segmentando, setSegmentando, centerlineArcMm, stentMap, setStentMap, mprWl, restoreWl, takeRestoredWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
         annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, clipPlan, setClipPlan, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropInvert, trajEntry, trajTarget, trajSaved, setTrajSaved, trajectorySavedAt, setTrajectorySavedAt, pickMiss, setPickMiss, reportUrls, setReportUrls, morphoOverlay, showRejectedIn3d, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, sceneFramer, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion, volumeReady, setVolumeReady,
         freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, mipWindow, mipLocal, cine, focusedPane,

@@ -44,6 +44,7 @@ import type { SlicePlaneSpec } from "./slicePlanes";
 import { flightDurationMs, interpolateCamera } from "./cameraFlight";
 import { duracionEntrada, progresoEntrada, type EntradaCandidatos } from "./candidateReveal";
 import type { CenterlineTrack } from "./centerlineWalk";
+import { frenteBarrido, superiorEnMalla, tramoBarrido } from "./meshSweep";
 import { ANGULO_ENDOSCOPIO, GIRO_MS, ZAMBULLIDA_MS, arcAtTime, finRecorrido, longitudRecorrido, poseGiro, walkPose, type WalkPose } from "./vesselWalk";
 import { cubicBezier, EASE_EN_MOVIMIENTO } from "../motion";
 
@@ -192,6 +193,10 @@ export type CameraView =
  *  o volando (`volar`), cuando el profesional pide ir a otra vista con un clic. */
 export interface CameraMove { volar?: boolean; /** Duración fija del vuelo (ms); si no, la del esfuerzo. */ ms?: number }
 
+/** Llegada de la malla segmentada (meshSweep): una vez por `token`, la capa
+ *  de `url` aparece de pies a cabeza con una franja de `color` en el frente. */
+export interface BarridoMalla { token: number; url: string; color: [number, number, number] }
+
 /** Recorrido por dentro del vaso (vesselWalk): la cámara avanza por la línea
  *  central desde `desdeMm` hasta el final, mirando por delante. */
 export interface RecorridoVaso {
@@ -296,6 +301,7 @@ export function MeshView({
   insetRaised = false,
   showInset = true,
   entrada,
+  barrido,
   handles: handleList = NO_HANDLES,
   onHandleDrag,
   onHandleDoubleClick,
@@ -357,6 +363,8 @@ export function MeshView({
   /** Entrada escalonada de los candidatos (candidateReveal): se reproduce una
    *  vez por `token`, cuando sus capas están cargadas. */
   entrada?: EntradaCandidatos;
+  /** Llegada de la malla recién segmentada (meshSweep). */
+  barrido?: BarridoMalla;
   /** Asas agarrables en la capa superior. Con la lista vacía el ratón es todo
    *  de la cámara, igual que antes de que existieran. */
   handles?: Handle[];
@@ -463,6 +471,20 @@ export function MeshView({
   const entradaHecha = useRef<number | null>(null);
   const entradaViva = useRef<{ raf: number; fin: () => void; cortar: () => void } | null>(null);
   const rotulosOcultos = useRef<Set<number>>(new Set());
+  // Barrido de llegada: el pedido, el último hecho, el que va en curso y el
+  // plano que tiene oculta la malla que lo espera (puesto al cargarla).
+  const barridoRef = useRef(barrido);
+  barridoRef.current = barrido;
+  const barridoHecho = useRef<number | null>(null);
+  const barridoVivo = useRef<{ raf: number; fin: () => void; cortar: () => void } | null>(null);
+  const barridoPlano = useRef<{
+    url: string; mapper: vtkMapper; plano: ReturnType<typeof vtkPlane.newInstance>;
+    poly: ReturnType<typeof vtkPolyData.newInstance>; eje: Vec3; tramo: ReturnType<typeof tramoBarrido>;
+  } | null>(null);
+  const barridoPendiente = (url: string) => {
+    const b = barridoRef.current;
+    return !!b && b.url === url && b.token !== barridoHecho.current && !movimientoReducido();
+  };
   const placeLabels = useRef(() => {
     const svg = labelSvg.current, h = handles.current, el = containerRef.current;
     if (!svg || !h || !el) return;
@@ -572,6 +594,62 @@ export function MeshView({
   };
   const reproducirEntradaRef = useRef(reproducirEntrada);
   reproducirEntradaRef.current = reproducirEntrada;
+
+  /** El barrido de llegada (meshSweep): mueve el plano que oculta la malla de
+   *  los pies a la cabeza, con una franja sin luz entre dos planos que siguen
+   *  al frente. Al acabar quita los planos: la malla queda como cualquier otra. */
+  const reproducirBarrido = () => {
+    const b = barridoRef.current, h = handles.current, bp = barridoPlano.current;
+    if (!b || !h || b.token === barridoHecho.current || barridoVivo.current) return;
+    if (movimientoReducido()) { barridoHecho.current = b.token; return; }
+    if (!bp || bp.url !== b.url) return;   // la malla aún carga: vuelve con la época
+    const token = b.token, { mapper, plano, poly, eje, tramo } = bp;
+    const en = (d: number): [number, number, number] => [eje[0] * d, eje[1] * d, eje[2] * d];
+    const franjaMapper = vtkMapper.newInstance();
+    franjaMapper.setInputData(poly);
+    franjaMapper.setScalarVisibility(false);
+    const abajo = vtkPlane.newInstance({ normal: [eje[0], eje[1], eje[2]], origin: en(tramo.desde - 2 * tramo.franja) });
+    const arriba = vtkPlane.newInstance({ normal: [-eje[0], -eje[1], -eje[2]], origin: en(tramo.desde - tramo.franja) });
+    franjaMapper.addClippingPlane(abajo);
+    franjaMapper.addClippingPlane(arriba);
+    const franja = vtkActor.newInstance();
+    franja.setMapper(franjaMapper);
+    franja.setPickable(false);
+    franja.getProperty().setColor(...b.color);
+    franja.getProperty().setLighting(false);
+    h.renderer.addActor(franja);
+    let t = 0, previo: number | null = null;
+    const vivo = {
+      raf: 0,
+      fin: () => {
+        cancelAnimationFrame(vivo.raf);
+        mapper.removeAllClippingPlanes();
+        h.renderer.removeActor(franja);
+        barridoPlano.current = null;
+        barridoVivo.current = null;
+        barridoHecho.current = token;
+        h.renderWindow.render();
+      },
+      // La escena se va con sus actores: no hay nada que devolver.
+      cortar: () => { cancelAnimationFrame(vivo.raf); barridoVivo.current = null; barridoPlano.current = null; },
+    };
+    const paso = (ahora: number) => {
+      if (handles.current !== h) { vivo.cortar(); return; }
+      t += previo === null ? 0 : Math.min(50, ahora - previo);
+      previo = ahora;
+      const { frente, fin } = frenteBarrido(t, tramo);
+      plano.setOrigin(...en(frente));
+      arriba.setOrigin(...en(frente));
+      abajo.setOrigin(...en(frente - tramo.franja));
+      h.renderWindow.render();
+      if (fin) { vivo.fin(); return; }
+      vivo.raf = requestAnimationFrame(paso);
+    };
+    barridoVivo.current = vivo;
+    vivo.raf = requestAnimationFrame(paso);
+  };
+  const reproducirBarridoRef = useRef(reproducirBarrido);
+  reproducirBarridoRef.current = reproducirBarrido;
   const labelKey = labels.map((l) => `${l.pos.join(",")}|${l.text}|${l.color}`).join(";");
 
   // Latest pick config, read inside the vtk interactor callback without
@@ -817,7 +895,7 @@ export function MeshView({
       giroRef.current = null;
       if (avisar) g.alParar?.();
     };
-    const pararPorToque = () => { pararVuelo(); entradaViva.current?.fin(); pararRecorrido("toque"); pararGiro(true); };
+    const pararPorToque = () => { pararVuelo(); entradaViva.current?.fin(); barridoVivo.current?.fin(); pararRecorrido("toque"); pararGiro(true); };
     /** Para recorrer el vaso por dentro: la línea central (que va por el eje)
      *  y el punto compartido (que se pinta encima de todo) se apagan, y la pared
      *  se pinta opaca. Una sola vez por recorrido; `salirRecorrido` lo deshace
@@ -1098,6 +1176,16 @@ export function MeshView({
           const actor = vtkActor.newInstance();
           actor.setMapper(mapper);
           layerMappers.current.push(mapper);
+          // La malla que llega de segmentar nace oculta tras un plano por debajo
+          // de sus pies: el barrido la va descubriendo hacia la cabeza.
+          if (barridoPendiente(layer.url)) {
+            const eje = superiorEnMalla(orientationRef.current);
+            const tramo = tramoBarrido(poly.getBounds(), eje);
+            const d = tramo.desde - tramo.franja;
+            const plano = vtkPlane.newInstance({ normal: [-eje[0], -eje[1], -eje[2]], origin: [eje[0] * d, eje[1] * d, eje[2] * d] });
+            mapper.addClippingPlane(plano);
+            barridoPlano.current = { url: layer.url, mapper, plano, poly: poly as ReturnType<typeof vtkPolyData.newInstance>, eje, tramo };
+          }
           if (layer.id) {
             namedActors.current.set(layer.id, actor);
             loadedUrlById.current.set(layer.id, layer.url);
@@ -1236,6 +1324,7 @@ export function MeshView({
       pararRecorrido("corte");
       capasRecorrido.current = null;
       pararGiro(false);
+      barridoVivo.current?.cortar();
       container.removeEventListener("pointerdown", pararPorToque, { capture: true });
       container.removeEventListener("wheel", pararPorToque, { capture: true });
       stopFollowing();
@@ -1494,6 +1583,9 @@ export function MeshView({
   // Se reproduce cuando hay token nuevo y la escena ya tiene sus capas.
   useEffect(() => { reproducirEntradaRef.current(); }, [entradaToken, sceneEpoch]);
   useEffect(() => () => entradaViva.current?.cortar(), []);
+  const barridoToken = barrido?.token;
+  useEffect(() => { reproducirBarridoRef.current(); }, [barridoToken, sceneEpoch]);
+  useEffect(() => () => barridoVivo.current?.cortar(), []);
 
   // ── Punto compartido: solo se mueve su actor en la capa de encima ──────── #
   //

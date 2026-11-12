@@ -67,6 +67,7 @@ import { clampOffsetToBox, planeFromNormal, sliceSegment, type FreePlane } from 
 import { approachDirection } from "./approachView";
 import { ANNOTATION_HEX, HUD_HEX, hexToRgb01, type OutlinePlane } from "./planeColors";
 import { candidateOverlay, nearestCandidate } from "./candidateOverlay";
+import { pasosEntrada, type EntradaCandidatos } from "./candidateReveal";
 import { captureFileName } from "./viewerRecorder";
 import { readHeading, readPaneHud } from "./readHud";
 import { readPaneShapes } from "./readShapes";
@@ -1284,6 +1285,23 @@ export function ViewerWorkspace({ step }: { step: string }) {
     return out;
   }, [annotationDraft, annotations, selectedAnnotation, trajEntry, trajTarget, overlay, step, dialProgress, morphometry?.reliable]);
 
+  // Entrada de los candidatos (candidateReveal): una por cada lista nueva que
+  // llega a Detección. Volver a Detección con la misma lista no la repite.
+  // Antes de pintar, para que los números nuevos no asomen un fotograma.
+  const [entradaLista, setEntradaLista] = useState<{ token: number; lista: typeof candidates } | null>(null);
+  useLayoutEffect(() => {
+    if (step !== "detect" || candidates.length === 0) return;
+    setEntradaLista((prev) => (prev?.lista === candidates ? prev : { token: (prev?.token ?? 0) + 1, lista: candidates }));
+  }, [step, candidates]);
+  const entradaCandidatos = useMemo<EntradaCandidatos | undefined>(
+    () => entradaLista && entradaLista.lista === candidates && step === "detect"
+      ? { token: entradaLista.token, pasos: pasosEntrada({ candidates, rejected: rejectedCandidates, selected: selectedCandidate, showRejected: showRejectedIn3d, step }) }
+      : undefined,
+    // Los pasos se fijan con la lista: cambiar de candidato elegido no es otra entrada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [entradaLista, candidates, step],
+  );
+
   // Rótulos del 3D: nombre y valor siempre, que en la escena no hay celda estrecha.
   const candidateLabels = useMemo(
     () => candidateOverlay({ candidates, rejected: rejectedCandidates, selected: selectedCandidate, showRejected: showRejectedIn3d, step, resalte: 1 }).labels,
@@ -1909,7 +1927,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
             preserveCamera={step === "devices" || !cameraMayMove({ pickMode, justMeasuredManually: step === "morpho" && !!hudManualTag(morphometry) })}
             handles={sceneHandles} onHandleDrag={onSceneHandleDrag} onHandleDoubleClick={onHandleDoubleClick}
             onLayerLoaded={onLayerLoaded} slicePlanes={slicePlanesProp}
-            orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} showInset={hudLevel !== "limpio"} />
+            orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} showInset={hudLevel !== "limpio"}
+            entrada={entradaCandidatos} />
         </Suspense>
       );
       mode = viewMode === "slices3d"

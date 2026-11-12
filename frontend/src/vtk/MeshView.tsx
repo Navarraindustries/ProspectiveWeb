@@ -41,6 +41,7 @@ import { chooseHandle, nextDrag, type DragEvent, type DragState } from "./handle
 import { cameraLike, type CameraLike, type Viewport } from "./dragController";
 import type { SlicePlaneSpec } from "./slicePlanes";
 import { flightDurationMs, interpolateCamera } from "./cameraFlight";
+import { duracionEntrada, progresoEntrada, type EntradaCandidatos } from "./candidateReveal";
 import { cubicBezier, EASE_EN_MOVIMIENTO } from "../motion";
 
 /** Curva del vuelo de cámara: --ease-in-out, lo que se desplaza en pantalla. */
@@ -265,6 +266,7 @@ export function MeshView({
   onCameraChange,
   insetRaised = false,
   showInset = true,
+  entrada,
   handles: handleList = NO_HANDLES,
   onHandleDrag,
   onHandleDoubleClick,
@@ -323,6 +325,9 @@ export function MeshView({
   insetRaised?: boolean;
   /** El recuadro del maniquí; false con el HUD limpio (el CSS no llega a vtk). */
   showInset?: boolean;
+  /** Entrada escalonada de los candidatos (candidateReveal): se reproduce una
+   *  vez por `token`, cuando sus capas están cargadas. */
+  entrada?: EntradaCandidatos;
   /** Asas agarrables en la capa superior. Con la lista vacía el ratón es todo
    *  de la cámara, igual que antes de que existieran. */
   handles?: Handle[];
@@ -414,6 +419,15 @@ export function MeshView({
   const labelSvg = useRef<SVGSVGElement>(null);
   const labelsRef = useRef(labels);
   labelsRef.current = labels;
+  const layersRef = useRef(layers);
+  layersRef.current = layers;
+  // Entrada de los candidatos: la pedida, la última ya reproducida, la que va
+  // en curso y los rótulos que aún esperan su turno (ocultos).
+  const entradaRef = useRef(entrada);
+  entradaRef.current = entrada;
+  const entradaHecha = useRef<number | null>(null);
+  const entradaViva = useRef<{ raf: number; fin: () => void; cortar: () => void } | null>(null);
+  const rotulosOcultos = useRef<Set<number>>(new Set());
   const placeLabels = useRef(() => {
     const svg = labelSvg.current, h = handles.current, el = containerRef.current;
     if (!svg || !h || !el) return;
@@ -429,8 +443,100 @@ export function MeshView({
       t.setAttribute("x", (p.x + 6).toFixed(1));
       t.setAttribute("y", (p.y - 6).toFixed(1));
       t.removeAttribute("display");
+      if (rotulosOcultos.current.has(i)) t.style.opacity = "0";
     });
   }).current;
+
+  /** Una capa que tiene que nacer invisible porque su entrada aún no ha pasado. */
+  const entradaPendiente = (id: string | undefined) => {
+    const e = entradaRef.current;
+    return !!id && !!e && e.token !== entradaHecha.current && !movimientoReducido() && e.pasos.some((p) => p.capa === id);
+  };
+
+  /** Reproduce la entrada si hay una pendiente y sus capas ya están en escena.
+   *  Fotograma a fotograma escribe opacidades en los actores, en los rótulos y
+   *  en un halo por candidato; sin estado de React (como los rótulos). */
+  const reproducirEntrada = () => {
+    const e = entradaRef.current, h = handles.current, el = containerRef.current;
+    if (!e || !h || !el || e.token === entradaHecha.current || entradaViva.current) return;
+    if (e.pasos.length === 0 || movimientoReducido()) { entradaHecha.current = e.token; rotulosOcultos.current.clear(); placeLabels(); return; }
+    if (e.pasos.some((p) => p.capa && !namedActors.current.has(p.capa))) return;   // la escena aún carga
+    const token = e.token, pasos = e.pasos, svg = labelSvg.current;
+    const objetivo = (id: string) => layersRef.current.find((l) => l.id === id)?.opacity ?? 1;
+    const halos = pasos.map((p) => {
+      if (!svg) return null;
+      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      c.setAttribute("fill", "none");
+      c.setAttribute("stroke", labelsRef.current[p.rotulo]?.color ?? "currentColor");
+      c.setAttribute("stroke-width", "2");
+      c.setAttribute("display", "none");
+      svg.appendChild(c);
+      return c;
+    });
+    const opacidad = (p: (typeof pasos)[number], k: number) => {
+      if (!p.capa) return;
+      const o = objetivo(p.capa);
+      namedActors.current.get(p.capa)?.getProperty().setOpacity(o * k);
+      outlineActors.current.get(p.capa)?.getProperty().setOpacity(outlineOpacity(o) * k);
+    };
+    const quitarHalos = () => { for (const c of halos) c?.remove(); };
+    const viva = {
+      raf: 0,
+      // Termina de golpe (al llegar o al tocar el visor): todo a su opacidad.
+      fin: () => {
+        cancelAnimationFrame(viva.raf);
+        entradaViva.current = null;
+        entradaHecha.current = token;
+        rotulosOcultos.current.clear();
+        for (const p of pasos) opacidad(p, 1);
+        labelSvg.current?.querySelectorAll("text").forEach((t) => { t.style.opacity = ""; });
+        quitarHalos();
+        handles.current?.renderWindow.render();
+      },
+      // La escena se rehace a mitad: se corta sin darla por vista; la escena
+      // nueva nace con las capas invisibles y la vuelve a reproducir.
+      cortar: () => { cancelAnimationFrame(viva.raf); entradaViva.current = null; quitarHalos(); },
+    };
+    entradaViva.current = viva;
+    const total = duracionEntrada(pasos.length);
+    // Tiempo acumulado con un tope de 50 ms por fotograma: el primero, con la
+    // escena recién cargada, puede tardar medio segundo y se comería los
+    // primeros candidatos; así la secuencia se ve entera aunque vaya lenta.
+    let t = 0, previo: number | null = null;
+    const paso = (ahora: number) => {
+      if (handles.current !== h) return;
+      t += previo === null ? 0 : Math.min(50, ahora - previo);
+      previo = ahora;
+      if (t >= total) { viva.fin(); return; }
+      const w = el.clientWidth, ht = el.clientHeight;
+      const textos = labelSvg.current?.querySelectorAll("text");
+      pasos.forEach((p, i) => {
+        const { aparicion, halo } = progresoEntrada(t, i);
+        if (aparicion > 0) rotulosOcultos.current.delete(p.rotulo);
+        opacidad(p, aparicion);
+        const txt = textos?.[p.rotulo];
+        if (txt) txt.style.opacity = String(aparicion);
+        const c = halos[i], l = labelsRef.current[p.rotulo];
+        if (!c) return;
+        if (halo === null || !l || w < 1 || ht < 1) { c.setAttribute("display", "none"); return; }
+        const d = h.renderer.worldToNormalizedDisplay(l.pos[0], l.pos[1], l.pos[2], w / ht);
+        if (!(d[2] >= 0 && d[2] <= 1)) { c.setAttribute("display", "none"); return; }
+        const px = toPixels([d[0], d[1]], w, ht);
+        // Se abre rápido y se apaga despacio: radio con curva de salida, opacidad lineal.
+        const abre = 1 - (1 - halo) * (1 - halo);
+        c.setAttribute("cx", px.x.toFixed(1));
+        c.setAttribute("cy", px.y.toFixed(1));
+        c.setAttribute("r", (4 + 18 * abre).toFixed(1));
+        c.setAttribute("opacity", (0.9 * (1 - halo)).toFixed(3));
+        c.removeAttribute("display");
+      });
+      h.renderWindow.render();
+      viva.raf = requestAnimationFrame(paso);
+    };
+    viva.raf = requestAnimationFrame(paso);
+  };
+  const reproducirEntradaRef = useRef(reproducirEntrada);
+  reproducirEntradaRef.current = reproducirEntrada;
   const labelKey = labels.map((l) => `${l.pos.join(",")}|${l.text}|${l.color}`).join(";");
 
   // Latest pick config, read inside the vtk interactor callback without
@@ -660,7 +766,7 @@ export function MeshView({
     };
     // Tocar el visor (girar, desplazar, rueda) para el vuelo donde va: la
     // cámara es del profesional en cuanto la toca.
-    const pararPorToque = () => pararVuelo();
+    const pararPorToque = () => { pararVuelo(); entradaViva.current?.fin(); };
     container.addEventListener("pointerdown", pararPorToque, { capture: true });
     container.addEventListener("wheel", pararPorToque, { capture: true, passive: true });
 
@@ -796,7 +902,9 @@ export function MeshView({
           }
           const prop = actor.getProperty();
           prop.setColor(...layer.color);
-          prop.setOpacity(layer.opacity ?? 1);
+          // Un candidato que espera su entrada nace invisible: si no, asomaría
+          // un fotograma entero antes de que la entrada empiece.
+          prop.setOpacity(entradaPendiente(layer.id) ? 0 : layer.opacity ?? 1);
           prop.setInterpolationToPhong();
           // Material sobrio: poca luz propia para que el relieve lo den las dos
           // luces, y un brillo contenido que no quema la cúpula.
@@ -841,7 +949,7 @@ export function MeshView({
             const op = outline.getProperty();
             op.setFrontfaceCulling(true);
             op.setColor(...layer.color);
-            op.setOpacity(outlineOpacity(layer.opacity ?? 1));
+            op.setOpacity(entradaPendiente(layer.id) ? 0 : outlineOpacity(layer.opacity ?? 1));
             op.setLighting(false);
             outline.setPickable(false);
             renderer.addActor(outline);
@@ -918,6 +1026,7 @@ export function MeshView({
     return () => {
       cancelled = true;
       pararVuelo();
+      entradaViva.current?.cortar();
       container.removeEventListener("pointerdown", pararPorToque, { capture: true });
       container.removeEventListener("wheel", pararPorToque, { capture: true });
       stopFollowing();
@@ -1160,6 +1269,22 @@ export function MeshView({
     ro.observe(el);
     return () => ro.disconnect();
   }, [placeLabels]);
+
+  // ── Entrada de los candidatos ── #
+  // Antes de pintar: los rótulos de una entrada nueva se ocultan ya, para que
+  // no asomen mientras cargan sus zonas.
+  const entradaToken = entrada?.token;
+  useLayoutEffect(() => {
+    const e = entradaRef.current;
+    if (!e || e.token === entradaHecha.current) return;
+    if (e.pasos.length === 0 || movimientoReducido()) { entradaHecha.current = e.token; return; }
+    entradaViva.current?.cortar();
+    rotulosOcultos.current = new Set(e.pasos.map((p) => p.rotulo));
+    placeLabels();
+  }, [entradaToken, placeLabels]);
+  // Se reproduce cuando hay token nuevo y la escena ya tiene sus capas.
+  useEffect(() => { reproducirEntradaRef.current(); }, [entradaToken, sceneEpoch]);
+  useEffect(() => () => entradaViva.current?.cortar(), []);
 
   // ── Punto compartido: solo se mueve su actor en la capa de encima ──────── #
   //

@@ -41,7 +41,7 @@ export function CenterlinePanel() {
     sessionId, segmentation, pickMode, clSource, clTarget, centerlineMesh,
     setPickMode, setClSource, setClTarget, setCenterlineMesh, setCenterlineArcMm,
     clearDeviceMeshes, centerline, setCenterline, focusPoint, setFocusMm, setFreePlane, volumeVersion,
-    deviceMeshes,
+    deviceMeshes, recorridoVaso, setRecorridoVaso,
   } = usePlanning();
   const { meta } = useVolumeMeta(sessionId, volumeVersion);
 
@@ -275,6 +275,14 @@ export function CenterlinePanel() {
           <Metric label="Ø inscrito medio" value={cifra(result.mean_diameter_mm, 2)} unit=" mm" />
           <Metric label="Ø inscrito mínimo" value={cifra(result.min_diameter_mm, 2)} unit=" mm" />
           <Metric label="Ø inscrito máximo" value={cifra(result.max_diameter_mm, 2)} unit=" mm" />
+          {/* Angioscopia virtual: la cámara del 3D entra por el origen y avanza
+              por el eje hasta el destino (vesselWalk). Hacen falta los puntos. */}
+          <Button variant="outline" style={{ width: "100%", marginTop: 10 }} disabled={!centerline}
+            aria-pressed={recorridoVaso} onClick={() => setRecorridoVaso(!recorridoVaso)}
+            leadingIcon={<Icon name="CENTERLINE" size={14} />}
+            title="La cámara del 3D entra por el origen y recorre el eje hasta el destino">
+            {recorridoVaso ? "Salir del vaso" : "Recorrer por dentro"}
+          </Button>
           {result.warning && (
             <div style={{ marginTop: 10, fontSize: 12, color: "var(--warning)", display: "flex", gap: 8 }}>
               <Icon name="STATUS_WARN" color="var(--warning)" size={16} />

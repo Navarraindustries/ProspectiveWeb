@@ -170,3 +170,15 @@
 [data-tactil="true"] .viewer-chip, [data-tactil="true"] .viewer-accion { min-width: 44px; min-height: 44px; }
 .viewer-splitter { background: var(--primary); opacity: .5; }
 .viewer-splitter:hover { background: var(--primary); opacity: 1; }
+/* Recorrido por dentro del vaso: arriba y centrado, bajo la cinta de rumbo (abajo lo tapa la barra de pasos).
+   Es un control (pausa, salir): se ve en todos los niveles del HUD. */
+.hud-recorrido { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); z-index: 7; display: inline-flex; align-items: center; gap: 10px; max-width: calc(100% - 32px); padding: 6px 12px; pointer-events: auto; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .06em; color: var(--hud-text-dim); white-space: nowrap; background: var(--viewer-bg); border: var(--hud-line) solid var(--hud-text-dim); border-radius: var(--radius-md); }
+.hud-recorrido button { background: none; border: none; padding: 2px 4px; font: inherit; font-size: 11px; color: var(--hud-text-dim); cursor: pointer; }
+.hud-recorrido button:hover, .hud-recorrido .hud-recorrido-play { color: var(--hud-text); }
+.hud-recorrido button:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
+.hud-recorrido-titulo { color: var(--hud-text); }
+.hud-recorrido-pista { position: relative; width: 140px; height: 2px; background: var(--hud-text-dim); opacity: .9; overflow: hidden; }
+.hud-recorrido-avance { position: absolute; inset: 0; background: var(--hud-text); transform-origin: left center; }
+.hud-recorrido-cifras { color: var(--hud-text); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .hud-recorrido-titulo, .hud-recorrido-pista { display: none; } }
+[data-hud][data-tactil="true"] .hud-recorrido button { min-height: 44px; min-width: 44px; font-size: 13px; }

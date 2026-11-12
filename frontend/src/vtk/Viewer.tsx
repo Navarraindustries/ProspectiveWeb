@@ -14,7 +14,7 @@ import { addPoint, closeRegion, removeLast } from "./annotationDraft";
 import { mainHintKind, shouldShowHint, type HintKind } from "./hint";
 import type { AnnotationPlane } from "../api/types";
 import { labelAnchor, labelFor, shapesForSlice, type Box } from "./annotationOverlay";
-import type { CameraController, CameraView, HandleDragEvent, MeshFocus, MeshLabel, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
+import type { CameraController, CameraState, CameraView, Handle, HandleDragEvent, MeshFocus, MeshLabel, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
 import { slicePlaneSpecs, SLICES3D_MESH_OPACITY } from "./slicePlanes";
 import { beginDrag, clipHandles, dragPose, gizmoReadout, gizmoVisible, type DragStart } from "./clipGizmo";
 import { poseDelta } from "./clipPose";
@@ -52,6 +52,8 @@ import { stepTrackIndex, tangentAt } from "./centerlineWalk";
 import { useCenterlineTrack } from "./useCenterlineTrack";
 import { startClock } from "./cineClock";
 import { HudCineBar } from "./hud/HudCineBar";
+import { HudRecorrido, crearProgreso } from "./hud/HudRecorrido";
+import { diameterAtArc, longitudRecorrido } from "./vesselWalk";
 import { ShortcutsSheet } from "./hud/ShortcutsSheet";
 import { useAnnotationDelete } from "../components/annotations/useAnnotationDelete";
 import { cameraMayMove, focusOnPointerDown, refocusAfterHide } from "./pointerFocus";
@@ -59,7 +61,7 @@ import { hudCandidateLine, hudManualTag } from "./hudCandidate";
 import { candidateNameAt } from "../components/planning/detectCopy";
 // Cuello, ápice y borde: el panel de Morfometría pinta la misma muestra (F1-153).
 import { NECK_DOME_COLOR, NECK_ORIGIN_COLOR, NECK_RIM_COLOR } from "./markerColors";
-import { planeOutlines, polygonCentroid } from "./planeOutlines";
+import { planeOutlines, polygonCentroid, type PlaneOutline } from "./planeOutlines";
 import { measureDial } from "./measureDial";
 import { indexFromDrag, planeAxis, planeHandles } from "./planeHandles";
 import { screenToAxis } from "./dragController";
@@ -151,6 +153,13 @@ const CAMERA_BUTTONS: [CameraView, string, string][] = [
   ["coronal", "DELANTE", "Desde delante; otro clic, desde detrás"],
   ["sagital", "LADO", "Desde la izquierda; otro clic, desde la derecha"],
 ];
+// Dentro del vaso (recorrido) la escena es solo anatomía: sin marcas, líneas,
+// rótulos, planos ni asas. Constantes para no rehacer nada en cada render.
+const SIN_MARCAS: MeshMarker[] = [];
+const SIN_LINEAS: MeshLine[] = [];
+const SIN_ROTULOS: MeshLabel[] = [];
+const SIN_PLANOS: PlaneOutline[] = [];
+const SIN_ASAS: Handle[] = [];
 const CENTERLINE_COLOR: Vector3 = [0.36, 0.85, 0.86]; // cyan — vessel centreline tube
 const SOURCE_COLOR: Vector3 = [0.25, 0.73, 0.31];     // green — picked source endpoint
 const TARGET_COLOR: Vector3 = [0.97, 0.32, 0.29];     // red — picked target endpoint
@@ -255,7 +264,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     slices3dMeshVisible, setSlices3dMeshVisible, cine, setCine, focusedPane, setFocusedPane,
     imagingStudyId, setCaptureCase, setViewerRecording,
     placedClips, setPlacedClips, plannedClips, fieldClips, fieldMeshOnScreen, setFieldMeshShown, setFieldMeshUrl, clipsTabActive, selectedClipKey,
-    centerline, obliqueWalk, setObliqueWalk, setVolumeReady,
+    centerline, obliqueWalk, setObliqueWalk, setVolumeReady, recorridoVaso, setRecorridoVaso,
     pickMiss, setPickMiss,
   } = usePlanning();
   // El recorrido VASO necesita los puntos aunque el panel de la línea central no se abra.
@@ -272,7 +281,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // Los planos de corte en el 3D van solo con PLANOS, en cualquier nivel del
   // HUD: son geometría de la escena que se quiere ver o no, no HUD. Es una
   // preferencia de quien mira, no del caso.
-  const [planesHidden, setPlanesHidden] = useStoredFlag(PREF_PLANES_HIDDEN);
+  const [planesHidden, setPlanesHidden] = useStoredFlag(PREF_PLANES_HIDDEN, true);
   const planesHiddenRef = useRef(planesHidden);
   planesHiddenRef.current = planesHidden;
   // El modo y el preajuste de la vista VOLUMEN viajan con la captura y la
@@ -918,6 +927,51 @@ export function ViewerWorkspace({ step }: { step: string }) {
     return out;
   }, [followup, stentMap, displayMeshUrl, candidate?.dome_mesh_url, candidates, rejectedCandidates, selectedCandidate, showRejectedIn3d, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible]);
 
+  // ── Recorrido por dentro del vaso (vesselWalk) ─────────────────────── #
+  // Lo pide el panel de la línea central (o DENTRO en la cinta DESDE) por el
+  // store; aquí se lleva: la cámara se zambulle hasta el origen, avanza hasta
+  // el destino y, al salir, vuelve volando a la vista que había antes.
+  const progresoRecorrido = useMemo(crearProgreso, []);
+  const [recorrido, setRecorrido] = useState<{ estado: "andando" | "pausa" | "fin" } | null>(null);
+  const volverA = useRef<CameraState | null>(null);
+  const camaraRecorrido = useRef<CameraController | null>(null);
+  const lanzarRecorrido = (desdeMm: number, llegada: "zambullida" | "vuelo") => {
+    if (!camera || !centerline) return;
+    camaraRecorrido.current = camera;
+    progresoRecorrido.poner(desdeMm);
+    setRecorrido({ estado: "andando" });
+    camera.recorrer({
+      track: centerline, desdeMm, llegada,
+      ocultar: centerlineMesh ? [centerlineMesh] : [],
+      opacas: displayMeshUrl ? [displayMeshUrl] : [],
+      alAvanzar: (mm) => progresoRecorrido.poner(mm),
+      // «corte»: la escena se rehízo (otro paso, otra capa) y el recorrido se fue con ella.
+      alParar: (m) => {
+        if (m === "corte") { camaraRecorrido.current = null; setRecorrido(null); setRecorridoVaso(false); }
+        else setRecorrido({ estado: m === "fin" ? "fin" : "pausa" });
+      },
+    });
+  };
+  const lanzarRecorridoRef = useRef(lanzarRecorrido);
+  lanzarRecorridoRef.current = lanzarRecorrido;
+  // Empezar: hace falta la escena 3D; desde el Oblicuo se vuelve a ella.
+  useEffect(() => {
+    if (!recorridoVaso || recorrido || !centerline) return;
+    if (!meshScene) { setViewMode("default"); return; }
+    if (!camera) return;
+    volverA.current = camera.getState();
+    lanzarRecorridoRef.current(0, "zambullida");
+  }, [recorridoVaso, recorrido, centerline, meshScene, camera]);
+  // Salir (el botón, Esc, otro paso, o la línea central borrada).
+  useEffect(() => {
+    if (recorridoVaso || !recorrido) return;
+    camaraRecorrido.current?.salirRecorrido(volverA.current);
+    camaraRecorrido.current = null;
+    setRecorrido(null);
+  }, [recorridoVaso, recorrido]);
+  useEffect(() => { setRecorridoVaso(false); }, [step, setRecorridoVaso]);
+  const salirDelVaso = useCallback(() => setRecorridoVaso(false), [setRecorridoVaso]);
+
   // Los tres cortes de Cortes 3D sobre el volumen del cliente, con la ventana
   // de los cortes. Sin volumen en el cliente (sin WebGL2 o aún cargando) no
   // hay cortes que dibujar: el modo exige WebGL2, como el oblicuo.
@@ -1202,8 +1256,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
 
   const markers = useMemo<MeshMarker[]>(() => {
     const out: MeshMarker[] = [];
-    if (clSource) out.push({ pos: clSource, color: SOURCE_COLOR });
-    if (clTarget) out.push({ pos: clTarget, color: TARGET_COLOR });
+    // Origen y destino de la línea central: mientras se marcan. Extraída, el
+    // tubo ya dice por dónde va y las dos bolas solo estorban.
+    const marcandoLinea = !centerlineMesh || pickMode === "cl_source" || pickMode === "cl_target";
+    if (clSource && marcandoLinea) out.push({ pos: clSource, color: SOURCE_COLOR });
+    if (clTarget && marcandoLinea) out.push({ pos: clTarget, color: TARGET_COLOR });
     for (const p of annotationDraft) out.push({ pos: p, color: PENDING_COLOR });
     for (const a of annotations) {
       if (!a.visible || a.kind !== "marcador" || a.points.length === 0) continue;
@@ -1232,7 +1289,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       });
     }
     return out;
-  }, [clSource, clTarget, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
+  }, [clSource, clTarget, centerlineMesh, pickMode, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
 
   // El punto compartido de los cortes, con radio fijo en mm (no depende de la
   // escena). Va aparte de `markers`: MeshView lo dibuja encima de la malla.
@@ -1922,10 +1979,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
       // marcado armado o una medida a mano en Morfometría se conserva la cámara.
       body = (
         <Suspense fallback={<ViewerLoading label="Cargando visor…" />}>
-          <MeshView layers={layers} markers={markers} focus={focusMarker} planes={planes} lines={lines} labels={meshLabels} cropPreview={cropPreview}
+          <MeshView layers={layers} markers={recorrido ? SIN_MARCAS : markers} focus={recorrido ? null : focusMarker} planes={recorrido ? SIN_PLANOS : planes}
+            lines={recorrido ? SIN_LINEAS : lines} labels={recorrido ? SIN_ROTULOS : meshLabels} cropPreview={cropPreview}
             boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null || candidatePick} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
             preserveCamera={step === "devices" || !cameraMayMove({ pickMode, justMeasuredManually: step === "morpho" && !!hudManualTag(morphometry) })}
-            handles={sceneHandles} onHandleDrag={onSceneHandleDrag} onHandleDoubleClick={onHandleDoubleClick}
+            handles={recorrido ? SIN_ASAS : sceneHandles} onHandleDrag={onSceneHandleDrag} onHandleDoubleClick={onHandleDoubleClick}
             onLayerLoaded={onLayerLoaded} slicePlanes={slicePlanesProp}
             orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} showInset={hudLevel !== "limpio"}
             entrada={entradaCandidatos} />
@@ -2019,7 +2077,15 @@ export function ViewerWorkspace({ step }: { step: string }) {
           </HudFrame>
         )}
 
-        {!compact && sessionId && meta && !pickMode && (
+        {!compact && isMesh && recorrido && centerline && (
+          <HudRecorrido progreso={progresoRecorrido} totalMm={longitudRecorrido(centerline)} diametroEn={(mm) => diameterAtArc(centerline, mm)}
+            estado={recorrido.estado}
+            onPausa={() => { camaraRecorrido.current?.pausarRecorrido(); setRecorrido({ estado: "pausa" }); }}
+            onSeguir={() => (recorrido.estado === "fin" ? lanzarRecorrido(0, "zambullida") : lanzarRecorrido(progresoRecorrido.leer(), "vuelo"))}
+            onSalir={salirDelVaso} />
+        )}
+        {/* Dentro del vaso las vistas DESDE pelearían con el recorrido: se esconden hasta salir. */}
+        {!compact && sessionId && meta && !pickMode && !recorrido && (
           <div className="hud-controls-col" style={{ position: "absolute", top: togglesTop, left: 14, maxWidth: "calc(100% - 28px)", zIndex: 5, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, fontFamily: "var(--font-mono)" }}>
             {/* Cortes 3D solo con malla: sin ella la escena es el corte axial
                 y no hay escena en la que colocar los cortes. */}
@@ -2047,8 +2113,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
                   // F1-150: acerca al candidato ELEGIDO, que no tiene por qué ser la lesión.
                   ...(lesion ? [{ key: "lesion", label: "CANDIDATO", title: "Acercar la cámara al candidato elegido" }] : []),
                   ...(trajEntry && trajTarget ? [{ key: "abordaje", label: "ABORDAJE", title: "Mirar a lo largo del corredor; el plano Oblicuo se pone perpendicular a él" }] : []),
+                  ...(centerline ? [{ key: "dentro", label: "DENTRO", title: "Recorrer la línea central por dentro del vaso, como una angioscopia" }] : []),
                 ]}
-                value="" onChange={(k) => (k === "lesion" ? centerOnLesion() : k === "abordaje" ? viewApproach() : camera.setView(k as CameraView, { volar: true }))} />
+                value="" onChange={(k) => (k === "lesion" ? centerOnLesion() : k === "abordaje" ? viewApproach() : k === "dentro" ? setRecorridoVaso(true) : camera.setView(k as CameraView, { volar: true }))} />
             )}
             {/* Solo sin orientación en el DICOM: con ella no hay nada que fijar. */}
             {meta.orientation_known === false && (

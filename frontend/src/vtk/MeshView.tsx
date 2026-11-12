@@ -31,6 +31,7 @@ import vtkSphereSource from "@kitware/vtk.js/Filters/Sources/SphereSource";
 import vtkCubeSource from "@kitware/vtk.js/Filters/Sources/CubeSource";
 import vtkLineSource from "@kitware/vtk.js/Filters/Sources/LineSource";
 import vtkTubeFilter from "@kitware/vtk.js/Filters/General/TubeFilter";
+import vtkPolyDataNormals from "@kitware/vtk.js/Filters/Core/PolyDataNormals";
 import type { Bounds, Vector3 } from "@kitware/vtk.js/types";
 import { createOrientationInset, type OrientationInset } from "./OrientationInset";
 import { captureRenderWindow, type CapturableWindow, type CaptureFn } from "./captureRenderWindow";
@@ -42,6 +43,8 @@ import { cameraLike, type CameraLike, type Viewport } from "./dragController";
 import type { SlicePlaneSpec } from "./slicePlanes";
 import { flightDurationMs, interpolateCamera } from "./cameraFlight";
 import { duracionEntrada, progresoEntrada, type EntradaCandidatos } from "./candidateReveal";
+import type { CenterlineTrack } from "./centerlineWalk";
+import { ANGULO_ENDOSCOPIO, GIRO_MS, ZAMBULLIDA_MS, arcAtTime, finRecorrido, longitudRecorrido, poseGiro, walkPose, type WalkPose } from "./vesselWalk";
 import { cubicBezier, EASE_EN_MOVIMIENTO } from "../motion";
 
 /** Curva del vuelo de cámara: --ease-in-out, lo que se desplaza en pantalla. */
@@ -187,7 +190,24 @@ export type CameraView =
 
 /** Cómo llega la cámara: de golpe (por defecto: sincronías, capturas, restaurar)
  *  o volando (`volar`), cuando el profesional pide ir a otra vista con un clic. */
-export interface CameraMove { volar?: boolean }
+export interface CameraMove { volar?: boolean; /** Duración fija del vuelo (ms); si no, la del esfuerzo. */ ms?: number }
+
+/** Recorrido por dentro del vaso (vesselWalk): la cámara avanza por la línea
+ *  central desde `desdeMm` hasta el final, mirando por delante. */
+export interface RecorridoVaso {
+  track: CenterlineTrack;
+  desdeMm: number;
+  /** Cómo llega a su sitio antes de avanzar: zambulléndose desde la vista de
+   *  fuera (empezar) o con un vuelo corto (seguir tras una pausa). */
+  llegada: "zambullida" | "vuelo";
+  /** Capas que no se pintan mientras dura (la propia línea central, que va por dentro). */
+  ocultar?: string[];
+  /** Capas que se pintan opacas mientras dura (la pared del vaso). */
+  opacas?: string[];
+  alAvanzar?: (mm: number) => void;
+  /** «fin» al llegar; «toque» si el profesional toca el visor; «corte» si la escena se rehace. */
+  alParar?: (motivo: "fin" | "toque" | "corte") => void;
+}
 
 /** Lo que MeshView publica para mover su cámara desde fuera. */
 export interface CameraController {
@@ -202,6 +222,12 @@ export interface CameraController {
    *  informe encuadra la lesión y deja la vista como el profesional la tenía). */
   getState(): CameraState | null;
   setState(s: CameraState): void;
+  /** Empieza (o sigue) el recorrido por dentro del vaso. */
+  recorrer(r: RecorridoVaso): void;
+  /** Para el recorrido donde va; la cámara se queda dentro. */
+  pausarRecorrido(): void;
+  /** Termina el recorrido: devuelve las capas como estaban y vuela a `volverA`. */
+  salirRecorrido(volverA: CameraState | null): void;
 }
 
 /** Lo que hace falta para devolver la cámara exactamente a donde estaba. */
@@ -352,6 +378,10 @@ export function MeshView({
   // vista y no en la escena porque el controlador se vuelve a publicar en cada
   // reconstrucción y tiene que poder parar el vuelo que dejó el anterior.
   const vueloRef = useRef<{ raf: number; hasta: CameraState } | null>(null);
+  // El recorrido por dentro del vaso en marcha (`raf` null mientras se
+  // zambulle) y cómo deshacer lo que cambió en las capas para recorrerlo.
+  const recorridoRef = useRef<{ raf: number | null; alParar?: RecorridoVaso["alParar"] } | null>(null);
+  const capasRecorrido = useRef<(() => void) | null>(null);
   // Set once the geometry is on screen; markers re-render at the new size.
   const [sceneDiagonal, setSceneDiagonal] = useState(0);
   const markerActors = useRef<vtkActor[]>([]);
@@ -744,7 +774,7 @@ export function MeshView({
       const desde = leer(cam);
       colocar(cam, h);
       const hasta = leer(cam);
-      const ms = move?.volar && !movimientoReducido() ? flightDurationMs(desde, hasta) : 0;
+      const ms = move?.volar && !movimientoReducido() ? (move.ms ?? flightDurationMs(desde, hasta)) : 0;
       if (ms === 0) { rematar(h); return; }
       escribir(cam, desde);
       let t0: number | null = null;
@@ -766,7 +796,71 @@ export function MeshView({
     };
     // Tocar el visor (girar, desplazar, rueda) para el vuelo donde va: la
     // cámara es del profesional en cuanto la toca.
-    const pararPorToque = () => { pararVuelo(); entradaViva.current?.fin(); };
+    // El recorrido por dentro se para igual (la cámara se queda donde iba, para
+    // mirar alrededor) y se avisa a quien lo lleva para que enseñe «Seguir».
+    const pararRecorrido = (motivo?: "toque" | "corte") => {
+      const r = recorridoRef.current;
+      if (!r) return;
+      if (r.raf !== null) cancelAnimationFrame(r.raf);
+      recorridoRef.current = null;
+      if (motivo) r.alParar?.(motivo);
+    };
+    const pararPorToque = () => { pararVuelo(); entradaViva.current?.fin(); pararRecorrido("toque"); };
+    /** Para recorrer el vaso por dentro: la línea central (que va por el eje)
+     *  y el punto compartido (que se pinta encima de todo) se apagan, y la pared
+     *  se pinta opaca. Una sola vez por recorrido; `salirRecorrido` lo deshace
+     *  con la opacidad que la capa pida entonces, no con la de antes. */
+    const prepararCapasRecorrido = (h: Handles, ocultar: string[], opacas: string[]) => {
+      if (capasRecorrido.current) return;
+      const deshacer: (() => void)[] = [];
+      const capaDe = (url: string) => layersRef.current.find((l) => l.url === url);
+      const actorDe = (url: string) => { const id = capaDe(url)?.id; return (id ? namedActors.current.get(id) : undefined) ?? h.actorByUrl.get(url); };
+      const apagar = (a: vtkActor | undefined) => {
+        if (!a || !a.getVisibility()) return;
+        a.setVisibility(false);
+        deshacer.push(() => a.setVisibility(true));
+      };
+      for (const url of ocultar) {
+        apagar(actorDe(url));
+        apagar(outlineActors.current.get(capaDe(url)?.id ?? url));
+      }
+      for (const url of opacas) {
+        const a = actorDe(url); if (!a) continue;
+        a.getProperty().setOpacity(1);
+        deshacer.push(() => a.getProperty().setOpacity(capaDe(url)?.opacity ?? 1));
+        // Sin normales por vértice cada triángulo se sombrea plano: desde fuera
+        // no se nota, pero a un milímetro de la pared el vaso parece una cueva
+        // de facetas. Se calculan para el recorrido y se devuelve la malla tal cual.
+        const mapper = a.getMapper() as vtkMapper | null;
+        const poly = mapper?.getInputData() as vtkPolyData | undefined;
+        if (mapper && poly && !poly.getPointData().getNormals()) {
+          const normales = vtkPolyDataNormals.newInstance({ computePointNormals: true, computeCellNormals: false });
+          normales.setInputData(poly);
+          const suave = normales.getOutputData();
+          mapper.setInputData(suave);
+          deshacer.push(() => { if (mapper.getInputData() === suave) mapper.setInputData(poly); });
+        }
+      }
+      // El saco y las demás marcas salen de la misma superficie que el vaso:
+      // con la pared opaca y la cámara a un milímetro, las dos mallas se pisan a
+      // parches. Durante el recorrido las marcas se adelantan en profundidad.
+      type ConDesfase = vtkMapper & {
+        getResolveCoincidentTopology(): number; setResolveCoincidentTopology(v: number): void;
+        getRelativeCoincidentTopologyPolygonOffsetParameters(): { factor: number; offset: number };
+        setRelativeCoincidentTopologyPolygonOffsetParameters(factor: number, offset: number): void;
+      };
+      const deLaPared = new Set(opacas.map((u) => actorDe(u)?.getMapper()).filter(Boolean));
+      for (const a of h.actors) {
+        const m = a.getMapper() as ConDesfase | null;
+        if (!m || deLaPared.has(m) || typeof m.setRelativeCoincidentTopologyPolygonOffsetParameters !== "function") continue;
+        const modo = m.getResolveCoincidentTopology(), antes = { ...m.getRelativeCoincidentTopologyPolygonOffsetParameters() };
+        m.setResolveCoincidentTopology(1);   // Resolve.PolygonOffset
+        m.setRelativeCoincidentTopologyPolygonOffsetParameters(-2, -8);
+        deshacer.push(() => { m.setResolveCoincidentTopology(modo); m.setRelativeCoincidentTopologyPolygonOffsetParameters(antes.factor, antes.offset); });
+      }
+      apagar(h.focusActor);
+      capasRecorrido.current = () => deshacer.forEach((f) => f());
+    };
     container.addEventListener("pointerdown", pararPorToque, { capture: true });
     container.addEventListener("wheel", pararPorToque, { capture: true, passive: true });
 
@@ -855,6 +949,82 @@ export function MeshView({
           h.renderer.updateLightsGeometryToFollowCamera();
           h.renderWindow.render();
         }, move);
+      },
+      // ── Recorrido por dentro del vaso ── #
+      recorrer: (r: RecorridoVaso) => {
+        pararRecorrido();
+        pararVuelo();
+        const h = handles.current; if (!h) return;
+        const cam = h.renderer.getActiveCamera();
+        prepararCapasRecorrido(h, r.ocultar ?? [], r.opacas ?? []);
+        // Dentro del vaso la pared está a un milímetro: el recorte automático
+        // dejaría el plano cercano por delante de ella y se vería a través.
+        const b = h.renderer.computeVisiblePropBounds();
+        const lejos = Math.max(100, 2 * Math.hypot(b[1] - b[0], b[3] - b[2], b[5] - b[4]));
+        const L = finRecorrido(longitudRecorrido(r.track));
+        let up = [...cam.getViewUp()] as Vec3;
+        const colocar = (p: WalkPose) => {
+          cam.setPosition(...p.position);
+          cam.setFocalPoint(...p.focalPoint);
+          cam.setViewUp(...p.viewUp);
+          cam.setViewAngle(ANGULO_ENDOSCOPIO);
+        };
+        const pintar = () => {
+          cam.setClippingRange(0.1, lejos);
+          h.renderer.updateLightsGeometryToFollowCamera();
+          h.renderWindow.render();
+        };
+        const este: { raf: number | null; alParar?: RecorridoVaso["alParar"] } = { raf: null, alParar: r.alParar };
+        recorridoRef.current = este;
+        const andar = () => {
+          if (recorridoRef.current !== este) return;   // tocaron el visor durante la zambullida
+          let t0: number | null = null;
+          const paso = (ahora: number) => {
+            if (handles.current !== h || recorridoRef.current !== este) return;
+            if (t0 === null) t0 = ahora;
+            const { s, fin } = arcAtTime((ahora - t0) / 1000, Math.min(r.desdeMm, L), L);
+            const p = walkPose(r.track, s, up);
+            up = p.viewUp;
+            colocar(p);
+            pintar();
+            r.alAvanzar?.(s);
+            if (fin) { mirarAlrededor(p); return; }
+            este.raf = requestAnimationFrame(paso);
+          };
+          este.raf = requestAnimationFrame(paso);
+        };
+        // Al llegar, un vaivén de la mirada (vesselWalk.giroFinal) para ver la
+        // zona del destino antes de dar el recorrido por terminado. Tocar el
+        // visor lo corta como al recorrido; con movimiento reducido no hay vaivén.
+        const mirarAlrededor = (llegada: WalkPose) => {
+          const terminar = () => { recorridoRef.current = null; r.alParar?.("fin"); };
+          if (movimientoReducido()) { terminar(); return; }
+          let t0: number | null = null;
+          const giro = (ahora: number) => {
+            if (handles.current !== h || recorridoRef.current !== este) return;
+            if (t0 === null) t0 = ahora;
+            const ms = ahora - t0;
+            colocar(poseGiro(llegada, ms));
+            pintar();
+            if (ms >= GIRO_MS) { terminar(); return; }
+            este.raf = requestAnimationFrame(giro);
+          };
+          este.raf = requestAnimationFrame(giro);
+        };
+        const inicio = walkPose(r.track, Math.min(r.desdeMm, L), up);
+        up = inicio.viewUp;
+        mover(() => colocar(inicio), () => { pintar(); andar(); },
+          { volar: true, ms: r.llegada === "zambullida" ? ZAMBULLIDA_MS : undefined });
+      },
+      pausarRecorrido: () => pararRecorrido(),
+      salirRecorrido: (volverA: CameraState | null) => {
+        pararRecorrido();
+        const h = handles.current;
+        capasRecorrido.current?.();
+        capasRecorrido.current = null;
+        if (!h) return;
+        if (volverA) mover((cam) => escribir(cam, volverA), rematarComun, { volar: true, ms: ZAMBULLIDA_MS });
+        else rematarComun(h);
       },
     };
 
@@ -1027,6 +1197,9 @@ export function MeshView({
       cancelled = true;
       pararVuelo();
       entradaViva.current?.cortar();
+      // Los actores se van con la escena: no hay capas que devolver.
+      pararRecorrido("corte");
+      capasRecorrido.current = null;
       container.removeEventListener("pointerdown", pararPorToque, { capture: true });
       container.removeEventListener("wheel", pararPorToque, { capture: true });
       stopFollowing();

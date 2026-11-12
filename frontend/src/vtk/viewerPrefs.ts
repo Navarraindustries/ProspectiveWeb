@@ -10,7 +10,11 @@ import { useCallback, useState } from "react";
 import { CINE_FPS_DEFAULT, clampFps } from "./cine";
 
 export const PREF_DECOR_HIDDEN = "viewer.hudDecorHidden";
-export const PREF_PLANES_HIDDEN = "viewer.planesHidden";
+/** REFERENCIAS del 3D (planos de los cortes, sus asas y el punto de cruce).
+ *  Apagadas por defecto: son herramienta para mover los cortes desde el 3D, no
+ *  algo que haya que ver siempre. Clave nueva para que el defecto llegue también
+ *  a quien ya tenía guardada la anterior (que solo guardaba «encendidas»). */
+export const PREF_PLANES_HIDDEN = "viewer.planesHidden.v2";
 /** La cadencia del cine es un gusto de quien mira, como la decoración. */
 export const PREF_CINE_FPS = "viewer.cineFps";
 

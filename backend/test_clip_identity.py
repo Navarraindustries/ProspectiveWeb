@@ -422,3 +422,42 @@ class TestTheCustomJawCanBePlaced:
         assert r.json()["swing_deg"] != pytest.approx(by_lever, abs=0.05)
         assert r.json()["mechanics_assumed"] is True, (
             "8.5 mm no llega al techo: la apertura sigue siendo una inferencia")
+
+
+# ── 6. Un id que no es un clip no se coloca (13-11) ───────────────────────── #
+
+class TestUnIdQueNoEsUnClipNoSeColoca:
+    """El vídeo del 13-11 enseñaba «Clip elegido __otros__»: el separador de la
+    lista («── Otros del catálogo ──») llegó como clip y el servidor, sin
+    reconocerlo, colocó en silencio una caja genérica de 9 mm. El plan, la
+    verificación y el informe describían un clip que nadie había elegido."""
+
+    _POSE = {"position": {"x": 0, "y": 0, "z": 0}, "normal": [0, 0, 1], "rotation_deg": 0}
+
+    @pytest.mark.parametrize("cid", ["__otros__", "", "navarro:t9:0:10.0", "yasargil_7"])
+    def test_el_plan_lo_rechaza_y_no_guarda_nada(self, cid):
+        sid = _session()
+        r = client.post("/api/clips/plan", json={"session_id": sid, "placements": [{"clip_id": cid, **self._POSE}]})
+        assert r.status_code == 422, r.text
+        assert "catálogo" in r.json()["detail"]
+        from services.device_state import read_clips
+        assert not read_clips(sid)
+
+    def test_el_ensayo_lo_rechaza(self):
+        sid = _session()
+        r = client.post(f"/api/clips/animation/{sid}", json={"session_id": sid, "placements": [{"clip_id": "__otros__", **self._POSE}]})
+        assert r.status_code == 422, r.text
+        assert "catálogo" in r.json()["detail"]
+
+    def test_basta_uno_desconocido_para_rechazar_el_montaje(self):
+        sid = _session()
+        bueno = client.get(f"/api/clips/recommendations/{sid}").json()[0]["clip_id"]
+        r = client.post("/api/clips/plan", json={"session_id": sid, "placements": [
+            {"clip_id": bueno, **self._POSE}, {"clip_id": "__otros__", **self._POSE}]})
+        assert r.status_code == 422, r.text
+        assert "__otros__" in r.json()["detail"]
+
+    def test_un_navarro_de_verdad_sigue_entrando(self):
+        sid = _session()
+        r = client.post("/api/clips/plan", json={"session_id": sid, "placements": [{"clip_id": "navarro:t1:0:10.0", **self._POSE}]})
+        assert r.status_code == 200, r.text

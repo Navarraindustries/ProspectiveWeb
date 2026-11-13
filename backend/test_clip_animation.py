@@ -267,7 +267,9 @@ def _session() -> str:
     return sid
 
 
-def _body(clip_id="yasargil-recto-9mm", traj=False):
+# 13-11: era «yasargil-recto-9mm», que no existe en ningún catálogo; el ensayo
+# salía porque el servidor ponía en su lugar una caja genérica de 9 mm.
+def _body(clip_id="navarro:t1:0:10.0", traj=False):
     out = {
         "session_id": "x",
         "placements": [{"clip_id": clip_id, "position": {"x": 0, "y": 0, "z": 0},
@@ -293,7 +295,9 @@ class TestEndpoint:
     def test_the_opening_is_declared_as_assumed(self):
         # A closed STL records no mechanism; the UI must not imply otherwise.
         sid = _session()
-        assert client.post(f"/api/clips/animation/{sid}", json=_body()).json()["mechanics_assumed"] is True
+        # Mordaza corta: la apertura no la decide el tope y se supone (con 10 mm
+        # ya la decide el tope y no hay nada supuesto).
+        assert client.post(f"/api/clips/animation/{sid}", json=_body("navarro:t1:0:7.0")).json()["mechanics_assumed"] is True
 
     def test_a_marked_corridor_is_used_when_there_is_one(self):
         sid = _session()

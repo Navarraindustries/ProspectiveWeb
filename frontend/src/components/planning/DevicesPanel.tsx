@@ -401,8 +401,13 @@ function ClipsTab() {
     ?? (picked?.id === clipId ? picked.name : undefined)
     ?? clipId;
 
+  // Solo un modelo de la lista se puede elegir y añadir: nunca el separador
+  // «── Otros del catálogo ──» (13-11: forzado desde fuera llegó al plan como
+  // un clip llamado «__otros__» y el servidor dibujó una caja genérica).
+  const esModelo = (v: string) => options.some((o) => o.value === v && !o.disabled);
+
   const addClip = () => {
-    if (!sel) return;
+    if (!sel || !esModelo(sel)) return;
     const { position } = neckPlacement(morphometry);
     const key = Math.max(nextKey.current, ...placed.map((c) => c.key + 1));
     nextKey.current = key + 1;
@@ -636,7 +641,7 @@ function ClipsTab() {
             label={verTodo
               ? `Todo el catálogo (${nModels})`
               : recsLoaded ? `Recomendados + personalizados (${nModels})` : "Recomendados + personalizados (evaluando…)"}
-            options={options} value={sel} onChange={(e) => setSel(e.target.value)} />
+            options={options} value={sel} onChange={(e) => { if (esModelo(e.target.value)) setSel(e.target.value); }} />
           {/* Sin esto, un modelo que el recomendador no propone es inalcanzable
               desde la interfaz, aunque la institución lo tenga. */}
           <CatalogueToggle stockCount={stockCount} checked={verTodo} onChange={setVerTodo} />
@@ -682,7 +687,7 @@ function ClipsTab() {
           <Button
             style={{ marginTop: 6, width: "100%" }}
             onClick={() => { addClip(); setStep(CLIP_STEPS[1]); }}
-            disabled={!sel}
+            disabled={!esModelo(sel)}
             trailingIcon={<Icon name="CLIP_PLACE" />}
           >
             Añadir al plan y colocar

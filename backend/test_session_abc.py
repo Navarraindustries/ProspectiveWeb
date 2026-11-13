@@ -361,7 +361,7 @@ class TestClipsAPI:
         resp = client.post("/api/clips/plan", json={
             "session_id": sid,
             "placements": [{
-                "clip_id":      "yasargil-mini-recto",
+                "clip_id":      "navarro:t1:0:7.0",   # 13-11: el yasargil ya no está en el catálogo
                 "position":     {"x": 0.0, "y": 0.0, "z": 0.0},
                 "normal":       [0.0, 0.0, 1.0],
                 "rotation_deg": 0.0,
@@ -375,7 +375,7 @@ class TestClipsAPI:
     def test_plan_coverage_capped_at_100(self):
         """4 clips → raw 120% estimate must be clamped to 100%."""
         sid  = _make_session()
-        clips = [{"clip_id": "yasargil-mini-recto",
+        clips = [{"clip_id": "navarro:t1:0:7.0",
                   "position": {"x": 0.0, "y": 0.0, "z": 0.0},
                   "normal":   [0.0, 0.0, 1.0],
                   "rotation_deg": 0.0}] * 4

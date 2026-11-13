@@ -102,6 +102,34 @@ def _clip_geometry_for(clip_id: str, meshes_dir):
     )
 
 
+def _clip_conocido(clip_id: str, index) -> bool:
+    """¿Es `clip_id` un clip que alguien pueda haber elegido? Uno del catálogo,
+    uno importado en la sesión, o un NAVARRO™ bien formado de una serie que
+    existe (también a medida: el catálogo solo lista las tallas dibujadas)."""
+    if clip_id in index or clip_id.startswith("custom:"):
+        return True
+    from services.navarro import SERIES_SHAPE, parse_clip_id
+    parsed = parse_clip_id(clip_id)
+    return bool(parsed) and parsed[0] in SERIES_SHAPE and parsed[2] > 0
+
+
+def _exigir_clips_conocidos(placements) -> None:
+    """422 si algún clip del montaje no es un clip (13-11).
+
+    `_clip_geometry_for` pone en silencio una caja genérica de 9 mm ante un id
+    que no reconoce, y así llegó al plan «__otros__», el separador de la lista
+    del panel: el plan, la verificación y el informe describían un clip que
+    nadie había elegido. Mejor decirlo que dibujar otra cosa."""
+    index = _catalogue_index()
+    malos = [pl.clip_id for pl in placements if not _clip_conocido(pl.clip_id, index)]
+    if malos:
+        nombres = ", ".join(f"«{m}»" for m in malos)
+        raise HTTPException(
+            status_code=422,
+            detail=f"{nombres} no es un clip del catálogo: elige uno de la lista.",
+        )
+
+
 def _jaw_from_id(clip_id: str) -> float:
     """The jaw a NAVARRO id names, or 0.0 when it names nothing."""
     try:
@@ -350,6 +378,7 @@ async def plan_clips(
             collision_detected=False,
             warning=None,
         )
+    _exigir_clips_conocidos(req.placements)
 
     meshes_dir = session_subdir(req.session_id, "meshes")
     vessel_path = meshes_dir / "vessel_tree.vtp"
@@ -1107,6 +1136,7 @@ async def clip_animation(
         raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     if not req.placements:
         raise HTTPException(status_code=422, detail="Indica el clip que se va a colocar.")
+    _exigir_clips_conocidos(req.placements)
 
     pl = req.placements[0]
     meshes_dir = session_subdir(session_id, "meshes")
@@ -1259,6 +1289,7 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
         raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     if not req.placements:
         raise HTTPException(status_code=409, detail="No hay ningún clip colocado que evaluar.")
+    _exigir_clips_conocidos(req.placements)
     import vtk
     from services import devices
     from services import clip_field as cf

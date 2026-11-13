@@ -29,6 +29,7 @@ vi.mock("../../api/client", async (orig) => {
   const mod = await orig<typeof import("../../api/client")>();
   return { ...mod, api: { ...mod.api,
     // El recomendador viejo, en orden de catálogo: ya no da la lista del menú.
+    listClips: vi.fn(async () => [{ id: "navarro:t2:0:7.0", name: "NAVARRO T2 7 mm" }]),
     clipRecommendations: vi.fn(async () => [{ clip_id: "aesculap-recto-7", clip_name: "Aesculap Recto 7 mm" }, { clip_id: "navarro:t1:0:10.0", clip_name: "NAVARRO T1 10 mm" }]),
     listCustomClips: vi.fn(async () => []),
     // Decisión nº 23: el menú de modelos sale de las tarjetas de la selección,
@@ -563,5 +564,27 @@ describe("DevicesPanel · quitar pregunta antes y el pie deja saltar Fabricació
     fireEvent.click(screen.getByRole("button", { name: "Saltar al informe" }));
     expect(onSkip).toHaveBeenCalledTimes(1);
     expect(onNext).not.toHaveBeenCalled();
+  });
+});
+
+// 13-11: forzado desde fuera, el separador «── Otros del catálogo ──» llegaba al
+// plan como un clip «__otros__» y el servidor dibujaba una caja genérica.
+describe("DevicesPanel · el separador de la lista no es un clip", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("elegir el separador no cambia el clip elegido ni llega al plan", async () => {
+    render(<PlanningProvider><Seed><DevicesPanel onNext={() => {}} /></Seed></PlanningProvider>);
+    const addBtn = () => screen.getByRole("button", { name: /Añadir al plan y colocar/ });
+    await waitFor(() => expect(addBtn()).not.toBeDisabled());
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ver todo/ }));
+    const menu = await screen.findByLabelText(/Todo el catálogo/);
+    await waitFor(() => expect([...(menu as HTMLSelectElement).options].some((o) => o.value === "__otros__")).toBe(true));
+    fireEvent.change(menu, { target: { value: "__otros__" } });
+    expect(addBtn()).not.toBeDisabled();
+    fireEvent.click(addBtn());
+    fireEvent.click(screen.getByRole("button", { name: "Colocar y verificar (1 clip)" }));
+    await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(1));
+    const ids = vi.mocked(api.planClips).mock.calls[0][0].placements.map((p: { clip_id: string }) => p.clip_id);
+    expect(ids).toEqual(["navarro:t1:0:10.0"]);
   });
 });

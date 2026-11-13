@@ -796,6 +796,31 @@ describe("método tubular", () => {
     expect(screen.queryByText(/sugerido por el histograma/)).toBeNull();
   });
 
+  /* Segmentar antes de que llegara la banda sugerida mandaba el valor de
+     reserva (150, de TC): en una 3DRA eso es tejido blando y cráneo, y salía
+     un bloque en vez del árbol. Visto el 12-11 con un clic a los 3,5 s. */
+  it("no deja segmentar hasta que llega el umbral sugerido, y segmenta con él", async () => {
+    const { mockApi } = await mocks();
+    let entregar: (b: { lower: number; upper: number; vmin: number; vmax: number }) => void = () => {};
+    mockApi.suggestedBand.mockReturnValue(new Promise((r) => { entregar = r; }));
+    mockApi.segment.mockResolvedValue(baseResult);
+    renderPanel();
+    const esperando = await screen.findByRole("button", { name: /Calculando umbral/ });
+    expect(esperando).toBeDisabled();
+    entregar({ lower: 1470, upper: 4717, vmin: -20, vmax: 5000 });
+    fireEvent.click(await screen.findByRole("button", { name: /^Segmentar$/ }));
+    await waitFor(() => expect(mockApi.segment).toHaveBeenCalled());
+    expect(mockApi.segment.mock.calls[0][0]).toMatchObject({ lower: 1470 });
+  });
+
+  it("si el umbral sugerido no se puede calcular, deja segmentar pero lo avisa", async () => {
+    const { mockApi } = await mocks();
+    mockApi.suggestedBand.mockRejectedValue(new Error("caído"));
+    renderPanel();
+    expect(await screen.findByRole("button", { name: /^Segmentar$/ })).not.toBeDisabled();
+    expect(screen.getByText(/No se pudo calcular el umbral sugerido/)).toBeInTheDocument();
+  });
+
   /* F1-132 y decisión 17: en tubular el techo no manda; ni deslizador ni casilla. */
   it("en tubular no hay techo: una sola línea; con el umbral clásico vuelve", async () => {
     await mocks();

@@ -83,6 +83,11 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   // Slider range + suggested band, adapted to this volume's intensity scale.
   const [range, setRange] = useState<{ min: number; max: number }>({ min: -500, max: 3000 });
   const suggested = useRef<{ lower: number; upper: number } | null>(null);
+  // Si la banda de ESTE volumen ya llegó. Mientras no llega, el umbral es el de
+  // reserva (150, pensado para TC) y segmentar con él en una 3DRA mete el
+  // tejido blando y el cráneo: salía un bloque en vez del árbol (visto el 12-11
+  // con un clic a los 3,5 s, mientras el servidor tardaba en calcularla).
+  const [banda, setBanda] = useState<"esperando" | "lista" | "fallo">("esperando");
   const [previewing, setPreviewing] = useState(false);
   // Solo vigila mientras corre la petición: al llegar el resultado `busy` pasa
   // a false y el hook cierra el WebSocket o el sondeo.
@@ -106,8 +111,10 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
   useEffect(() => {
     if (!sessionId) return;
     let alive = true;
+    setBanda("esperando");
     api.suggestedBand(sessionId).then((b) => {
       if (!alive) return;
+      setBanda("lista");
       suggested.current = { lower: b.lower, upper: b.upper };
       setTubularUpper(b.tubular_upper ?? 0);
       // Los límites del slider salen del volumen siempre. El valor elegido
@@ -117,7 +124,10 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       setUpper((cur) => (cur === SEG_UPPER_DEFAULT ? Math.round(b.upper) : cur));
       const pad = Math.max(1, (b.vmax - b.vmin) * 0.05);
       setRange({ min: Math.floor(b.vmin - pad), max: Math.ceil(b.vmax + pad) });
-    }).catch(() => { /* keep fallback defaults */ });
+    }).catch(() => {
+      // Se queda la reserva, pero se dice: sin esto los números parecían del volumen.
+      if (alive) setBanda("fallo");
+    });
     return () => { alive = false; };
   }, [sessionId]);
 
@@ -362,6 +372,11 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
                 Restablecer banda sugerida
               </Button>
             )}
+          </div>
+        )}
+        {banda === "fallo" && (
+          <div role="status" style={{ fontSize: 11, color: "var(--warning)", marginTop: -4, lineHeight: 1.45 }}>
+            No se pudo calcular el umbral sugerido para este estudio: el valor es uno genérico de TC. Revísalo en la vista previa antes de segmentar.
           </div>
         )}
         <div style={{ height: 14 }} />
@@ -726,10 +741,10 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             variant={segmentation ? "outline" : "default"}
             // La primera segmentación no pierde nada; re-segmentar sí.
             onClick={() => (segmentation ? setAsking("resegmentar") : void run())}
-            disabled={busy || discarding || !sessionId}
+            disabled={busy || discarding || !sessionId || banda === "esperando"}
             leadingIcon={<Icon name="GROWTH" />}
           >
-            {busy ? "Segmentando…" : segmentation ? "Re-segmentar" : "Segmentar"}
+            {busy ? "Segmentando…" : banda === "esperando" ? "Calculando umbral…" : segmentation ? "Re-segmentar" : "Segmentar"}
           </Button>
           {segmentation && (
             // F1-140: glosario, todo botón de avance dice «Continuar a …».

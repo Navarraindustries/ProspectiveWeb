@@ -20,6 +20,12 @@ export const PARADA_MM = 1.5;
 export const finRecorrido = (L: number): number => (L > 2 * PARADA_MM ? L - PARADA_MM : L);
 /** Lo que dura la zambullida desde la vista de fuera hasta la boca del vaso (ms). */
 export const ZAMBULLIDA_MS = 1100;
+/** Repetir el recorrido rebobina por dentro del vaso, mirando hacia delante
+ *  como un vídeo hacia atrás, al triple de la velocidad de ida (13-11: antes
+ *  la cámara volaba del final al origen atravesando las paredes). */
+export const REBOBINADO_MM_S = 3 * RECORRIDO_MM_S;
+/** Lo que se queda quieta en el origen antes de volver a avanzar (ms). */
+export const PAUSA_REBOBINADO_MS = 300;
 
 const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const add = (a: Vec3, b: Vec3, k = 1): Vec3 => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
@@ -29,17 +35,19 @@ const unit = (a: Vec3): Vec3 | null => { const l = len(a); return l < 1e-9 ? nul
 
 export const longitudRecorrido = (t: CenterlineTrack): number => (t.arcMm.length ? t.arcMm[t.arcMm.length - 1] - t.arcMm[0] : 0);
 
-/** Al llegar, la cámara mira alrededor: un vaivén de ±GIRO_GRADOS a izquierda
- *  y derecha en GIRO_MS, que acaba mirando de frente otra vez. */
-export const GIRO_GRADOS = 24;
-export const GIRO_MS = 2600;
+/** Al llegar, la cámara da una vuelta completa sobre su arriba, en el sitio,
+ *  para ver todo lo que rodea al destino, y acaba mirando de frente otra vez
+ *  (13-11, a petición: antes era un vaivén de ±24° en 2,6 s). */
+export const GIRO_GRADOS = 360;
+export const GIRO_MS = 7000;
 
-/** Ángulo (grados) del vaivén final a los `ms` de llegar: arranca y acaba en
- *  0 con velocidad suave (seno completo con envolvente), 0 fuera de [0, GIRO_MS]. */
+/** Ángulo (grados) de la vuelta final a los `ms` de llegar: de 0 a
+ *  GIRO_GRADOS con arranque y frenada suaves (coseno), 0 fuera de [0, GIRO_MS]
+ *  (al acabar, la vuelta entera vuelve a ser mirar de frente). */
 export function giroFinal(ms: number): number {
   if (ms <= 0 || ms >= GIRO_MS) return 0;
   const k = ms / GIRO_MS;
-  return GIRO_GRADOS * Math.sin(2 * Math.PI * k) * Math.sin(Math.PI * k);
+  return GIRO_GRADOS * (0.5 - 0.5 * Math.cos(Math.PI * k));
 }
 
 /** `v` girado `grados` alrededor del eje unitario `eje` (Rodrigues). */
@@ -50,7 +58,7 @@ export function rotarAlrededor(v: Vec3, eje: Vec3, grados: number): Vec3 {
   return [v[0] * c + x[0] * s + eje[0] * d * (1 - c), v[1] * c + x[1] * s + eje[1] * d * (1 - c), v[2] * c + x[2] * s + eje[2] * d * (1 - c)];
 }
 
-/** La pose del vaivén final: misma posición, la mirada girada sobre el arriba. */
+/** La pose de la vuelta final: misma posición, la mirada girada sobre el arriba. */
 export function poseGiro(p: WalkPose, ms: number): WalkPose {
   const g = giroFinal(ms);
   if (g === 0) return p;
@@ -132,4 +140,12 @@ export function arcAtTime(tS: number, desde: number, hasta: number, v = RECORRID
   else if (tS > T - tp) x = D - 0.5 * a * (T - tS) * (T - tS);
   else x = 0.5 * vp * tp + vp * (tS - tp);
   return { s: desde + x, fin: false };
+}
+
+/** Arco `tS` segundos después de empezar a rebobinar de `desde` hacia `hasta`
+ *  (`hasta` < `desde`): el mismo perfil trapecio que la ida, al revés y a
+ *  REBOBINADO_MM_S. */
+export function arcRebobinado(tS: number, desde: number, hasta: number): { s: number; fin: boolean } {
+  const { s, fin } = arcAtTime(tS, 0, Math.max(0, desde - hasta), REBOBINADO_MM_S);
+  return { s: desde - s, fin };
 }

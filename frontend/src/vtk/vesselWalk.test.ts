@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CenterlineTrack } from "./centerlineWalk";
 import type { Vec3 } from "./geometry";
-import { ARRANQUE_S, GIRO_GRADOS, GIRO_MS, MIRA_MM, PARADA_MM, RECORRIDO_MM_S, arcAtTime, diameterAtArc, finRecorrido, giroFinal, longitudRecorrido, pointAtArc, poseGiro, rotarAlrededor, transportUp, walkPose } from "./vesselWalk";
+import { ARRANQUE_S, GIRO_GRADOS, GIRO_MS, MIRA_MM, PARADA_MM, REBOBINADO_MM_S, RECORRIDO_MM_S, arcAtTime, arcRebobinado, diameterAtArc, finRecorrido, giroFinal, longitudRecorrido, pointAtArc, poseGiro, rotarAlrededor, transportUp, walkPose } from "./vesselWalk";
 
 /** Una L: 10 mm por +x y 10 mm por +y, muestras cada 0,5 mm. */
 function ele(): CenterlineTrack {
@@ -72,15 +72,22 @@ describe("vesselWalk", () => {
     expect(arcAtTime(10, 0, 1).fin).toBe(true);
   });
 
-  it("el vaivén final mira a los dos lados y acaba de frente", () => {
+  it("la vuelta final da 360° siempre hacia el mismo lado y acaba de frente", () => {
+    expect(GIRO_GRADOS).toBe(360);
     expect(giroFinal(0)).toBe(0);
     expect(giroFinal(GIRO_MS)).toBe(0);
     expect(giroFinal(GIRO_MS + 100)).toBe(0);
-    let max = -Infinity, min = Infinity;
-    for (let t = 0; t <= GIRO_MS; t += 10) { const g = giroFinal(t); max = Math.max(max, g); min = Math.min(min, g); }
-    expect(max).toBeGreaterThan(GIRO_GRADOS * 0.6);
-    expect(max).toBeLessThanOrEqual(GIRO_GRADOS);
-    expect(min).toBeLessThan(-GIRO_GRADOS * 0.6);
+    expect(giroFinal(GIRO_MS / 2)).toBeCloseTo(180);
+    let antes = 0;
+    for (let t = 10; t < GIRO_MS; t += 10) {
+      const g = giroFinal(t);
+      expect(g).toBeGreaterThanOrEqual(antes);   // nunca vuelve atrás
+      antes = g;
+    }
+    expect(antes).toBeGreaterThan(359);
+    // Arranque y frenada suaves: el primer y el último décimo giran poco.
+    expect(giroFinal(GIRO_MS / 10)).toBeLessThan(10);
+    expect(360 - giroFinal(GIRO_MS * 0.9)).toBeLessThan(10);
   });
 
   it("el giro rota la mirada sobre el arriba sin mover la cámara", () => {
@@ -103,5 +110,26 @@ describe("vesselWalk", () => {
   it("sin camino que recorrer ya ha llegado", () => {
     expect(arcAtTime(1, 5, 5)).toEqual({ s: 5, fin: true });
     expect(arcAtTime(1, 6, 5)).toEqual({ s: 6, fin: true });
+  });
+
+  it("rebobinar va del final al origen por la misma línea, más deprisa que la ida", () => {
+    const D = 60;
+    expect(arcRebobinado(0, D, 0)).toEqual({ s: D, fin: false });
+    // Arranca suave: tras ARRANQUE_S ha retrocedido lo que acelera a REBOBINADO_MM_S.
+    expect(arcRebobinado(ARRANQUE_S, D, 0).s).toBeCloseTo(D - 0.5 * REBOBINADO_MM_S * ARRANQUE_S);
+    const T = D / REBOBINADO_MM_S + ARRANQUE_S;
+    expect(arcRebobinado(T / 2, D, 0).s).toBeCloseTo(D / 2);
+    expect(arcRebobinado(T, D, 0)).toEqual({ s: 0, fin: true });
+    expect(T).toBeLessThan(D / RECORRIDO_MM_S);   // tarda menos que la ida
+  });
+
+  it("rebobinar siempre retrocede, nunca adelanta", () => {
+    let antes = 40;
+    for (let t = 0; t <= 4; t += 0.05) {
+      const { s } = arcRebobinado(t, 40, 3);
+      expect(s).toBeLessThanOrEqual(antes + 1e-9);
+      expect(s).toBeGreaterThanOrEqual(3);
+      antes = s;
+    }
   });
 });

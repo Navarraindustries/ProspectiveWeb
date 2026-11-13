@@ -46,7 +46,7 @@ import { flightDurationMs, interpolateCamera } from "./cameraFlight";
 import { duracionEntrada, progresoEntrada, type EntradaCandidatos } from "./candidateReveal";
 import type { CenterlineTrack } from "./centerlineWalk";
 import { frenteBarrido, superiorEnMalla, tramoBarrido } from "./meshSweep";
-import { ANGULO_ENDOSCOPIO, GIRO_MS, ZAMBULLIDA_MS, arcAtTime, finRecorrido, longitudRecorrido, poseGiro, walkPose, type WalkPose } from "./vesselWalk";
+import { ANGULO_ENDOSCOPIO, GIRO_MS, PAUSA_REBOBINADO_MS, ZAMBULLIDA_MS, arcAtTime, arcRebobinado, finRecorrido, longitudRecorrido, poseGiro, walkPose, type WalkPose } from "./vesselWalk";
 import { cubicBezier, EASE_EN_MOVIMIENTO } from "../motion";
 
 /** Curva del vuelo de cámara: --ease-in-out, lo que se desplaza en pantalla. */
@@ -271,8 +271,9 @@ export interface RecorridoVaso {
   track: CenterlineTrack;
   desdeMm: number;
   /** Cómo llega a su sitio antes de avanzar: zambulléndose desde la vista de
-   *  fuera (empezar) o con un vuelo corto (seguir tras una pausa). */
-  llegada: "zambullida" | "vuelo";
+   *  fuera (empezar), con un vuelo corto (seguir tras una pausa) o, al repetir,
+   *  rebobinando por dentro del vaso desde el final hasta `desdeMm`. */
+  llegada: "zambullida" | "vuelo" | "rebobinado";
   /** Capas que no se pintan mientras dura (la propia línea central, que va por dentro). */
   ocultar?: string[];
   /** Capas que se pintan opacas mientras dura (la pared del vaso). */
@@ -1155,12 +1156,13 @@ export function MeshView({
         };
         const este: { raf: number | null; alParar?: RecorridoVaso["alParar"] } = { raf: null, alParar: r.alParar };
         recorridoRef.current = este;
-        const andar = () => {
+        const andar = (esperaMs = 0) => {
           if (recorridoRef.current !== este) return;   // tocaron el visor durante la zambullida
           let t0: number | null = null;
           const paso = (ahora: number) => {
             if (handles.current !== h || recorridoRef.current !== este) return;
-            if (t0 === null) t0 = ahora;
+            // Con espera, arcAtTime devuelve el origen hasta que se cumple.
+            if (t0 === null) t0 = ahora + esperaMs;
             const { s, fin } = arcAtTime((ahora - t0) / 1000, Math.min(r.desdeMm, L), L);
             const p = walkPose(r.track, s, up);
             up = p.viewUp;
@@ -1172,9 +1174,9 @@ export function MeshView({
           };
           este.raf = requestAnimationFrame(paso);
         };
-        // Al llegar, un vaivén de la mirada (vesselWalk.giroFinal) para ver la
+        // Al llegar, una vuelta de 360° de la mirada (vesselWalk.giroFinal) para ver la
         // zona del destino antes de dar el recorrido por terminado. Tocar el
-        // visor lo corta como al recorrido; con movimiento reducido no hay vaivén.
+        // visor lo corta como al recorrido; con movimiento reducido no hay vuelta.
         const mirarAlrededor = (llegada: WalkPose) => {
           const terminar = () => { recorridoRef.current = null; r.alParar?.("fin"); };
           if (movimientoReducido()) { terminar(); return; }
@@ -1190,6 +1192,37 @@ export function MeshView({
           };
           este.raf = requestAnimationFrame(giro);
         };
+        // Repetir: rebobinar por dentro del vaso, del final al origen, mirando
+        // hacia delante (un vídeo hacia atrás), y volver a avanzar. Si tras
+        // llegar se giró la vista a mano, primero un vuelo corto al final.
+        if (r.llegada === "rebobinado") {
+          const hasta = Math.min(r.desdeMm, L);
+          const final = walkPose(r.track, L, up);
+          up = final.viewUp;
+          const rebobinar = () => {
+            if (recorridoRef.current !== este) return;
+            if (movimientoReducido()) { colocar(walkPose(r.track, hasta, up)); pintar(); andar(); return; }
+            let t0: number | null = null;
+            const atras = (ahora: number) => {
+              if (handles.current !== h || recorridoRef.current !== este) return;
+              if (t0 === null) t0 = ahora;
+              const { s, fin } = arcRebobinado((ahora - t0) / 1000, L, hasta);
+              const p = walkPose(r.track, s, up);
+              up = p.viewUp;
+              colocar(p);
+              pintar();
+              r.alAvanzar?.(s);
+              if (fin) { andar(PAUSA_REBOBINADO_MS); return; }
+              este.raf = requestAnimationFrame(atras);
+            };
+            este.raf = requestAnimationFrame(atras);
+          };
+          const [px, py, pz] = cam.getPosition();
+          const lejosDelFinal = Math.hypot(px - final.position[0], py - final.position[1], pz - final.position[2]) > 0.5;
+          if (lejosDelFinal) mover(() => colocar(final), () => { pintar(); rebobinar(); }, { volar: true });
+          else rebobinar();
+          return;
+        }
         const inicio = walkPose(r.track, Math.min(r.desdeMm, L), up);
         up = inicio.viewUp;
         mover(() => colocar(inicio), () => { pintar(); andar(); },

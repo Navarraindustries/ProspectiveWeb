@@ -938,7 +938,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const [recorrido, setRecorrido] = useState<{ estado: "andando" | "pausa" | "fin" } | null>(null);
   const volverA = useRef<CameraState | null>(null);
   const camaraRecorrido = useRef<CameraController | null>(null);
-  const lanzarRecorrido = (desdeMm: number, llegada: "zambullida" | "vuelo") => {
+  const lanzarRecorrido = (desdeMm: number, llegada: "zambullida" | "vuelo" | "rebobinado") => {
     if (!camera || !centerline) return;
     camaraRecorrido.current = camera;
     progresoRecorrido.poner(desdeMm);
@@ -2206,7 +2206,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           <HudRecorrido progreso={progresoRecorrido} totalMm={longitudRecorrido(centerline)} diametroEn={(mm) => diameterAtArc(centerline, mm)}
             estado={recorrido.estado}
             onPausa={() => { camaraRecorrido.current?.pausarRecorrido(); setRecorrido({ estado: "pausa" }); }}
-            onSeguir={() => (recorrido.estado === "fin" ? lanzarRecorrido(0, "zambullida") : lanzarRecorrido(progresoRecorrido.leer(), "vuelo"))}
+            onSeguir={() => (recorrido.estado === "fin" ? lanzarRecorrido(0, "rebobinado") : lanzarRecorrido(progresoRecorrido.leer(), "vuelo"))}
             onSalir={salirDelVaso} sinSalir={presentando} />
         )}
         {/* Dentro del vaso las vistas DESDE pelearían con el recorrido: se esconden hasta salir. */}

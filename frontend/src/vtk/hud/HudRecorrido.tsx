@@ -57,7 +57,7 @@ export function HudRecorrido({ progreso, totalMm, diametroEn, estado, onPausa, o
     ? { label: "⏸", title: "Pausa (o toca el visor para mirar alrededor)", on: onPausa }
     : estado === "pausa"
       ? { label: "▶", title: "Seguir por el vaso", on: onSeguir }
-      : { label: "↺", title: "Repetir el recorrido desde el origen", on: onSeguir };
+      : { label: "↺", title: "Volver por el vaso hasta el origen y repetir el recorrido", on: onSeguir };
   return (
     <div className="hud-recorrido" role="group" aria-label="Recorrido por dentro del vaso" onPointerDown={stop} onDoubleClick={stop}>
       <span className="hud-recorrido-titulo">DENTRO DEL VASO</span>

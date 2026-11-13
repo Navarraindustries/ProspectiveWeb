@@ -17,12 +17,13 @@ import vtkAnnotatedCubeActor from "@kitware/vtk.js/Rendering/Core/AnnotatedCubeA
 import vtkXMLPolyDataReader from "@kitware/vtk.js/IO/XML/XMLPolyDataReader";
 import type vtkRenderWindow from "@kitware/vtk.js/Rendering/Core/RenderWindow";
 import { effectiveDirection, lpsToVolumeUserMatrix, type Orientation } from "./geometry";
-import { HUD_HEX, PRIMARY_HEX, hexToRgb01 } from "./planeColors";
+import { PRIMARY_HEX, hexToRgb01 } from "./planeColors";
 
-const HUD = HUD_HEX;
+// Cubo y maniquí en el azul de la interfaz (13-11, a petición: eran el verde
+// del HUD). El gris se queda para la orientación desconocida.
+const AZUL = PRIMARY_HEX;
 const GREY = "#7A7F7B";
-// El maniquí en el azul de la interfaz (13-11, a petición: era el verde del HUD,
-// [0.55, 1, 0.62]); el cubo sigue en el verde del HUD.
+// El maniquí era [0.55, 1, 0.62], el verde del HUD.
 const FIGURE_AZUL: [number, number, number] = hexToRgb01(PRIMARY_HEX);
 const FIGURE_GREY: [number, number, number] = [0.5, 0.5, 0.5];
 
@@ -107,7 +108,7 @@ export function createOrientationInset(rw: vtkRenderWindow, main: vtkRenderer, o
   // sin caras traseras. Opaco taparía el maniquí, que va dentro; con caras
   // traseras se leerían seis rótulos, tres de ellos en espejo.
   //
-  // Dos cubos hechos de una vez, gris y verde, y se enciende uno: cambiar el
+  // Dos cubos hechos de una vez, gris y azul, y se enciende uno: cambiar el
   // estilo de un cubo ya dibujado vuelve a subir sus texturas y WebGL avisa
   // «Texture is immutable». Con el estilo y las caras en newInstance cada
   // cubo pinta sus seis caras una sola vez (no seis más por cada setter).
@@ -132,7 +133,7 @@ export function createOrientationInset(rw: vtkRenderWindow, main: vtkRenderer, o
     return c;
   };
   const greyCube = makeCube(GREY);
-  const hudCube = makeCube(HUD);
+  const hudCube = makeCube(AZUL);
 
   const figure = vtkActor.newInstance();
   const mapper = vtkMapper.newInstance();

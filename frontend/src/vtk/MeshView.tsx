@@ -23,6 +23,7 @@ import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
 import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction";
 import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
 import vtkPolyData from "@kitware/vtk.js/Common/DataModel/PolyData";
+import vtkDataArray from "@kitware/vtk.js/Common/Core/DataArray";
 import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
 import vtkRenderer from "@kitware/vtk.js/Rendering/Core/Renderer";
 import vtkLight from "@kitware/vtk.js/Rendering/Core/Light";
@@ -50,6 +51,73 @@ import { cubicBezier, EASE_EN_MOVIMIENTO } from "../motion";
 
 /** Curva del vuelo de cámara: --ease-in-out, lo que se desplaza en pantalla. */
 const curvaVuelo = cubicBezier(...EASE_EN_MOVIMIENTO);
+/** Distancia (mm) a la que un punto de la pared toma el color de una marca durante el recorrido. */
+const MARCA_MM = 0.7;
+
+/** Pinta en la pared (una copia de su malla, con colores por punto) los puntos
+ *  que están a menos de MARCA_MM de alguna de las `marcas`; `deshacer` devuelve
+ *  la malla y el modo de color del mapper. Rejilla de 1 mm para no comparar
+ *  cada punto de la pared con cada punto de la marca. */
+function pintarPared(p: { a: vtkActor; mapper: vtkMapper; original: vtkPolyData; trabajo: vtkPolyData }, marcas: vtkActor[], deshacer: (() => void)[]) {
+  const celda = 1;
+  const clave = (x: number, y: number, z: number) => `${Math.floor(x / celda)},${Math.floor(y / celda)},${Math.floor(z / celda)}`;
+  const rejilla = new Map<string, { pts: number[]; color: number[] }[]>();
+  for (const m of marcas) {
+    const pd = (m.getMapper() as vtkMapper | null)?.getInputData() as vtkPolyData | undefined;
+    const arr = pd?.getPoints()?.getData() as Float32Array | undefined;
+    if (!arr) continue;
+    const color = m.getProperty().getColor().map((c) => Math.round(c * 255));
+    for (let i = 0; i < arr.length; i += 3) {
+      const k = clave(arr[i], arr[i + 1], arr[i + 2]);
+      let lista = rejilla.get(k);
+      if (!lista) { lista = []; rejilla.set(k, lista); }
+      let g = lista.find((x) => x.color === color);
+      if (!g) { g = { pts: [], color }; lista.push(g); }
+      g.pts.push(arr[i], arr[i + 1], arr[i + 2]);
+    }
+  }
+  const pts = p.trabajo.getPoints().getData() as Float32Array;
+  const n = pts.length / 3;
+  const base = p.a.getProperty().getColor().map((c) => Math.round(c * 255));
+  const colores = new Uint8Array(n * 3);
+  const r2 = MARCA_MM * MARCA_MM;
+  for (let i = 0; i < n; i++) {
+    const x = pts[3 * i], y = pts[3 * i + 1], z = pts[3 * i + 2];
+    let col = base;
+    const cx = Math.floor(x / celda), cy = Math.floor(y / celda), cz = Math.floor(z / celda);
+    busca: for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+      const lista = rejilla.get(`${cx + dx},${cy + dy},${cz + dz}`);
+      if (!lista) continue;
+      for (const g of lista) {
+        for (let j = 0; j < g.pts.length; j += 3) {
+          const ex = g.pts[j] - x, ey = g.pts[j + 1] - y, ez = g.pts[j + 2] - z;
+          if (ex * ex + ey * ey + ez * ez < r2) { col = g.color; break busca; }
+        }
+      }
+    }
+    colores[3 * i] = col[0]; colores[3 * i + 1] = col[1]; colores[3 * i + 2] = col[2];
+  }
+  const copia = vtkPolyData.newInstance();
+  copia.setPoints(p.trabajo.getPoints());
+  copia.setPolys(p.trabajo.getPolys());
+  const normales = p.trabajo.getPointData().getNormals();
+  if (normales) copia.getPointData().setNormals(normales);
+  copia.getPointData().setScalars(vtkDataArray.newInstance({ name: "marcas", numberOfComponents: 3, values: colores }));
+  type ConColor = vtkMapper & {
+    getScalarVisibility(): boolean; getColorMode(): number; getScalarMode(): number;
+    setColorMode(v: number): void; setScalarMode(v: number): void;
+    setColorModeToDirectScalars(): void; setScalarModeToUsePointData(): void;
+  };
+  const m = p.mapper as ConColor;
+  const antes = { vis: m.getScalarVisibility(), color: m.getColorMode(), modo: m.getScalarMode() };
+  m.setInputData(copia);
+  m.setScalarVisibility(true);
+  m.setColorModeToDirectScalars();
+  m.setScalarModeToUsePointData();
+  deshacer.push(() => { m.setScalarVisibility(antes.vis); m.setColorMode(antes.color); m.setScalarMode(antes.modo); });
+}
+/** Pintadas por segundo del giro lento (espera de la segmentación, presentación). */
+const GIRO_FPS = 24;
 const movimientoReducido = () =>
   typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -209,6 +277,9 @@ export interface RecorridoVaso {
   ocultar?: string[];
   /** Capas que se pintan opacas mientras dura (la pared del vaso). */
   opacas?: string[];
+  /** Capas que salen de la misma superficie que el vaso (zona del candidato,
+   *  saco medido): mientras dura se pintan sobre la propia pared y se ocultan. */
+  marcar?: string[];
   alAvanzar?: (mm: number) => void;
   /** «fin» al llegar; «toque» si el profesional toca el visor; «corte» si la escena se rehace. */
   alParar?: (motivo: "fin" | "toque" | "corte") => void;
@@ -900,7 +971,7 @@ export function MeshView({
      *  y el punto compartido (que se pinta encima de todo) se apagan, y la pared
      *  se pinta opaca. Una sola vez por recorrido; `salirRecorrido` lo deshace
      *  con la opacidad que la capa pida entonces, no con la de antes. */
-    const prepararCapasRecorrido = (h: Handles, ocultar: string[], opacas: string[]) => {
+    const prepararCapasRecorrido = (h: Handles, ocultar: string[], opacas: string[], marcar: string[]) => {
       if (capasRecorrido.current) return;
       const deshacer: (() => void)[] = [];
       const capaDe = (url: string) => layersRef.current.find((l) => l.url === url);
@@ -914,6 +985,7 @@ export function MeshView({
         apagar(actorDe(url));
         apagar(outlineActors.current.get(capaDe(url)?.id ?? url));
       }
+      const paredes: { a: vtkActor; mapper: vtkMapper; original: vtkPolyData; trabajo: vtkPolyData }[] = [];
       for (const url of opacas) {
         const a = actorDe(url); if (!a) continue;
         a.getProperty().setOpacity(1);
@@ -923,14 +995,26 @@ export function MeshView({
         // de facetas. Se calculan para el recorrido y se devuelve la malla tal cual.
         const mapper = a.getMapper() as vtkMapper | null;
         const poly = mapper?.getInputData() as vtkPolyData | undefined;
-        if (mapper && poly && !poly.getPointData().getNormals()) {
+        if (!mapper || !poly) continue;
+        let trabajo = poly;
+        if (!poly.getPointData().getNormals()) {
           const normales = vtkPolyDataNormals.newInstance({ computePointNormals: true, computeCellNormals: false });
           normales.setInputData(poly);
-          const suave = normales.getOutputData();
-          mapper.setInputData(suave);
-          deshacer.push(() => { if (mapper.getInputData() === suave) mapper.setInputData(poly); });
+          trabajo = normales.getOutputData();
+          mapper.setInputData(trabajo);
         }
+        deshacer.push(() => { if (mapper.getInputData() !== poly) mapper.setInputData(poly); });
+        paredes.push({ a, mapper, original: poly, trabajo });
       }
+      // La zona del candidato y el saco salen de la misma superficie que el vaso,
+      // pero de otra malla (en TC, la copia diezmada): a un milímetro de la pared
+      // las dos se cruzan y el saco se veía a parches grises (Zenodo 002, 12-11).
+      // Así que se pintan SOBRE la pared: los puntos del vaso a menos de
+      // MARCA_MM de su malla toman su color, y la malla aparte se oculta.
+      const marcas = marcar.map((u) => actorDe(u)).filter((a): a is vtkActor => !!a && a.getVisibility());
+      if (marcas.length > 0) for (const p of paredes) pintarPared(p, marcas, deshacer);
+      for (const m of marcas) apagar(m);
+      for (const url of marcar) apagar(outlineActors.current.get(capaDe(url)?.id ?? url));
       // El saco y las demás marcas salen de la misma superficie que el vaso:
       // con la pared opaca y la cámara a un milímetro, las dos mallas se pisan a
       // parches. Durante el recorrido las marcas se adelantan en profundidad.
@@ -948,6 +1032,11 @@ export function MeshView({
         m.setRelativeCoincidentTopologyPolygonOffsetParameters(-2, -8);
         deshacer.push(() => { m.setResolveCoincidentTopology(modo); m.setRelativeCoincidentTopologyPolygonOffsetParameters(antes.factor, antes.offset); });
       }
+      // En TC la zona del candidato sale de la copia diezmada de la malla y la
+      // pared, de la malla completa: se cruzan unas décimas de milímetro y desde
+      // dentro el saco se veía a parches grises (Zenodo 002, 12-11). Encogida un
+      // 7 % hacia su centro queda delante de la pared vista desde dentro; desde
+      // fuera no se ve porque solo dura el recorrido.
       apagar(h.focusActor);
       capasRecorrido.current = () => deshacer.forEach((f) => f());
     };
@@ -1046,7 +1135,7 @@ export function MeshView({
         pararVuelo();
         const h = handles.current; if (!h) return;
         const cam = h.renderer.getActiveCamera();
-        prepararCapasRecorrido(h, r.ocultar ?? [], r.opacas ?? []);
+        prepararCapasRecorrido(h, r.ocultar ?? [], r.opacas ?? [], r.marcar ?? []);
         // Dentro del vaso la pared está a un milímetro: el recorte automático
         // dejaría el plano cercano por delante de ella y se vería a través.
         const b = h.renderer.computeVisiblePropBounds();
@@ -1115,8 +1204,12 @@ export function MeshView({
         let previo: number | null = null;
         const paso = (ahora: number) => {
           if (handles.current !== h || giroRef.current !== este) return;
-          // Tope por fotograma, como la entrada: un tirón no da medio giro.
-          const dt = previo === null ? 0 : Math.min(50, ahora - previo);
+          // Como mucho GIRO_FPS pintadas por segundo: el giro es lento y no se
+          // nota, y pintar a 60 fps durante una espera de minutos le quitaba
+          // CPU a la propia segmentación en un equipo sin GPU (12-11, Zenodo
+          // 002: 25 min en vez de ~4). Tope de 100 ms: un tirón no da medio giro.
+          if (previo !== null && ahora - previo < 1000 / GIRO_FPS) { este.raf = requestAnimationFrame(paso); return; }
+          const dt = previo === null ? 0 : Math.min(100, ahora - previo);
           previo = ahora;
           // Un vuelo o el recorrido mandan sobre la cámara: el giro espera.
           if (dt > 0 && !vueloRef.current && !recorridoRef.current) {

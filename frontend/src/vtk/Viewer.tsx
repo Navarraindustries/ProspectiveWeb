@@ -947,6 +947,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       track: centerline, desdeMm, llegada,
       ocultar: centerlineMesh ? [centerlineMesh] : [],
       opacas: displayMeshUrl ? [displayMeshUrl] : [],
+      marcar: [candidate?.dome_mesh_url, morphometry?.sac_mesh_url, ...candidates.map((c) => c.dome_mesh_url)].filter((u): u is string => !!u),
       alAvanzar: (mm) => progresoRecorrido.poner(mm),
       // «corte»: la escena se rehízo (otro paso, otra capa) y el recorrido se fue con ella.
       alParar: (m) => {

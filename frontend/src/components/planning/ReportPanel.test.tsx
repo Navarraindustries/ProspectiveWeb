@@ -151,6 +151,37 @@ describe("«Resumen del caso»", () => {
     }
   });
 
+  // 13-11: con un clip colocado y sin estrategia marcada, la fila decía «—»
+  // y parecía que no había dispositivo; el PDF sí lo lista, como evaluado.
+  it("sin estrategia marcada, dice lo que se ha evaluado y dónde marcarla", async () => {
+    vi.mocked(api.placedDevices).mockResolvedValueOnce({
+      cleared: [], remaining: ["clips"], meshes_removed: 0, mesh_urls: {},
+      strategy: null, placed_counts: { clips: 1, coils: 0, stent: 0, stent_cl: 0 },
+    });
+    montarCon(() => {});
+    expect(await screen.findByText("Sin marcar · 1 clip evaluado")).toBeInTheDocument();
+    expect(screen.getByText(/Márcala en Dispositivos, «Estrategia del equipo»/)).toBeInTheDocument();
+  });
+
+  it("varias familias evaluadas sin estrategia: las nombra todas, en plural", async () => {
+    vi.mocked(api.placedDevices).mockResolvedValueOnce({
+      cleared: [], remaining: ["clips", "coils"], meshes_removed: 0, mesh_urls: {},
+      strategy: null, placed_counts: { clips: 2, coils: 3, stent: 0, stent_cl: 1 },
+    });
+    montarCon(() => {});
+    expect(await screen.findByText("Sin marcar · 2 clips, 3 coils y 1 stent evaluados")).toBeInTheDocument();
+  });
+
+  it("con estrategia marcada no sale la ayuda", async () => {
+    vi.mocked(api.placedDevices).mockResolvedValueOnce({
+      cleared: [], remaining: ["clips"], meshes_removed: 0, mesh_urls: {},
+      strategy: "clips", placed_counts: { clips: 1, coils: 0, stent: 0, stent_cl: 0 },
+    });
+    montarCon(() => {});
+    expect(await screen.findByText("Clips · 1 en el plan")).toBeInTheDocument();
+    expect(screen.queryByText(/Márcala en Dispositivos/)).toBeNull();
+  });
+
   it("el riesgo de la morfometría se distingue del PHASES", async () => {
     montarCon((p) => p.setMorphometry({ max_diameter_mm: 7, rupture_risk_label: "Alto" } as never));
     expect(await screen.findByText("Índice de forma (AR, BF, UI); no es el PHASES, que está en Morfometría"))

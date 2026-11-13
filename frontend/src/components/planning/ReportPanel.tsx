@@ -27,10 +27,32 @@ const STRATEGY_LABEL: Record<string, string> = {
   clips: "Clips", coils: "Coils", stent: "Stent recto", stent_cl: "Stent sobre la línea central", web: "WEB",
 };
 
-/** «Coils · 3 en el plan». El WEB se dimensiona pero no se coloca: sin cuenta. */
+/** Lo colocado sin estrategia marcada, como lo titula el PDF: «evaluados»
+ *  («1 clip evaluado», «2 clips, 3 coils y 1 stent evaluados»); null sin nada. */
+function evaluatedSummary(c: Record<string, number> | undefined): string | null {
+  const n = (k: string) => c?.[k] ?? 0;
+  const partes: [number, string, string][] = [
+    [n("clips"), "clip", "clips"],
+    [n("coils"), "coil", "coils"],
+    [n("stent") + n("stent_cl"), "stent", "stents"],
+  ];
+  const vistas = partes.filter(([k]) => k > 0).map(([k, uno, varios]) => `${k} ${k === 1 ? uno : varios}`);
+  if (vistas.length === 0) return null;
+  const total = partes.reduce((s, [k]) => s + k, 0);
+  const lista = vistas.length === 1 ? vistas[0] : `${vistas.slice(0, -1).join(", ")} y ${vistas.at(-1)}`;
+  return `${lista} ${total === 1 ? "evaluado" : "evaluados"}`;
+}
+
+/** «Coils · 3 en el plan». El WEB se dimensiona pero no se coloca: sin cuenta.
+ *  Sin estrategia marcada no hay plan (F1-236), pero con algo colocado la fila
+ *  ya no dice solo «—»: con un clip en la escena parecía que no había ninguno
+ *  (13-11); dice lo evaluado, como el PDF. */
 function strategySummary(d: DeviceClearResult | null): string {
   const s = d?.strategy;
-  if (!s) return "—";
+  if (!s) {
+    const evaluados = evaluatedSummary(d?.placed_counts);
+    return evaluados ? `Sin marcar · ${evaluados}` : "—";
+  }
   if (s === "web") return STRATEGY_LABEL.web!;
   const n = d.placed_counts?.[s] ?? 0;
   return `${STRATEGY_LABEL[s]} · ${n > 0 ? `${n} en el plan` : "ninguno en el plan"}`;
@@ -273,6 +295,12 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
         )}
         <Metric label="Abordaje" value={planning.trajSaved ? approachSummary(planning.trajSaved) : "—"} />
         <Metric label="Dispositivo elegido" value={strategySummary(devices)} />
+        {devices && !devices.strategy && evaluatedSummary(devices.placed_counts) && (
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", padding: "4px 0 6px", lineHeight: 1.45 }}>
+            Sin estrategia marcada, el informe los lista como evaluados, no como el plan.
+            Márcala en Dispositivos, «Estrategia del equipo».
+          </div>
+        )}
         <Metric label="Decisión del equipo" value={teamSummary(team)} />
         {treatment && (
           <div style={{ padding: "9px 0" }}>

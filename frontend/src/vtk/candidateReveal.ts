@@ -12,12 +12,13 @@
 import type { AneurysmCandidate } from "../api/types";
 import { cubicBezier, EASE } from "../motion";
 
-/** Separación entre un candidato y el siguiente. */
-export const ESCALON_MS = 180;
+/** Separación entre un candidato y el siguiente (13-11: de 180 a 320 ms; a
+ *  180 la entrada pasaba demasiado deprisa para seguir el orden). */
+export const ESCALON_MS = 320;
 /** Lo que tarda cada zona (y su número) en llegar a su opacidad. */
-export const APARECER_MS = 320;
+export const APARECER_MS = 520;
 /** Lo que tarda el halo en abrirse y apagarse. */
-export const HALO_MS = 700;
+export const HALO_MS = 1100;
 
 /** Un candidato que entra: su capa con nombre en MeshView (los marcados a
  *  mano no tienen malla) y su rótulo, por índice en la lista de rótulos. */

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { HUD_HEX, PLANE_HEX, RESERVED_HEX, hexToRgb01, planeRgb01, referencePlanes } from "./planeColors";
+import { HUD_HEX, PLANE_HEX, PRIMARY_HEX, RESERVED_HEX, hexToRgb01, planeRgb01, referencePlanes } from "./planeColors";
 
 /** Valor de una variable CSS declarada en tokens/colors.css. */
 function cssVar(css: string, name: string): string | undefined {
@@ -37,6 +37,7 @@ describe("planeColors", () => {
     expect(cssVar(css, "--plane-sagital")?.toLowerCase()).toBe(PLANE_HEX.sagital.toLowerCase());
     expect(cssVar(css, "--plane-libre")?.toLowerCase()).toBe(PLANE_HEX.libre.toLowerCase());
     expect(cssVar(css, "--hud")?.toLowerCase()).toBe(HUD_HEX.toLowerCase());
+    expect(cssVar(css, "--primary")?.toLowerCase()).toBe(PRIMARY_HEX.toLowerCase());
   });
   it("cada corte sabe qué plano es cada línea de referencia", () => {
     expect(referencePlanes("axial")).toEqual({ u: "sagital", v: "coronal" });

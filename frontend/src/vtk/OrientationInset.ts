@@ -17,11 +17,13 @@ import vtkAnnotatedCubeActor from "@kitware/vtk.js/Rendering/Core/AnnotatedCubeA
 import vtkXMLPolyDataReader from "@kitware/vtk.js/IO/XML/XMLPolyDataReader";
 import type vtkRenderWindow from "@kitware/vtk.js/Rendering/Core/RenderWindow";
 import { effectiveDirection, lpsToVolumeUserMatrix, type Orientation } from "./geometry";
-import { HUD_HEX } from "./planeColors";
+import { HUD_HEX, PRIMARY_HEX, hexToRgb01 } from "./planeColors";
 
 const HUD = HUD_HEX;
 const GREY = "#7A7F7B";
-const FIGURE_HUD: [number, number, number] = [0.55, 1, 0.62];
+// El maniquí en el azul de la interfaz (13-11, a petición: era el verde del HUD,
+// [0.55, 1, 0.62]); el cubo sigue en el verde del HUD.
+const FIGURE_AZUL: [number, number, number] = hexToRgb01(PRIMARY_HEX);
 const FIGURE_GREY: [number, number, number] = [0.5, 0.5, 0.5];
 
 /** La primera familia de `--font-mono`: las caras del cubo se pintan en un
@@ -159,7 +161,7 @@ export function createOrientationInset(rw: vtkRenderWindow, main: vtkRenderer, o
     for (const a of [greyCube, hudCube, figure]) a.setUserMatrix(m as never);
     greyCube.setVisibility(!eff.known);
     hudCube.setVisibility(eff.known);
-    figure.getProperty().setColor(...(eff.known ? FIGURE_HUD : FIGURE_GREY));
+    figure.getProperty().setColor(...(eff.known ? FIGURE_AZUL : FIGURE_GREY));
   };
   apply(orientation);
 

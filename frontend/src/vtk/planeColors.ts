@@ -24,6 +24,9 @@ export const PLANE_CSS_VAR: Record<OutlinePlane, string> = {
 /** --hud: el verde del HUD, y del punto compartido de los cortes en el 3D.
  *  Una sola fuente en TypeScript; la prueba lo ata a colors.css. */
 export const HUD_HEX = "#8cff9e";
+/** --primary del tema oscuro (el del visor): el azul de los botones. El maniquí
+ *  del recuadro de orientación va en este azul, no en el verde del HUD (13-11). */
+export const PRIMARY_HEX = "#5aa9ff";
 /** Ámbar y verde del HUD, magenta y gris del mapa de calor, verde del saco, dorado del clip. */
 export const RESERVED_HEX = ["#ffc857", HUD_HEX, "#d946ef", "#6b7280", "#40cc73", "#ebd173"];
 

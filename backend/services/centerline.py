@@ -119,6 +119,8 @@ class CenterlineExtractor:
         self._progress(0.80)
         pts_world  = self._path_to_world(raw_path, origin, vs)
         pts_smooth = self._smooth_path(pts_world)
+        self._progress(0.85)
+        pts_smooth = centrar_en_malla(pts_smooth, poly_data)
         pts_final, radii = self._resample_with_radii(pts_smooth, dt, origin, vs, mask.shape)
 
         self._progress(0.95)
@@ -356,6 +358,134 @@ class CenterlineExtractor:
             min_radius_mm    = float(radii.min())  if len(radii) else 0.0,
             max_radius_mm    = float(radii.max())  if len(radii) else 0.0,
         )
+
+
+# ──────────────────────────────────────────────────────────────────────────── #
+# Centrado sobre la malla                                                        #
+# ──────────────────────────────────────────────────────────────────────────── #
+
+# El camino de Dijkstra va por centros de vóxel de 0,8 mm y el suavizado
+# gaussiano le corta las curvas: en los vasos finos de una angio-TC la línea
+# salía hasta 0,7 mm por fuera de la pared en las curvas cerradas (13-11,
+# Zenodo 002: 12 de 175 puntos fuera, holgura mediana 0,83 mm), y el recorrido
+# por dentro del vaso, que pone la cámara sobre la línea, se salía y volvía a
+# entrar. Esto lleva cada punto al centro del vaso en la malla que se ve, no en
+# la rejilla.
+#
+# Se probó antes centrar con rayos en el corte transversal: en una curva
+# cerrada el corte sale oblicuo, el centro estimado se sesga y la línea seguía
+# fuera. Subir por la profundidad (la distancia a la pared más cercana) no
+# depende del corte: el máximo en el plano transversal es el centro del mayor
+# círculo que cabe en el vaso, y se llega igual desde dentro que desde fuera.
+
+_PASO_INICIAL_MM = 0.3   # primer paso de la subida; se parte en dos al pasarse
+_PASO_MIN_MM = 0.02
+_SUBIDAS = 40            # pasos por punto, como mucho
+_DESVIO_MAX_MM = 2.5     # lo que puede apartarse de la línea suavizada en total
+_MARGEN_DENTRO_MM = 0.15
+_RONDAS_SUAVES = 4       # centrar + suavizar poco, alternados
+
+
+def _tangentes(p: np.ndarray) -> np.ndarray:
+    t = np.gradient(p, axis=0)
+    t = np.column_stack([gaussian_filter1d(t[:, a], 3.0, mode="nearest") for a in range(3)])
+    n = np.linalg.norm(t, axis=1, keepdims=True)
+    return t / np.maximum(n, 1e-9)
+
+
+def _suavizar(p: np.ndarray, sigma: float) -> np.ndarray:
+    return np.column_stack([gaussian_filter1d(p[:, a], sigma, mode="nearest") for a in range(3)])
+
+
+def _al_centro(q: np.ndarray, t: np.ndarray, dist: vtk.vtkImplicitPolyDataDistance) -> np.ndarray:
+    """Sube por la profundidad desde `q` sin salirse del plano perpendicular a
+    `t`: cada paso va contra el gradiente de la distancia firmada (que apunta
+    hacia fuera) y solo se acepta si el punto queda más hondo."""
+    g = [0.0, 0.0, 0.0]
+    prof = dist.EvaluateFunction(*q)          # < 0 dentro
+    paso = _PASO_INICIAL_MM
+    for _ in range(_SUBIDAS):
+        dist.EvaluateGradient(q, g)
+        gv = np.array(g)
+        # Fuera de la pared se entra por lo más corto, en cualquier dirección:
+        # donde el vaso se estrecha por debajo de la rejilla, el camino corta
+        # la esquina y el hueco no está en el plano transversal.
+        if prof < 0.0:
+            gv -= gv.dot(t) * t
+        norma = float(np.linalg.norm(gv))
+        if norma < 1e-9:
+            break
+        cand = q - gv / norma * paso
+        pc = dist.EvaluateFunction(*cand)
+        if pc < prof:
+            q, prof = cand, pc
+        else:
+            paso *= 0.5
+            if paso < _PASO_MIN_MM:
+                break
+    return q
+
+
+def _meter_dentro(p: np.ndarray, dist: vtk.vtkImplicitPolyDataDistance) -> None:
+    """Empuja hacia dentro (por el gradiente de la distancia) los puntos que
+    quedan fuera de la pared o rozándola. Los extremos no se tocan."""
+    g = [0.0, 0.0, 0.0]
+    for i in range(1, len(p) - 1):
+        for _ in range(4):
+            d = dist.EvaluateFunction(*p[i])          # < 0 dentro
+            if d < -_MARGEN_DENTRO_MM:
+                break
+            dist.EvaluateGradient(p[i], g)            # hacia fuera
+            n = math.sqrt(g[0] ** 2 + g[1] ** 2 + g[2] ** 2)
+            if n < 1e-9:
+                break
+            p[i] -= np.array(g) / n * (d + _MARGEN_DENTRO_MM + 0.05)
+
+
+def centrar_en_malla(pts: np.ndarray, poly_data: vtk.vtkPolyData) -> np.ndarray:
+    """Lleva cada punto interior de la línea al centro del vaso en la malla.
+
+    Cada punto sube por la profundidad dentro de su plano transversal (la
+    dirección de la marcha sale de la línea suavizada y no se recalcula). Los
+    desplazamientos se suavizan a lo largo de la línea para que la cámara que
+    va encima no tiemble, con un tope de `_DESVIO_MAX_MM`, y al final ningún
+    punto queda fuera de la pared. Los extremos (origen y destino, ya llevados
+    al eje por el ajuste a la rejilla) no se mueven."""
+    p = np.asarray(pts, dtype=np.float64).copy()
+    n = len(p)
+    if n < 3 or poly_data is None or poly_data.GetNumberOfCells() == 0:
+        return p
+    base = p.copy()
+    extremos = p[[0, -1]].copy()
+    dist = vtk.vtkImplicitPolyDataDistance()
+    dist.SetInput(poly_data)
+    # Centrar y suavizar poco, alternados, unas cuantas rondas: en cada una se
+    # vuelve al centro desde la línea ya suavizada. Solo empujar hacia dentro
+    # entre suavizados encogía la línea hacia la cara interior de las curvas
+    # (pegada a la pared); centrar una vez y suavizar fuerte dejaba quiebros.
+    for _ in range(_RONDAS_SUAVES):
+        tang = _tangentes(p)
+        for i in range(1, n - 1):
+            p[i] = _al_centro(p[i], tang[i], dist)
+        p = _suavizar(p, 1.0)
+        p[[0, -1]] = extremos
+        desvio = p - base
+        largo = np.linalg.norm(desvio, axis=1)
+        p = base + desvio * np.minimum(1.0, _DESVIO_MAX_MM / np.maximum(largo, 1e-9))[:, None]
+    # Una última vuelta al centro sin suavizar: el suavizado de la última ronda
+    # recorta hacia dentro el vértice de las curvas cerradas. Tras las rondas,
+    # lo que queda por mover es poco y no deja quiebros.
+    tang = _tangentes(p)
+    centrada = p.copy()
+    for i in range(1, n - 1):
+        centrada[i] = _al_centro(p[i], tang[i], dist)
+    # Ese último ajuste, suavizado a lo largo de la línea: punto a punto deja
+    # pequeños quiebros que la cámara notaría como un temblor.
+    ajuste = _suavizar(centrada - p, 1.0)
+    ajuste[0] = ajuste[-1] = 0.0
+    p = p + ajuste
+    _meter_dentro(p, dist)
+    return p
 
 
 # ──────────────────────────────────────────────────────────────────────────── #

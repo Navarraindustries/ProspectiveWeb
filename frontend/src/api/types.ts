@@ -531,6 +531,10 @@ export interface SegmentResult {
   components?: number;
   /** Troncos que sembraron el crecimiento. */
   seeds?: number;
+  /** Receta del método tubular: «vessels» en angio-TC (services.cta_vessels), «tubular» en 3DRA. */
+  recipe?: string | null;
+  /** Umbral bajo adaptativo de la receta «vessels» (HU). */
+  weak_hu?: number | null;
   /** No vacío = el servidor cambió algo (sin semillas → umbral; media resolución forzada). */
   fallback_note?: string;
   /** Segundos por fase, en el orden en que corrieron. */

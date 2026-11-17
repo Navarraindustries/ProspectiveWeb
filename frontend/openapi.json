@@ -9220,6 +9220,18 @@
       "title": "Phase Seconds",
       "type": "object"
      },
+     "recipe": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Receta de la máscara en el método tubular: «vessels» (angio-TC: vasos conectados por umbral débil y fuerte dentro de la cavidad craneal) o «tubular» (3DRA y la receta antigua de TC). None en el umbral clásico.",
+      "title": "Recipe"
+     },
      "reclaimed_mm3": {
       "default": 0.0,
       "description": "Pared y sacos recuperados junto al tubo (mm³), método tubular",
@@ -9265,6 +9277,18 @@
       ],
       "description": "Fraction of voxels captured by the applied thresholds (0–1). Null until real segmentation runs.",
       "title": "Voxel Fraction"
+     },
+     "weak_hu": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Umbral débil adaptativo de la receta «vessels» (HU): media del parénquima + 3σ",
+      "title": "Weak Hu"
      }
     },
     "required": [

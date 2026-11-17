@@ -37,6 +37,15 @@ from test_vascular_mask import SEMILLA, _sphere
 from test_vesselness import SP, synthetic_tube
 
 
+@pytest.fixture(autouse=True)
+def _receta_tubular_en_tc(monkeypatch):
+    """Estos tests prueban la receta tubular de antes en TC (máscara gruesa y baldosas
+    nativas), que se conserva para comparar en el banco. La receta de ahora para la
+    angio-TC (`services.cta_vessels`) tiene los suyos en test_cta_vessels.py."""
+    import routers.segment as seg
+    monkeypatch.setattr(seg, "CT_RECIPE", "tubular")
+
+
 class TestTechoPorModalidad:
     def test_xa_nunca_lleva_techo(self):
         # Case 3: el centro de los vasos más llenos supera cualquier techo y no

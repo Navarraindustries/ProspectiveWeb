@@ -104,6 +104,20 @@ CT_SHELL_HU = 300.0
 #: una regla mejor lo rescata sin ese coste.
 CT_BONE_ERODE_MM = 0.0
 
+#: Receta de la angio-TC en el método tubular. "vessels" (15-11-2026) es
+#: `services.cta_vessels`: histéresis de HU + cavidad intracraneal + aire + hueso
+#: con margen pequeño, sin percentiles de tubularidad; da el árbol entero y limpio
+#: (Zenodo 050: de 8 a 68 cm³ de vasos, la pieza mayor del 67 al 89 %) y tarda
+#: segundos. "tubular" es la receta de antes (máscara gruesa + baldosas nativas),
+#: que queda para comparar en el banco.
+CT_RECIPE = "vessels"
+#: Tope de vóxeles de la receta "vessels" a resolución nativa. Cabe más que el
+#: tubular (no calcula Frangi): la banda de la cabeza más grande de Zenodo son 165 M.
+_CTA_MAX_VOXELS = 170_000_000
+#: Bytes por vóxel en el pico de la receta "vessels" (volumen float32, etiquetas
+#: int32 y unas pocas máscaras bool); con la guarda de memoria, por encima se reduce.
+_CTA_BYTES_PER_VOXEL = 14
+
 
 def tubular_ceiling(modality: str, requested: float, lower: float) -> float:
     """Techo de HU efectivo del método tubular (0 = sin techo).
@@ -274,6 +288,53 @@ def _half_factor(shape: tuple[int, ...]) -> int:
     return max(2, math.ceil(max(shape) / _SEG_MAX_AXIS))
 
 
+def _downsample_mean(
+    volume: np.ndarray,
+    spacing: tuple[float, float, float],
+    factor: int,
+) -> tuple[np.ndarray, tuple[float, float, float], int]:
+    """Reduce por `factor` promediando bloques (no tomando uno de cada f, que pierde
+    los vasos de uno o dos vóxeles por aliasing). Por cortes gruesos: sin copia float
+    del volumen entero."""
+    f = int(factor)
+    sh = [n // f for n in volume.shape]
+    out = np.empty(sh, dtype=np.float32)
+    for i in range(sh[0]):
+        blk = np.asarray(volume[i * f:(i + 1) * f, :sh[1] * f, :sh[2] * f], dtype=np.float32)
+        out[i] = blk.reshape(f, sh[1], f, sh[2], f).mean(axis=(0, 2, 4))
+    sp = (spacing[0] * f, spacing[1] * f, spacing[2] * f)
+    logger.info("Downsampling (media) %s -> %s (factor %d)", volume.shape, out.shape, f)
+    return out, sp, f
+
+
+#: Malla con la que se detecta cuando la que se ve es otra (TC, receta de vasos).
+DETECT_MESH_NAME = "detect_tree.vtp"
+
+
+def _hybrid_ct(dcm: DicomLoadResult) -> bool:
+    """¿Esta segmentación tubular hará dos mallas (ver y detectar)?"""
+    return (dcm.modality or "").upper() == "CT" and CT_RECIPE == "vessels"
+
+
+def mesh_fingerprint(poly) -> str:
+    """Huella barata de una malla (vértices y caras), para saber si la malla de
+    trabajo sigue siendo la que salió de la segmentación —sin recortes ni
+    deshacer— sin guardar una copia. Sin coordenadas: el .vtp las guarda en
+    float32 y la caja en memoria no tiene por qué coincidir al decimal."""
+    return f"{poly.GetNumberOfPoints()}:{poly.GetNumberOfPolys()}"
+
+
+def reduced_center_shift(spacing, factor: int) -> tuple[float, float, float]:
+    """Desplazamiento (x, y, z) en mm del marco reducido por media (`_downsample_mean`) al nativo.
+
+    El vóxel reducido i es la media de los nativos f·i … f·i+f−1: su centro está en
+    (f·i + (f−1)/2)·s, y en el marco reducido aparece en f·i·s. Sin esto la malla a
+    media resolución se corre medio bloque en cada eje.
+    """
+    h = [0.5 * (int(factor) - 1) * float(s) for s in spacing]
+    return (h[2], h[1], h[0])
+
+
 def _downsample_by(
     volume: np.ndarray,
     spacing: tuple[float, float, float],
@@ -302,8 +363,13 @@ def segment_tubular(
     keep_volume: bool = False,
     band_refine: bool = True,
     say=None,
+    ct_recipe: str | None = None,
 ) -> tuple[object, dict]:
     """La receta tubular del servidor, de volumen a malla (vtkPolyData), en un solo sitio.
+
+    En TC, con `ct_recipe` "vessels" (por defecto, `CT_RECIPE`) la máscara la hace
+    `services.cta_vessels` (ver `_segment_cta_vessels`); con "tubular", la receta de
+    antes. XA/3DRA va siempre por la receta tubular.
 
     La usan `_run_segmentation_sync` (la API), `scripts/eval_zenodo.py` (el
     banco de angio-TC) y `scripts/regresion_xa.py` (la línea base de 3DRA):
@@ -371,6 +437,13 @@ def segment_tubular(
     if head.applied:
         logger.info("Envolvente de la cabeza: %.0f cm³; fuera de ella %.0f cm³ de tejido",
                     head.head_cm3, head.removed_cm3)
+
+    recipe = (ct_recipe or CT_RECIPE)
+    if (dcm.modality or "").upper() == "CT" and recipe == "vessels":
+        return _segment_cta_vessels(
+            dcm, volume, band, head, lower=lower, upper=upper, strategy=strategy,
+            smooth_iters=smooth_iters, half_resolution=half_resolution,
+            memory_guard=memory_guard, keep_volume=keep_volume, say=_say)
 
     # ── Resolución ─────────────────────────────────────────────────────────── #
     # El método tubular no rechaza un volumen grande: lo baja a media
@@ -528,6 +601,100 @@ def segment_tubular(
         "reclaimed_mm3": round(mr.stats.get("reclaimed_vox", 0) * vox_mm3, 1),
         "vetoed_mm3": round(mr.stats.get("vetoed_vox", 0) * vox_mm3, 1),
         "mask_stats": {k: v for k, v in mr.stats.items() if k != "thresholds"},
+        "seconds_mask": round(t_mask, 1),
+        "seconds_total": round(time.perf_counter() - t_start, 1),
+    }
+    if keep_volume:
+        info["seg_volume"] = seg_volume
+        info["seg_origin_mm"] = (0.0, 0.0, float(band.cut_mm) if band.applied else 0.0)
+    return poly, info
+
+
+def _segment_cta_vessels(dcm, volume, band, head, *, lower: float, upper: float, strategy: str,
+                         smooth_iters: int, half_resolution: bool, memory_guard: bool,
+                         keep_volume: bool, say) -> tuple[object, dict]:
+    """La receta "vessels" de la angio-TC (services.cta_vessels), de la banda de la cabeza a malla.
+
+    `lower` (el umbral de la interfaz) es el umbral FUERTE: lo que lo supera ancla
+    cada pieza; el débil es adaptativo (media del parénquima + 3σ). La malla sale de
+    la máscara (topología) y `refine_surface` lleva su borde a media altura local con
+    techo en `lower`, para que los vasos gruesos no salgan inflados.
+    """
+    from services.craneo_flojo import es_flojo, indicador as indicador_craneo
+    from services.cta_vessels import CtaParams, refine_surface, segment_cta
+    from services.segmentation import mask_to_surface, surface_quality
+
+    t_start = time.perf_counter()
+    n_voxels = int(np.prod(volume.shape))
+    fallback_note = ""
+    if not half_resolution:
+        if n_voxels > _CTA_MAX_VOXELS:
+            fallback_note = (f"Volumen de {n_voxels / 1e6:.0f} millones de vóxeles (el tope son "
+                             f"{_CTA_MAX_VOXELS / 1e6:.0f} millones): se segmenta a media resolución.")
+        elif memory_guard and n_voxels * _CTA_BYTES_PER_VOXEL > _memory_budget_bytes():
+            fallback_note = (f"Volumen de {cifra(n_voxels / 1e6)} millones de vóxeles: a resolución nativa "
+                             f"no cabe en el presupuesto de memoria del servidor, así que se segmenta "
+                             f"a media resolución.")
+        half_resolution = bool(fallback_note)
+    if half_resolution:
+        seg_volume, seg_spacing, factor = _downsample_mean(volume, dcm.spacing, 2)
+    else:
+        seg_volume = np.ascontiguousarray(volume, dtype=np.float32)
+        seg_spacing, factor = tuple(float(s) for s in dcm.spacing), 1
+    within = head.inside(seg_volume.shape, factor) if head.applied else None
+    logger.info("Segmenting (vasos de angio-TC): fuerte=%.0f shape=%s (ds=%d)", lower, seg_volume.shape, factor)
+    # Cráneo flojo (services.craneo_flojo): sus tablas no llegan a 700 HU y la
+    # bóveda entera entraba en la malla (Zenodo 084, 123: 190–210 cm³). Como en la
+    # receta anterior, lo que supera CT_SHELL_HU en la corteza de la cabeza es hueso.
+    ind_craneo = indicador_craneo(seg_volume, seg_spacing, within) if within is not None else None
+    corteza = es_flojo(ind_craneo)
+    extra_bone = (head.shell_in(seg_volume.shape, factor) & (seg_volume > CT_SHELL_HU)) if corteza else None
+
+    res = segment_cta(seg_volume, seg_spacing, within=within, params=CtaParams(strong_hu=float(lower)),
+                      extra_bone=extra_bone,
+                      on_progress=lambda f, p: None if f == "hecho" else say(f, 5 + 0.75 * p))
+    del within, extra_bone
+    st = res.stats
+    t_mask = time.perf_counter() - t_start
+    if not res.mask.any():
+        raise ValueError(
+            f"No quedó ningún vaso: nada por encima de {lower:.0f} HU conectado dentro de la cabeza "
+            f"(umbral débil {st.get('weak_hu', 0):.0f} HU). Revisa el contraste de la serie o baja el umbral.")
+    poly = mask_to_surface(res.mask, seg_spacing, smooth_iters=max(40, smooth_iters), pass_band=0.05,
+                           on_progress=lambda f, p: None if f == "superficie lista" else say(f, 82 + 0.1 * p))
+    mask_vox = int(res.mask.sum())
+    res.mask = None
+    say("borde", 93)
+    poly = refine_surface(poly, seg_volume, seg_spacing, res.background_hu,
+                          low_hu=float(st.get("weak_hu", 100.0)), cap_hu=float(lower))
+    from services.band_refine import translate_poly
+    if factor > 1:
+        poly = translate_poly(poly, reduced_center_shift(dcm.spacing, factor))
+    if band.applied:
+        poly = translate_poly(poly, (0.0, 0.0, band.cut_mm))
+    q = surface_quality(poly)
+    vox_mm3 = float(np.prod(seg_spacing))
+    info = {
+        "recipe": "vessels",
+        "thresholds": {"lower": float(lower), "upper": float(upper), "strategy": strategy},
+        "voxels": n_voxels, "downsample_factor": int(factor), "fallback_note": fallback_note,
+        "head_band": band.as_dict(),
+        "head_mask": head.as_dict(),
+        "craneo_flojo": {"indicador": None if ind_craneo is None else round(float(ind_craneo), 4),
+                         "corteza": bool(corteza), "shell_vox": 0},
+        "shape": [int(v) for v in dcm.volume.shape],
+        "spacing_mm": [round(float(v), 4) for v in dcm.spacing],
+        "seg_spacing": tuple(float(v) for v in seg_spacing),
+        "seg_spacing_mm": [round(float(v), 4) for v in seg_spacing],
+        "mesh_spacing_mm": [round(float(v), 4) for v in seg_spacing],
+        "band": None,
+        "vertices": int(q["n_vertices"]), "faces": int(q["n_triangles"]),
+        "components": int(q["components"]), "boundary_edges": int(q["boundary_edges"]),
+        "seeds": int(st.get("pieces_kept", 0)), "fallback_mask": False,
+        "kept_fraction": float(mask_vox * vox_mm3 / 1000.0 / max(1e-6, st.get("m_cm3", 0.0) or 1e-6)),
+        "mask_mm3": round(mask_vox * vox_mm3, 1),
+        "reclaimed_mm3": 0.0, "vetoed_mm3": 0.0,
+        "mask_stats": st,
         "seconds_mask": round(t_mask, 1),
         "seconds_total": round(time.perf_counter() - t_start, 1),
     }
@@ -1112,6 +1279,7 @@ def _run_segmentation_sync(
 
     fallback_note = ""
     n_voxels = int(np.prod(dcm.volume.shape))
+    detect_poly = None          # malla solo para detectar (TC con la receta de vasos)
     if method == "tubular":
         # La receta entera vive en segment_tubular, compartida con el banco de
         # Zenodo y la línea base XA. El techo efectivo (0 = sin techo) vuelve en
@@ -1119,7 +1287,24 @@ def _run_segmentation_sync(
         # misma banda que hizo la malla.
         poly, info = segment_tubular(
             dcm, lower=lower, upper=upper, strategy=strategy, reclaim_mm=reclaim_mm,
-            smooth_iters=smooth_iters, half_resolution=half_resolution, say=clock.say)
+            smooth_iters=smooth_iters, half_resolution=half_resolution,
+            say=(lambda f, p: clock.say(f, p * 0.3)) if _hybrid_ct(dcm) else clock.say)
+        if info.get("recipe") == "vessels":
+            # La malla de vasos es la que se ve; la detección sigue sobre la malla
+            # de la receta anterior (detect_tree.vtp), que es a la que está
+            # ajustado el detector: sobre la de vasos, en los 172 de Zenodo, las
+            # lesiones entre las 5 primeras bajaban de 72 a 31 (README, 15-11-2026).
+            # Si la receta anterior falla (sin semillas, sin memoria) la malla que
+            # se ve ya está hecha: se detecta sobre ella, como en 3DRA.
+            try:
+                detect_poly, _ = segment_tubular(
+                    dcm, lower=lower, upper=upper, strategy=strategy, reclaim_mm=reclaim_mm,
+                    smooth_iters=smooth_iters, half_resolution=half_resolution,
+                    ct_recipe="tubular",
+                    say=lambda f, p: clock.say(f"malla de detección: {f}", 30 + p * 0.67))
+            except (ValueError, MemoryError) as exc:
+                logger.warning("Sin malla de detección aparte (%s): se detecta sobre la de vasos", exc)
+                detect_poly = None
         upper = info["thresholds"]["upper"]
         ds_factor = info["downsample_factor"]
         half_resolution = ds_factor > 1
@@ -1132,7 +1317,8 @@ def _run_segmentation_sync(
         extra = dict(method="tubular",
                      reclaimed_mm3=info["reclaimed_mm3"], vetoed_mm3=info["vetoed_mm3"],
                      boundary_edges=info["boundary_edges"], components=info["components"],
-                     seeds=info["seeds"])
+                     seeds=info["seeds"], recipe=info.get("recipe", "tubular"),
+                     weak_hu=(info.get("mask_stats") or {}).get("weak_hu"))
         logger.info("Máscara tubular: %s", info["mask_stats"])
     else:
         # Compute what fraction of voxels falls in the user-requested threshold band
@@ -1214,6 +1400,14 @@ def _run_segmentation_sync(
     # edit like any other: snapshot first, and it can be undone.
     mesh_backup.snapshot(session_id, "segment")
     write_vtp(seg_result.poly_data, vtp_path)
+    # La malla de detección va con ESTA segmentación o no va: una que quedara de
+    # otra anterior (p. ej. antes de pasar a umbral clásico) detectaría sobre
+    # algo que ya no se ve.
+    detect_path = meshes_dir / DETECT_MESH_NAME
+    if detect_poly is not None:
+        write_vtp(detect_poly, detect_path)
+    else:
+        detect_path.unlink(missing_ok=True)
 
     # Las ramas se buscan AQUÍ, sobre el árbol entero, porque es el único
     # momento en que están todas. Recortar a una caja o una esfera sobrescribe
@@ -1266,6 +1460,11 @@ def _run_segmentation_sync(
     estado["seg.downsample_factor"] = str(ds_factor)
     estado["seg.fallback_note"] = fallback_note
     estado["seg.strategy"] = strategy
+    # Qué malla de trabajo acompaña a detect_tree.vtp: si luego se recorta o se
+    # deshace, la detección lo nota y filtra los sitios por cercanía a la malla
+    # que se ve (routers/detect.py).
+    estado["seg.detect_tree_for"] = (
+        mesh_fingerprint(seg_result.poly_data) if detect_poly is not None else "")
     # Todo lo que hizo esta malla, junto: una lesión confirmada sobre ella solo
     # sirve para medir un detector nuevo si la malla se puede rehacer igual
     # desde el estudio archivado (routers/ground_truth.py).

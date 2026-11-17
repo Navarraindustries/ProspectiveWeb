@@ -215,6 +215,16 @@ class SegmentResult(BaseModel):
     boundary_edges: int = Field(0, description="Aristas de borde de la malla; 0 = estanca (método tubular)")
     components: int = Field(0, description="Piezas conexas de la malla (método tubular)")
     seeds: int = Field(0, description="Troncos que sembraron el crecimiento (método tubular)")
+    recipe: str | None = Field(
+        None,
+        description=(
+            "Receta de la máscara en el método tubular: «vessels» (angio-TC: vasos conectados "
+            "por umbral débil y fuerte dentro de la cavidad craneal) o «tubular» (3DRA y la "
+            "receta antigua de TC). None en el umbral clásico."
+        ),
+    )
+    weak_hu: float | None = Field(
+        None, description="Umbral débil adaptativo de la receta «vessels» (HU): media del parénquima + 3σ")
     fallback_note: str = Field(
         "",
         description=(

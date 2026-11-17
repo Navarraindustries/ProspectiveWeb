@@ -278,9 +278,14 @@ class TestChunks:
 
 
 class TestSegmentThreshold:
-    def test_segment_result_reports_threshold_lower(self):
+    def test_segment_result_reports_threshold_lower(self, monkeypatch):
         # El MIP «Vasos» del cliente arranca en el umbral con el que se hizo la
         # malla: el endpoint tiene que devolverlo, no solo usarlo.
+        # Un cubo brillante no es una cabeza: la receta de vasos de la angio-TC
+        # (services.cta_vessels) no encuentra nada en él. Lo que se prueba aquí
+        # es que el umbral vuelve en la respuesta, con la receta tubular.
+        import routers.segment as seg
+        monkeypatch.setattr(seg, "CT_RECIPE", "tubular")
         sid = create_session()
         # 600 HU, no 800: el botón va por el método tubular, que en TC aplica
         # un techo de 700 HU (paso 2 Zenodo) y trata lo que pasa de ahí como hueso.

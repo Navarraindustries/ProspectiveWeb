@@ -30,6 +30,16 @@ from services.vascular_mask import MaskParams, build_vascular_mask
 from test_vascular_mask import SEMILLA, _sphere
 from test_vesselness import synthetic_tube
 
+
+@pytest.fixture(autouse=True)
+def _receta_tubular_en_tc(monkeypatch):
+    """Estos tests prueban la receta tubular de antes en TC (máscara gruesa y baldosas
+    nativas), que se conserva para comparar en el banco. La receta de ahora para la
+    angio-TC (`services.cta_vessels`) tiene los suyos en test_cta_vessels.py."""
+    import routers.segment as seg
+    monkeypatch.setattr(seg, "CT_RECIPE", "tubular")
+
+
 SP = (0.4, 0.4, 0.4)
 SHAPE = (128, 96, 96)
 FACTOR = 4

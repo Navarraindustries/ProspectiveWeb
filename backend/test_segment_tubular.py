@@ -15,6 +15,16 @@ from services.segmentation import read_vtp, surface_quality
 from services.sessions import create_session, session_subdir
 from test_volume_chunks import _write_classic_ct_series
 
+
+@pytest.fixture(autouse=True)
+def _receta_tubular_en_tc(monkeypatch):
+    """Estos tests prueban la receta tubular de antes en TC (máscara gruesa y baldosas
+    nativas), que se conserva para comparar en el banco. La receta de ahora para la
+    angio-TC (`services.cta_vessels`) tiene los suyos en test_cta_vessels.py."""
+    import routers.segment as seg
+    monkeypatch.setattr(seg, "CT_RECIPE", "tubular")
+
+
 client = TestClient(app, raise_server_exceptions=True)
 
 # Las fases que publica el método tubular, en su orden (contrato con la interfaz).

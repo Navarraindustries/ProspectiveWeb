@@ -707,6 +707,46 @@ def _match_choice(previous: tuple[str, np.ndarray | None],
     return best[1] if best is not None else None
 
 
+#: Un sitio hallado en detect_tree.vtp sigue valiendo si queda a esta distancia
+#: de la malla que se ve. Las dos superficies del mismo vaso difieren en 1–2 mm
+#: (la de vasos llega más afuera); un recorte deja fuera centímetros.
+_ON_MESH_MM = 5.0
+
+
+def _detection_mesh(session_id: str, vtp_path: Path):
+    """La malla sobre la que se detecta y, si hace falta filtrar, la que se ve.
+
+    En TC con la receta de vasos (routers/segment.py) la segmentación deja dos
+    mallas: `vessel_tree.vtp`, la que se ve, se recorta y se mide, y
+    `detect_tree.vtp`, la de la receta anterior, a la que está ajustado el
+    detector. Se detecta sobre la segunda. Si la primera ya no es la que salió
+    de la segmentación (recorte, borrado, deshacer), devuelve también la que se
+    ve para quedarse solo con los sitios que siguen sobre ella. Sin
+    `detect_tree.vtp` (XA, umbral clásico) se detecta sobre la que se ve, como
+    siempre: devuelve (esa malla, None).
+    """
+    from routers.segment import DETECT_MESH_NAME, mesh_fingerprint
+    detect_path = vtp_path.parent / DETECT_MESH_NAME
+    if not detect_path.exists():
+        return read_vtp(vtp_path), None
+    detect = read_vtp(detect_path)
+    visible = read_vtp(vtp_path)
+    if mesh_fingerprint(visible) == (read_state(session_id, "seg.detect_tree_for") or ""):
+        return detect, None
+    logger.info("Detección sobre detect_tree.vtp, filtrada por la malla de trabajo editada")
+    return detect, visible
+
+
+def _hits_on_mesh(hits: list, visible, max_mm: float = _ON_MESH_MM) -> list:
+    """Los sitios a ≤ `max_mm` de algún vértice de `visible`, en su orden."""
+    from scipy.spatial import cKDTree
+    from vtkmodules.util import numpy_support as ns
+    if visible.GetNumberOfPoints() == 0:
+        return []
+    tree = cKDTree(ns.vtk_to_numpy(visible.GetPoints().GetData()))
+    return [h for h in hits if tree.query(np.asarray(h.position, dtype=float))[0] <= max_mm]
+
+
 def _run_detection_sync(
     session_id: str,
     vtp_path:   Path,
@@ -721,7 +761,7 @@ def _run_detection_sync(
     _clear_detection_state(session_id, meshes_dir, morphometry=False)
 
     progress.update(session_id, "lectura", 2)
-    poly = read_vtp(vtp_path)
+    poly, visible = _detection_mesh(session_id, vtp_path)
 
     if poly.GetNumberOfPoints() == 0:
         raise ValueError("Segmented mesh has no geometry. Re-run segmentation.")
@@ -749,6 +789,10 @@ def _run_detection_sync(
     # posición es de mundo y vale igual en todas las copias—; la región de
     # curvatura es la que el detector encontró en su copia.
     hits, det_result = _detect_hits(poly, modality, detector, session_id, top=_DETECT_TOP)
+    if visible is not None:
+        # La malla que se ve se recortó o se deshizo después de segmentar: solo
+        # valen los sitios que siguen sobre ella.
+        hits = _hits_on_mesh(hits, visible)
 
     # ── Vetos antes del tope ──────────────────────────────────────────── #
     # Cada sitio se juzga (borde, isla, bifurcación, forma). Los aceptados

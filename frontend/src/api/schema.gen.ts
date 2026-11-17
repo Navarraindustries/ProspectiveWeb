@@ -9144,6 +9144,11 @@ export interface components {
                 [key: string]: number;
             };
             /**
+             * Recipe
+             * @description Receta de la máscara en el método tubular: «vessels» (angio-TC: vasos conectados por umbral débil y fuerte dentro de la cavidad craneal) o «tubular» (3DRA y la receta antigua de TC). None en el umbral clásico.
+             */
+            recipe?: string | null;
+            /**
              * Reclaimed Mm3
              * @description Pared y sacos recuperados junto al tubo (mm³), método tubular
              * @default 0
@@ -9182,6 +9187,11 @@ export interface components {
              * @description Fraction of voxels captured by the applied thresholds (0–1). Null until real segmentation runs.
              */
             voxel_fraction?: number | null;
+            /**
+             * Weak Hu
+             * @description Umbral débil adaptativo de la receta «vessels» (HU): media del parénquima + 3σ
+             */
+            weak_hu?: number | null;
         };
         /**
          * SeriesInfo

@@ -20,9 +20,13 @@ export function CeilingControls({ method, children, nota = "Sin techo en el mét
   );
 }
 
-/** Qué método segmenta, y cuánta pared y saco se recupera alrededor del tubo. */
-export function TubularControls({ method, reclaimMm, onMethod, onReclaim }: {
+/** Qué método segmenta, y cuánta pared y saco se recupera alrededor del tubo.
+ *  En TC (`ct`) el método tubular usa la receta de angio-TC (backend
+ *  `services.cta_vessels`, 15-11-2026): no hay radio de recuperación que mover,
+ *  así que en vez del deslizador se dice qué hace. */
+export function TubularControls({ method, reclaimMm, onMethod, onReclaim, ct = false }: {
   method: SegmentMethod; reclaimMm: number; onMethod: (m: SegmentMethod) => void; onReclaim: (mm: number) => void;
+  ct?: boolean;
 }) {
   const name = useId();
   const opt = (value: SegmentMethod, label: string, hint: string) => (
@@ -40,7 +44,16 @@ export function TubularControls({ method, reclaimMm, onMethod, onReclaim }: {
         {opt("tubular", "Tubular (recomendado)", "Vasos macizos, hueso fuera por forma, sacos recuperados.")}
         {opt("threshold", "Umbral clásico", "Solo la banda de intensidad; deja láminas y cáscaras.")}
       </div>
-      {method === "tubular" && (
+      {method === "tubular" && ct && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 10, lineHeight: 1.45 }}>
+          En angio-TC se queda el árbol de vasos conectado dentro del cráneo: lo que supera el umbral
+          inferior y todo lo unido a ello con un umbral más bajo, calculado del propio estudio, para no
+          cortar las ramas finas. Fuera quedan el cráneo, el cuero cabelludo y los senos paranasales.
+          Las venas van incluidas. La búsqueda de aneurismas trabaja por ahora sobre una segunda malla,
+          hecha con la receta anterior, a la que está ajustado el detector; por eso tarda un poco más.
+        </div>
+      )}
+      {method === "tubular" && !ct && (
         <div style={{ marginTop: 10 }}>
           <Slider label="Recuperar pared y sacos" min={0} max={5} step={0.5} value={reclaimMm} onChange={onReclaim} unit=" mm" />
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -2, lineHeight: 1.45 }}>

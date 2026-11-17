@@ -330,7 +330,8 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       {/* El método va primero: decide qué controles de abajo cuentan (el
           techo y su comparación solo existen para el umbral clásico). */}
       <SectionLabel style={{ marginBottom: 0 }}>Método</SectionLabel>
-      <TubularControls method={method} reclaimMm={reclaimMm} onMethod={chooseMethod} onReclaim={setReclaimMm} />
+      <TubularControls method={method} reclaimMm={reclaimMm} onMethod={chooseMethod} onReclaim={setReclaimMm}
+        ct={(series?.modality ?? "").toUpperCase() === "CT"} />
       {/* Antes de los umbrales: actúa antes que ellos (auditoría F3). */}
       <PreprocessSection />
 
@@ -668,7 +669,14 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
                   badge={boundaryEdges === 0 ? ["Cerrada", "success"] : ["Con bordes", "warning"]}
                 />
               )}
-              {tubular && hasQuality && (
+              {tubular && hasQuality && segmentation.recipe === "vessels" && (
+                // Angio-TC (services.cta_vessels): no hay semillas, recuperación ni veto que contar.
+                <div style={hudLine}>
+                  {pieces(segmentation.components ?? 0, "pieza", "piezas")}
+                  {segmentation.weak_hu != null && <> · umbral bajo {Math.round(segmentation.weak_hu)} HU</>}
+                </div>
+              )}
+              {tubular && hasQuality && segmentation.recipe !== "vessels" && (
                 <div style={hudLine}>
                   {pieces(segmentation.components ?? 0, "pieza", "piezas")} ·{" "}
                   {pieces(segmentation.seeds ?? 0, "semilla", "semillas")} · recuperados{" "}

@@ -706,9 +706,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--summary", action="store_true", help="solo resumir lo ya evaluado")
     ap.add_argument("--no-band", action="store_true",
                     help="sin la pasada a resolución nativa en la banda del árbol (paso 1)")
+    ap.add_argument("--ct-recipe", choices=["tubular", "vessels"], default="tubular",
+                    help="malla de TC a evaluar: «tubular» (por defecto) es la que usa la "
+                         "detección de la API (detect_tree.vtp); «vessels», la que se ve")
     args = ap.parse_args(argv)
     if args.no_band:
         SEGMENT_OPTS["band_refine"] = False
+    # La API detecta sobre la malla de la receta anterior aunque enseñe la de
+    # vasos (routers/segment.py, 15-11-2026): el banco mide por defecto lo mismo.
+    SEGMENT_OPTS["ct_recipe"] = args.ct_recipe
 
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
     if args.summary:

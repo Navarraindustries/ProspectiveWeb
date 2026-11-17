@@ -9,6 +9,14 @@ describe("TubularControls", () => {
     rerender(<TubularControls method="threshold" reclaimMm={3} onMethod={() => {}} onReclaim={() => {}} />);
     expect(screen.queryByLabelText(/Recuperar pared y sacos/)).toBeNull();
   });
+  /* En angio-TC el método tubular usa la receta de vasos de TC (backend
+     services.cta_vessels): el radio de recuperación no hace nada allí. */
+  it("en TC no enseña el radio de recuperación sino qué hace la receta", () => {
+    render(<TubularControls method="tubular" reclaimMm={3} onMethod={() => {}} onReclaim={() => {}} ct />);
+    expect(screen.queryByLabelText(/Recuperar pared y sacos/)).toBeNull();
+    expect(screen.getByText(/árbol de vasos conectado dentro del cráneo/)).toBeInTheDocument();
+    expect(screen.getByText(/segunda malla/)).toBeInTheDocument();
+  });
   it("cambia de método y de radio", () => {
     const onMethod = vi.fn(); const onReclaim = vi.fn();
     render(<TubularControls method="tubular" reclaimMm={3} onMethod={onMethod} onReclaim={onReclaim} />);

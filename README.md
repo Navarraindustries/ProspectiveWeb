@@ -187,6 +187,40 @@ El método tubular (`services/vascular_mask.py` + `mask_to_surface` en `services
 | Vértices | 107 176 |
 | Tiempo máscara + superficie | 9,0 s (34,1 s con los dos pases de Frangi) |
 
+#### En angio-TC: vasos conectados dentro del cráneo (`services/cta_vessels.py`, 15-11-2026)
+
+En TC el método tubular ya no usa la receta de arriba: la sustituye `segment_cta` (`routers/segment.py`, `CT_RECIPE = "vessels"`; con `ct_recipe="tubular"` se puede seguir pidiendo la antigua para comparar en el banco). La 3DRA no cambia. La receta antigua, en las angio-TC de Zenodo, dejaba mallas con ruido, hueso de la base del cráneo y vasos cortados, por cuatro causas medidas con los volúmenes nativos:
+
+- el umbral fijo de 150 HU: por volumen parcial las ramas distales bajan de 150 en algún tramo y quedan sueltas (Zenodo 050: 574 piezas, la mayor de 11 cm³; con 100 HU, una sola de 37 cm³ con el árbol entero);
+- las semillas y el crecimiento por percentiles de tubularidad: en angio-TC las semillas caían en la base del cráneo y el crecimiento perdía las ramas (en 050 se quedaban 6 de 1 794 piezas);
+- los tabiques de los senos paranasales y la mastoides (150–700 HU), que la máscara de hueso (> 700) no ve;
+- «solo el árbol principal» borraba todo lo que no estaba unido a la pieza mayor, y la carótida, cortada en el peñasco, desaparecía.
+
+La receta nueva:
+
+1. **Hueso denso fuera con margen pequeño** (componentes > 700 HU de ≥ 500 mm³, 0,5 mm) y, a ≤ 3 mm del hueso, una apertura con bola de 1,0 mm: se van las láminas de volumen parcial y los tabiques, y la carótida del canal petroso sobrevive (el margen fijo de 1,5 mm se comía su luz). Con 0,7 mm quedaba pegada al árbol una lámina con la forma de la tabla interna del cráneo en casi todos los estudios (en 130, unos 88 cm³ de lámina frente a unos 40 de vasos); 1,0 mm la reduce sin perder lesiones en 7 estudios (016_1: 1,00 → 0,98), a costa de separar algunas ramas corticales pegadas al hueso. Además, las piezas sueltas con forma de placa pegada al hueso (planas y anchas por PCA, ≥ 30 % de sus vóxeles a ≤ 3 mm del hueso) se quitan: la placa frontal de 002, por ejemplo; los tubos sueltos, como una carótida cortada, no caen (16-11-2026).
+2. **Lo pegado a aire no es vaso** (≤ 2,5 mm de < −400 HU): caen los senos paranasales y la mastoides.
+3. **Cavidad intracraneal** (`intracranial_cavity`, en rejilla de 1 mm: el cerebro, reconstruido y crecido 6 mm sin atravesar hueso; no depende de la orientación de la cabeza). Fuera quedan el cuero cabelludo, la cara y el cuello, salvo un corredor en la base del cráneo para los tubos gruesos (carótidas y vertebrales).
+4. **Histéresis de HU con 6-conectividad** (la de la malla): lo que supera el umbral bajo y está unido a algo que supera el de la interfaz. El umbral bajo se calcula del estudio: media del parénquima + 3σ, entre 90 y 115 HU.
+5. **Geometría a media altura**: la malla sale de la máscara y `refine_surface` baja cada vértice por su normal hasta el borde a media altura local entre la luz y el parénquima (techo en el umbral de la interfaz). Así los vasos gruesos no salen inflados por el umbral bajo y la malla no se parte.
+
+Las venas van incluidas: separarlas por reglas se probó de seis maneras, y en los estudios en fase venosa acababa metiendo un aneurisma en la capa venosa (036) o devolviendo el seno sagital a la arterial. Queda para una fase siguiente. En 7 estudios de Zenodo (002, 015, 016, 036, 050, 096, 130) la pieza mayor pasa a ser el 84–92 % de la malla, y el recubrimiento de las 9 lesiones queda igual o mejor que antes en 6, con la misma tolerancia (130: 0,93 → 0,90). Tarda segundos: 050 a resolución nativa, 29 s en total (antes ~230 s), sin Frangi. Hasta 170 M vóxeles en la banda de la cabeza va a resolución nativa; por encima, o si no cabe en el presupuesto de memoria, reduce por 2 promediando bloques (no tomando uno de cada dos, que pierde los vasos de uno o dos vóxeles) y corrige el medio bloque de desplazamiento.
+
+**Pasada de los 172 estudios de Zenodo** (`scripts/eval_zenodo.py --ct-recipe vessels`, 0 errores; misma tolerancia de recubrimiento que la referencia, 1,5 × el vóxel nativo mayor):
+
+| | Referencia (receta anterior) | Receta de vasos |
+|---|---|---|
+| Lesiones fuera de la malla (recubrimiento < 0,2) | 5 | **0** |
+| Recubrimiento mediano de las 122 lesiones | 0,891 | 0,894 (suben 19, bajan 7; la peor, 017_1, 0,91 → 0,77) |
+| Piezas por malla (mediana) | 64 | 50 |
+| Fracción del volumen en la pieza mayor (mediana) | 0,73 | **0,89** |
+| Pieza mayor (mediana) | 21,6 cm³ | 60,4 cm³ |
+| «Parece árbol» (`looks_like_tree`) | 172 | 150 (21 pasan del tope de 100 cm³ por las venas) |
+| Segmentación (mediana) | 211 s | 57 s |
+| Detección: entre 5 · entre 10 · 1.º · en lista · estudios | 72 · 81 · 36 · 95 · 60 | 31 · 40 · 16 · 67 · 28 |
+
+La malla es mejor; la detección sobre ella no: el detector está ajustado a la malla anterior, más fina y sin venas, y 46 lesiones salen de las cinco primeras (solo 10 de ellas en estudios que pasan del tope de árbol). **Mientras se reajusta, la segmentación de TC hace las dos mallas**: `vessel_tree.vtp`, la de vasos, es la que se ve, se recorta, se mide y se exporta; `detect_tree.vtp`, la de la receta anterior, es solo para buscar candidatos (`routers/detect.py`, `_detection_mesh`). Las dos están en el mismo marco del paciente, así que los candidatos caen sobre la malla que se ve. La detección es por construcción la de la referencia (72 · 81 · 36 · 95 · 60) y el banco la mide por defecto así (`--ct-recipe tubular`). Si la malla que se ve se recorta, se borra un trozo o se deshace después de segmentar (su huella, vértices y caras, ya no es `seg.detect_tree_for`), solo quedan los candidatos a ≤ 5 mm de ella. Una segmentación sin malla de detección (umbral clásico, XA) borra la que hubiera; si la receta anterior falla, se detecta sobre la de vasos. Coste: la segmentación de TC tarda lo que las dos recetas, unos 270 s de mediana frente a 211 s antes.
+
 La variable de entorno `PROSPECTIVE_MEM_BUDGET_MB` fija el presupuesto de memoria por encima del cual el método tubular se fuerza a media resolución y lo dice. Si no está definida, el presupuesto es el 70 % de la RAM disponible que detecta el sistema (`/proc/meminfo` en Linux, `GlobalMemoryStatusEx` en Windows), y 1400 MB si no puede leerla.
 
 La detección busca la curvatura sobre una copia de 80 000 vértices cuando la malla es mayor, y calibre y cociente sobre una de 40 000. Las regiones de curvatura que tocan una cara de la caja de la malla (las tapas de los vasos cortados por el borde del volumen) van al final de la lista. En Case 3 (método tubular, 103 978 vértices, «solo el árbol») la lesión confirmada sale 1.ª, la encuentra el canal de curvatura y la detección tarda unos 11–13 s con los vetos incluidos. Eso es **a resolución nativa**. A media resolución (10 594 vértices, «solo el árbol») la misma lesión sale 5.ª, el último puesto de la lista, y solo por el cociente: el objetivo «lesión ≤ 3» no se cumple ahí.

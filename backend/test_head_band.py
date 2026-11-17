@@ -5,10 +5,22 @@ tubo en el mismo sitio; lo que cambia es cuántos vóxeles hay que mirar.
 """
 from __future__ import annotations
 
+import pytest
+
 import numpy as np
 
 from services.dicom_loader import DicomLoadResult
 from services.head_band import HEAD_BAND_MM, HeadBand, head_band, skull_top_index
+
+
+@pytest.fixture(autouse=True)
+def _receta_tubular_en_tc(monkeypatch):
+    """Estos tests prueban la receta tubular de antes en TC (máscara gruesa y baldosas
+    nativas), que se conserva para comparar en el banco. La receta de ahora para la
+    angio-TC (`services.cta_vessels`) tiene los suyos en test_cta_vessels.py."""
+    import routers.segment as seg
+    monkeypatch.setattr(seg, "CT_RECIPE", "tubular")
+
 
 SP = (1.0, 1.0, 1.0)
 

@@ -16,9 +16,8 @@ import { DiameterChart } from "./DiameterChart";
 import { candidateNameAt } from "../planning/detectCopy";
 import { usePlanning } from "../../store/planning";
 import { useVolumeMeta } from "../../vtk/useVolumeMeta";
-import { indexAtArc, nearestIndex, tangentAt } from "../../vtk/centerlineWalk";
+import { indexAtArc, nearestIndex, planoDeLinea } from "../../vtk/centerlineWalk";
 import { useCenterlineTrack } from "../../vtk/useCenterlineTrack";
-import { planeFromNormal } from "../../vtk/freePlane";
 import { cifra, coordenadas } from "../../lib/numero";
 
 const RESOLUTIONS = [
@@ -152,7 +151,7 @@ export function CenterlinePanel() {
     if (!centerline || !meta) return;
     const i = indexAtArc(centerline.arcMm, mm);
     setFocusMm(centerline.points[i], meta);
-    setFreePlane(planeFromNormal(tangentAt(centerline.points, i)));
+    setFreePlane(planoDeLinea(centerline.points, i));
   };
   const cursor = (() => {
     if (!centerline || !focusPoint) return null;

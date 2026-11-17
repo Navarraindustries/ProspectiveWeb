@@ -2,7 +2,7 @@
    componente solo traduce eventos a estas funciones, así que la regla de cada
    gesto se prueba sin WebGL. */
 import { cifra, mm } from "../lib/numero";
-import { clampPlane, type FreePlane } from "./freePlane";
+import { ELEVATION_RANGE, clampPlane, type FreePlane } from "./freePlane";
 
 /** Medio grado por píxel: cruzar un panel típico (~360 px) da media vuelta de
  *  azimut, suficiente para orientar sin que un pulso pequeño lo dispare. */
@@ -10,9 +10,13 @@ export const DEG_PER_PX = 0.5;
 
 /** Arrastre con el botón derecho desde el plano que había al empezar: a la
  *  derecha gira el azimut, hacia arriba sube la elevación (dy de pantalla crece
- *  hacia abajo, de ahí el signo). Acotado a los rangos del plano libre. */
+ *  hacia abajo, de ahí el signo). Acotado a los rangos de los mandos; si el
+ *  plano venía de más allá (un recorrido de vaso que cruzó la horizontal), el
+ *  arrastre arranca desde donde está, sin saltar, y puede volver al rango. */
 export function dragAngles(start: FreePlane, dxPx: number, dyPx: number): FreePlane {
-  return clampPlane({ ...start, azimuthDeg: start.azimuthDeg + dxPx * DEG_PER_PX, elevationDeg: start.elevationDeg - dyPx * DEG_PER_PX });
+  const lo = Math.min(ELEVATION_RANGE[0], start.elevationDeg), hi = Math.max(ELEVATION_RANGE[1], start.elevationDeg);
+  const e = Math.min(hi, Math.max(lo, start.elevationDeg - dyPx * DEG_PER_PX));
+  return clampPlane({ ...start, azimuthDeg: start.azimuthDeg + dxPx * DEG_PER_PX, elevationDeg: e });
 }
 
 /** Un paso por evento de rueda, sea cual sea su deltaY: los ratones y los

@@ -48,7 +48,7 @@ import {
   type HudLevel,
 } from "./viewerPrefs";
 import { applyStep, cineShouldStop, clampFps, nextIndex } from "./cine";
-import { stepTrackIndex, tangentAt } from "./centerlineWalk";
+import { planoDeLinea, stepTrackIndex } from "./centerlineWalk";
 import { useCenterlineTrack } from "./useCenterlineTrack";
 import { startClock } from "./cineClock";
 import { HudCineBar } from "./hud/HudCineBar";
@@ -1124,7 +1124,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // setFocusMm mueve el vóxel y también focusPoint: el cursor de la gráfica
     // de calibre lee focusPoint y tiene que seguir al recorrido.
     setFocusMm(t.points[i], m);
-    const fp = planeFromNormal(tangentAt(t.points, i));
+    const fp = planoDeLinea(t.points, i);
     freePlaneRef.current = fp; setFreePlane(fp);
     trackIndexRef.current = i;
   };

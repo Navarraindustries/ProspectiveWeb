@@ -8,11 +8,17 @@ import { voxelToMm, type Plane, type Vec3 } from "./geometry";
 export interface FreePlane { azimuthDeg: number; elevationDeg: number; offsetMm: number }
 export const DEFAULT_FREE_PLANE: FreePlane = { azimuthDeg: 0, elevationDeg: 0, offsetMm: 0 };
 export const AZIMUTH_RANGE: [number, number] = [-180, 180];
-/* ±89 y no ±90: el «arriba» de upOf no se anula en ningún punto de este rango
-   (su única singularidad es 180°), así que el límite no protege de ninguna
-   degeneración. Solo mantiene legible el «arriba» del corte: más allá de 90° la
-   imagen del oblicuo quedaría cabeza abajo respecto al axial. */
+/* Rango de los mandos (deslizador y arrastre). ±89 y no ±90: el «arriba» de
+   upOf no se anula en ningún punto (su única singularidad es 180°), así que el
+   límite no protege de ninguna degeneración. Solo mantiene legible el «arriba»
+   del corte al girarlo a mano: más allá de 90° la imagen del oblicuo quedaría
+   cabeza abajo respecto al axial. */
 export const ELEVATION_RANGE: [number, number] = [-89, 89];
+/* Rango del plano en sí. Al recorrer un vaso la normal sigue al vaso y pasa de
+   90° cuando este cruza la horizontal (UNI-87): volver a doblarla hacia +z daba
+   la vuelta al corte. upOf es continuo al cruzar 90°, así que el plano puede
+   quedarse más allá. */
+export const ELEVATION_LIMIT: [number, number] = [-180, 180];
 
 const EPS = 1e-9;
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -24,7 +30,7 @@ const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const add = (a: Vec3, b: Vec3, k = 1): Vec3 => [a[0] + k * b[0], a[1] + k * b[1], a[2] + k * b[2]];
 
 export function clampPlane(p: FreePlane): FreePlane {
-  return { azimuthDeg: clamp(p.azimuthDeg, AZIMUTH_RANGE), elevationDeg: clamp(p.elevationDeg, ELEVATION_RANGE), offsetMm: p.offsetMm };
+  return { azimuthDeg: clamp(p.azimuthDeg, AZIMUTH_RANGE), elevationDeg: clamp(p.elevationDeg, ELEVATION_LIMIT), offsetMm: p.offsetMm };
 }
 
 export function normalOf(p: FreePlane): Vec3 {
@@ -33,17 +39,24 @@ export function normalOf(p: FreePlane): Vec3 {
 }
 
 /** El plano libre cuya normal es `n` (offset 0): la inversa de `normalOf`.
- *  Una normal y su opuesta son el mismo plano, así que se toma la que mira a
- *  +z, como todos los planos libres; una horizontal queda en ±89°, el límite
- *  de ELEVATION_RANGE (el corte se inclina 1°, que no se aprecia). */
-export function planeFromNormal(n: Vec3): FreePlane {
+ *  Una normal y su opuesta son el mismo plano, así que por defecto se toma la
+ *  que mira a +z, como los planos puestos a mano; una horizontal queda en
+ *  ±89°, el límite de ELEVATION_RANGE (el corte se inclina 1°, que no se
+ *  aprecia).
+ *
+ *  Con `conSentido` se respeta el sentido de `n` (elevación hasta 180°). Es lo
+ *  que pide un recorrido: doblar a +z cada sección hace que, cuando el vaso
+ *  cruza la horizontal, la normal salte a su opuesta y el corte se vea del
+ *  revés (UNI-87). */
+export function planeFromNormal(n: Vec3, { conSentido = false }: { conSentido?: boolean } = {}): FreePlane {
   const l = Math.hypot(n[0], n[1], n[2]);
   if (l < EPS) return DEFAULT_FREE_PLANE;
   let [x, y, z] = [n[0] / l, n[1] / l, n[2] / l];
-  if (z < 0) { x = -x; y = -y; z = -z; }
+  if (z < 0 && !conSentido) { x = -x; y = -y; z = -z; }
   const elevationDeg = (Math.acos(Math.min(1, Math.max(-1, z))) * 180) / Math.PI;
   const azimuthDeg = Math.hypot(x, y) < EPS ? 0 : (Math.atan2(x, y) * 180) / Math.PI;
-  return clampPlane({ azimuthDeg, elevationDeg, offsetMm: 0 });
+  const p = clampPlane({ azimuthDeg, elevationDeg, offsetMm: 0 });
+  return conSentido ? p : { ...p, elevationDeg: clamp(p.elevationDeg, ELEVATION_RANGE) };
 }
 
 /** «Arriba» del oblicuo: el −y del corte axial girado e alrededor del eje

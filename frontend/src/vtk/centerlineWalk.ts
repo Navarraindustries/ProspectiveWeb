@@ -2,6 +2,7 @@
    el vaso allí y a qué punto corresponde una posición de la gráfica. Puro. */
 import type { CenterlinePoints } from "../api/types";
 import type { Vec3 } from "./geometry";
+import { planeFromNormal, type FreePlane } from "./freePlane";
 
 export interface CenterlineTrack {
   points: Vec3[]; radiiMm: number[]; arcMm: number[];
@@ -23,6 +24,29 @@ export function tangentAt(points: Vec3[], i: number): Vec3 {
   if (n < 2) return [0, 0, 1];
   const a = points[Math.max(0, i - 1)], b = points[Math.min(n - 1, i + 1)];
   return unit([b[0] - a[0], b[1] - a[1], b[2] - a[2]]);
+}
+
+/* Sentido de la normal de una línea entera, guardado por línea: la tangente
+   ya es continua, así que basta con fijar un único signo para todos sus
+   puntos. Se elige el que más aleja a la normal de −z, donde el «arriba» del
+   oblicuo (upOf) es singular y giraría deprisa. */
+const sentidos = new WeakMap<Vec3[], 1 | -1>();
+function sentidoDeLinea(points: Vec3[]): 1 | -1 {
+  const visto = sentidos.get(points); if (visto) return visto;
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i < points.length; i++) { const z = tangentAt(points, i)[2]; lo = Math.min(lo, z); hi = Math.max(hi, z); }
+  const s: 1 | -1 = points.length < 2 || lo + hi >= 0 ? 1 : -1;
+  sentidos.set(points, s);
+  return s;
+}
+
+/** Plano libre perpendicular al vaso en el punto i, con un sentido de la
+ *  normal fijo para toda la línea: así el corte no se da la vuelta cuando el
+ *  vaso cruza la horizontal (UNI-87), y el mismo índice da siempre el mismo
+ *  plano, se llegue por el recorrido, el cine o la gráfica. */
+export function planoDeLinea(points: Vec3[], i: number): FreePlane {
+  const t = tangentAt(points, i), s = sentidoDeLinea(points);
+  return planeFromNormal([s * t[0], s * t[1], s * t[2]], { conSentido: true });
 }
 
 /** El índice cuyo arco está más cerca de `mm` (búsqueda binaria; `arcMm` crece). */

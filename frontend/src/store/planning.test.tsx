@@ -323,8 +323,9 @@ describe("plano libre, recorte y ventana por preajuste", () => {
   });
   it("setFreePlane acota los ángulos y setVolumeWindow guarda por preajuste y borra con null", () => {
     const { result } = renderHook(() => usePlanning(), { wrapper });
-    act(() => result.current.setFreePlane({ azimuthDeg: 400, elevationDeg: -95, offsetMm: 1 }));
-    expect(result.current.freePlane).toEqual({ azimuthDeg: 180, elevationDeg: -89, offsetMm: 1 });
+    // La elevación del plano llega a ±180° (un recorrido de vaso pasa de 90°, UNI-87).
+    act(() => result.current.setFreePlane({ azimuthDeg: 400, elevationDeg: -200, offsetMm: 1 }));
+    expect(result.current.freePlane).toEqual({ azimuthDeg: 180, elevationDeg: -180, offsetMm: 1 });
     act(() => result.current.setVolumeWindow("Hueso", { wc: 1, ww: 2 }));
     expect(result.current.volumeWindows).toEqual({ Hueso: { wc: 1, ww: 2 } });
     act(() => result.current.setVolumeWindow("Hueso", null));

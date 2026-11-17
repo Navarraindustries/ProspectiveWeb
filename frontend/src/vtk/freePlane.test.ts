@@ -37,7 +37,8 @@ describe("normalOf / upOf / rightOf", () => {
     }
   });
   it("clampPlane acota los ángulos", () => {
-    expect(clampPlane({ azimuthDeg: 200, elevationDeg: 95, offsetMm: 3 })).toEqual({ azimuthDeg: 180, elevationDeg: 89, offsetMm: 3 });
+    expect(clampPlane({ azimuthDeg: 200, elevationDeg: 95, offsetMm: 3 })).toEqual({ azimuthDeg: 180, elevationDeg: 95, offsetMm: 3 });
+    expect(clampPlane({ azimuthDeg: -200, elevationDeg: -190, offsetMm: 3 })).toEqual({ azimuthDeg: -180, elevationDeg: -180, offsetMm: 3 });
   });
 });
 

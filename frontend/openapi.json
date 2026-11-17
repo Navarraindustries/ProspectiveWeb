@@ -1534,6 +1534,12 @@
       "title": "Arc Mm",
       "type": "array"
      },
+     "ends_in_lesion": {
+      "default": false,
+      "description": "The last point is inside the lesion (the walk may go all the way to it)",
+      "title": "Ends In Lesion",
+      "type": "boolean"
+     },
      "points": {
       "description": "Centreline points (mm, volume frame), ~0.5 mm apart",
       "items": {
@@ -1571,8 +1577,15 @@
       "description": "Start point on/inside the vessel (mm)"
      },
      "target": {
-      "$ref": "#/components/schemas/Position3D",
-      "description": "End point on/inside the vessel (mm)"
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Position3D"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "End point on/inside the vessel (mm). Optional: without it the line ends INSIDE the lesion — the measured sac or, if there is none, the selected candidate — at its deepest point."
      },
      "voxel_size_mm": {
       "default": 0.8,
@@ -1585,8 +1598,7 @@
     },
     "required": [
      "session_id",
-     "source",
-     "target"
+     "source"
     ],
     "title": "CenterlineRequest",
     "type": "object"
@@ -1608,6 +1620,12 @@
       "description": "Straight-line source → target distance",
       "title": "Chord Length Mm",
       "type": "number"
+     },
+     "ends_in_lesion": {
+      "default": false,
+      "description": "The line ends inside the sac / selected candidate instead of at a picked point",
+      "title": "Ends In Lesion",
+      "type": "boolean"
      },
      "max_diameter_mm": {
       "description": "Maximum vessel diameter (widest point)",
@@ -9890,6 +9908,20 @@
     "title": "SignupResponse",
     "type": "object"
    },
+   "SmoothMeshResult": {
+    "properties": {
+     "url": {
+      "description": "URL of the smoothed copy (.vtp), for display only",
+      "title": "Url",
+      "type": "string"
+     }
+    },
+    "required": [
+     "url"
+    ],
+    "title": "SmoothMeshResult",
+    "type": "object"
+   },
    "SpacingXYZ": {
     "properties": {
      "x": {
@@ -17481,6 +17513,65 @@
     "summary": "Seccionar un vaso por un anillo de puntos marcados",
     "tags": [
      "mesh-edit"
+    ]
+   }
+  },
+  "/api/mesh/{session_id}/smooth": {
+   "post": {
+    "description": "Windowed-sinc smoothing (40 iterations, pass band 0.02) plus per-vertex normals, cached next to the mesh as `<name>.suave.vtp` and rebuilt when the mesh is newer. Measurements keep reading the original mesh.",
+    "operationId": "smooth_mesh_api_mesh__session_id__smooth_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     },
+     {
+      "description": "File name inside the session's meshes folder",
+      "in": "query",
+      "name": "name",
+      "required": true,
+      "schema": {
+       "description": "File name inside the session's meshes folder",
+       "title": "Name",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SmoothMeshResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "A smoothed copy of a session mesh, for display only",
+    "tags": [
+     "mesh-display"
     ]
    }
   },

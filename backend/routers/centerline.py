@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
+from pathlib import Path
 
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException
@@ -24,24 +26,45 @@ from services.cross_section import compute_cross_sections, grade_stenosis
 from services.stent_deployment import deploy_stent_on_centerline
 from services.numero import cifra
 from services.segmentation import read_vtp, write_vtp
-from services.sessions import mesh_url, session_exists, session_subdir
+from services.sessions import mesh_url, read_state, session_exists, session_subdir
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["centerline"])
 
 
-def _run_extraction(vessel_path, source, target, voxel_size, out_path, points_path):
+def _run_extraction(vessel_path, source, target, voxel_size, out_path, points_path, lesion_path=None):
     """Synchronous heavy work — run in a worker thread."""
     vessel = read_vtp(vessel_path)
-    result = extract_centerline(vessel, source, target, voxel_size_mm=voxel_size)
+    region = read_vtp(lesion_path) if lesion_path is not None else None
+    result = extract_centerline(vessel, source, target, voxel_size_mm=voxel_size, target_region=region)
     write_vtp(result.poly_data, out_path)
     # Persist geometry so cross-section analysis can reuse it without recomputing.
     np.savez(
         points_path,
         points=result.points.astype(np.float32),
         radii=result.radii.astype(np.float32),
+        ends_in_lesion=np.array(region is not None),
     )
     return result
+
+
+def _lesion_mesh(session_id: str, meshes_dir) -> Path | None:
+    """La malla de la lesión donde termina una línea sin destino marcado.
+
+    El saco medido si lo hay (morfometría del candidato elegido: es cerrado y
+    su centro es el del saco de verdad); si no, la zona del candidato elegido
+    (o del primero de la lista). None si no hay ninguna de las dos."""
+    sac = meshes_dir / (read_state(session_id, "morpho.sac_vtp_name", "") or "aneurysm_sac.vtp")
+    if sac.exists():
+        return sac
+    chosen = read_state(session_id, "detect.selected_candidate", "") or "cand-001"
+    m = re.fullmatch(r"cand-(\d+)", chosen)
+    if m:
+        name = read_state(session_id, f"detect.cand_{m.group(1)}.vtp_name", "") or f"aneurysm_cand_{m.group(1)}.vtp"
+        dome = meshes_dir / name
+        if dome.exists():
+            return dome
+    return None
 
 
 @router.post(
@@ -68,14 +91,23 @@ async def compute_centerline(session_id: str, req: CenterlineRequest) -> Centerl
         )
 
     source = (req.source.x, req.source.y, req.source.z)
-    target = (req.target.x, req.target.y, req.target.z)
+    target = (req.target.x, req.target.y, req.target.z) if req.target is not None else None
+    lesion_path = None
+    if target is None:
+        lesion_path = _lesion_mesh(session_id, meshes_dir)
+        if lesion_path is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Sin destino marcado la línea termina dentro del candidato, y no hay ninguno: "
+                       "detecta aneurismas o marca el destino sobre el vaso.",
+            )
     out_path    = meshes_dir / "centerline.vtp"
     points_path = meshes_dir / "centerline_points.npz"
 
     try:
         result = await asyncio.to_thread(
             _run_extraction, vessel_path, source, target,
-            req.voxel_size_mm, out_path, points_path,
+            req.voxel_size_mm, out_path, points_path, lesion_path,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
@@ -84,10 +116,15 @@ async def compute_centerline(session_id: str, req: CenterlineRequest) -> Centerl
         raise HTTPException(status_code=500, detail=f"Error en línea central: {exc}")
 
     url = f"{mesh_url(session_id, 'centerline.vtp')}?v={int(time.time() * 1000)}"
-    return _to_out(result, url)
+    return _to_out(result, url, ends_in_lesion=lesion_path is not None)
 
 
-def _to_out(result, url: str) -> CenterlineResult:
+def _ends_in_lesion(data) -> bool:
+    """Lo que la extracción guardó; las líneas de antes no lo llevan: no."""
+    return bool(data["ends_in_lesion"]) if "ends_in_lesion" in data.files else False
+
+
+def _to_out(result, url: str, ends_in_lesion: bool = False) -> CenterlineResult:
     """Las métricas de la respuesta, igual al extraer que al volver a leerlas."""
     tort = result.tortuosity
     warning = None
@@ -104,6 +141,7 @@ def _to_out(result, url: str) -> CenterlineResult:
         mean_diameter_mm=round(result.mean_radius_mm * 2.0, 2),
         min_diameter_mm=round(result.min_radius_mm * 2.0, 2),
         max_diameter_mm=round(result.max_radius_mm * 2.0, 2),
+        ends_in_lesion=ends_in_lesion,
         warning=warning,
     )
 
@@ -130,6 +168,7 @@ async def get_centerline(session_id: str) -> CenterlineResult | None:
         with np.load(points_path) as data:
             pts = data["points"].astype(float)
             radii = data["radii"].astype(float)
+            en_lesion = _ends_in_lesion(data)
     except Exception as exc:  # noqa: BLE001 — un fichero dañado es «no hay»
         logger.warning("centerline_points.npz ilegible en %s: %s", session_id, exc)
         return None
@@ -138,7 +177,7 @@ async def get_centerline(session_id: str) -> CenterlineResult | None:
     from services.centerline import CenterlineExtractor
     result = CenterlineExtractor._compute_metrics(pts, radii)
     url = f"{mesh_url(session_id, 'centerline.vtp')}?v={int(points_path.stat().st_mtime * 1000)}"
-    return _to_out(result, url)
+    return _to_out(result, url, ends_in_lesion=en_lesion)
 
 
 @router.get(
@@ -161,6 +200,7 @@ async def get_centerline_points(session_id: str) -> CenterlinePoints:
         with np.load(points_path) as data:
             pts = data["points"].astype(float)
             radii = data["radii"].astype(float)
+            en_lesion = _ends_in_lesion(data)
     except Exception as exc:  # noqa: BLE001 — un fichero dañado no es un 500
         # El detalle va al usuario: la excepción (rutas, internos de numpy) se
         # queda en el log.
@@ -175,6 +215,7 @@ async def get_centerline_points(session_id: str) -> CenterlinePoints:
         points=[Position3D(x=round(float(p[0]), 2), y=round(float(p[1]), 2), z=round(float(p[2]), 2)) for p in pts],
         radii_mm=[round(float(r), 3) for r in radii],
         arc_mm=[round(float(a), 2) for a in arc],
+        ends_in_lesion=en_lesion,
     )
 
 

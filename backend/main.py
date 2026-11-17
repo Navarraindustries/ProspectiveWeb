@@ -31,7 +31,7 @@ from services.auth_service import require_user, user_for_token
 from routers import (
     upload, segment, detect, perforators, plan,
     auth, patients, treatment, clips, coils, longitudinal,
-    report, session_state, mpr, phases, centerline, audit,
+    report, session_state, mpr, phases, centerline, audit, mesh_display,
     mesh_edit, print_prep, preprocess, studies, devices, clip_library,
     clip_orders, progress, captures, ground_truth, attach, followup,
     annotations,
@@ -323,6 +323,7 @@ app.include_router(session_state.router, dependencies=_private)
 app.include_router(mpr.router,           dependencies=_private)
 app.include_router(phases.router,        dependencies=_private)
 app.include_router(centerline.router,    dependencies=_private)
+app.include_router(mesh_display.router,  dependencies=_private)
 app.include_router(audit.router,         dependencies=_private)
 app.include_router(mesh_edit.router,     dependencies=_private)
 app.include_router(print_prep.router,    dependencies=_private)

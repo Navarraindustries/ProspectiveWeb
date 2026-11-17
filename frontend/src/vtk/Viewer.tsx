@@ -73,7 +73,9 @@ import { approachDirection } from "./approachView";
 import { ANNOTATION_HEX, HUD_HEX, hexToRgb01, type OutlinePlane } from "./planeColors";
 import { candidateOverlay, nearestCandidate } from "./candidateOverlay";
 import { pasosEntrada, type EntradaCandidatos } from "./candidateReveal";
-import { captureFileName } from "./viewerRecorder";
+import { MAX_RECORDING_MS, captureFileName, startRecording, type FrameSource, type Recording, type RecordingResult } from "./viewerRecorder";
+import { nombreVideoRecorrido } from "./grabarRecorrido";
+import { downloadBlob } from "../components/RecordButton";
 import { readHeading, readPaneHud } from "./readHud";
 import { readPaneShapes } from "./readShapes";
 import { HudFrame } from "./hud/HudFrame";
@@ -856,7 +858,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const vesselOpacity = viewMode === "slices3d"
       ? ((slices3dMeshVisible || pickMode !== null) ? SLICES3D_MESH_OPACITY : 0)
       : vesselDim ? 0.45 : 1;
-    const out: MeshLayer[] = [{ url: displayMeshUrl, color: VESSEL_COLOR, opacity: vesselOpacity }];
+    // La segmentada se ve suavizada; la vista previa del umbral cambia a cada
+    // ajuste y se ve tal cual.
+    const out: MeshLayer[] = [{ url: displayMeshUrl, color: VESSEL_COLOR, opacity: vesselOpacity, suavizar: displayMeshUrl === meshUrl }];
     // En Morfometría se marcan el cuello y el ápice PINCHANDO la superficie, y
     // una mancha opaca encima tapa justo el sitio donde hay que pinchar. Así
     // que ahí el resalte se vuelve translúcido: sigue diciendo dónde está, y
@@ -928,17 +932,24 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (followup.ghostUrl) out.push({ url: followup.ghostUrl, color: FOLLOWUP_GHOST_COLOR, opacity: 0.3, id: "saco-anterior" });
     }
     return out;
-  }, [followup, stentMap, displayMeshUrl, candidate?.dome_mesh_url, candidates, rejectedCandidates, selectedCandidate, showRejectedIn3d, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible]);
+  }, [followup, stentMap, displayMeshUrl, meshUrl, candidate?.dome_mesh_url, candidates, rejectedCandidates, selectedCandidate, showRejectedIn3d, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible]);
 
   // ── Recorrido por dentro del vaso (vesselWalk) ─────────────────────── #
   // Lo pide el panel de la línea central (o DENTRO en la cinta DESDE) por el
   // store; aquí se lleva: la cámara se zambulle hasta el origen, avanza hasta
   // el destino y, al salir, vuelve volando a la vista que había antes.
   const progresoRecorrido = useMemo(crearProgreso, []);
+  // Los avisos del recorrido (grabación) usan la pista del visor, que se define más abajo.
+  const showHintRef = useRef<(text: string) => void>(() => undefined);
   const [recorrido, setRecorrido] = useState<{ estado: "andando" | "pausa" | "fin" } | null>(null);
   const volverA = useRef<CameraState | null>(null);
   const camaraRecorrido = useRef<CameraController | null>(null);
-  const lanzarRecorrido = (desdeMm: number, llegada: "zambullida" | "vuelo" | "rebobinado") => {
+  // La grabación del recorrido (botón ● GRABAR de su barra) y lo que se
+  // necesita leer desde los avisos del recorrido sin cierres viejos.
+  const grabacionRecorrido = useRef<Recording | null>(null);
+  const [grabandoMs, setGrabandoMs] = useState<number | null>(null);
+  const pararGrabacionRef = useRef<() => void>(() => undefined);
+  const lanzarRecorrido = (desdeMm: number, llegada: "zambullida" | "vuelo") => {
     if (!camera || !centerline) return;
     camaraRecorrido.current = camera;
     progresoRecorrido.poner(desdeMm);
@@ -949,11 +960,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
       opacas: displayMeshUrl ? [displayMeshUrl] : [],
       marcar: [candidate?.dome_mesh_url, morphometry?.sac_mesh_url, ...candidates.map((c) => c.dome_mesh_url)].filter((u): u is string => !!u),
       alAvanzar: (mm) => progresoRecorrido.poner(mm),
-      // «corte»: la escena se rehízo (otro paso, otra capa) y el recorrido se fue con ella.
-      alParar: (m) => {
-        if (m === "corte") { camaraRecorrido.current = null; setRecorrido(null); setRecorridoVaso(false); }
-        else setRecorrido({ estado: m === "fin" ? "fin" : "pausa" });
+      alEstado: (e) => {
+        setRecorrido({ estado: e });
+        // Grabando, el vídeo acaba poco después de la vuelta final.
+        if (e === "fin" && grabacionRecorrido.current) window.setTimeout(() => pararGrabacionRef.current(), 1200);
       },
+      // «corte»: la escena se rehízo (otro paso, otra capa) y el recorrido se fue con ella.
+      alParar: () => { camaraRecorrido.current = null; setRecorrido(null); setRecorridoVaso(false); },
     });
   };
   const lanzarRecorridoRef = useRef(lanzarRecorrido);
@@ -975,6 +988,75 @@ export function ViewerWorkspace({ step }: { step: string }) {
   }, [recorridoVaso, recorrido]);
   useEffect(() => { setRecorridoVaso(false); }, [step, setRecorridoVaso]);
   const salirDelVaso = useCallback(() => setRecorridoVaso(false), [setRecorridoVaso]);
+
+  // ── Grabar el recorrido en vídeo (17-11) ── #
+  // Solo la escena 3D, a su tamaño, con el avance y el calibre abajo a la
+  // izquierda y nada del paciente. Empieza fuera del vaso (la vista de antes de
+  // entrar), se zambulle, avanza y da la vuelta final; se para sola al acabar y
+  // se descarga. Teclas y mirada siguen valiendo mientras graba.
+  const fuenteRecorrido = useMemo<FrameSource>(() => ({
+    read: () => {
+      const v = leerVisorRef.current();
+      const pane = v?.panes.find((x) => x.id === "scene");
+      const cl = centerlineRef.current;
+      if (!v || !pane || !cl) return null;
+      const mm = progresoRecorrido.leer();
+      const { w, h } = pane.rect;
+      return {
+        width: w, height: h, colors: v.colors, fontFamily: v.fontFamily, hudLevel: "completo",
+        panes: [{
+          id: "scene", rect: { x: 0, y: 0, w, h }, label: "Dentro del vaso",
+          readouts: [{ at: "bl", lines: [`${cifra(mm, 1)} / ${cifra(longitudRecorrido(cl), 1)} mm`, `Ø ${cifra(diameterAtArc(cl, mm), 1)} mm`] }],
+        }],
+        grabs: [pane.capture?.grab ?? null],
+      };
+    },
+  }), [progresoRecorrido]);
+  const entregarGrabacion = useCallback(async (resultado: Promise<RecordingResult>) => {
+    grabacionRecorrido.current = null;
+    setGrabandoMs(null);
+    try {
+      const r = await resultado;
+      if (r.blob.size === 0) { showHintRef.current("La grabación salió vacía: el navegador no entregó ningún fotograma."); return; }
+      const archivo = nombreVideoRecorrido(r.mimeType);
+      downloadBlob(r.blob, archivo);
+      showHintRef.current(`Vídeo del recorrido descargado: ${archivo}`);
+    } catch (e) {
+      showHintRef.current(`No se pudo cerrar la grabación: ${e instanceof Error ? e.message : e}`);
+    }
+  }, []);
+  pararGrabacionRef.current = () => {
+    const rec = grabacionRecorrido.current;
+    if (rec) void entregarGrabacion(rec.stop());
+  };
+  const grabarRecorrido = () => {
+    const cam = camaraRecorrido.current ?? camera;
+    if (!cam || !centerline || grabacionRecorrido.current) return;
+    // Desde fuera: la vista que había antes de entrar, y de ahí la zambullida.
+    cam.salirRecorrido(null);
+    if (volverA.current) cam.setState(volverA.current);
+    let rec: Recording;
+    try {
+      rec = startRecording(fuenteRecorrido, { bitsPerSecond: 8_000_000, maxMs: MAX_RECORDING_MS, onLimit: (r) => void entregarGrabacion(r) });
+    } catch (e) {
+      showHintRef.current(e instanceof Error ? e.message : "No se pudo empezar a grabar.");
+      lanzarRecorrido(0, "zambullida");
+      return;
+    }
+    grabacionRecorrido.current = rec;
+    setGrabandoMs(0);
+    window.setTimeout(() => { if (grabacionRecorrido.current === rec) lanzarRecorrido(0, "zambullida"); }, 900);
+  };
+  useEffect(() => {
+    if (grabandoMs === null) return;
+    const id = window.setInterval(() => setGrabandoMs(grabacionRecorrido.current?.elapsedMs() ?? null), 500);
+    return () => window.clearInterval(id);
+  }, [grabandoMs === null]);   // eslint-disable-line react-hooks/exhaustive-deps
+  // Salir del vaso (o irse del visor) grabando: se cierra y se descarga igual.
+  useEffect(() => {
+    if (!recorrido && grabacionRecorrido.current) pararGrabacionRef.current();
+  }, [recorrido]);
+  useEffect(() => () => { if (grabacionRecorrido.current) pararGrabacionRef.current(); }, []);
 
   // Los tres cortes de Cortes 3D sobre el volumen del cliente, con la ventana
   // de los cortes. Sin volumen en el cliente (sin WebGL2 o aún cargando) no
@@ -1653,6 +1735,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     setHint({ text, aviso });
     setHintSeq((n) => n + 1);
   }, []);
+  showHintRef.current = showHintText;
   // El retiro va en un efecto y no en `showHintText`: el doble montaje de
   // StrictMode limpia un temporizador armado a mano y, con la pista ya marcada
   // como vista, nada lo rearmaba (la pista se quedaba en el estado).
@@ -2206,7 +2289,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
           <HudRecorrido progreso={progresoRecorrido} totalMm={longitudRecorrido(centerline)} diametroEn={(mm) => diameterAtArc(centerline, mm)}
             estado={recorrido.estado}
             onPausa={() => { camaraRecorrido.current?.pausarRecorrido(); setRecorrido({ estado: "pausa" }); }}
-            onSeguir={() => (recorrido.estado === "fin" ? lanzarRecorrido(0, "rebobinado") : lanzarRecorrido(progresoRecorrido.leer(), "vuelo"))}
+            onSeguir={() => camaraRecorrido.current?.seguirRecorrido()}
+            onTeclas={(t) => camaraRecorrido.current?.teclasRecorrido(t)}
+            onMirarAlFrente={() => camaraRecorrido.current?.mirarAlFrente()}
+            onGrabar={grabarRecorrido} onPararGrabacion={() => pararGrabacionRef.current()} grabandoMs={grabandoMs}
             onSalir={salirDelVaso} sinSalir={presentando} />
         )}
         {/* Dentro del vaso las vistas DESDE pelearían con el recorrido: se esconden hasta salir. */}

@@ -1900,6 +1900,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mesh/{session_id}/smooth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A smoothed copy of a session mesh, for display only
+         * @description Windowed-sinc smoothing (40 iterations, pass band 0.02) plus per-vertex normals, cached next to the mesh as `<name>.suave.vtp` and rebuilt when the mesh is newer. Measurements keep reading the original mesh.
+         */
+        post: operations["smooth_mesh_api_mesh__session_id__smooth_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/morphometry/{session_id}": {
         parameters: {
             query?: never;
@@ -4046,6 +4066,12 @@ export interface components {
              */
             arc_mm: number[];
             /**
+             * Ends In Lesion
+             * @description The last point is inside the lesion (the walk may go all the way to it)
+             * @default false
+             */
+            ends_in_lesion: boolean;
+            /**
              * Points
              * @description Centreline points (mm, volume frame), ~0.5 mm apart
              */
@@ -4065,8 +4091,8 @@ export interface components {
             session_id: string;
             /** @description Start point on/inside the vessel (mm) */
             source: components["schemas"]["Position3D"];
-            /** @description End point on/inside the vessel (mm) */
-            target: components["schemas"]["Position3D"];
+            /** @description End point on/inside the vessel (mm). Optional: without it the line ends INSIDE the lesion — the measured sac or, if there is none, the selected candidate — at its deepest point. */
+            target?: components["schemas"]["Position3D"] | null;
             /**
              * Voxel Size Mm
              * @description Voxelisation resolution (mm). Lower = more accurate but slower.
@@ -4094,6 +4120,12 @@ export interface components {
              * @description Straight-line source → target distance
              */
             chord_length_mm: number;
+            /**
+             * Ends In Lesion
+             * @description The line ends inside the sac / selected candidate instead of at a picked point
+             * @default false
+             */
+            ends_in_lesion: boolean;
             /**
              * Max Diameter Mm
              * @description Maximum vessel diameter (widest point)
@@ -9556,6 +9588,14 @@ export interface components {
              */
             status: string;
         };
+        /** SmoothMeshResult */
+        SmoothMeshResult: {
+            /**
+             * Url
+             * @description URL of the smoothed copy (.vtp), for display only
+             */
+            url: string;
+        };
         /** SpacingXYZ */
         SpacingXYZ: {
             /**
@@ -14187,6 +14227,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScissorsResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    smooth_mesh_api_mesh__session_id__smooth_post: {
+        parameters: {
+            query: {
+                /** @description File name inside the session's meshes folder */
+                name: string;
+            };
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SmoothMeshResult"];
                 };
             };
             /** @description Validation Error */

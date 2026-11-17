@@ -46,7 +46,12 @@ import { flightDurationMs, interpolateCamera } from "./cameraFlight";
 import { duracionEntrada, progresoEntrada, type EntradaCandidatos } from "./candidateReveal";
 import type { CenterlineTrack } from "./centerlineWalk";
 import { frenteBarrido, superiorEnMalla, tramoBarrido } from "./meshSweep";
-import { ANGULO_ENDOSCOPIO, GIRO_MS, PAUSA_REBOBINADO_MS, ZAMBULLIDA_MS, arcAtTime, arcRebobinado, finRecorrido, longitudRecorrido, poseGiro, walkPose, type WalkPose } from "./vesselWalk";
+import { urlSuave } from "./mallaSuave";
+import {
+  ANGULO_ENDOSCOPIO, ARRANQUE_TECLAS_S, GIRO_MS, MIRADA_AL_FRENTE, MM_POR_RUEDA, PAUSA_REBOBINADO_MS, SIN_TECLAS, ZAMBULLIDA_MS,
+  finDeLinea, girarMirada, giroFinal, pasoPaseo, poseConMirada, velocidadObjetivo, walkPose,
+  type Mirada, type ModoPaseo, type Teclas, type WalkPose,
+} from "./vesselWalk";
 import { cubicBezier, EASE_EN_MOVIMIENTO } from "../motion";
 
 /** Curva del vuelo de cámara: --ease-in-out, lo que se desplaza en pantalla. */
@@ -198,6 +203,9 @@ export interface MeshLayer {
    *  undefined = identidad. Solo la admiten las capas con `id`, que son las
    *  que tienen actor con nombre; en una capa sin `id` se ignora. */
   userMatrix?: number[];
+  /** Se ve la copia suavizada que da el servidor (mallaSuave): sin picos ni
+   *  aristas por fuera ni por dentro. La capa sigue llamándose por `url`. */
+  suavizar?: boolean;
 }
 
 /** Imperative handle for moving named layers, published while the scene lives.
@@ -265,15 +273,20 @@ export interface CameraMove { volar?: boolean; /** Duración fija del vuelo (ms)
  *  de `url` aparece de pies a cabeza con una franja de `color` en el frente. */
 export interface BarridoMalla { token: number; url: string; color: [number, number, number] }
 
+/** Cómo va el recorrido, para su barra: avanza (o rebobina) solo, quieto a
+ *  mitad, o quieto al final. */
+export type EstadoRecorrido = "andando" | "pausa" | "fin";
+
 /** Recorrido por dentro del vaso (vesselWalk): la cámara avanza por la línea
- *  central desde `desdeMm` hasta el final, mirando por delante. */
+ *  central desde `desdeMm` hasta el final, mirando por delante. Mientras dura,
+ *  las teclas la adelantan o la retrasan y arrastrar gira la mirada sin
+ *  pararla ni sacarla de la línea (17-11). */
 export interface RecorridoVaso {
   track: CenterlineTrack;
   desdeMm: number;
   /** Cómo llega a su sitio antes de avanzar: zambulléndose desde la vista de
-   *  fuera (empezar), con un vuelo corto (seguir tras una pausa) o, al repetir,
-   *  rebobinando por dentro del vaso desde el final hasta `desdeMm`. */
-  llegada: "zambullida" | "vuelo" | "rebobinado";
+   *  fuera (empezar) o con un vuelo corto. */
+  llegada: "zambullida" | "vuelo";
   /** Capas que no se pintan mientras dura (la propia línea central, que va por dentro). */
   ocultar?: string[];
   /** Capas que se pintan opacas mientras dura (la pared del vaso). */
@@ -282,8 +295,32 @@ export interface RecorridoVaso {
    *  saco medido): mientras dura se pintan sobre la propia pared y se ocultan. */
   marcar?: string[];
   alAvanzar?: (mm: number) => void;
-  /** «fin» al llegar; «toque» si el profesional toca el visor; «corte» si la escena se rehace. */
-  alParar?: (motivo: "fin" | "toque" | "corte") => void;
+  /** Cada vez que cambia el estado (andando / pausa / fin). */
+  alEstado?: (e: EstadoRecorrido) => void;
+  /** «corte»: la escena se rehízo (otro paso, otra capa) y el recorrido se fue con ella. */
+  alParar?: (motivo: "corte") => void;
+}
+
+/** El recorrido en marcha: dónde va (`s`, mm) y a qué velocidad, qué lo
+ *  mueve (modo automático, teclas) y hacia dónde se mira. `raf` es null
+ *  mientras la cámara se zambulle hasta el origen. */
+interface PaseoVivo {
+  raf: number | null;
+  r: RecorridoVaso;
+  L: number;
+  s: number;
+  v: number;
+  modo: ModoPaseo;
+  teclas: Teclas;
+  mirada: Mirada;
+  /** Milisegundos de la vuelta de 360° al llegar; null si no está dando la vuelta. */
+  giroMs: number | null;
+  /** Pausa en el origen tras rebobinar (ms). */
+  esperaMs: number;
+  up: Vec3;
+  /** Hay que volver a colocar la cámara y pintar. */
+  sucio: boolean;
+  estado: EstadoRecorrido | null;
 }
 
 /** Lo que MeshView publica para mover su cámara desde fuera. */
@@ -301,8 +338,16 @@ export interface CameraController {
   setState(s: CameraState, move?: CameraMove): void;
   /** Empieza (o sigue) el recorrido por dentro del vaso. */
   recorrer(r: RecorridoVaso): void;
-  /** Para el recorrido donde va; la cámara se queda dentro. */
+  /** Para el recorrido donde va; la cámara se queda dentro y se puede seguir
+   *  moviendo con las teclas y mirando alrededor. */
   pausarRecorrido(): void;
+  /** Vuelve a avanzar solo; desde el final, rebobina por dentro del vaso
+   *  hasta el origen y vuelve a avanzar. */
+  seguirRecorrido(): void;
+  /** Teclas de avance pulsadas ahora mismo (las pone la barra del recorrido). */
+  teclasRecorrido(t: Teclas): void;
+  /** La mirada vuelve a la marcha (doble clic o tecla). */
+  mirarAlFrente(): void;
   /** Termina el recorrido: devuelve las capas como estaban y vuela a `volverA`. */
   salirRecorrido(volverA: CameraState | null): void;
   /** Giro lento alrededor del foco (modo presentación); null lo para. Tocar
@@ -463,7 +508,7 @@ export function MeshView({
   const vueloRef = useRef<{ raf: number; hasta: CameraState } | null>(null);
   // El recorrido por dentro del vaso en marcha (`raf` null mientras se
   // zambulle) y cómo deshacer lo que cambió en las capas para recorrerlo.
-  const recorridoRef = useRef<{ raf: number | null; alParar?: RecorridoVaso["alParar"] } | null>(null);
+  const recorridoRef = useRef<PaseoVivo | null>(null);
   const capasRecorrido = useRef<(() => void) | null>(null);
   // El giro lento del modo presentación.
   const giroRef = useRef<{ raf: number; alParar?: () => void } | null>(null);
@@ -950,15 +995,14 @@ export function MeshView({
       vueloRef.current = { raf: requestAnimationFrame(paso), hasta };
     };
     // Tocar el visor (girar, desplazar, rueda) para el vuelo donde va: la
-    // cámara es del profesional en cuanto la toca.
-    // El recorrido por dentro se para igual (la cámara se queda donde iba, para
-    // mirar alrededor) y se avisa a quien lo lleva para que enseñe «Seguir».
-    const pararRecorrido = (motivo?: "toque" | "corte") => {
+    // cámara es del profesional en cuanto la toca. Dentro del vaso no: allí
+    // arrastrar gira la mirada y la rueda avanza (ver «mandos del recorrido»).
+    const pararRecorrido = (motivo?: "corte") => {
       const r = recorridoRef.current;
       if (!r) return;
       if (r.raf !== null) cancelAnimationFrame(r.raf);
       recorridoRef.current = null;
-      if (motivo) r.alParar?.(motivo);
+      if (motivo) r.r.alParar?.(motivo);
     };
     const pararGiro = (avisar: boolean) => {
       const g = giroRef.current;
@@ -967,7 +1011,58 @@ export function MeshView({
       giroRef.current = null;
       if (avisar) g.alParar?.();
     };
-    const pararPorToque = () => { pararVuelo(); entradaViva.current?.fin(); barridoVivo.current?.fin(); pararRecorrido("toque"); pararGiro(true); };
+    const pararPorToque = () => {
+      if (recorridoRef.current) return;   // dentro del vaso, tocar es mirar
+      pararVuelo(); entradaViva.current?.fin(); barridoVivo.current?.fin(); pararGiro(true);
+    };
+    // ── Mandos del recorrido con el puntero ──
+    // Arrastrar gira la mirada sin parar el recorrido ni salir de la línea; la
+    // rueda adelanta o retrasa la cámara; doble clic vuelve a mirar al frente.
+    // Se cortan antes de que lleguen al interactor de vtk, que orbitaría la
+    // cámara alrededor del foco y la sacaría del vaso.
+    let arrastre: { x: number; y: number; id: number } | null = null;
+    const soltarMirada = () => {
+      arrastre = null;
+      window.removeEventListener("pointermove", moverMirada, true);
+      window.removeEventListener("pointerup", soltarMirada, true);
+      window.removeEventListener("pointercancel", soltarMirada, true);
+    };
+    const moverMirada = (e: PointerEvent) => {
+      if (!arrastre || e.pointerId !== arrastre.id) return;
+      const p = recorridoRef.current;
+      if (!p) { soltarMirada(); return; }
+      e.stopPropagation();
+      p.mirada = girarMirada(p.mirada, e.clientX - arrastre.x, e.clientY - arrastre.y);
+      arrastre.x = e.clientX; arrastre.y = e.clientY;
+      p.sucio = true;
+    };
+    const bajarEnRecorrido = (e: PointerEvent) => {
+      if (!recorridoRef.current) return;
+      e.stopPropagation();
+      e.preventDefault();
+      if (e.pointerType === "mouse" && e.button !== 0) return;   // ni desplazar ni acercar
+      soltarMirada();
+      arrastre = { x: e.clientX, y: e.clientY, id: e.pointerId };
+      window.addEventListener("pointermove", moverMirada, true);
+      window.addEventListener("pointerup", soltarMirada, true);
+      window.addEventListener("pointercancel", soltarMirada, true);
+    };
+    const ruedaEnRecorrido = (e: WheelEvent) => {
+      const p = recorridoRef.current;
+      if (!p) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const mm = (-e.deltaY / 100) * MM_POR_RUEDA;
+      p.modo = "quieto"; p.giroMs = null; p.esperaMs = 0; p.v = 0;
+      p.s = Math.min(p.L, Math.max(0, p.s + mm));
+      p.sucio = true;
+    };
+    const dobleClicEnRecorrido = (e: MouseEvent) => {
+      const p = recorridoRef.current;
+      if (!p) return;
+      e.stopPropagation();
+      p.mirada = MIRADA_AL_FRENTE; p.sucio = true;
+    };
     /** Para recorrer el vaso por dentro: la línea central (que va por el eje)
      *  y el punto compartido (que se pinta encima de todo) se apagan, y la pared
      *  se pinta opaca. Una sola vez por recorrido; `salirRecorrido` lo deshace
@@ -1043,6 +1138,9 @@ export function MeshView({
     };
     container.addEventListener("pointerdown", pararPorToque, { capture: true });
     container.addEventListener("wheel", pararPorToque, { capture: true, passive: true });
+    container.addEventListener("pointerdown", bajarEnRecorrido, { capture: true });
+    container.addEventListener("wheel", ruedaEnRecorrido, { capture: true, passive: false });
+    container.addEventListener("dblclick", dobleClicEnRecorrido, { capture: true });
 
     // Standard viewpoints. resetCamera() preserves the view direction and up
     // vector, so pointing the camera and refitting is all it takes. Without this
@@ -1131,6 +1229,10 @@ export function MeshView({
         }, move);
       },
       // ── Recorrido por dentro del vaso ── #
+      // Un solo bucle mientras dura: avance o rebobinado solos, las teclas
+      // (mandan sobre lo automático y lo paran), la mirada arrastrada y la
+      // vuelta de 360° al llegar se suman en cada fotograma. Sigue vivo en
+      // pausa y al final para que teclas y mirada respondan siempre (17-11).
       recorrer: (r: RecorridoVaso) => {
         pararRecorrido();
         pararVuelo();
@@ -1141,12 +1243,11 @@ export function MeshView({
         // dejaría el plano cercano por delante de ella y se vería a través.
         const b = h.renderer.computeVisiblePropBounds();
         const lejos = Math.max(100, 2 * Math.hypot(b[1] - b[0], b[3] - b[2], b[5] - b[4]));
-        const L = finRecorrido(longitudRecorrido(r.track));
-        let up = [...cam.getViewUp()] as Vec3;
-        const colocar = (p: WalkPose) => {
-          cam.setPosition(...p.position);
-          cam.setFocalPoint(...p.focalPoint);
-          cam.setViewUp(...p.viewUp);
+        const L = finDeLinea(r.track);
+        const colocar = (q: WalkPose) => {
+          cam.setPosition(...q.position);
+          cam.setFocalPoint(...q.focalPoint);
+          cam.setViewUp(...q.viewUp);
           cam.setViewAngle(ANGULO_ENDOSCOPIO);
         };
         const pintar = () => {
@@ -1154,81 +1255,76 @@ export function MeshView({
           h.renderer.updateLightsGeometryToFollowCamera();
           h.renderWindow.render();
         };
-        const este: { raf: number | null; alParar?: RecorridoVaso["alParar"] } = { raf: null, alParar: r.alParar };
-        recorridoRef.current = este;
-        const andar = (esperaMs = 0) => {
-          if (recorridoRef.current !== este) return;   // tocaron el visor durante la zambullida
-          let t0: number | null = null;
+        const p: PaseoVivo = {
+          raf: null, r, L, s: Math.min(Math.max(0, r.desdeMm), L), v: 0, modo: "avance",
+          teclas: SIN_TECLAS, mirada: MIRADA_AL_FRENTE, giroMs: null, esperaMs: 0,
+          up: [...cam.getViewUp()] as Vec3, sucio: true, estado: null,
+        };
+        recorridoRef.current = p;
+        const arrancar = () => {
+          if (recorridoRef.current !== p) return;
+          let previo: number | null = null;
           const paso = (ahora: number) => {
-            if (handles.current !== h || recorridoRef.current !== este) return;
-            // Con espera, arcAtTime devuelve el origen hasta que se cumple.
-            if (t0 === null) t0 = ahora + esperaMs;
-            const { s, fin } = arcAtTime((ahora - t0) / 1000, Math.min(r.desdeMm, L), L);
-            const p = walkPose(r.track, s, up);
-            up = p.viewUp;
-            colocar(p);
-            pintar();
-            r.alAvanzar?.(s);
-            if (fin) { mirarAlrededor(p); return; }
-            este.raf = requestAnimationFrame(paso);
-          };
-          este.raf = requestAnimationFrame(paso);
-        };
-        // Al llegar, una vuelta de 360° de la mirada (vesselWalk.giroFinal) para ver la
-        // zona del destino antes de dar el recorrido por terminado. Tocar el
-        // visor lo corta como al recorrido; con movimiento reducido no hay vuelta.
-        const mirarAlrededor = (llegada: WalkPose) => {
-          const terminar = () => { recorridoRef.current = null; r.alParar?.("fin"); };
-          if (movimientoReducido()) { terminar(); return; }
-          let t0: number | null = null;
-          const giro = (ahora: number) => {
-            if (handles.current !== h || recorridoRef.current !== este) return;
-            if (t0 === null) t0 = ahora;
-            const ms = ahora - t0;
-            colocar(poseGiro(llegada, ms));
-            pintar();
-            if (ms >= GIRO_MS) { terminar(); return; }
-            este.raf = requestAnimationFrame(giro);
-          };
-          este.raf = requestAnimationFrame(giro);
-        };
-        // Repetir: rebobinar por dentro del vaso, del final al origen, mirando
-        // hacia delante (un vídeo hacia atrás), y volver a avanzar. Si tras
-        // llegar se giró la vista a mano, primero un vuelo corto al final.
-        if (r.llegada === "rebobinado") {
-          const hasta = Math.min(r.desdeMm, L);
-          const final = walkPose(r.track, L, up);
-          up = final.viewUp;
-          const rebobinar = () => {
-            if (recorridoRef.current !== este) return;
-            if (movimientoReducido()) { colocar(walkPose(r.track, hasta, up)); pintar(); andar(); return; }
-            let t0: number | null = null;
-            const atras = (ahora: number) => {
-              if (handles.current !== h || recorridoRef.current !== este) return;
-              if (t0 === null) t0 = ahora;
-              const { s, fin } = arcRebobinado((ahora - t0) / 1000, L, hasta);
-              const p = walkPose(r.track, s, up);
-              up = p.viewUp;
-              colocar(p);
+            if (handles.current !== h || recorridoRef.current !== p) return;
+            const dt = previo === null ? 0 : Math.min(0.1, (ahora - previo) / 1000);
+            previo = ahora;
+            const t = p.teclas;
+            const manual = t.adelante !== t.atras;
+            // Una tecla de avance para lo automático (y la vuelta final): a partir
+            // de ahí manda el profesional hasta que pulse «Seguir».
+            if (manual && (p.modo !== "quieto" || p.giroMs !== null)) { p.modo = "quieto"; p.giroMs = null; p.esperaMs = 0; }
+            let objetivo = velocidadObjetivo(p.modo, t);
+            if (p.esperaMs > 0) { p.esperaMs -= dt * 1000; if (!manual) objetivo = 0; }
+            const antes = p.s;
+            const st = pasoPaseo(p.s, p.v, dt, objetivo, p.L, manual ? ARRANQUE_TECLAS_S : undefined);
+            p.s = st.s; p.v = st.v;
+            if (p.modo === "avance" && p.s >= p.L) { p.modo = "quieto"; p.giroMs = movimientoReducido() ? null : 0; }
+            if (p.modo === "rebobinado" && p.s <= 0) { p.modo = "avance"; p.esperaMs = PAUSA_REBOBINADO_MS; }
+            let giro = 0;
+            if (p.giroMs !== null) {
+              p.giroMs += dt * 1000;
+              if (p.giroMs >= GIRO_MS) p.giroMs = null; else giro = giroFinal(p.giroMs);
+              p.sucio = true;
+            }
+            if (p.s !== antes) p.sucio = true;
+            if (p.sucio) {
+              const pose = walkPose(r.track, p.s, p.up);
+              p.up = pose.viewUp;
+              colocar(poseConMirada(pose, { guinada: p.mirada.guinada + giro, cabeceo: p.mirada.cabeceo }));
               pintar();
-              r.alAvanzar?.(s);
-              if (fin) { andar(PAUSA_REBOBINADO_MS); return; }
-              este.raf = requestAnimationFrame(atras);
-            };
-            este.raf = requestAnimationFrame(atras);
+              r.alAvanzar?.(p.s);
+              p.sucio = false;
+            }
+            const estado: EstadoRecorrido = p.modo !== "quieto" || p.giroMs !== null ? "andando" : p.s >= p.L - 1e-6 ? "fin" : "pausa";
+            if (estado !== p.estado) { p.estado = estado; r.alEstado?.(estado); }
+            p.raf = requestAnimationFrame(paso);
           };
-          const [px, py, pz] = cam.getPosition();
-          const lejosDelFinal = Math.hypot(px - final.position[0], py - final.position[1], pz - final.position[2]) > 0.5;
-          if (lejosDelFinal) mover(() => colocar(final), () => { pintar(); rebobinar(); }, { volar: true });
-          else rebobinar();
-          return;
-        }
-        const inicio = walkPose(r.track, Math.min(r.desdeMm, L), up);
-        up = inicio.viewUp;
-        mover(() => colocar(inicio), () => { pintar(); andar(); },
+          p.raf = requestAnimationFrame(paso);
+        };
+        const inicio = walkPose(r.track, p.s, p.up);
+        p.up = inicio.viewUp;
+        mover(() => colocar(inicio), () => { pintar(); arrancar(); },
           { volar: true, ms: r.llegada === "zambullida" ? ZAMBULLIDA_MS : undefined });
       },
-      pausarRecorrido: () => pararRecorrido(),
+      pausarRecorrido: () => {
+        const p = recorridoRef.current; if (!p) return;
+        p.modo = "quieto"; p.giroMs = null; p.esperaMs = 0;
+      },
+      seguirRecorrido: () => {
+        const p = recorridoRef.current; if (!p) return;
+        p.giroMs = null;
+        // Desde el final, rebobina por dentro del vaso mirando hacia delante
+        // (un vídeo hacia atrás) y vuelve a avanzar.
+        if (p.s >= p.L - 1e-6) { p.modo = "rebobinado"; p.mirada = MIRADA_AL_FRENTE; } else p.modo = "avance";
+        p.sucio = true;
+      },
+      teclasRecorrido: (t: Teclas) => {
+        const p = recorridoRef.current; if (p) p.teclas = t;
+      },
+      mirarAlFrente: () => {
+        const p = recorridoRef.current; if (!p) return;
+        p.mirada = MIRADA_AL_FRENTE; p.sucio = true;
+      },
       girar: (gradosPorSegundo: number | null, alParar?: () => void) => {
         pararGiro(false);
         if (gradosPorSegundo === null || movimientoReducido()) return;
@@ -1274,8 +1370,17 @@ export function MeshView({
       loadedUrlById.current.clear();
       for (const layer of layers) {
         try {
-          const reader = vtkXMLPolyDataReader.newInstance();
-          await reader.setUrl(layer.url, { binary: true });
+          let reader = vtkXMLPolyDataReader.newInstance();
+          const verUrl = layer.suavizar ? await urlSuave(layer.url) : layer.url;
+          if (cancelled) return;
+          try {
+            await reader.setUrl(verUrl, { binary: true });
+          } catch (e) {
+            if (verUrl === layer.url) throw e;
+            // La copia suave no se dejó leer: se ve la original.
+            reader = vtkXMLPolyDataReader.newInstance();
+            await reader.setUrl(layer.url, { binary: true });
+          }
           if (cancelled) return;
           const poly = reader.getOutputData();
           if (!poly || poly.getNumberOfPoints() === 0) continue;
@@ -1453,6 +1558,10 @@ export function MeshView({
       barridoVivo.current?.cortar();
       container.removeEventListener("pointerdown", pararPorToque, { capture: true });
       container.removeEventListener("wheel", pararPorToque, { capture: true });
+      container.removeEventListener("pointerdown", bajarEnRecorrido, { capture: true });
+      container.removeEventListener("wheel", ruedaEnRecorrido, { capture: true });
+      container.removeEventListener("dblclick", dobleClicEnRecorrido, { capture: true });
+      soltarMirada();
       stopFollowing();
       pickSub.unsubscribe();
       camSub.unsubscribe();

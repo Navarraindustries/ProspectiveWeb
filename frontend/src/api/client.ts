@@ -667,6 +667,9 @@ export const api = {
   /** Los puntos de la línea central, para recorrerla y para que la gráfica lleve a ellos. */
   centerlinePoints: (sessionId: string) =>
     get<CenterlinePoints>(`/api/centerline/${sessionId}/points`),
+  /** Copia suavizada de una malla de la sesión, solo para verla (picos y aristas fuera). */
+  smoothMesh: (sessionId: string, name: string) =>
+    post<{ url: string }>(`/api/mesh/${sessionId}/smooth?name=${encodeURIComponent(name)}`),
   /** Discard the centreline, its cached points and any stent built along it. */
   clearCenterline: (sessionId: string) =>
     request<CenterlineClearResult>(`/api/centerline/${sessionId}`, { method: "DELETE" }),

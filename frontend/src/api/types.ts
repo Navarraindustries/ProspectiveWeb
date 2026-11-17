@@ -167,7 +167,8 @@ export interface PhasesResult {
 export interface CenterlineRequest {
   session_id: string;
   source: { x: number; y: number; z: number };
-  target: { x: number; y: number; z: number };
+  /** Sin destino, la línea termina dentro del saco medido o del candidato elegido. */
+  target?: { x: number; y: number; z: number } | null;
   voxel_size_mm: number;
 }
 
@@ -181,6 +182,8 @@ export interface CenterlineResult {
   mean_diameter_mm: number;
   min_diameter_mm: number;
   max_diameter_mm: number;
+  /** Termina dentro de la lesión (no se marcó destino). */
+  ends_in_lesion?: boolean;
   warning: string | null;
 }
 
@@ -189,6 +192,8 @@ export interface CenterlinePoints {
   points: Position3D[];
   radii_mm: number[];
   arc_mm: number[];
+  /** El último punto está dentro de la lesión: el recorrido llega hasta él. */
+  ends_in_lesion?: boolean;
 }
 
 export interface CrossSectionRequest {

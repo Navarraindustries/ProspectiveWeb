@@ -79,8 +79,21 @@ class CenterlineExtractor:
         self,
         poly_data: vtk.vtkPolyData,
         source_mm: tuple[float, float, float],
-        target_mm: tuple[float, float, float],
+        target_mm: tuple[float, float, float] | None = None,
+        target_region: vtk.vtkPolyData | None = None,
     ) -> CenterlineResult:
+        """`target_region` (el saco medido, cerrado, o la zona del candidato,
+        abierta) pone el destino DENTRO de la lesión, en su punto más hondo, en
+        vez de pegarlo al eje del vaso más grueso de alrededor: junto a la
+        basilar de case 3 el destino caía en la arteria madre, a 1,7 mm del
+        saco, y el recorrido por dentro nunca entraba en él (17-11)."""
+        region_pts = None
+        if target_region is not None and target_region.GetNumberOfPoints() > 0:
+            region_pts = vtk_to_numpy(target_region.GetPoints().GetData()).astype(np.float64)
+            if target_mm is None:
+                target_mm = tuple(float(v) for v in region_pts.mean(axis=0))
+        if target_mm is None:
+            raise ValueError("Falta el destino: márcalo sobre el vaso o elige un candidato.")
         mesh_bounds = poly_data.GetBounds()
 
         # First try a grid cropped to the region of interest (fast for local
@@ -99,7 +112,9 @@ class CenterlineExtractor:
             src_idx = self._world_to_idx(source_mm, origin, vs, mask.shape)
             tgt_idx = self._world_to_idx(target_mm, origin, vs, mask.shape)
             src_idx = self._snap_to_best_center(src_idx, mask, dt)
-            tgt_idx = self._snap_to_best_center(tgt_idx, mask, dt)
+            dentro = (self._lesion_center(mask, dt, origin, vs, target_region, region_pts)
+                      if region_pts is not None else None)
+            tgt_idx = dentro if dentro is not None else self._snap_to_best_center(tgt_idx, mask, dt)
             self._progress(0.35)
             raw_path = self._dijkstra(dt, mask, src_idx, tgt_idx)
             if len(raw_path) >= 2:
@@ -227,6 +242,50 @@ class CenterlineExtractor:
 
         dists = np.sum((inside - idx_arr) ** 2, axis=1)
         return tuple(inside[np.argmin(dists)])
+
+    @staticmethod
+    def _lesion_center(mask, dt, origin, vs, region: vtk.vtkPolyData, region_pts: np.ndarray):
+        """El vóxel interior más hondo DE LA LESIÓN, o None si no se encuentra.
+
+        - Saco cerrado (morfometría): entre los vóxeles del vaso que caen dentro
+          del saco, el más alejado de la superficie del saco: el centro de la
+          mayor esfera que cabe en él. No se mide contra la pared del vaso: en
+          un saco de cuello ancho el más hondo según el vaso queda en el cuello,
+          pegado a la arteria madre.
+        - Zona abierta (candidato sin medir): entre los vóxeles cuya pared más
+          cercana es la zona, el más hondo según el vaso. La arteria madre
+          tiene su propia pared más cerca y no entra."""
+        from scipy.spatial import cKDTree
+
+        shape = np.array(mask.shape)
+        lo = np.clip(np.floor((region_pts.min(axis=0) - 2.0 - origin) / vs).astype(int), 0, shape - 1)
+        hi = np.clip(np.ceil((region_pts.max(axis=0) + 2.0 - origin) / vs).astype(int) + 1, 1, shape)
+        sub = mask[lo[0]:hi[0], lo[1]:hi[1], lo[2]:hi[2]]
+        idx = np.argwhere(sub) + lo
+        if len(idx) == 0:
+            return None
+        world = idx * vs + origin
+        d_region, _ = cKDTree(region_pts).query(world)
+        fe = vtk.vtkFeatureEdges()
+        fe.SetInputData(region)
+        fe.BoundaryEdgesOn(); fe.FeatureEdgesOff(); fe.NonManifoldEdgesOff(); fe.ManifoldEdgesOff()
+        fe.Update()
+        if fe.GetOutput().GetNumberOfCells() == 0:
+            pts = vtk.vtkPoints()
+            pts.SetData(numpy_to_vtk(world.astype(np.float64), deep=True))
+            probe = vtk.vtkPolyData(); probe.SetPoints(pts)
+            enc = vtk.vtkSelectEnclosedPoints()
+            enc.SetInputData(probe); enc.SetSurfaceData(region); enc.SetTolerance(0.001); enc.Update()
+            inside = vtk_to_numpy(enc.GetOutput().GetPointData().GetArray("SelectedPoints")).astype(bool)
+            if inside.any():
+                k = np.flatnonzero(inside)[np.argmax(d_region[inside])]
+                return tuple(int(v) for v in idx[k])
+        prof = dt[idx[:, 0], idx[:, 1], idx[:, 2]]
+        ok = d_region <= prof + max(vs, 0.5)
+        if not ok.any():
+            return None
+        k = np.flatnonzero(ok)[np.argmax(prof[ok])]
+        return tuple(int(v) for v in idx[k])
 
     # ------------------------------------------------------------------ #
     # Dijkstra on EDT-weighted grid                                        #
@@ -540,12 +599,13 @@ def build_tube(pts: np.ndarray, radii: np.ndarray) -> vtk.vtkPolyData:
 def extract_centerline(
     poly_data: vtk.vtkPolyData,
     source_mm: tuple[float, float, float],
-    target_mm: tuple[float, float, float],
+    target_mm: tuple[float, float, float] | None,
     voxel_size_mm: float = 0.8,
     progress_cb: Callable[[float], None] | None = None,
+    target_region: vtk.vtkPolyData | None = None,
 ) -> CenterlineResult:
     """Convenience wrapper around :class:`CenterlineExtractor`."""
     return CenterlineExtractor(
         voxel_size_mm=voxel_size_mm,
         progress_cb=progress_cb,
-    ).extract(poly_data, source_mm, target_mm)
+    ).extract(poly_data, source_mm, target_mm, target_region=target_region)

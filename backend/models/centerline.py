@@ -11,7 +11,14 @@ class CenterlineRequest(BaseModel):
 
     session_id: str
     source: Position3D = Field(..., description="Start point on/inside the vessel (mm)")
-    target: Position3D = Field(..., description="End point on/inside the vessel (mm)")
+    target: Position3D | None = Field(
+        None,
+        description=(
+            "End point on/inside the vessel (mm). Optional: without it the line ends "
+            "INSIDE the lesion — the measured sac or, if there is none, the selected "
+            "candidate — at its deepest point."
+        ),
+    )
     voxel_size_mm: float = Field(
         0.8, ge=0.3, le=2.0,
         description="Voxelisation resolution (mm). Lower = more accurate but slower.",
@@ -36,6 +43,7 @@ class CenterlineResult(BaseModel):
     mean_diameter_mm: float = Field(..., description="Mean vessel diameter along the path")
     min_diameter_mm: float = Field(..., description="Minimum vessel diameter (narrowest point)")
     max_diameter_mm: float = Field(..., description="Maximum vessel diameter (widest point)")
+    ends_in_lesion: bool = Field(False, description="The line ends inside the sac / selected candidate instead of at a picked point")
     warning: str | None = Field(
         None, description="Warning shown for high tortuosity or degenerate geometry"
     )
@@ -47,6 +55,7 @@ class CenterlinePoints(BaseModel):
     points: list[Position3D] = Field(..., description="Centreline points (mm, volume frame), ~0.5 mm apart")
     radii_mm: list[float] = Field(..., description="Local vessel radius at each point (mm)")
     arc_mm: list[float] = Field(..., description="Cumulative arc length at each point, starting at 0 (mm)")
+    ends_in_lesion: bool = Field(False, description="The last point is inside the lesion (the walk may go all the way to it)")
 
 
 class CrossSectionRequest(BaseModel):

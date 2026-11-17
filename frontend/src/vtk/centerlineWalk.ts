@@ -3,10 +3,15 @@
 import type { CenterlinePoints } from "../api/types";
 import type { Vec3 } from "./geometry";
 
-export interface CenterlineTrack { points: Vec3[]; radiiMm: number[]; arcMm: number[] }
+export interface CenterlineTrack {
+  points: Vec3[]; radiiMm: number[]; arcMm: number[];
+  /** El último punto está dentro de la lesión (línea sin destino marcado):
+   *  el recorrido llega hasta él en vez de pararse antes de la pared. */
+  endsInLesion?: boolean;
+}
 
 export function trackFromWire(w: CenterlinePoints): CenterlineTrack {
-  return { points: w.points.map((p): Vec3 => [p.x, p.y, p.z]), radiiMm: [...w.radii_mm], arcMm: [...w.arc_mm] };
+  return { points: w.points.map((p): Vec3 => [p.x, p.y, p.z]), radiiMm: [...w.radii_mm], arcMm: [...w.arc_mm], endsInLesion: !!w.ends_in_lesion };
 }
 
 const unit = (v: Vec3): Vec3 => { const l = Math.hypot(v[0], v[1], v[2]); return l < 1e-9 ? [0, 0, 1] : [v[0] / l, v[1] / l, v[2] / l]; };

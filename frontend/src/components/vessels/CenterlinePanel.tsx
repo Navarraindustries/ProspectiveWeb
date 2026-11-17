@@ -13,6 +13,7 @@ import { Metric } from "../Metric";
 import { PanelHead, ErrorNote, SectionLabel } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
 import { DiameterChart } from "./DiameterChart";
+import { candidateNameAt } from "../planning/detectCopy";
 import { usePlanning } from "../../store/planning";
 import { useVolumeMeta } from "../../vtk/useVolumeMeta";
 import { indexAtArc, nearestIndex, tangentAt } from "../../vtk/centerlineWalk";
@@ -41,7 +42,7 @@ export function CenterlinePanel() {
     sessionId, segmentation, pickMode, clSource, clTarget, centerlineMesh,
     setPickMode, setClSource, setClTarget, setCenterlineMesh, setCenterlineArcMm,
     clearDeviceMeshes, centerline, setCenterline, focusPoint, setFocusMm, setFreePlane, volumeVersion,
-    deviceMeshes, recorridoVaso, setRecorridoVaso,
+    deviceMeshes, recorridoVaso, setRecorridoVaso, allCandidates, candidates, rejectedCandidates, selectedCandidate, morphometry,
   } = usePlanning();
   const { meta } = useVolumeMeta(sessionId, volumeVersion);
 
@@ -60,7 +61,12 @@ export function CenterlinePanel() {
   const [xs, setXs] = useState<CrossSectionResult | null>(null);
 
   const hasMesh = !!segmentation?.mesh_url;
-  const ready = hasMesh && !!clSource && !!clTarget && !busy;
+  // Sin destino marcado, la línea termina DENTRO de la lesión: el saco medido
+  // o, si no, el candidato elegido (el backend busca su punto más hondo).
+  // Ya con su preposición: «dentro del saco medido», «dentro de «Candidato 1»».
+  const lesion = morphometry?.sac_mesh_url ? "del saco medido"
+    : allCandidates.length > 0 ? `de «${candidateNameAt(candidates, rejectedCandidates, selectedCandidate) ?? "Candidato 1"}»` : null;
+  const ready = hasMesh && !!clSource && (!!clTarget || !!lesion) && !busy;
 
   // Tras «Reanudar» (o al volver a este paso) el tubo ya está en el visor pero
   // las métricas vivían solo en este estado local, y la tabla salía vacía hasta
@@ -77,14 +83,14 @@ export function CenterlinePanel() {
   useCenterlineTrack();
 
   const extract = async () => {
-    if (!sessionId || !clSource || !clTarget) return;
+    if (!sessionId || !clSource || (!clTarget && !lesion)) return;
     setBusy(true);
     setError(null);
     try {
       const res = await api.centerline(sessionId, {
         session_id: sessionId,
         source: { x: clSource[0], y: clSource[1], z: clSource[2] },
-        target: { x: clTarget[0], y: clTarget[1], z: clTarget[2] },
+        target: clTarget ? { x: clTarget[0], y: clTarget[1], z: clTarget[2] } : null,
         voxel_size_mm: Number(voxel),
       });
       setResult(res);
@@ -179,7 +185,7 @@ export function CenterlinePanel() {
     <div className="fade-rise">
       <PanelHead
         title="Línea central del vaso"
-        desc="Traza el eje del vaso entre dos puntos: longitud, tortuosidad y calibre."
+        desc="Traza el eje del vaso desde un origen hasta la lesión (o hasta un destino): longitud, tortuosidad y calibre."
       />
 
       {!hasMesh && (
@@ -190,17 +196,20 @@ export function CenterlinePanel() {
 
       <SectionLabel>Puntos extremos</SectionLabel>
       <div style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "6px 0 10px", lineHeight: 1.5 }}>
-        Marca origen y destino sobre el vaso; la línea central sigue el eje medial
-        por mínimo coste (radio máximo).
+        Marca el origen sobre el vaso. El destino es opcional: sin él, la línea
+        termina dentro {lesion ?? "de la lesión (detecta aneurismas primero)"}, en
+        su punto más hondo. La línea sigue el eje medial por mínimo coste (radio máximo).
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
         {pickBtn("cl_source", "Marcar origen", !!clSource)}
-        {pickBtn("cl_target", "Marcar destino", !!clTarget)}
+        {pickBtn("cl_target", "Destino (opcional)", !!clTarget)}
       </div>
       <div style={{ display: "flex", gap: 8, fontSize: 11, fontFamily: "var(--font-mono)", marginBottom: 14 }}>
         <span style={{ flex: 1, color: clSource ? "var(--success)" : "var(--muted-foreground)" }}>{fmt(clSource)}</span>
-        <span style={{ flex: 1, color: clTarget ? "var(--destructive)" : "var(--muted-foreground)", textAlign: "right" }}>{fmt(clTarget)}</span>
+        <span style={{ flex: 1, color: clTarget ? "var(--destructive)" : "var(--muted-foreground)", textAlign: "right" }}>
+          {clTarget ? fmt(clTarget) : lesion ? `Dentro ${lesion}` : fmt(null)}
+        </span>
       </div>
 
       <SectionLabel>Resolución</SectionLabel>
@@ -261,6 +270,11 @@ export function CenterlinePanel() {
       {result && (
         <div style={{ marginTop: 16 }}>
           <SectionLabel>Resultados</SectionLabel>
+          {result.ends_in_lesion && (
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "4px 0 6px" }}>
+              Termina dentro de la lesión: el recorrido por dentro llega hasta ella.
+            </div>
+          )}
           <Metric label="Longitud de arco" value={cifra(result.arc_length_mm, 1)} unit=" mm" />
           <Metric label="Longitud recta" value={cifra(result.chord_length_mm, 1)} unit=" mm" />
           {/* Fusión nº 22: «Índice de tortuosidad» era la misma cifra que

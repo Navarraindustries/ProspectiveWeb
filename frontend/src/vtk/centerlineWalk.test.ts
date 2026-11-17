@@ -24,7 +24,7 @@ describe("centerlineWalk", () => {
   });
   it("trackFromWire convierte Position3D en Vec3", () => {
     const t = trackFromWire({ points: [{ x: 1, y: 2, z: 3 }], radii_mm: [1.5], arc_mm: [0] });
-    expect(t).toEqual({ points: [[1, 2, 3]], radiiMm: [1.5], arcMm: [0] });
+    expect(t).toEqual({ points: [[1, 2, 3]], radiiMm: [1.5], arcMm: [0], endsInLesion: false });
   });
 });
 

@@ -180,6 +180,10 @@
 .hud-recorrido-pista { position: relative; width: 140px; height: 2px; background: var(--hud-text-dim); opacity: .9; overflow: hidden; }
 .hud-recorrido-avance { position: absolute; inset: 0; background: var(--hud-text); transform-origin: left center; }
 .hud-recorrido-cifras { color: var(--hud-text); font-variant-numeric: tabular-nums; }
+.hud-recorrido-ayuda { color: var(--hud-text-dim); }
+.hud-recorrido .hud-recorrido-rec { color: var(--destructive); }
+.hud-recorrido .hud-recorrido-rec.grabando { color: var(--destructive); font-variant-numeric: tabular-nums; }
+@media (max-width: 1024px) { .hud-recorrido-ayuda { display: none; } }
 @media (max-width: 640px) { .hud-recorrido-titulo, .hud-recorrido-pista { display: none; } }
 [data-hud][data-tactil="true"] .hud-recorrido button { min-height: 44px; min-width: 44px; font-size: 13px; }
 /* ── Modo presentación (sesión clínica) ─────────────────────────────────

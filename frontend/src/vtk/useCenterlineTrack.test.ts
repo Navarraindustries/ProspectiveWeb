@@ -22,7 +22,7 @@ beforeEach(() => {
 describe("useCenterlineTrack", () => {
   it("con tubo y sin puntos, los pide y los guarda en el store", async () => {
     renderHook(() => useCenterlineTrack());
-    await waitFor(() => expect(planning.setCenterline).toHaveBeenCalledWith({ points: [[1, 2, 3]], radiiMm: [1.5], arcMm: [0] }));
+    await waitFor(() => expect(planning.setCenterline).toHaveBeenCalledWith({ points: [[1, 2, 3]], radiiMm: [1.5], arcMm: [0], endsInLesion: false }));
     expect(centerlinePoints).toHaveBeenCalledWith("s");
   });
 

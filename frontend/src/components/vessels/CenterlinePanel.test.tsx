@@ -8,7 +8,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getCenterline = vi.fn();
 const centerlinePoints = vi.fn();
 const clearCenterline = vi.fn();
+const extraer = vi.fn();
 vi.mock("../../api/client", () => ({ api: {
+  centerline: (...a: unknown[]) => extraer(...a),
   getCenterline: (...a: unknown[]) => getCenterline(...a),
   centerlinePoints: (...a: unknown[]) => centerlinePoints(...a),
   clearCenterline: (...a: unknown[]) => clearCenterline(...a),
@@ -40,6 +42,7 @@ beforeEach(() => {
     setCenterlineMesh: vi.fn(), setCenterlineArcMm: vi.fn(), clearDeviceMeshes: vi.fn(),
     centerline: null, setCenterline: vi.fn(), focusPoint: null, setFocusMm: vi.fn(),
     setFreePlane: vi.fn(), volumeVersion: 0,
+    allCandidates: [], candidates: [], rejectedCandidates: [], selectedCandidate: 0, morphometry: null,
   };
 });
 
@@ -65,7 +68,7 @@ describe("la línea central al reanudar", () => {
 
   it("con el tubo en el visor pide también los puntos", async () => {
     render(<CenterlinePanel />);
-    await waitFor(() => expect(planning.setCenterline).toHaveBeenCalledWith({ points: [], radiiMm: [], arcMm: [] }));
+    await waitFor(() => expect(planning.setCenterline).toHaveBeenCalledWith({ points: [], radiiMm: [], arcMm: [], endsInLesion: false }));
   });
 });
 
@@ -133,5 +136,42 @@ describe("los rótulos de la línea central y de las secciones", () => {
     expect(await screen.findByText("Perfil irregular")).toBeInTheDocument();
     expect(screen.getByText("El perfil tiene saltos (ramas o artefactos): la estenosis no se gradúa")).toBeInTheDocument();
     expect(screen.queryByText("71 %")).toBeNull();
+  });
+});
+
+
+describe("el destino es opcional (17-11)", () => {
+  const sinTubo = () => { planning.centerlineMesh = null; getCenterline.mockResolvedValue(null); };
+
+  it("sin candidatos ni destino no deja extraer y dice por qué", () => {
+    sinTubo();
+    planning.clSource = [1, 2, 3];
+    render(<CenterlinePanel />);
+    expect(screen.getByRole("button", { name: /Extraer línea central/ })).toBeDisabled();
+    expect(screen.getByText(/detecta aneurismas primero/)).toBeInTheDocument();
+  });
+
+  it("con origen y un candidato elegido extrae sin destino, hasta dentro del candidato", async () => {
+    sinTubo();
+    planning.clSource = [1, 2, 3];
+    const cand = { id: "cand-001", rank: 1 };
+    planning.allCandidates = [cand]; planning.candidates = [cand];
+    extraer.mockReset().mockResolvedValue({ ...metricas, ends_in_lesion: true });
+    render(<CenterlinePanel />);
+    expect(screen.getAllByText(/Candidato 1/).length).toBeGreaterThan(0);
+    const boton = screen.getByRole("button", { name: /Extraer línea central/ });
+    expect(boton).toBeEnabled();
+    fireEvent.click(boton);
+    await waitFor(() => expect(extraer).toHaveBeenCalled());
+    expect(extraer.mock.calls[0][1].target).toBeNull();
+    expect(await screen.findByText(/Termina dentro de la lesión/)).toBeInTheDocument();
+  });
+
+  it("con el saco medido, termina en el saco", () => {
+    sinTubo();
+    planning.clSource = [1, 2, 3];
+    planning.morphometry = { sac_mesh_url: "/sac.vtp" };
+    render(<CenterlinePanel />);
+    expect(screen.getAllByText(/del saco medido/).length).toBeGreaterThan(0);
   });
 });

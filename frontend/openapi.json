@@ -4745,6 +4745,329 @@
     "title": "HTTPValidationError",
     "type": "object"
    },
+   "IvusResult": {
+    "description": "Virtual IVUS pullback computed from the volume along the centreline.",
+    "properties": {
+     "fov_mm": {
+      "description": "Side of each section image (mm)",
+      "title": "Fov Mm",
+      "type": "number"
+     },
+     "n_sections": {
+      "title": "N Sections",
+      "type": "integer"
+     },
+     "note": {
+      "default": "",
+      "title": "Note",
+      "type": "string"
+     },
+     "sections": {
+      "items": {
+       "$ref": "#/components/schemas/IvusSection"
+      },
+      "title": "Sections",
+      "type": "array"
+     },
+     "size_px": {
+      "description": "Each section image is size_px × size_px",
+      "title": "Size Px",
+      "type": "integer"
+     },
+     "stack_url": {
+      "description": "Raw uint8 stack, n_sections × size_px × size_px, row = v, column = u",
+      "title": "Stack Url",
+      "type": "string"
+     },
+     "summary": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/IvusSummary"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "window": {
+      "description": "Intensities mapped to 0 and 255",
+      "items": {
+       "type": "number"
+      },
+      "title": "Window",
+      "type": "array"
+     }
+    },
+    "required": [
+     "n_sections",
+     "size_px",
+     "fov_mm",
+     "stack_url",
+     "window",
+     "sections"
+    ],
+    "title": "IvusResult",
+    "type": "object"
+   },
+   "IvusSection": {
+    "description": "Una sección del pullback virtual, perpendicular a la línea central.",
+    "properties": {
+     "angle_max_deg": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Angle Max Deg"
+     },
+     "angle_min_deg": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Direction of d_min in the section frame (0° = +u, counter-clockwise)",
+      "title": "Angle Min Deg"
+     },
+     "arc_mm": {
+      "description": "Position along the centreline (mm from its start)",
+      "title": "Arc Mm",
+      "type": "number"
+     },
+     "area_mm2": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Area Mm2"
+     },
+     "centroid": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "number"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Lumen centroid (u, v) in mm, centreline at (0, 0)",
+      "title": "Centroid"
+     },
+     "contour": {
+      "description": "Lumen contour (u, v) in mm, closed, ~72 points",
+      "items": {
+       "items": {
+        "type": "number"
+       },
+       "type": "array"
+      },
+      "title": "Contour",
+      "type": "array"
+     },
+     "d_eq_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Equivalent-circle diameter 2·√(A/π)",
+      "title": "D Eq Mm"
+     },
+     "d_max_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Longest chord through the lumen centroid",
+      "title": "D Max Mm"
+     },
+     "d_min_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Shortest chord through the lumen centroid",
+      "title": "D Min Mm"
+     },
+     "eccentricity": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "(d_max − d_min) / d_max",
+      "title": "Eccentricity"
+     },
+     "in_branch": {
+      "default": false,
+      "description": "Another branch joins the lumen here: not usable as reference",
+      "title": "In Branch",
+      "type": "boolean"
+     },
+     "in_lesion": {
+      "default": false,
+      "description": "The section is inside the lesion (sac or candidate zone): not a vessel measure",
+      "title": "In Lesion",
+      "type": "boolean"
+     },
+     "perimeter_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Perimeter Mm"
+     },
+     "valid": {
+      "description": "A closed lumen contour surrounds the centreline here (measures present)",
+      "title": "Valid",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "arc_mm",
+     "valid"
+    ],
+    "title": "IvusSection",
+    "type": "object"
+   },
+   "IvusSummary": {
+    "description": "IVUS conventions: minimal lumen area and the largest lumen within 10 mm on each side, without crossing a branch.",
+    "properties": {
+     "area_stenosis_pct": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "(1 − MLA / reference) × 100",
+      "title": "Area Stenosis Pct"
+     },
+     "d_max_mm": {
+      "title": "D Max Mm",
+      "type": "number"
+     },
+     "d_min_mm": {
+      "title": "D Min Mm",
+      "type": "number"
+     },
+     "eccentricity": {
+      "title": "Eccentricity",
+      "type": "number"
+     },
+     "mla_arc_mm": {
+      "title": "Mla Arc Mm",
+      "type": "number"
+     },
+     "mla_index": {
+      "title": "Mla Index",
+      "type": "integer"
+     },
+     "mla_mm2": {
+      "title": "Mla Mm2",
+      "type": "number"
+     },
+     "ref_dist_arc_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ref Dist Arc Mm"
+     },
+     "ref_dist_mm2": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ref Dist Mm2"
+     },
+     "ref_mm2": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Mean of the available references",
+      "title": "Ref Mm2"
+     },
+     "ref_prox_arc_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ref Prox Arc Mm"
+     },
+     "ref_prox_mm2": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ref Prox Mm2"
+     }
+    },
+    "required": [
+     "mla_mm2",
+     "mla_index",
+     "mla_arc_mm",
+     "d_min_mm",
+     "d_max_mm",
+     "eccentricity"
+    ],
+    "title": "IvusSummary",
+    "type": "object"
+   },
    "JsdbArmOut": {
     "description": "Una de las dos puntuaciones del JSDB: la del clipaje o la del coiling.",
     "properties": {
@@ -13987,6 +14310,54 @@
      }
     ],
     "summary": "Dimensionar un flow-diverter sobre la línea central",
+    "tags": [
+     "centerline"
+    ]
+   }
+  },
+  "/api/centerline/{session_id}/ivus": {
+   "post": {
+    "description": "One section perpendicular to the centreline at each of its points: the volume resampled in that plane (raw uint8 stack at `stack_url`), the lumen contour cut from the vessel mesh (the loop around the centreline) and its IVUS measures (area, perimeter, min/max diameter through the centroid, eccentricity), plus the minimal lumen area and the proximal/distal references. Cached until the centreline, the vessel mesh, the lesion or the volume change.",
+    "operationId": "ivus_virtual_api_centerline__session_id__ivus_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/IvusResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Virtual IVUS pullback along the centreline (VINI 3D)",
     "tags": [
      "centerline"
     ]

@@ -54,6 +54,9 @@ export interface HudRecorridoProps {
   grabandoMs?: number | null;
   /** Sin SALIR propio (en el modo presentación sale la presentación entera). */
   sinSalir?: boolean;
+  /** Mostrar u ocultar el IVUS virtual. Sin esto no hay botón. */
+  onIvus?(): void;
+  ivusVisible?: boolean;
 }
 
 // Como la barra del cine: pulsarla no puede empezar a girar la escena.
@@ -66,7 +69,7 @@ const reloj = (ms: number) => {
 
 export function HudRecorrido({
   progreso, totalMm, diametroEn, estado, onPausa, onSeguir, onSalir, onTeclas, onMirarAlFrente,
-  onGrabar, onPararGrabacion, grabandoMs = null, sinSalir = false,
+  onGrabar, onPararGrabacion, grabandoMs = null, sinSalir = false, onIvus, ivusVisible = false,
 }: HudRecorridoProps) {
   const mm = useSyncExternalStore(progreso.suscribir, progreso.leer);
   // Por ref: el efecto de las teclas no se rehace (ni suelta teclas) en cada render.
@@ -122,8 +125,8 @@ export function HudRecorrido({
       : { label: "↺", title: "Volver por el vaso hasta el origen y repetir el recorrido (Espacio)", on: onSeguir };
   const grabando = grabandoMs !== null;
   return (
-    <div className="hud-recorrido" role="group" aria-label="Recorrido por dentro del vaso" onPointerDown={stop} onDoubleClick={stop}>
-      <span className="hud-recorrido-titulo">DENTRO DEL VASO</span>
+    <div className="hud-recorrido" role="group" aria-label="VINI 3D: navegación intravascular virtual" onPointerDown={stop} onDoubleClick={stop}>
+      <span className="hud-recorrido-titulo" title="Virtual Intravascular Navigation Imaging: recorrido por dentro del vaso">VINI 3D</span>
       <button type="button" className="hud-recorrido-play" title={principal.title} aria-label={principal.title} onClick={principal.on}>{principal.label}</button>
       <div className="hud-recorrido-pista" role="progressbar" aria-valuemin={0} aria-valuemax={Math.round(totalMm)} aria-valuenow={Math.round(mm)} aria-label="Recorrido">
         <div className="hud-recorrido-avance" style={{ transform: `scaleX(${k})` }} />
@@ -135,6 +138,11 @@ export function HudRecorrido({
       {onGrabar && (grabando
         ? <button type="button" className="hud-recorrido-rec grabando" title="Parar la grabación y descargar el vídeo" aria-label={`Parar la grabación (${reloj(grabandoMs ?? 0)})`} onClick={onPararGrabacion}>■ {reloj(grabandoMs ?? 0)}</button>
         : <button type="button" className="hud-recorrido-rec" title="Grabar el recorrido entero en vídeo: desde fuera, la entrada, el avance y la vuelta final. Se para sola al acabar y se descarga." onClick={onGrabar}>● GRABAR</button>)}
+      {onIvus && (
+        <button type="button" className={ivusVisible ? "hud-recorrido-play" : undefined} aria-pressed={ivusVisible}
+          title={ivusVisible ? "Ocultar el IVUS virtual" : "Mostrar el IVUS virtual: el corte transversal donde va la cámara, la vista longitudinal y las medidas"}
+          onClick={onIvus}>IVUS</button>
+      )}
       {!sinSalir && <button type="button" title="Salir del vaso (Esc)" onClick={onSalir}>SALIR ✕</button>}
     </div>
   );

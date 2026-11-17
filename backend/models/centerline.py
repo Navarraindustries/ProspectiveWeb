@@ -205,3 +205,54 @@ class FdSizingResult(BaseModel):
     warnings: list[str]
     notes: list[str]
     sources: list[str]
+
+
+# ── IVUS virtual (VINI 3D) ────────────────────────────────────────────────── #
+
+class IvusSection(BaseModel):
+    """Una sección del pullback virtual, perpendicular a la línea central."""
+
+    arc_mm: float = Field(..., description="Position along the centreline (mm from its start)")
+    valid: bool = Field(..., description="A closed lumen contour surrounds the centreline here (measures present)")
+    in_lesion: bool = Field(False, description="The section is inside the lesion (sac or candidate zone): not a vessel measure")
+    in_branch: bool = Field(False, description="Another branch joins the lumen here: not usable as reference")
+    area_mm2: float | None = None
+    perimeter_mm: float | None = None
+    d_min_mm: float | None = Field(None, description="Shortest chord through the lumen centroid")
+    d_max_mm: float | None = Field(None, description="Longest chord through the lumen centroid")
+    d_eq_mm: float | None = Field(None, description="Equivalent-circle diameter 2·√(A/π)")
+    eccentricity: float | None = Field(None, description="(d_max − d_min) / d_max")
+    angle_min_deg: float | None = Field(None, description="Direction of d_min in the section frame (0° = +u, counter-clockwise)")
+    angle_max_deg: float | None = None
+    centroid: list[float] | None = Field(None, description="Lumen centroid (u, v) in mm, centreline at (0, 0)")
+    contour: list[list[float]] = Field(default_factory=list, description="Lumen contour (u, v) in mm, closed, ~72 points")
+
+
+class IvusSummary(BaseModel):
+    """IVUS conventions: minimal lumen area and the largest lumen within 10 mm on each side, without crossing a branch."""
+
+    mla_mm2: float
+    mla_index: int
+    mla_arc_mm: float
+    d_min_mm: float
+    d_max_mm: float
+    eccentricity: float
+    ref_prox_mm2: float | None = None
+    ref_prox_arc_mm: float | None = None
+    ref_dist_mm2: float | None = None
+    ref_dist_arc_mm: float | None = None
+    ref_mm2: float | None = Field(None, description="Mean of the available references")
+    area_stenosis_pct: float | None = Field(None, description="(1 − MLA / reference) × 100")
+
+
+class IvusResult(BaseModel):
+    """Virtual IVUS pullback computed from the volume along the centreline."""
+
+    n_sections: int
+    size_px: int = Field(..., description="Each section image is size_px × size_px")
+    fov_mm: float = Field(..., description="Side of each section image (mm)")
+    stack_url: str = Field(..., description="Raw uint8 stack, n_sections × size_px × size_px, row = v, column = u")
+    window: list[float] = Field(..., description="Intensities mapped to 0 and 255")
+    sections: list[IvusSection]
+    summary: IvusSummary | None = None
+    note: str = ""

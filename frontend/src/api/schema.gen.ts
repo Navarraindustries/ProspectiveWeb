@@ -682,6 +682,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/centerline/{session_id}/ivus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Virtual IVUS pullback along the centreline (VINI 3D)
+         * @description One section perpendicular to the centreline at each of its points: the volume resampled in that plane (raw uint8 stack at `stack_url`), the lumen contour cut from the vessel mesh (the loop around the centreline) and its IVUS measures (area, perimeter, min/max diameter through the centroid, eccentricity), plus the minimal lumen area and the proximal/distal references. Cached until the centreline, the vessel mesh, the lesion or the volume change.
+         */
+        post: operations["ivus_virtual_api_centerline__session_id__ivus_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/centerline/{session_id}/points": {
         parameters: {
             query?: never;
@@ -6074,6 +6094,147 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * IvusResult
+         * @description Virtual IVUS pullback computed from the volume along the centreline.
+         */
+        IvusResult: {
+            /**
+             * Fov Mm
+             * @description Side of each section image (mm)
+             */
+            fov_mm: number;
+            /** N Sections */
+            n_sections: number;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /** Sections */
+            sections: components["schemas"]["IvusSection"][];
+            /**
+             * Size Px
+             * @description Each section image is size_px × size_px
+             */
+            size_px: number;
+            /**
+             * Stack Url
+             * @description Raw uint8 stack, n_sections × size_px × size_px, row = v, column = u
+             */
+            stack_url: string;
+            summary?: components["schemas"]["IvusSummary"] | null;
+            /**
+             * Window
+             * @description Intensities mapped to 0 and 255
+             */
+            window: number[];
+        };
+        /**
+         * IvusSection
+         * @description Una sección del pullback virtual, perpendicular a la línea central.
+         */
+        IvusSection: {
+            /** Angle Max Deg */
+            angle_max_deg?: number | null;
+            /**
+             * Angle Min Deg
+             * @description Direction of d_min in the section frame (0° = +u, counter-clockwise)
+             */
+            angle_min_deg?: number | null;
+            /**
+             * Arc Mm
+             * @description Position along the centreline (mm from its start)
+             */
+            arc_mm: number;
+            /** Area Mm2 */
+            area_mm2?: number | null;
+            /**
+             * Centroid
+             * @description Lumen centroid (u, v) in mm, centreline at (0, 0)
+             */
+            centroid?: number[] | null;
+            /**
+             * Contour
+             * @description Lumen contour (u, v) in mm, closed, ~72 points
+             */
+            contour?: number[][];
+            /**
+             * D Eq Mm
+             * @description Equivalent-circle diameter 2·√(A/π)
+             */
+            d_eq_mm?: number | null;
+            /**
+             * D Max Mm
+             * @description Longest chord through the lumen centroid
+             */
+            d_max_mm?: number | null;
+            /**
+             * D Min Mm
+             * @description Shortest chord through the lumen centroid
+             */
+            d_min_mm?: number | null;
+            /**
+             * Eccentricity
+             * @description (d_max − d_min) / d_max
+             */
+            eccentricity?: number | null;
+            /**
+             * In Branch
+             * @description Another branch joins the lumen here: not usable as reference
+             * @default false
+             */
+            in_branch: boolean;
+            /**
+             * In Lesion
+             * @description The section is inside the lesion (sac or candidate zone): not a vessel measure
+             * @default false
+             */
+            in_lesion: boolean;
+            /** Perimeter Mm */
+            perimeter_mm?: number | null;
+            /**
+             * Valid
+             * @description A closed lumen contour surrounds the centreline here (measures present)
+             */
+            valid: boolean;
+        };
+        /**
+         * IvusSummary
+         * @description IVUS conventions: minimal lumen area and the largest lumen within 10 mm on each side, without crossing a branch.
+         */
+        IvusSummary: {
+            /**
+             * Area Stenosis Pct
+             * @description (1 − MLA / reference) × 100
+             */
+            area_stenosis_pct?: number | null;
+            /** D Max Mm */
+            d_max_mm: number;
+            /** D Min Mm */
+            d_min_mm: number;
+            /** Eccentricity */
+            eccentricity: number;
+            /** Mla Arc Mm */
+            mla_arc_mm: number;
+            /** Mla Index */
+            mla_index: number;
+            /** Mla Mm2 */
+            mla_mm2: number;
+            /** Ref Dist Arc Mm */
+            ref_dist_arc_mm?: number | null;
+            /** Ref Dist Mm2 */
+            ref_dist_mm2?: number | null;
+            /**
+             * Ref Mm2
+             * @description Mean of the available references
+             */
+            ref_mm2?: number | null;
+            /** Ref Prox Arc Mm */
+            ref_prox_arc_mm?: number | null;
+            /** Ref Prox Mm2 */
+            ref_prox_mm2?: number | null;
         };
         /**
          * JsdbArmOut
@@ -12102,6 +12263,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FdSizingResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ivus_virtual_api_centerline__session_id__ivus_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IvusResult"];
                 };
             };
             /** @description Validation Error */

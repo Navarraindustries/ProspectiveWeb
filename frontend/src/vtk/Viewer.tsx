@@ -53,6 +53,8 @@ import { useCenterlineTrack } from "./useCenterlineTrack";
 import { startClock } from "./cineClock";
 import { HudCineBar } from "./hud/HudCineBar";
 import { HudRecorrido, crearProgreso } from "./hud/HudRecorrido";
+import { HudIvus } from "./hud/HudIvus";
+import { claveDeLinea } from "./ivusVirtual";
 import { HudPresentacion } from "./hud/HudPresentacion";
 import { GIRO_PRESENTACION_GRADOS_S, cifrasClave, escenasDisponibles } from "./presentation";
 import { GIRO_ESPERA_GRADOS_S } from "./meshSweep";
@@ -942,6 +944,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // Los avisos del recorrido (grabación) usan la pista del visor, que se define más abajo.
   const showHintRef = useRef<(text: string) => void>(() => undefined);
   const [recorrido, setRecorrido] = useState<{ estado: "andando" | "pausa" | "fin" } | null>(null);
+  // IVUS virtual junto al recorrido (VINI 3D): visible de entrada; el botón IVUS de la barra lo oculta.
+  const [ivusVisible, setIvusVisible] = useState(true);
   const volverA = useRef<CameraState | null>(null);
   const camaraRecorrido = useRef<CameraController | null>(null);
   // La grabación del recorrido (botón ● GRABAR de su barra) y lo que se
@@ -1005,7 +1009,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       return {
         width: w, height: h, colors: v.colors, fontFamily: v.fontFamily, hudLevel: "completo",
         panes: [{
-          id: "scene", rect: { x: 0, y: 0, w, h }, label: "Dentro del vaso",
+          id: "scene", rect: { x: 0, y: 0, w, h }, label: "VINI 3D",
           readouts: [{ at: "bl", lines: [`${cifra(mm, 1)} / ${cifra(longitudRecorrido(cl), 1)} mm`, `Ø ${cifra(diameterAtArc(cl, mm), 1)} mm`] }],
         }],
         grabs: [pane.capture?.grab ?? null],
@@ -2293,7 +2297,13 @@ export function ViewerWorkspace({ step }: { step: string }) {
             onTeclas={(t) => camaraRecorrido.current?.teclasRecorrido(t)}
             onMirarAlFrente={() => camaraRecorrido.current?.mirarAlFrente()}
             onGrabar={grabarRecorrido} onPararGrabacion={() => pararGrabacionRef.current()} grabandoMs={grabandoMs}
-            onSalir={salirDelVaso} sinSalir={presentando} />
+            onSalir={salirDelVaso} sinSalir={presentando}
+            onIvus={sessionId ? () => setIvusVisible((v) => !v) : undefined} ivusVisible={ivusVisible} />
+        )}
+        {!compact && isMesh && recorrido && centerline && sessionId && ivusVisible && (
+          <HudIvus sessionId={sessionId} claveLinea={claveDeLinea(centerline)} progreso={progresoRecorrido}
+            onIrA={(mm) => { camaraRecorrido.current?.irARecorrido(mm); setRecorrido({ estado: "pausa" }); }}
+            onCerrar={() => setIvusVisible(false)} />
         )}
         {/* Dentro del vaso las vistas DESDE pelearían con el recorrido: se esconden hasta salir. */}
         {presentacion && (
@@ -2334,7 +2344,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
                   // F1-150: acerca al candidato ELEGIDO, que no tiene por qué ser la lesión.
                   ...(lesion ? [{ key: "lesion", label: "CANDIDATO", title: "Acercar la cámara al candidato elegido" }] : []),
                   ...(trajEntry && trajTarget ? [{ key: "abordaje", label: "ABORDAJE", title: "Mirar a lo largo del corredor; el plano Oblicuo se pone perpendicular a él" }] : []),
-                  ...(centerline ? [{ key: "dentro", label: "DENTRO", title: "Recorrer la línea central por dentro del vaso, como una angioscopia" }] : []),
+                  ...(centerline ? [{ key: "dentro", label: "VINI 3D", title: "VINI 3D (Virtual Intravascular Navigation Imaging): recorrer la línea central por dentro del vaso, con el IVUS virtual al lado" }] : []),
                 ]}
                 value="" onChange={(k) => (k === "lesion" ? centerOnLesion() : k === "abordaje" ? viewApproach() : k === "dentro" ? setRecorridoVaso(true) : camera.setView(k as CameraView, { volar: true }))} />
             )}

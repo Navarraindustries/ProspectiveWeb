@@ -186,6 +186,25 @@
 @media (max-width: 1024px) { .hud-recorrido-ayuda { display: none; } }
 @media (max-width: 640px) { .hud-recorrido-titulo, .hud-recorrido-pista { display: none; } }
 [data-hud][data-tactil="true"] .hud-recorrido button { min-height: 44px; min-width: 44px; font-size: 13px; }
+/* IVUS virtual (VINI 3D): a la derecha, debajo de la barra del recorrido. */
+.hud-ivus { position: absolute; right: 12px; top: 96px; z-index: 7; width: 244px; box-sizing: border-box; max-height: calc(100% - 108px); overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; pointer-events: auto; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .04em; color: var(--hud-text-dim); background: var(--viewer-bg); border: var(--hud-line) solid var(--hud-text-dim); border-radius: var(--radius-md); }
+.hud-ivus-cabecera { display: flex; align-items: center; justify-content: space-between; }
+.hud-ivus-titulo { color: var(--hud-text); }
+.hud-ivus button { background: none; border: none; padding: 2px 4px; font: inherit; color: var(--hud-text-dim); cursor: pointer; text-align: left; }
+.hud-ivus button:hover { color: var(--hud-text); }
+.hud-ivus button:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
+.hud-ivus-corte { display: block; flex: none; width: 222px; height: 222px; align-self: center; cursor: crosshair; touch-action: none; }
+.hud-ivus-largo { display: block; flex: none; width: 100%; height: 72px; cursor: pointer; touch-action: none; }
+.hud-ivus-fila { display: flex; justify-content: space-between; color: var(--hud-text); font-variant-numeric: tabular-nums; }
+.hud-ivus-aviso { color: var(--hud-red); }
+.hud-ivus-medidas { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; }
+.hud-ivus-medidas dd { margin: 0; text-align: right; color: var(--hud-text); font-variant-numeric: tabular-nums; }
+.hud-ivus-min { color: var(--hud-amber); }
+.hud-ivus-resumen { display: flex; flex-direction: column; gap: 2px; font-variant-numeric: tabular-nums; }
+.hud-ivus .hud-ivus-mla { padding: 0; color: var(--hud-amber); }
+.hud-ivus-nota, .hud-ivus-pie { margin: 0; }
+.hud-ivus-pie { opacity: .85; font-size: 9.5px; }
+@media (max-width: 640px) { .hud-ivus { display: none; } }
 /* ── Modo presentación (sesión clínica) ─────────────────────────────────
    Para proyectar: letra grande, poco texto y un velo suave arriba y abajo
    para que se lea sobre cualquier parte de la malla. */

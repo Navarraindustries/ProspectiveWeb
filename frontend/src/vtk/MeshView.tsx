@@ -348,6 +348,9 @@ export interface CameraController {
   teclasRecorrido(t: Teclas): void;
   /** La mirada vuelve a la marcha (doble clic o tecla). */
   mirarAlFrente(): void;
+  /** Lleva la cámara a `mm` de la línea y se queda allí en pausa (clic en la
+   *  vista longitudinal del IVUS virtual). */
+  irARecorrido(mm: number): void;
   /** Termina el recorrido: devuelve las capas como estaban y vuela a `volverA`. */
   salirRecorrido(volverA: CameraState | null): void;
   /** Giro lento alrededor del foco (modo presentación); null lo para. Tocar
@@ -1324,6 +1327,11 @@ export function MeshView({
       mirarAlFrente: () => {
         const p = recorridoRef.current; if (!p) return;
         p.mirada = MIRADA_AL_FRENTE; p.sucio = true;
+      },
+      irARecorrido: (mm: number) => {
+        const p = recorridoRef.current; if (!p || !Number.isFinite(mm)) return;
+        p.s = Math.min(Math.max(0, mm), p.L); p.v = 0;
+        p.modo = "quieto"; p.giroMs = null; p.esperaMs = 0; p.sucio = true;
       },
       girar: (gradosPorSegundo: number | null, alParar?: () => void) => {
         pararGiro(false);

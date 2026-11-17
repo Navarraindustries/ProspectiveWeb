@@ -537,7 +537,7 @@ async def clear_centerline(session_id: str) -> CenterlineClearResult:
     had = (meshes_dir / "centerline.vtp").exists() or (meshes_dir / "centerline_points.npz").exists()
 
     removed: list[str] = []
-    for name in ("centerline.vtp", "centerline_points.npz", "cl_stent.vtp"):
+    for name in ("centerline.vtp", "centerline_points.npz", "cl_stent.vtp", "ivus_pullback.u8", "ivus_pullback.json"):
         path = meshes_dir / name
         if path.exists():
             try:

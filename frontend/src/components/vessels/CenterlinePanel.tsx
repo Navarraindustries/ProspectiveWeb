@@ -294,7 +294,7 @@ export function CenterlinePanel() {
             aria-pressed={recorridoVaso} onClick={() => setRecorridoVaso(!recorridoVaso)}
             leadingIcon={<Icon name="CENTERLINE" size={14} />}
             title="La cámara del 3D entra por el origen y recorre el eje hasta el destino">
-            {recorridoVaso ? "Salir del vaso" : "Recorrer por dentro"}
+            {recorridoVaso ? "Salir de VINI 3D" : "Recorrer con VINI 3D"}
           </Button>
           {result.warning && (
             <div style={{ marginTop: 10, fontSize: 12, color: "var(--warning)", display: "flex", gap: 8 }}>

@@ -24,6 +24,7 @@ import type {
   CenterlineClearResult,
   CenterlineRequest,
   CenterlinePoints,
+  IvusResult,
   CenterlineResult,
   ClipAnimationResult,
   ClipOrder,
@@ -667,6 +668,12 @@ export const api = {
   /** Los puntos de la línea central, para recorrerla y para que la gráfica lleve a ellos. */
   centerlinePoints: (sessionId: string) =>
     get<CenterlinePoints>(`/api/centerline/${sessionId}/points`),
+  /** IVUS virtual de VINI 3D: una sección por punto de la línea central, con
+   *  su contorno y sus medidas. El servidor lo guarda hasta que cambie algo. */
+  ivusVirtual: (sessionId: string) =>
+    post<IvusResult>(`/api/centerline/${sessionId}/ivus`, undefined, 120_000),
+  /** La pila de imágenes del IVUS virtual (uint8 crudo). */
+  ivusStack: async (url: string): Promise<Uint8Array> => new Uint8Array(await (await getBlob(url)).arrayBuffer()),
   /** Copia suavizada de una malla de la sesión, solo para verla (picos y aristas fuera). */
   smoothMesh: (sessionId: string, name: string) =>
     post<{ url: string }>(`/api/mesh/${sessionId}/smooth?name=${encodeURIComponent(name)}`),

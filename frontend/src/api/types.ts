@@ -196,6 +196,56 @@ export interface CenterlinePoints {
   ends_in_lesion?: boolean;
 }
 
+/** Una sección del IVUS virtual (VINI 3D), perpendicular a la línea central.
+ *  Coordenadas (u, v) en mm con la línea en (0, 0). */
+export interface IvusSection {
+  arc_mm: number;
+  /** Hay un contorno de luz cerrado alrededor de la línea: las medidas están. */
+  valid: boolean;
+  in_lesion?: boolean;
+  /** Se une otra rama: no vale de referencia. */
+  in_branch?: boolean;
+  area_mm2?: number | null;
+  perimeter_mm?: number | null;
+  d_min_mm?: number | null;
+  d_max_mm?: number | null;
+  d_eq_mm?: number | null;
+  eccentricity?: number | null;
+  /** Dirección de cada diámetro en la sección (0° = +u, antihorario). */
+  angle_min_deg?: number | null;
+  angle_max_deg?: number | null;
+  centroid?: number[] | null;
+  contour?: number[][];
+}
+
+/** Área luminal mínima y referencias proximal y distal (convenciones de IVUS). */
+export interface IvusSummary {
+  mla_mm2: number;
+  mla_index: number;
+  mla_arc_mm: number;
+  d_min_mm: number;
+  d_max_mm: number;
+  eccentricity: number;
+  ref_prox_mm2?: number | null;
+  ref_prox_arc_mm?: number | null;
+  ref_dist_mm2?: number | null;
+  ref_dist_arc_mm?: number | null;
+  ref_mm2?: number | null;
+  area_stenosis_pct?: number | null;
+}
+
+export interface IvusResult {
+  n_sections: number;
+  size_px: number;
+  fov_mm: number;
+  /** Pila uint8 cruda: n_sections × size_px × size_px; fila = v, columna = u. */
+  stack_url: string;
+  window: number[];
+  sections: IvusSection[];
+  summary?: IvusSummary | null;
+  note?: string;
+}
+
 export interface CrossSectionRequest {
   session_id: string;
   n_samples: number;

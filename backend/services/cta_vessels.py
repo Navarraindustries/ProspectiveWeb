@@ -150,8 +150,28 @@ def _coarse_mean(volume: np.ndarray, f: list[int]) -> np.ndarray:
     return out
 
 
+def _islas_brillantes(cav: np.ndarray, bright: np.ndarray) -> np.ndarray:
+    """Huecos de la cavidad rodeados por ella en algún plano (axial, coronal o
+    sagital) y con brillo de contraste.
+
+    En 3D un saco con contraste no es un hueco: la carótida, también por encima
+    de `bone_hu`, lo une a la base del cráneo. En un corte casi siempre lo es:
+    la carótida sale del plano. El cráneo nunca queda rodeado por la cavidad.
+    """
+    add = np.zeros_like(cav)
+    for ax in range(3):
+        for i in range(cav.shape[ax]):
+            sl = [slice(None)] * 3
+            sl[ax] = i
+            sl = tuple(sl)
+            c = cav[sl]
+            if c.any():
+                add[sl] |= ndimage.binary_fill_holes(c) & ~c
+    return add & bright
+
+
 def intracranial_cavity(volume: np.ndarray, spacing, *, bone_hu: float = 300.0,
-                        erode_mm: float = 4.0, grow_mm: float = 6.0,
+                        dense_hu: float = 700.0, erode_mm: float = 4.0, grow_mm: float = 6.0,
                         grid_mm: float = 1.0) -> tuple[np.ndarray, dict]:
     """La cavidad intracraneal, en la rejilla de `grid_mm` y devuelta al vóxel nativo.
 
@@ -161,7 +181,11 @@ def intracranial_cavity(volume: np.ndarray, spacing, *, bone_hu: float = 300.0,
        (los agujeros de la base son más finos que la erosión);
     4. se reconstruye dentro de lo blando y se rellena (vasos, ventrículos);
     5. crece `grow_mm` sin atravesar hueso: llega a la tabla interna con los senos y
-       los vasos de superficie, pero no salta el cráneo al cuero cabelludo.
+       los vasos de superficie, pero no salta el cráneo al cuero cabelludo;
+    6. devuelve el contraste que el paso 1 tomó por hueso (`_islas_brillantes`,
+       entre `bone_hu` y `dense_hu`): sin esto un saco grande quedaba hueco, solo
+       con la corteza de `cavity_margin_mm` (130 de Zenodo, 26 mm: el 29 % del
+       saco vacío; 22 de 49 sacos ≥ 10 mm, P3 18-11-2026).
     Funciona con la cabeza inclinada (002): no supone ninguna orientación.
     """
     f = _factors(spacing, grid_mm)
@@ -180,7 +204,7 @@ def intracranial_cavity(volume: np.ndarray, spacing, *, bone_hu: float = 300.0,
     core = ndimage.binary_erosion(soft, structure=ball(erode_mm))
     lab, n = ndimage.label(core)
     if n == 0:
-        return np.zeros(volume.shape, dtype=bool), {"applied": False, "cavity_cm3": 0.0}
+        return np.zeros(volume.shape, dtype=bool), {"applied": False, "cavity_cm3": 0.0, "islands_cm3": 0.0}
     cnt = np.bincount(lab.ravel())
     cnt[0] = 0
     brain = lab == int(np.argmax(cnt))
@@ -193,12 +217,18 @@ def intracranial_cavity(volume: np.ndarray, spacing, *, bone_hu: float = 300.0,
     for _ in range(int(round(grow_mm / s))):
         cav = ndimage.binary_dilation(cav) & free
     cav = ndimage.binary_fill_holes(cav)
+    islas = _islas_brillantes(cav, bone & (v < dense_hu))
+    n_islas = int(islas.sum())
+    if n_islas:
+        cav = ndimage.binary_fill_holes(cav | islas)
+    del islas
     out = np.zeros(volume.shape, dtype=bool)
     up = _unpool(cav, f, (cav.shape[0] * f[0], cav.shape[1] * f[1], cav.shape[2] * f[2]))
     zs, ys, xs = (min(a, b) for a, b in zip(up.shape, volume.shape))
     out[:zs, :ys, :xs] = up[:zs, :ys, :xs]
     vox_cm3 = float(np.prod(spacing)) / 1000.0
-    return out, {"applied": True, "cavity_cm3": round(float(out.sum()) * vox_cm3, 1)}
+    return out, {"applied": True, "cavity_cm3": round(float(out.sum()) * vox_cm3, 1),
+                 "islands_cm3": round(n_islas * float(np.prod(csp)) / 1000.0, 2)}
 
 
 def background_stats(volume: np.ndarray, within: np.ndarray | None, bone: np.ndarray) -> tuple[float, float]:

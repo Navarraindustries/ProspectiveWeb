@@ -281,3 +281,32 @@ def test_el_bloque_reducido_vuelve_a_su_centro():
     pos_reducida = np.array([k[2] * rsp[2], k[1] * rsp[1], k[0] * rsp[0]])      # (x, y, z)
     centro_real = np.array([10.5 * sp[2], 10.5 * sp[1], 10.5 * sp[0]])
     assert np.allclose(pos_reducida + np.array(reduced_center_shift(sp, 2)), centro_real)
+
+
+def _cabeza_con_saco_gigante():
+    """El fantasma con un saco de 7 mm de radio a 500 HU unido al cráneo por una
+    carótida de 2,5 mm (también a 500 HU), como el 130 de Zenodo (26 mm)."""
+    f = _cabeza()
+    vol = f["vol"].copy()
+    z, y, x = np.indices(vol.shape, dtype=np.float32)
+    z, y, x = z * SP[0], y * SP[1], x * SP[2]
+    c = np.array(vol.shape) * np.array(SP) / 2.0
+    sac_c = (c[0] + 4.0, c[1] - 9.0, c[2] - 10.0)
+    sac = ((z - sac_c[0]) ** 2 + (y - sac_c[1]) ** 2 + (x - sac_c[2]) ** 2) <= 7.0 ** 2
+    tubo = (((y - sac_c[1]) ** 2 + (x - sac_c[2]) ** 2) <= 2.5 ** 2) & (z < sac_c[0]) & f["inside"]
+    vol[(sac | tubo) & ~f["skull"]] = 500.0
+    return {**f, "vol": vol, "giant_c": sac_c, "giant": sac}
+
+
+def test_un_saco_gigante_con_contraste_no_queda_hueco():
+    """Con > 300 HU el saco contaba como hueso al dibujar la cavidad y, unido a la
+    base por la carótida, el relleno de huecos no lo recuperaba: solo entraba la
+    corteza de 3 mm y el centro quedaba fuera (P3, 18-11: 22 de 49 sacos ≥ 10 mm)."""
+    f = _cabeza_con_saco_gigante()
+    cav, info = intracranial_cavity(f["vol"], SP)
+    assert cav[_idx(f["giant_c"])], "el centro del saco quedó fuera de la cavidad"
+    assert info["islands_cm3"] > 0
+    m = segment_cta(f["vol"], SP, within=f["inside"]).mask
+    assert m[f["giant"]].mean() > 0.97, "el saco gigante sale hueco"
+    # y el cráneo sigue fuera
+    assert not m[f["skull"]].any()

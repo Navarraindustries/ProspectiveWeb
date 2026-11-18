@@ -524,6 +524,10 @@ export function MeshView({
   // zambulle) y cómo deshacer lo que cambió en las capas para recorrerlo.
   const recorridoRef = useRef<PaseoVivo | null>(null);
   const capasRecorrido = useRef<(() => void) | null>(null);
+  /** La cámara de antes de entrar al vaso. Si la escena se rehace con el
+   *  recorrido en marcha (cambio de paso), es la que hereda la escena nueva:
+   *  con `preserveCamera` se conservaba la de dentro del vaso. */
+  const camaraAntesRecorrido = useRef<CameraState | null>(null);
   // El giro lento del modo presentación.
   const giroRef = useRef<{ raf: number; alParar?: () => void } | null>(null);
   // Set once the geometry is on screen; markers re-render at the new size.
@@ -831,6 +835,9 @@ export function MeshView({
     });
     const renderer = fsrw.getRenderer();
     const renderWindow = fsrw.getRenderWindow();
+    // Hasta que la escena carga y encuadra, su cámara es la de vtk por defecto
+    // (a 1 mm del origen): no es una vista que conservar.
+    let encuadrada = false;
 
     // Capa del punto compartido. Un segundo renderer en la capa 1 conserva el
     // color de la escena (setLayer(1) ya lo pide) pero NO su profundidad: lo
@@ -1253,6 +1260,8 @@ export function MeshView({
         pararVuelo();
         const h = handles.current; if (!h) return;
         const cam = h.renderer.getActiveCamera();
+        // Solo al entrar: un salto dentro del mismo recorrido vuelve a llamar aquí.
+        if (!capasRecorrido.current) camaraAntesRecorrido.current = leer(cam);
         prepararCapasRecorrido(h, r.ocultar ?? [], r.opacas ?? [], r.marcar ?? []);
         // Dentro del vaso la pared está a un milímetro: el recorte automático
         // dejaría el plano cercano por delante de ella y se vería a través.
@@ -1374,6 +1383,7 @@ export function MeshView({
       },
       salirRecorrido: (volverA: CameraState | null) => {
         pararRecorrido();
+        camaraAntesRecorrido.current = null;
         const h = handles.current;
         capasRecorrido.current?.();
         capasRecorrido.current = null;
@@ -1543,6 +1553,7 @@ export function MeshView({
           cam.elevation(-20);
         }
         renderer.updateLightsGeometryToFollowCamera();
+        encuadrada = true;
       }
       renderWindow.render();
       for (const [id, url] of loadedUrlById.current) onLayerLoadedRef.current?.(id, url);
@@ -1571,7 +1582,13 @@ export function MeshView({
       cancelled = true;
       pararVuelo();
       entradaViva.current?.cortar();
-      // Los actores se van con la escena: no hay capas que devolver.
+      // Los actores se van con la escena: no hay capas que devolver. La cámara
+      // sí: vuelve a la de antes de entrar, para que la escena nueva (que la
+      // conserva en Dispositivos o tras medir a mano) no se quede dentro del vaso.
+      if (recorridoRef.current && camaraAntesRecorrido.current && handles.current) {
+        try { escribir(handles.current.renderer.getActiveCamera(), camaraAntesRecorrido.current); } catch { /* escena a medio borrar */ }
+      }
+      camaraAntesRecorrido.current = null;
       pararRecorrido("corte");
       capasRecorrido.current = null;
       pararGiro(false);
@@ -1612,7 +1629,13 @@ export function MeshView({
       const h = handles.current;
       if (h) {
         // Remember the camera so a preview refresh can restore the viewpoint.
-        if (preserveCameraRef.current) {
+        // Una escena que se rehace antes de terminar de cargar (dos cambios
+        // seguidos con el servidor lento) deja la vista guardada de antes: la
+        // suya aún era la de por defecto, y conservarla dejaba la cámara pegada
+        // al punto compartido, como dentro del vaso.
+        if (!preserveCameraRef.current) {
+          savedCamera.current = null;
+        } else if (encuadrada) {
           try {
             const cam = h.renderer.getActiveCamera();
             savedCamera.current = {
@@ -1622,8 +1645,6 @@ export function MeshView({
               parallelScale: cam.getParallelScale(),
             };
           } catch { /* ignore */ }
-        } else {
-          savedCamera.current = null;
         }
         h.actors.forEach((a) => h.renderer.removeActor(a));
         h.renderWindow.removeRenderer(h.overlay);

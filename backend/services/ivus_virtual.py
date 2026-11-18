@@ -64,6 +64,7 @@ class Seccion:
     angulo_max_deg: float | None = None
     centroide: tuple[float, float] | None = None
     contorno: list[tuple[float, float]] = field(default_factory=list)   # (u, v) mm
+    stent: "SeccionStent | None" = None
 
 
 @dataclass
@@ -83,6 +84,35 @@ class Resumen:
 
 
 @dataclass
+class SeccionStent:
+    """El stent desplegado en una sección: su contorno y, punto a punto, la
+    distancia a la pared que pinta el mapa 3D (services/apposition.py)."""
+    contorno: list[tuple[float, float]]
+    aposicion: list[float | None]    # mm: + separado, − comprimido; None = frente al cuello (sin pared)
+    separacion_max_mm: float | None  # mayor separación de los puntos con pared
+    compresion_max_mm: float | None  # mayor compresión (en positivo)
+    frente_al_cuello: bool           # la mayor parte del contorno está frente al cuello
+
+
+@dataclass
+class ResumenStent:
+    """La aposición a lo largo del stent, sección a sección. «Separado» es más
+    que el ruido (un vóxel); delante del cuello no hay pared y no cuenta."""
+    desde_mm: float
+    hasta_mm: float
+    ruido_mm: float
+    separado_mm: float               # longitud de stent con alguna separación > ruido
+    separacion_max_mm: float
+    comprimido_mm: float             # longitud con compresión > ruido
+    cuello_mm: float                 # longitud sin pared: frente al cuello o dentro de la lesión
+    anclaje_prox_mm: float           # mayor separación en los primeros ANCLAJE_MM con pared
+    anclaje_dist_mm: float           # y en los últimos
+
+
+ANCLAJE_MM = 3.0                     # como END_MM de services/apposition.py
+
+
+@dataclass
 class Pullback:
     pila: np.ndarray                 # (N, TAMANO_PX, TAMANO_PX) uint8; fila = v, columna = u
     fov_mm: float
@@ -90,6 +120,7 @@ class Pullback:
     secciones: list[Seccion]
     resumen: Resumen | None
     nota: str = ""
+    stent: ResumenStent | None = None
 
 
 # ── Marco de rotación mínima ──────────────────────────────────────────────── #
@@ -179,6 +210,13 @@ def a_uint8(pila: np.ndarray) -> tuple[np.ndarray, tuple[float, float]]:
 def _lazos(poly: vtk.vtkPolyData, o: np.ndarray, t: np.ndarray, u: np.ndarray, v: np.ndarray):
     """Lazos del corte de la malla por el plano (o, t), en coordenadas (u, v) mm,
     con si están cerrados."""
+    return [(q, cerrado) for q, cerrado, _ in _lazos_con_datos(poly, o, t, u, v, ())]
+
+
+def _lazos_con_datos(poly: vtk.vtkPolyData, o: np.ndarray, t: np.ndarray, u: np.ndarray, v: np.ndarray,
+                     campos: tuple[str, ...]):
+    """Como `_lazos`, y con los campos de punto pedidos interpolados sobre el
+    corte (el cortador los interpola entre los vértices de cada arista)."""
     plano = vtk.vtkPlane()
     plano.SetOrigin(*map(float, o)); plano.SetNormal(*map(float, t))
     corte = vtk.vtkCutter(); corte.SetCutFunction(plano); corte.SetInputData(poly); corte.Update()
@@ -190,6 +228,11 @@ def _lazos(poly: vtk.vtkPolyData, o: np.ndarray, t: np.ndarray, u: np.ndarray, v
         return []
     pts = vtk_to_numpy(out.GetPoints().GetData()).astype(np.float64) - o
     uv = np.stack([pts @ u, pts @ v], axis=1)
+    arrays = {}
+    for c in campos:
+        a = out.GetPointData().GetArray(c)
+        if a is not None:
+            arrays[c] = vtk_to_numpy(a).astype(np.float64)
     lazos = []
     lineas = out.GetLines(); lineas.InitTraversal(); ids = vtk.vtkIdList()
     while lineas.GetNextCell(ids):
@@ -197,8 +240,8 @@ def _lazos(poly: vtk.vtkPolyData, o: np.ndarray, t: np.ndarray, u: np.ndarray, v
         if len(k) < 4:
             continue
         cerrado = k[0] == k[-1] or float(np.linalg.norm(uv[k[0]] - uv[k[-1]])) < 1e-3
-        q = uv[k[:-1]] if k[0] == k[-1] else uv[k]
-        lazos.append((q, cerrado))
+        kk = k[:-1] if k[0] == k[-1] else k
+        lazos.append((uv[kk], cerrado, {c: a[kk] for c, a in arrays.items()}))
     return lazos
 
 
@@ -263,6 +306,82 @@ def remuestrear_contorno(q: np.ndarray, n: int = PUNTOS_CONTORNO) -> np.ndarray:
         return q[:1].repeat(n, axis=0)
     s = np.linspace(0.0, arco[-1], n, endpoint=False)
     return np.stack([np.interp(s, arco, cerrado[:, 0]), np.interp(s, arco, cerrado[:, 1])], axis=1)
+
+
+def medir_stent(stent: vtk.vtkPolyData, o, t, u, v) -> SeccionStent | None:
+    """El tubo del stent en la sección (el lazo que rodea a la línea central;
+    los hilos de la trenza dan lazos pequeños que no la rodean) con su
+    aposición interpolada. None si el stent no pasa por aquí."""
+    from services.apposition import SCALAR, ZONE, ZONE_NECK, ZONE_WALL
+
+    lazos = [(q, d) for q, cerrado, d in _lazos_con_datos(stent, np.asarray(o, float), t, u, v, (SCALAR, ZONE))
+             if cerrado and _contiene(q)]
+    if not lazos:
+        return None
+    q, d = min(lazos, key=lambda x: abs(_area_con_signo(x[0])))
+    n = PUNTOS_CONTORNO
+    cerrado = np.vstack([q, q[:1]])
+    arco = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(cerrado, axis=0), axis=1))])
+    s = np.linspace(0.0, arco[-1], n, endpoint=False) if arco[-1] > 1e-9 else np.zeros(n)
+    contorno = np.stack([np.interp(s, arco, cerrado[:, 0]), np.interp(s, arco, cerrado[:, 1])], axis=1)
+    if SCALAR not in d:
+        return SeccionStent(contorno=[(round(float(a), 3), round(float(b), 3)) for a, b in contorno],
+                            aposicion=[None] * n, separacion_max_mm=None, compresion_max_mm=None,
+                            frente_al_cuello=False)
+    gap = np.interp(s, arco, np.append(d[SCALAR], d[SCALAR][:1]))
+    zona = d.get(ZONE, np.full(len(q), ZONE_WALL, dtype=float))
+    # La zona es una categoría: el vértice más cercano, no una media.
+    idx = np.minimum(np.searchsorted(arco, s, side="right") - 1, len(q) - 1)
+    siguiente = (idx + 1) % len(q)
+    mas_cerca = np.where(s - arco[idx] <= arco[idx + 1] - s, idx, siguiente)
+    cuello = np.rint(zona[mas_cerca]) == ZONE_NECK
+    pared = np.rint(zona[mas_cerca]) == ZONE_WALL
+    ap = [None if cuello[k] else round(float(gap[k]), 3) for k in range(n)]
+    g = gap[pared]
+    return SeccionStent(
+        contorno=[(round(float(a), 3), round(float(b), 3)) for a, b in contorno], aposicion=ap,
+        separacion_max_mm=float(max(g.max(), 0.0)) if g.size else None,
+        compresion_max_mm=float(max(-g.min(), 0.0)) if g.size else None,
+        frente_al_cuello=bool(cuello.mean() >= 0.3),
+    )
+
+
+def resumir_stent(secs: list[Seccion], ruido_mm: float) -> ResumenStent | None:
+    con = [i for i, s in enumerate(secs) if s.stent is not None]
+    if not con:
+        return None
+    arcs = np.array([s.arc_mm for s in secs])
+
+    def largo(i: int) -> float:              # lo que representa cada sección a lo largo de la línea
+        a = arcs[max(i - 1, 0)]; b = arcs[min(i + 1, len(arcs) - 1)]
+        return float(b - a) / (2.0 if 0 < i < len(arcs) - 1 else 1.0)
+
+    desde, hasta = float(arcs[con[0]]), float(arcs[con[-1]])
+    # Frente al cuello o dentro de la lesión (saco) no hay pared que tocar: no
+    # es mala aposición. En case 3 la línea acaba dentro del saco y sin esto el
+    # stent salía «separado» 22 mm y con el anclaje distal en el aneurisma.
+    sin_pared = {i for i in con if secs[i].stent.frente_al_cuello or secs[i].en_lesion}
+    con_pared = [i for i in con if i not in sin_pared]
+    separado = comprimido = 0.0
+    cuello = sum(largo(i) for i in sin_pared)
+    smax = prox = dist = 0.0
+    if con_pared:
+        a0, a1 = float(arcs[con_pared[0]]), float(arcs[con_pared[-1]])
+        for i in con_pared:
+            st = secs[i].stent
+            sep, comp = st.separacion_max_mm or 0.0, st.compresion_max_mm or 0.0
+            if sep > ruido_mm:
+                separado += largo(i)
+            if comp > ruido_mm:
+                comprimido += largo(i)
+            smax = max(smax, sep)
+            if arcs[i] - a0 <= ANCLAJE_MM:
+                prox = max(prox, sep)
+            if a1 - arcs[i] <= ANCLAJE_MM:
+                dist = max(dist, sep)
+    return ResumenStent(desde_mm=desde, hasta_mm=hasta, ruido_mm=ruido_mm, separado_mm=separado,
+                        separacion_max_mm=smax, comprimido_mm=comprimido, cuello_mm=cuello,
+                        anclaje_prox_mm=prox, anclaje_dist_mm=dist)
 
 
 def medir_seccion(poly: vtk.vtkPolyData, o, t, u, v, arc_mm: float) -> Seccion:
@@ -379,7 +498,8 @@ def resumir(secs: list[Seccion]) -> Resumen | None:
 
 def calcular_pullback(puntos: np.ndarray, radios: np.ndarray, arco: np.ndarray,
                       vaso: vtk.vtkPolyData, vol: np.ndarray, espaciado,
-                      lesion: vtk.vtkPolyData | None = None) -> Pullback:
+                      lesion: vtk.vtkPolyData | None = None,
+                      stent: vtk.vtkPolyData | None = None) -> Pullback:
     p = np.asarray(puntos, dtype=np.float64)
     if len(p) < 3:
         raise ValueError("La línea central es demasiado corta para el IVUS virtual.")
@@ -391,8 +511,15 @@ def calcular_pullback(puntos: np.ndarray, radios: np.ndarray, arco: np.ndarray,
     for i in range(len(p)):
         s = medir_seccion(vaso, p[i], t[i], u[i], v[i], float(arco[i]))
         s.en_lesion = bool(lesion_pt[i])
+        if stent is not None and stent.GetNumberOfPoints():
+            s.stent = medir_stent(stent, p[i], t[i], u[i], v[i])
         secs.append(s)
     marcar_ramas(secs)
     resumen = resumir(secs)
     nota = "" if resumen else "No hay secciones suficientes fuera de la lesión para medir el área mínima."
-    return Pullback(pila=pila, fov_mm=fov, ventana=ventana, secciones=secs, resumen=resumen, nota=nota)
+    # El ruido de la aposición es el del mapa 3D: un vóxel (o 0,3 mm si no se sabe).
+    from services.apposition import DEFAULT_NOISE_MM
+    vox = [float(x) for x in espaciado if float(x) > 0]
+    ruido = min(vox) if vox else DEFAULT_NOISE_MM
+    return Pullback(pila=pila, fov_mm=fov, ventana=ventana, secciones=secs, resumen=resumen, nota=nota,
+                    stent=resumir_stent(secs, ruido))

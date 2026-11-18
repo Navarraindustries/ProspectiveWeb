@@ -216,6 +216,32 @@ export interface IvusSection {
   angle_max_deg?: number | null;
   centroid?: number[] | null;
   contour?: number[][];
+  /** El stent desplegado por la línea, si pasa por esta sección. */
+  stent?: IvusSectionStent | null;
+}
+
+/** El stent en una sección, con la aposición del mapa 3D. */
+export interface IvusSectionStent {
+  contour: number[][];
+  /** Por punto del contorno: + separado de la pared, − comprimido; null frente al cuello (sin pared). */
+  apposition_mm: (number | null)[];
+  max_gap_mm?: number | null;
+  max_compression_mm?: number | null;
+  at_neck?: boolean;
+}
+
+/** La aposición a lo largo del stent desplegado. */
+export interface IvusStentSummary {
+  from_arc_mm: number;
+  to_arc_mm: number;
+  /** Por debajo (un vóxel) una separación no se distingue. */
+  noise_mm: number;
+  gap_length_mm: number;
+  max_gap_mm: number;
+  compressed_length_mm: number;
+  neck_length_mm: number;
+  proximal_gap_mm: number;
+  distal_gap_mm: number;
 }
 
 /** Área luminal mínima y referencias proximal y distal (convenciones de IVUS). */
@@ -244,6 +270,7 @@ export interface IvusResult {
   sections: IvusSection[];
   summary?: IvusSummary | null;
   note?: string;
+  stent?: IvusStentSummary | null;
 }
 
 export interface CrossSectionRequest {

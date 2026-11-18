@@ -2301,7 +2301,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
             onIvus={sessionId ? () => setIvusVisible((v) => !v) : undefined} ivusVisible={ivusVisible} />
         )}
         {!compact && isMesh && recorrido && centerline && sessionId && ivusVisible && (
-          <HudIvus sessionId={sessionId} claveLinea={claveDeLinea(centerline)} progreso={progresoRecorrido}
+          <HudIvus sessionId={sessionId} claveLinea={`${claveDeLinea(centerline)}|${deviceMeshes.stent ?? ""}`} progreso={progresoRecorrido}
             onIrA={(mm) => { camaraRecorrido.current?.irARecorrido(mm); setRecorrido({ estado: "pausa" }); }}
             onCerrar={() => setIvusVisible(false)} />
         )}

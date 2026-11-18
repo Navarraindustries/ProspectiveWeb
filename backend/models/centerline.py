@@ -209,6 +209,31 @@ class FdSizingResult(BaseModel):
 
 # ── IVUS virtual (VINI 3D) ────────────────────────────────────────────────── #
 
+class IvusSectionStent(BaseModel):
+    """El stent desplegado en una sección, con la aposición del mapa 3D (services/apposition.py)."""
+
+    contour: list[list[float]] = Field(..., description="Stent contour (u, v) in mm, closed")
+    apposition_mm: list[float | None] = Field(
+        ..., description="Per contour point: + gap to the wall, − compressed; null in front of the neck (no wall)")
+    max_gap_mm: float | None = None
+    max_compression_mm: float | None = None
+    at_neck: bool = Field(False, description="Most of the contour is in front of the aneurysm neck")
+
+
+class IvusStentSummary(BaseModel):
+    """Apposition along the deployed stent, section by section."""
+
+    from_arc_mm: float
+    to_arc_mm: float
+    noise_mm: float = Field(..., description="A gap below this (one voxel) cannot be told apart")
+    gap_length_mm: float = Field(..., description="Stent length with some gap above the noise")
+    max_gap_mm: float
+    compressed_length_mm: float
+    neck_length_mm: float = Field(..., description="Length with no wall: in front of the neck or inside the lesion (not malapposition)")
+    proximal_gap_mm: float = Field(..., description="Largest gap in the first 3 mm with wall (landing zone)")
+    distal_gap_mm: float = Field(..., description="Largest gap in the last 3 mm with wall")
+
+
 class IvusSection(BaseModel):
     """Una sección del pullback virtual, perpendicular a la línea central."""
 
@@ -226,6 +251,7 @@ class IvusSection(BaseModel):
     angle_max_deg: float | None = None
     centroid: list[float] | None = Field(None, description="Lumen centroid (u, v) in mm, centreline at (0, 0)")
     contour: list[list[float]] = Field(default_factory=list, description="Lumen contour (u, v) in mm, closed, ~72 points")
+    stent: IvusSectionStent | None = Field(None, description="The deployed centreline stent at this section, if it passes here")
 
 
 class IvusSummary(BaseModel):
@@ -256,3 +282,4 @@ class IvusResult(BaseModel):
     sections: list[IvusSection]
     summary: IvusSummary | None = None
     note: str = ""
+    stent: IvusStentSummary | None = Field(None, description="Apposition of the deployed centreline stent, if any")

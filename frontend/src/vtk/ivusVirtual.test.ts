@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { anillosMm, bordesEnL, cuerda, mmAPx, vistaL } from "./ivusVirtual";
-import type { IvusSection } from "../api/types";
+import { anillosMm, bordesEnL, cuerda, diferenciaDispositivo, estadoAposicion, estadoDeSeccion, estadoSeccionStent, mmAPx, opcionesQueEncajan, vistaL, zonaDelPlan } from "./ivusVirtual";
+import type { FdOption, FdSizingResult, IvusSection } from "../api/types";
 
 const circulo = (r: number, cx = 0, cy = 0, n = 72) =>
   Array.from({ length: n }, (_, k) => [cx + r * Math.cos((2 * Math.PI * k) / n), cy + r * Math.sin((2 * Math.PI * k) / n)]);
@@ -57,5 +57,65 @@ describe("vista longitudinal", () => {
     const l90 = vistaL(pila, 2, S, 90);
     expect(l90[(S - 1) * 2 + 1]).toBe(100);       // abajo = −v (fila 0) en la sección 1
     expect(l90[0 * 2 + 1]).toBe(0);
+  });
+});
+
+
+describe("dispositivo en el IVUS virtual", () => {
+  it("la aposición usa el vóxel como suelo y null es el cuello", () => {
+    expect(estadoAposicion(0.6, 0.5)).toBe("separado");
+    expect(estadoAposicion(0.4, 0.5)).toBe("contacto");
+    expect(estadoAposicion(-0.7, 0.5)).toBe("comprimido");
+    expect(estadoAposicion(null, 0.5)).toBe("cuello");
+  });
+
+  it("una sección se resume con lo peor que tenga, y frente al cuello no es mala aposición", () => {
+    const st = { contour: [], apposition_mm: [], max_gap_mm: 0.8, max_compression_mm: 0.9 };
+    expect(estadoSeccionStent(st, 0.5)).toBe("separado");
+    expect(estadoSeccionStent({ ...st, max_gap_mm: 0.1 }, 0.5)).toBe("comprimido");
+    expect(estadoSeccionStent({ ...st, max_gap_mm: 0.1, max_compression_mm: 0.2 }, 0.5)).toBe("contacto");
+    expect(estadoSeccionStent({ ...st, at_neck: true }, 0.5)).toBe("cuello");
+  });
+
+  const opcion = (fits: boolean, d = 4, l = 20): FdOption => ({
+    device_id: "x", name: "FD", manufacturer: "M", diameter_mm: d, length_mm: l, fits, reason: "",
+    neck_note: "", narrow_end_note: "", deploy_arc_mm: [8, 28], elongated_length_mm: l * 1.326,
+  });
+  const fd = {
+    neck_arc_mm: [16, 20], neck_from_rim: true, total_arc_mm: 50,
+    proximal: { arc_from_mm: 11, arc_to_mm: 16, diameter_mm: 3.9, min_mm: 3.7, max_mm: 4.1, n_sections: 10, truncated: false },
+    distal: { arc_from_mm: 20, arc_to_mm: 25, diameter_mm: 3.4, min_mm: 3.2, max_mm: 3.6, n_sections: 10, truncated: false },
+    mismatch_mm: 0.5, target_diameter_mm: 4, required_length_mm: 14, multiple_devices: false,
+    options: [opcion(false), opcion(true), opcion(true, 0, 0)], warnings: [], notes: [], sources: [],
+  } as FdSizingResult;
+
+  it("solo cuentan las opciones que encajan y tienen medida", () => {
+    expect(opcionesQueEncajan(fd)).toHaveLength(1);
+    expect(opcionesQueEncajan(null)).toEqual([]);
+  });
+
+  it("cada posición cae en su parte del plan", () => {
+    const o = opcionesQueEncajan(fd)[0];
+    expect(zonaDelPlan(18, fd, o)).toBe("cuello");
+    expect(zonaDelPlan(12, fd, o)).toBe("anclaje proximal");
+    expect(zonaDelPlan(22, fd, o)).toBe("anclaje distal");
+    expect(zonaDelPlan(9, fd, o)).toBe("despliegue");
+    expect(zonaDelPlan(40, fd, o)).toBeNull();
+    expect(zonaDelPlan(9, fd, null)).toBeNull();
+  });
+
+  it("la diferencia con el vaso tiene signo y sin vaso no hay", () => {
+    expect(diferenciaDispositivo(4, 3.6)).toBeCloseTo(0.4);
+    expect(diferenciaDispositivo(3, 3.6)).toBeCloseTo(-0.6);
+    expect(diferenciaDispositivo(4, null)).toBeNull();
+  });
+});
+
+describe("stent dentro de la lesión", () => {
+  it("dentro del saco no hay pared: no cuenta como separado", () => {
+    const st = { contour: [], apposition_mm: [], max_gap_mm: 1.4, max_compression_mm: 0 };
+    expect(estadoDeSeccion({ arc_mm: 0, valid: true, stent: st }, 0.3)).toBe("separado");
+    expect(estadoDeSeccion({ arc_mm: 0, valid: true, in_lesion: true, stent: st }, 0.3)).toBe("cuello");
+    expect(estadoDeSeccion({ arc_mm: 0, valid: true }, 0.3)).toBeNull();
   });
 });

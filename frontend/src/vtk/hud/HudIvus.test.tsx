@@ -1,11 +1,14 @@
 /* IVUS virtual de VINI 3D (17-11): el panel junto al recorrido. */
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { IvusResult } from "../../api/types";
+import type { FdSizingResult, IvusResult } from "../../api/types";
 
 const ivusVirtual = vi.fn();
 const ivusStack = vi.fn();
-vi.mock("../../api/client", () => ({ api: { ivusVirtual: (...a: unknown[]) => ivusVirtual(...a), ivusStack: (...a: unknown[]) => ivusStack(...a) } }));
+const fdSizing = vi.fn();
+vi.mock("../../api/client", () => ({ api: {
+  ivusVirtual: (...a: unknown[]) => ivusVirtual(...a), ivusStack: (...a: unknown[]) => ivusStack(...a), fdSizing: (...a: unknown[]) => fdSizing(...a),
+} }));
 
 import { HudIvus, olvidarIvus } from "./HudIvus";
 import { HudRecorrido, crearProgreso } from "./HudRecorrido";
@@ -29,6 +32,7 @@ beforeEach(() => {
   olvidarIvus();
   ivusVirtual.mockReset().mockResolvedValue(datos());
   ivusStack.mockReset().mockResolvedValue(new Uint8Array(5 * 4 * 4));
+  fdSizing.mockReset().mockRejectedValue(new Error("Falta la morfometría: hace falta el cuello medido."));
 });
 
 function montar() {
@@ -94,5 +98,56 @@ describe("botón IVUS de la barra de VINI 3D", () => {
     fireEvent.click(b);
     expect(onIvus).toHaveBeenCalled();
     expect(screen.getByText("VINI 3D")).toBeInTheDocument();
+  });
+});
+
+describe("dispositivo en el panel (4 y 5)", () => {
+  const plan = (): FdSizingResult => ({
+    neck_arc_mm: [0.8, 1.2], neck_from_rim: true, total_arc_mm: 2,
+    proximal: { arc_from_mm: 0, arc_to_mm: 0.8, diameter_mm: 3.9, min_mm: 3.7, max_mm: 4.1, n_sections: 2, truncated: false },
+    distal: { arc_from_mm: 1.2, arc_to_mm: 2, diameter_mm: 3.4, min_mm: 3.2, max_mm: 3.6, n_sections: 2, truncated: false },
+    mismatch_mm: 0.5, target_diameter_mm: 4, required_length_mm: 14, multiple_devices: false,
+    options: [
+      { device_id: "a", name: "FRED", manufacturer: "M", diameter_mm: 4, length_mm: 20, fits: true, reason: "", neck_note: "", narrow_end_note: "", deploy_arc_mm: [0, 2], elongated_length_mm: 26.5 },
+      { device_id: "b", name: "Pipeline", manufacturer: "M", diameter_mm: 4.25, length_mm: 18, fits: true, reason: "", neck_note: "", narrow_end_note: "", deploy_arc_mm: [0, 2], elongated_length_mm: 23.9 },
+    ],
+    warnings: [], notes: [], sources: [],
+  });
+
+  it("sin morfometría dice lo que falta para el plan", async () => {
+    montar();
+    expect(await screen.findByText(/Plan del flow diverter: Falta la morfometría/)).toBeInTheDocument();
+  });
+
+  it("con el plan: anclajes, la opción elegida y su Ø frente al vaso donde va el recorrido", async () => {
+    fdSizing.mockResolvedValue(plan());
+    const p = montar();
+    expect(await screen.findByText("PLAN DE FLOW DIVERTER")).toBeInTheDocument();
+    expect(screen.getByText(/Anclajes Ø 3,90 · 3,40 mm · cuello 0,4 mm/)).toBeInTheDocument();
+    expect(screen.getByText(/Aquí \(anclaje proximal\): Ø 4,00 frente a vaso 3,00 mm \(\+1,0\)/)).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "Dispositivo del catálogo" }), { target: { value: "1" } });
+    expect(screen.getByText(/Ø 4,25 frente a vaso/)).toBeInTheDocument();
+    act(() => p.progreso.poner(1.0));
+    expect(screen.getByText(/Aquí \(cuello\)/)).toBeInTheDocument();
+    expect(fdSizing).toHaveBeenCalledTimes(1);
+  });
+
+  it("con un stent desplegado enseña su aposición y no pide el plan", async () => {
+    const d = datos();
+    d.stent = { from_arc_mm: 0.5, to_arc_mm: 2, noise_mm: 0.3, gap_length_mm: 0.5, max_gap_mm: 0.62, compressed_length_mm: 1, neck_length_mm: 0, proximal_gap_mm: 0.62, distal_gap_mm: 0 };
+    d.sections[1].stent = { contour: circulo(1.8), apposition_mm: Array(72).fill(0.62), max_gap_mm: 0.62, max_compression_mm: 0, at_neck: false };
+    d.sections[2].stent = { contour: circulo(1.8), apposition_mm: Array(72).fill(-0.8), max_gap_mm: 0, max_compression_mm: 0.8, at_neck: false };
+    ivusVirtual.mockResolvedValue(d);
+    const p = montar();
+    expect(await screen.findByText("STENT DESPLEGADO")).toBeInTheDocument();
+    expect(screen.getByText(/Aquí no hay stent: va de 0,5 a 2,0 mm/)).toBeInTheDocument();
+    act(() => p.progreso.poner(0.5));
+    expect(screen.getByText("Aquí: separado 0,62 mm de la pared.")).toBeInTheDocument();
+    act(() => p.progreso.poner(1.0));
+    expect(screen.getByText(/Aquí: comprimido 0,80 mm/)).toBeInTheDocument();
+    expect(screen.getByText(/Anclajes: prox. 0,62 · dist. 0,00 mm/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ir al anclaje proximal" }));
+    expect(p.onIrA).toHaveBeenCalledWith(0.5);
+    expect(fdSizing).not.toHaveBeenCalled();
   });
 });

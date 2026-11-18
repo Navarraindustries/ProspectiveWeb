@@ -6124,6 +6124,8 @@ export interface components {
              * @description Raw uint8 stack, n_sections × size_px × size_px, row = v, column = u
              */
             stack_url: string;
+            /** @description Apposition of the deployed centreline stent, if any */
+            stent?: components["schemas"]["IvusStentSummary"] | null;
             summary?: components["schemas"]["IvusSummary"] | null;
             /**
              * Window
@@ -6194,11 +6196,78 @@ export interface components {
             in_lesion: boolean;
             /** Perimeter Mm */
             perimeter_mm?: number | null;
+            /** @description The deployed centreline stent at this section, if it passes here */
+            stent?: components["schemas"]["IvusSectionStent"] | null;
             /**
              * Valid
              * @description A closed lumen contour surrounds the centreline here (measures present)
              */
             valid: boolean;
+        };
+        /**
+         * IvusSectionStent
+         * @description El stent desplegado en una sección, con la aposición del mapa 3D (services/apposition.py).
+         */
+        IvusSectionStent: {
+            /**
+             * Apposition Mm
+             * @description Per contour point: + gap to the wall, − compressed; null in front of the neck (no wall)
+             */
+            apposition_mm: (number | null)[];
+            /**
+             * At Neck
+             * @description Most of the contour is in front of the aneurysm neck
+             * @default false
+             */
+            at_neck: boolean;
+            /**
+             * Contour
+             * @description Stent contour (u, v) in mm, closed
+             */
+            contour: number[][];
+            /** Max Compression Mm */
+            max_compression_mm?: number | null;
+            /** Max Gap Mm */
+            max_gap_mm?: number | null;
+        };
+        /**
+         * IvusStentSummary
+         * @description Apposition along the deployed stent, section by section.
+         */
+        IvusStentSummary: {
+            /** Compressed Length Mm */
+            compressed_length_mm: number;
+            /**
+             * Distal Gap Mm
+             * @description Largest gap in the last 3 mm with wall
+             */
+            distal_gap_mm: number;
+            /** From Arc Mm */
+            from_arc_mm: number;
+            /**
+             * Gap Length Mm
+             * @description Stent length with some gap above the noise
+             */
+            gap_length_mm: number;
+            /** Max Gap Mm */
+            max_gap_mm: number;
+            /**
+             * Neck Length Mm
+             * @description Length with no wall: in front of the neck or inside the lesion (not malapposition)
+             */
+            neck_length_mm: number;
+            /**
+             * Noise Mm
+             * @description A gap below this (one voxel) cannot be told apart
+             */
+            noise_mm: number;
+            /**
+             * Proximal Gap Mm
+             * @description Largest gap in the first 3 mm with wall (landing zone)
+             */
+            proximal_gap_mm: number;
+            /** To Arc Mm */
+            to_arc_mm: number;
         };
         /**
          * IvusSummary

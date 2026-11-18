@@ -1,10 +1,22 @@
 /* Pintado del IVUS virtual en canvas: el corte transversal circular y la vista
    longitudinal. Los colores salen de los tokens del HUD (nada de literales, ver
    UNI-83) y la geometría de ../ivusVirtual. */
-import type { IvusResult } from "../../api/types";
-import { anillosMm, bordesEnL, cuerda, mmAPx, vistaL } from "../ivusVirtual";
+import type { FdOption, FdSizingResult, IvusResult } from "../../api/types";
+import {
+  anillosMm, bordesEnL, cuerda, estadoAposicion, estadoDeSeccion, mmAPx, vistaL, type EstadoAposicion,
+} from "../ivusVirtual";
 
 export interface ColoresIvus { texto: string; tenue: string; ambar: string; rojo: string; plano: string; fuente: string }
+
+/** Lo del dispositivo que se pinta encima: el plan del flow diverter (sin
+ *  stent desplegado) y la opción elegida del catálogo. */
+export interface CapaDispositivo { fd: FdSizingResult | null; opcion: FdOption | null }
+
+/** Color de cada estado de aposición, el mismo criterio que el mapa 3D
+ *  (rojo separado de la pared, azul comprimido). */
+export function colorAposicion(e: EstadoAposicion, col: ColoresIvus): string {
+  return e === "separado" ? col.rojo : e === "comprimido" ? col.texto : e === "cuello" ? col.tenue : col.plano;
+}
 
 export function coloresDe(el: Element): ColoresIvus {
   const cs = getComputedStyle(el);
@@ -42,7 +54,8 @@ function grisALienzo(gris: Uint8Array, ancho: number, alto: number): HTMLCanvasE
   return c;
 }
 
-export function pintarCorte(cv: HTMLCanvasElement, d: IvusResult, pila: Uint8Array, i: number, anguloL: number, col: ColoresIvus): void {
+export function pintarCorte(cv: HTMLCanvasElement, d: IvusResult, pila: Uint8Array, i: number, anguloL: number, col: ColoresIvus,
+  disp: CapaDispositivo = { fd: null, opcion: null }): void {
   const p = preparar(cv); if (!p) return;
   const { ctx, w } = p;
   const S = d.size_px, lado = w, r = lado / 2, s = d.sections[i];
@@ -55,9 +68,9 @@ export function pintarCorte(cv: HTMLCanvasElement, d: IvusResult, pila: Uint8Arr
   // Anillos de escala.
   ctx.strokeStyle = col.tenue; ctx.lineWidth = 1; ctx.setLineDash([2, 3]);
   for (const mm of anillosMm(d.fov_mm)) { ctx.beginPath(); ctx.arc(r, r, mm * mmPx, 0, 2 * Math.PI); ctx.stroke(); }
-  // Recta de la vista longitudinal.
+  // Recta de la vista longitudinal (una guía: tenue, para que el dispositivo se lea encima).
   const a = (anguloL * Math.PI) / 180;
-  ctx.strokeStyle = col.plano; ctx.setLineDash([5, 4]);
+  ctx.strokeStyle = col.tenue; ctx.setLineDash([5, 4]);
   ctx.beginPath(); ctx.moveTo(r + r * Math.cos(a), r + r * Math.sin(a)); ctx.lineTo(r - r * Math.cos(a), r - r * Math.sin(a)); ctx.stroke();
   ctx.setLineDash([]);
   // Contorno de la luz.
@@ -75,6 +88,30 @@ export function pintarCorte(cv: HTMLCanvasElement, d: IvusResult, pila: Uint8Arr
     ctx.strokeStyle = color; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
     for (const [x, y] of [p0, p1]) { ctx.beginPath(); ctx.arc(x, y, 2, 0, 2 * Math.PI); ctx.fillStyle = color; ctx.fill(); }
+  }
+  // El stent desplegado, tramo a tramo con el color de su aposición; si no lo
+  // hay y la sección cae en el despliegue del plan, el círculo nominal de la
+  // opción elegida sobre el centroide de la luz.
+  const ruido = d.stent?.noise_mm ?? 0;
+  if (s.stent && s.stent.contour.length > 2) {
+    const q = s.stent.contour, ap = s.stent.apposition_mm;
+    ctx.lineWidth = 2.5;
+    for (let k = 0; k < q.length; k++) {
+      const e = s.in_lesion ? "cuello" : estadoAposicion(ap[k], ruido);
+      const [x0, y0] = aPx(q[k][0], q[k][1]), [x1, y1] = aPx(q[(k + 1) % q.length][0], q[(k + 1) % q.length][1]);
+      ctx.strokeStyle = colorAposicion(e, col);
+      ctx.setLineDash(e === "cuello" ? [2, 3] : []);
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  } else if (disp.fd && disp.opcion) {
+    const [p0, p1] = disp.opcion.deploy_arc_mm;
+    if (s.arc_mm >= Math.min(p0, p1) && s.arc_mm <= Math.max(p0, p1)) {
+      const [cx, cy] = aPx(s.centroid?.[0] ?? 0, s.centroid?.[1] ?? 0);
+      ctx.strokeStyle = col.plano; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.arc(cx, cy, (disp.opcion.diameter_mm / 2) * mmPx, 0, 2 * Math.PI); ctx.stroke();
+      ctx.setLineDash([]);
+    }
   }
   // La línea central (el «catéter»).
   ctx.strokeStyle = col.tenue; ctx.lineWidth = 1;
@@ -94,7 +131,8 @@ export function pintarCorte(cv: HTMLCanvasElement, d: IvusResult, pila: Uint8Arr
 export const columnaDe = (i: number, n: number, w: number) => (n > 1 ? (i / (n - 1)) * w : w / 2);
 export const seccionDe = (x: number, n: number, w: number) => Math.min(n - 1, Math.max(0, Math.round((x / w) * (n - 1))));
 
-export function pintarL(cv: HTMLCanvasElement, d: IvusResult, pila: Uint8Array, i: number, anguloL: number, col: ColoresIvus): void {
+export function pintarL(cv: HTMLCanvasElement, d: IvusResult, pila: Uint8Array, i: number, anguloL: number, col: ColoresIvus,
+  disp: CapaDispositivo = { fd: null, opcion: null }): void {
   const p = preparar(cv); if (!p) return;
   const { ctx, w, h } = p;
   const n = d.n_sections, S = d.size_px;
@@ -121,6 +159,44 @@ export function pintarL(cv: HTMLCanvasElement, d: IvusResult, pila: Uint8Array, 
       if (abierto) ctx.lineTo(x, y); else { ctx.moveTo(x, y); abierto = true; }
     });
     ctx.stroke();
+  }
+  // El stent desplegado: sus bordes sobre la recta y, abajo, una franja con
+  // la aposición de cada sección.
+  if (d.stent) {
+    const ruido = d.stent.noise_mm;
+    for (const lado of [0, 1] as const) {
+      ctx.strokeStyle = col.plano; ctx.lineWidth = 1; ctx.setLineDash([3, 2]); ctx.beginPath();
+      let abierto = false;
+      d.sections.forEach((s, k) => {
+        const b = s.stent ? bordesEnL(s.stent.contour, anguloL) : null;
+        if (!b) { abierto = false; return; }
+        const x = columnaDe(k, n, w), y = yDe(lado === 0 ? b[0] : -b[1]);
+        if (abierto) ctx.lineTo(x, y); else { ctx.moveTo(x, y); abierto = true; }
+      });
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    d.sections.forEach((s, k) => {
+      if (!s.stent) return;
+      ctx.fillStyle = colorAposicion(estadoDeSeccion(s, ruido) ?? "contacto", col);
+      ctx.fillRect(columnaDe(k, n, w) - anchoCol / 2, h - 4, anchoCol + 0.5, 4);
+    });
+  } else if (disp.fd) {
+    // Sin stent, el plan: arriba el cuello (ámbar) y los anclajes (tenues);
+    // debajo, el despliegue de la opción elegida.
+    const xDe = (mm: number) => {
+      let k = 0;
+      while (k < n - 1 && d.sections[k + 1].arc_mm <= mm) k++;
+      return columnaDe(k, n, w);
+    };
+    const franja = (a: number, b: number, color: string, y: number, alto: number) => {
+      const x0 = xDe(Math.min(a, b)), x1 = xDe(Math.max(a, b));
+      ctx.fillStyle = color; ctx.fillRect(x0, y, Math.max(1, x1 - x0), alto);
+    };
+    const { fd, opcion } = disp;
+    franja(fd.proximal.arc_from_mm, fd.proximal.arc_to_mm, col.tenue, 0, 3);
+    franja(fd.distal.arc_from_mm, fd.distal.arc_to_mm, col.tenue, 0, 3);
+    franja(fd.neck_arc_mm[0], fd.neck_arc_mm[1], col.ambar, 0, 4);
+    if (opcion) franja(opcion.deploy_arc_mm[0], opcion.deploy_arc_mm[1], col.plano, h - 4, 4);
   }
   // Área mínima y referencias.
   const sm = d.summary;

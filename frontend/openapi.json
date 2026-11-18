@@ -4779,6 +4779,17 @@
       "title": "Stack Url",
       "type": "string"
      },
+     "stent": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/IvusStentSummary"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Apposition of the deployed centreline stent, if any"
+     },
      "summary": {
       "anyOf": [
        {
@@ -4948,6 +4959,17 @@
       ],
       "title": "Perimeter Mm"
      },
+     "stent": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/IvusSectionStent"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The deployed centreline stent at this section, if it passes here"
+     },
      "valid": {
       "description": "A closed lumen contour surrounds the centreline here (measures present)",
       "title": "Valid",
@@ -4959,6 +4981,130 @@
      "valid"
     ],
     "title": "IvusSection",
+    "type": "object"
+   },
+   "IvusSectionStent": {
+    "description": "El stent desplegado en una sección, con la aposición del mapa 3D (services/apposition.py).",
+    "properties": {
+     "apposition_mm": {
+      "description": "Per contour point: + gap to the wall, − compressed; null in front of the neck (no wall)",
+      "items": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "title": "Apposition Mm",
+      "type": "array"
+     },
+     "at_neck": {
+      "default": false,
+      "description": "Most of the contour is in front of the aneurysm neck",
+      "title": "At Neck",
+      "type": "boolean"
+     },
+     "contour": {
+      "description": "Stent contour (u, v) in mm, closed",
+      "items": {
+       "items": {
+        "type": "number"
+       },
+       "type": "array"
+      },
+      "title": "Contour",
+      "type": "array"
+     },
+     "max_compression_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Max Compression Mm"
+     },
+     "max_gap_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Max Gap Mm"
+     }
+    },
+    "required": [
+     "contour",
+     "apposition_mm"
+    ],
+    "title": "IvusSectionStent",
+    "type": "object"
+   },
+   "IvusStentSummary": {
+    "description": "Apposition along the deployed stent, section by section.",
+    "properties": {
+     "compressed_length_mm": {
+      "title": "Compressed Length Mm",
+      "type": "number"
+     },
+     "distal_gap_mm": {
+      "description": "Largest gap in the last 3 mm with wall",
+      "title": "Distal Gap Mm",
+      "type": "number"
+     },
+     "from_arc_mm": {
+      "title": "From Arc Mm",
+      "type": "number"
+     },
+     "gap_length_mm": {
+      "description": "Stent length with some gap above the noise",
+      "title": "Gap Length Mm",
+      "type": "number"
+     },
+     "max_gap_mm": {
+      "title": "Max Gap Mm",
+      "type": "number"
+     },
+     "neck_length_mm": {
+      "description": "Length with no wall: in front of the neck or inside the lesion (not malapposition)",
+      "title": "Neck Length Mm",
+      "type": "number"
+     },
+     "noise_mm": {
+      "description": "A gap below this (one voxel) cannot be told apart",
+      "title": "Noise Mm",
+      "type": "number"
+     },
+     "proximal_gap_mm": {
+      "description": "Largest gap in the first 3 mm with wall (landing zone)",
+      "title": "Proximal Gap Mm",
+      "type": "number"
+     },
+     "to_arc_mm": {
+      "title": "To Arc Mm",
+      "type": "number"
+     }
+    },
+    "required": [
+     "from_arc_mm",
+     "to_arc_mm",
+     "noise_mm",
+     "gap_length_mm",
+     "max_gap_mm",
+     "compressed_length_mm",
+     "neck_length_mm",
+     "proximal_gap_mm",
+     "distal_gap_mm"
+    ],
+    "title": "IvusStentSummary",
     "type": "object"
    },
    "IvusSummary": {

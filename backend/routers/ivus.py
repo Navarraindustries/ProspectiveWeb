@@ -22,6 +22,7 @@ router = APIRouter(prefix="/api", tags=["centerline"])
 
 PILA = "ivus_pullback.u8"
 DATOS = "ivus_pullback.json"
+STENT = "cl_stent.vtp"
 
 
 def _clave(rutas) -> str:
@@ -44,7 +45,8 @@ def _calcular(session_id: str, meshes_dir, lesion_path) -> dict:
     arco = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(pts, axis=0), axis=1))])
     meta = ensure_volume_cached(session_id)
     pb = calcular_pullback(pts, radios, arco, read_vtp(meshes_dir / "vessel_tree.vtp"), _get_volume(session_id),
-                           meta["spacing"], read_vtp(lesion_path) if lesion_path else None)
+                           meta["spacing"], read_vtp(lesion_path) if lesion_path else None,
+                           read_vtp(meshes_dir / STENT) if (meshes_dir / STENT).exists() else None)
     (meshes_dir / PILA).write_bytes(np.ascontiguousarray(pb.pila).tobytes())
     return serializar(pb)
 
@@ -60,6 +62,11 @@ def serializar(pb) -> dict:
         "angle_min_deg": _r(s.angulo_min_deg, 1), "angle_max_deg": _r(s.angulo_max_deg, 1),
         "centroid": [round(c, 3) for c in s.centroide] if s.centroide else None,
         "contour": [[a, b] for a, b in s.contorno],
+        "stent": None if s.stent is None else {
+            "contour": [[a, b] for a, b in s.stent.contorno], "apposition_mm": s.stent.aposicion,
+            "max_gap_mm": _r(s.stent.separacion_max_mm), "max_compression_mm": _r(s.stent.compresion_max_mm),
+            "at_neck": s.stent.frente_al_cuello,
+        },
     } for s in pb.secciones]
     r = pb.resumen
     resumen = None if r is None else {
@@ -72,6 +79,12 @@ def serializar(pb) -> dict:
     return {
         "n_sections": len(secciones), "size_px": TAMANO_PX, "fov_mm": round(pb.fov_mm, 3),
         "window": [round(v, 2) for v in pb.ventana], "sections": secciones, "summary": resumen, "note": pb.nota,
+        "stent": None if pb.stent is None else {
+            "from_arc_mm": _r(pb.stent.desde_mm, 2), "to_arc_mm": _r(pb.stent.hasta_mm, 2), "noise_mm": _r(pb.stent.ruido_mm),
+            "gap_length_mm": _r(pb.stent.separado_mm, 1), "max_gap_mm": _r(pb.stent.separacion_max_mm),
+            "compressed_length_mm": _r(pb.stent.comprimido_mm, 1), "neck_length_mm": _r(pb.stent.cuello_mm, 1),
+            "proximal_gap_mm": _r(pb.stent.anclaje_prox_mm), "distal_gap_mm": _r(pb.stent.anclaje_dist_mm),
+        },
     }
 
 
@@ -104,7 +117,8 @@ async def ivus_virtual(
         raise HTTPException(status_code=409, detail="No hay malla vascular. Ejecuta la segmentación primero.")
     from routers.centerline import _lesion_mesh
     lesion = _lesion_mesh(session_id, meshes_dir)
-    entradas = [puntos, vaso, lesion, meshes_dir / "_volume.npy"]
+    # El stent guiado por la línea entra en la clave: desplegarlo o moverlo rehace el pullback.
+    entradas = [puntos, vaso, lesion, meshes_dir / "_volume.npy", meshes_dir / STENT]
 
     datos_path, pila_path = meshes_dir / DATOS, meshes_dir / PILA
     datos = None

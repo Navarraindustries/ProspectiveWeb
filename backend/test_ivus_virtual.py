@@ -219,3 +219,76 @@ def test_api_sin_linea_central_409_y_borrar_la_linea_borra_el_pullback():
 def test_api_sin_usuario_401():
     sid = _sesion()
     assert anonymous_client(app).post(f"/api/centerline/{sid}/ivus").status_code == 401
+
+
+# ── Stent desplegado: aposición sección a sección (4 y 5) ─────────────── #
+
+def radio_con_bulto(z):
+    """El tubo de antes con, además, una dilatación a 2,5 mm en z = 30."""
+    return radio(z) + 1.0 * np.exp(-((np.asarray(z) - 30.0) / 1.2) ** 2)
+
+
+def _stent_con_aposicion(vaso, cuello=None):
+    from services.apposition import annotate
+    from services.stent_deployment import deploy_stent_on_centerline
+    pts, radios, _ = _linea()
+    r = deploy_stent_on_centerline(pts, radios, stent_diameter_mm=3.6, start_arc_mm=10.0, end_arc_mm=32.0, braid=False)
+    annotate(r.stent_poly_data, vaso, r.centerline_segment,
+             neck_center=cuello, neck_mm=2.0 if cuello is not None else 0.0, voxel_mm=ESP)
+    return r.stent_poly_data
+
+
+def test_el_stent_desplegado_sale_en_cada_seccion_con_su_aposicion():
+    vaso = _tubo(r=radio_con_bulto)
+    pts, radios, arco = _linea()
+    pb = calcular_pullback(pts, radios, arco, vaso, _volumen(), (ESP, ESP, ESP), stent=_stent_con_aposicion(vaso))
+    por_z = dict(zip(np.round(pts[:, 2], 1), pb.secciones))
+    # Solo donde está desplegado (arco 10–32 mm → z 15–37).
+    assert por_z[12.0].stent is None and por_z[39.0].stent is None
+    assert por_z[20.0].stent is not None and len(por_z[20.0].stent.contorno) == 72
+    # En el estrechamiento (r = 1,0) el nominal de 1,8 queda comprimido ~0,8 mm.
+    angosto = por_z[22.0].stent
+    assert abs(angosto.compresion_max_mm - 0.8) < 0.15 and angosto.separacion_max_mm < 0.15
+    # En la dilatación (r = 2,5) queda separado ~0,7 mm de la pared (el ruido es un vóxel, 0,5).
+    ancho = por_z[30.0].stent
+    assert abs(ancho.separacion_max_mm - 0.7) < 0.15
+    st = pb.stent
+    assert abs(st.desde_mm - 10.0) <= 0.5 and abs(st.hasta_mm - 32.0) <= 0.5
+    assert st.ruido_mm == ESP
+    # Más que un vóxel solo en el pico de la dilatación; comprimido a lo largo del estrechamiento.
+    assert 0.4 <= st.separado_mm < 4.0 and st.comprimido_mm > 1.0
+    assert st.separacion_max_mm > 0.55 and st.anclaje_prox_mm < ESP
+
+
+def test_delante_del_cuello_no_hay_pared_y_no_cuenta_como_separado():
+    vaso = _tubo(r=radio_con_bulto)
+    pts, radios, arco = _linea()
+    cuello = (EJE[0] + 1.5, EJE[1], 25.0)
+    pb = calcular_pullback(pts, radios, arco, vaso, _volumen(), (ESP, ESP, ESP), stent=_stent_con_aposicion(vaso, cuello))
+    s = dict(zip(np.round(pts[:, 2], 1), pb.secciones))[25.0].stent
+    assert any(a is None for a in s.aposicion) and any(a is not None for a in s.aposicion)
+
+
+def test_api_incluye_el_stent_y_desplegarlo_rehace_el_pullback():
+    sid = _sesion()
+    m = session_subdir(sid, "meshes")
+    sin = client.post(f"/api/centerline/{sid}/ivus").json()
+    assert sin["stent"] is None and all(s["stent"] is None for s in sin["sections"])
+    write_vtp(_stent_con_aposicion(_tubo()), m / "cl_stent.vtp")
+    con = client.post(f"/api/centerline/{sid}/ivus").json()
+    assert con["stent"] is not None and con["stent"]["noise_mm"] == ESP
+    dentro = [s for s in con["sections"] if s["stent"]]
+    assert dentro and len(dentro[0]["stent"]["apposition_mm"]) == 72
+
+
+def test_dentro_de_la_lesion_el_stent_no_cuenta_como_separado_ni_como_anclaje():
+    from services.ivus_virtual import ResumenStent, SeccionStent, resumir_stent
+    secs = _secs([5.0] * 20)
+    for i, s in enumerate(secs):
+        s.stent = SeccionStent(contorno=[], aposicion=[], separacion_max_mm=1.5 if i >= 14 else 0.0,
+                               compresion_max_mm=0.0, frente_al_cuello=False)
+        s.en_lesion = i >= 14                      # el final de la línea, dentro del saco
+    r: ResumenStent = resumir_stent(secs, 0.3)
+    assert r.separado_mm == 0.0 and r.separacion_max_mm == 0.0
+    assert r.anclaje_dist_mm == 0.0 and r.cuello_mm > 2.5
+    assert r.hasta_mm == secs[-1].arc_mm           # el tramo dibujado sigue siendo el del stent

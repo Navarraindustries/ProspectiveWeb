@@ -255,6 +255,14 @@ export interface MeshLine {
   beads?: boolean;
 }
 
+/** Una polilínea de grosor constante (la línea central): un solo tubo que
+ *  sigue todos los puntos, sin perlas ni juntas entre tramos. */
+export interface MeshTrazo {
+  points: Vec3[];
+  color: Vector3;
+  radiusMm: number;
+}
+
 /** Rótulo en pantalla anclado a un punto de la escena (mm). */
 export interface MeshLabel { pos: Vec3; text: string; color: string }
 
@@ -402,6 +410,7 @@ export function MeshView({
   layers,
   markers = [],
   focus = null,
+  trazo = null,
   planes = [],
   lines = [],
   labels = NO_LABELS,
@@ -433,6 +442,8 @@ export function MeshView({
   /** El punto compartido de los cortes, visible siempre encima de la malla. */
   focus?: MeshFocus | null;
   lines?: MeshLine[];
+  /** La línea central como trazo fino de grosor fijo (no seleccionable). */
+  trazo?: MeshTrazo | null;
   /** Rótulos de las anotaciones: texto HTML/SVG encima del lienzo, no actores,
    *  para que se lean igual a cualquier zoom. Se recolocan con cada cambio de cámara. */
   labels?: MeshLabel[];
@@ -518,6 +529,7 @@ export function MeshView({
   // Set once the geometry is on screen; markers re-render at the new size.
   const [sceneDiagonal, setSceneDiagonal] = useState(0);
   const markerActors = useRef<vtkActor[]>([]);
+  const trazoActor = useRef<vtkActor | null>(null);
   const planeActors = useRef<vtkActor[]>([]);
   // Los tres cortes del modo «Cortes 3D», con el volumen para el que se crearon.
   const sliceActors = useRef<{ image: vtkImageData; items: SliceActor[] } | null>(null);
@@ -1799,6 +1811,35 @@ export function MeshView({
     h.renderWindow.render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, markerKey, lineKey, sceneDiagonal, referenceDiameterMm]);
+
+  // ── Trazo de la línea central: un único tubo de radio fijo ─────────── #
+  useEffect(() => {
+    const h = handles.current;
+    if (!h) return;
+    if (trazoActor.current) { h.renderer.removeActor(trazoActor.current); trazoActor.current = null; }
+    if (trazo && trazo.points.length >= 2) {
+      const pd = vtkPolyData.newInstance();
+      pd.getPoints().setData(Float32Array.from(trazo.points.flat()), 3);
+      const n = trazo.points.length;
+      const cell = new Uint32Array(n + 1);
+      cell[0] = n;
+      for (let i = 0; i < n; i++) cell[i + 1] = i;
+      pd.getLines().setData(cell);
+      const tube = vtkTubeFilter.newInstance({ radius: trazo.radiusMm, numberOfSides: 12, capping: true });
+      tube.setInputData(pd);
+      const mapper = vtkMapper.newInstance();
+      mapper.setInputConnection(tube.getOutputPort());
+      const actor = vtkActor.newInstance();
+      actor.setMapper(mapper);
+      actor.getProperty().setColor(...trazo.color);
+      // Pinchar el cuello o una medida tiene que caer en la pared, no en el eje.
+      actor.setPickable(false);
+      h.renderer.addActor(actor);
+      trazoActor.current = actor;
+    }
+    h.renderWindow.render();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, trazo]);
 
   // ── Rótulos: al cambiar la lista (antes de pintar, para que un rótulo nuevo
   //    no asome un fotograma en la esquina) y al cambiar el tamaño de la celda.

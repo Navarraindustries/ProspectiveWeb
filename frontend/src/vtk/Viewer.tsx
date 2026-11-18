@@ -14,7 +14,7 @@ import { addPoint, closeRegion, removeLast } from "./annotationDraft";
 import { mainHintKind, shouldShowHint, type HintKind } from "./hint";
 import type { AnnotationPlane } from "../api/types";
 import { labelAnchor, labelFor, shapesForSlice, type Box } from "./annotationOverlay";
-import type { BarridoMalla, CameraController, CameraState, CameraView, Handle, HandleDragEvent, MeshFocus, MeshLabel, MeshLayer, MeshMarker, MeshLine, SlicePlanesProp } from "./MeshView";
+import type { BarridoMalla, CameraController, CameraState, CameraView, Handle, HandleDragEvent, MeshFocus, MeshLabel, MeshLayer, MeshMarker, MeshLine, MeshTrazo, SlicePlanesProp } from "./MeshView";
 import { slicePlaneSpecs, SLICES3D_MESH_OPACITY } from "./slicePlanes";
 import { beginDrag, clipHandles, dragPose, gizmoReadout, gizmoVisible, type DragStart } from "./clipGizmo";
 import { poseDelta } from "./clipPose";
@@ -167,7 +167,14 @@ const SIN_LINEAS: MeshLine[] = [];
 const SIN_ROTULOS: MeshLabel[] = [];
 const SIN_PLANOS: PlaneOutline[] = [];
 const SIN_ASAS: Handle[] = [];
-const CENTERLINE_COLOR: Vector3 = [0.36, 0.85, 0.86]; // cyan — vessel centreline tube
+const CENTERLINE_COLOR: Vector3 = [0.25, 0.50, 1.00]; // azul — trazo de la línea central
+/** Radio fijo del trazo de la línea central. El tubo de antes seguía el
+ *  calibre del vaso y lo llenaba entero: un eje se lee como una línea, y
+ *  dentro de la pared translúcida se ve por dónde va sin taparla. */
+const CENTERLINE_RADIUS_MM = 0.3;
+/** Cuello, ápice y borde marcados: puntos de referencia, más pequeños que el
+ *  marcador por defecto para no tapar el relieve que se está midiendo. */
+const NECK_MARK_SCALE = 0.6;
 const SOURCE_COLOR: Vector3 = [0.25, 0.73, 0.31];     // green — picked source endpoint
 const TARGET_COLOR: Vector3 = [0.97, 0.32, 0.29];     // red — picked target endpoint
 const PENDING_COLOR: Vector3 = [0.98, 0.55, 0.10];    // orange — borrador de anotación (DRAFT_HEX en los cortes)
@@ -317,7 +324,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
 
   // 3D morphometric overlay: neck ring + dome-height & max-diameter spans + apex.
   const overlay = useMemo<{ markers: MeshMarker[]; lines: MeshLine[]; dial: { center: V3; axis: V3; radius: number } } | null>(() => {
-    if (!morphoOverlay || !morphometry) return null;
+    // Solo en Morfometría: es donde se miden y donde está el interruptor.
+    if (!morphoOverlay || !morphometry || step !== "morpho") return null;
     const c = morphometry.centroid;
     const ax = morphometry.principal_axis;
     if (!c || !ax || ax.length !== 3) return null;
@@ -345,8 +353,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const [u, v] = perpBasis(axis);
 
     const markers: MeshMarker[] = [
-      { pos: neckC, color: MO_NECK_COLOR },
-      { pos: apex, color: MO_DOME_COLOR },
+      { pos: neckC, color: MO_NECK_COLOR, scale: NECK_MARK_SCALE },
+      { pos: apex, color: MO_DOME_COLOR, scale: NECK_MARK_SCALE },
     ];
     const lines: MeshLine[] = [
       { a: neckC, b: apex, color: MO_DOME_COLOR },                                   // dome height
@@ -364,7 +372,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     }
     // Dial de medida: centrado en el centroide, radio del Ø máximo + 1 mm.
     return { markers, lines, dial: { center: centroid, axis, radius: maxR + 1 } };
-  }, [morphoOverlay, morphometry]);
+  }, [morphoOverlay, morphometry, step]);
   // mesh_url carries a generation token (?v=…) from the backend, so it changes
   // on every re-segmentation and vtk.js refetches instead of serving the cache.
   const meshUrl = segmentation?.mesh_url ?? null;
@@ -917,7 +925,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
         out.push({ ...namedDeviceLayer(d, stentMap), ...(d.kind === "clips" && clipsMatrix ? { userMatrix: clipsMatrix } : null) });
       }
     }
-    if (showCenterline && centerlineMesh) {
+    // Con los puntos cargados la línea va como trazo fino (`trazoLinea`); el
+    // tubo del servidor queda solo para una línea sin puntos.
+    if (showCenterline && centerlineMesh && !centerline) {
       out.push({ url: centerlineMesh, color: CENTERLINE_COLOR, opacity: 1 });
     }
     // Lo que se llevaría la tijera, en rojo y encima: el profesional decide
@@ -934,7 +944,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (followup.ghostUrl) out.push({ url: followup.ghostUrl, color: FOLLOWUP_GHOST_COLOR, opacity: 0.3, id: "saco-anterior" });
     }
     return out;
-  }, [followup, stentMap, displayMeshUrl, meshUrl, candidate?.dome_mesh_url, candidates, rejectedCandidates, selectedCandidate, showRejectedIn3d, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible]);
+  }, [followup, stentMap, displayMeshUrl, meshUrl, candidate?.dome_mesh_url, candidates, rejectedCandidates, selectedCandidate, showRejectedIn3d, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, centerline, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible]);
 
   // ── Recorrido por dentro del vaso (vesselWalk) ─────────────────────── #
   // Lo pide el panel de la línea central (o DENTRO en la cinta DESDE) por el
@@ -1356,9 +1366,14 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (!a.visible || a.kind !== "marcador" || a.points.length === 0) continue;
       out.push({ pos: a.points[0], color: hexToRgb01(ANNOTATION_HEX.marcador), scale: a.id === selectedAnnotation ? ANNOTATION_SELECTED_SCALE : 1 });
     }
-    if (neckOrigin) out.push({ pos: neckOrigin, color: NECK_ORIGIN_COLOR });
-    if (neckDome) out.push({ pos: neckDome, color: NECK_DOME_COLOR });
-    for (const r of neckRim) out.push({ pos: r, color: NECK_RIM_COLOR });
+    // Cuello, ápice y borde: solo mientras se mide (Morfometría o marcándolos).
+    // Fuera de ahí estorbaban en todos los pasos, también reanudando la sesión.
+    const midiendo = step === "morpho" || pickMode === "neck_origin" || pickMode === "neck_dome" || pickMode === "neck_rim";
+    if (midiendo) {
+      if (neckOrigin) out.push({ pos: neckOrigin, color: NECK_ORIGIN_COLOR, scale: NECK_MARK_SCALE });
+      if (neckDome) out.push({ pos: neckDome, color: NECK_DOME_COLOR, scale: NECK_MARK_SCALE });
+      for (const r of neckRim) out.push({ pos: r, color: NECK_RIM_COLOR, scale: NECK_MARK_SCALE });
+    }
     for (const r of scissorsPoints) out.push({ pos: r, color: SCISSORS_COLOR });
     if (cropCenter) out.push({ pos: cropCenter, color: CROP_CENTER_COLOR });
     if (lesionMark) out.push({ pos: lesionMark, color: LESION_MARK_COLOR });
@@ -1379,7 +1394,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
       });
     }
     return out;
-  }, [clSource, clTarget, centerlineMesh, pickMode, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
+  }, [clSource, clTarget, centerlineMesh, pickMode, step, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
+
+  const trazoLinea = useMemo<MeshTrazo | null>(
+    () => (showCenterline && centerline ? { points: centerline.points, color: CENTERLINE_COLOR, radiusMm: CENTERLINE_RADIUS_MM } : null),
+    [showCenterline, centerline],
+  );
 
   // El punto compartido de los cortes, con radio fijo en mm (no depende de la
   // escena). Va aparte de `markers`: MeshView lo dibuja encima de la malla.
@@ -2190,7 +2210,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       // marcado armado o una medida a mano en Morfometría se conserva la cámara.
       body = (
         <Suspense fallback={<ViewerLoading label="Cargando visor…" />}>
-          <MeshView layers={layers} markers={recorrido ? SIN_MARCAS : markers} focus={recorrido ? null : focusMarker} planes={recorrido ? SIN_PLANOS : planes}
+          <MeshView layers={layers} markers={recorrido ? SIN_MARCAS : markers} trazo={recorrido ? null : trazoLinea} focus={recorrido ? null : focusMarker} planes={recorrido ? SIN_PLANOS : planes}
             lines={recorrido ? SIN_LINEAS : lines} labels={recorrido ? SIN_ROTULOS : meshLabels} cropPreview={cropPreview}
             boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null || candidatePick} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
             preserveCamera={step === "devices" || !cameraMayMove({ pickMode, justMeasuredManually: step === "morpho" && !!hudManualTag(morphometry) })}

@@ -1024,6 +1024,41 @@
     "title": "Body_upload_custom_clip_api_clips_custom__session_id__post",
     "type": "object"
    },
+   "BranchLumenOut": {
+    "description": "Un origen de rama visible al alcance del clip: qué parte queda fuera de la mordaza.",
+    "properties": {
+     "calibre_mm": {
+      "title": "Calibre Mm",
+      "type": "number"
+     },
+     "distance_mm": {
+      "description": "Del origen al centro del clip más cercano",
+      "title": "Distance Mm",
+      "type": "number"
+     },
+     "free_pct": {
+      "description": "% de una esfera del calibre de la rama que queda fuera de la mordaza",
+      "title": "Free Pct",
+      "type": "number"
+     },
+     "index": {
+      "title": "Index",
+      "type": "integer"
+     },
+     "position_mm": {
+      "$ref": "#/components/schemas/Position3D"
+     }
+    },
+    "required": [
+     "index",
+     "position_mm",
+     "calibre_mm",
+     "distance_mm",
+     "free_pct"
+    ],
+    "title": "BranchLumenOut",
+    "type": "object"
+   },
    "BranchUnderClipOut": {
     "description": "A visible branch origin within reach of the placed clip.",
     "properties": {
@@ -2187,6 +2222,12 @@
       "title": "Bend Angle Deg",
       "type": "number"
      },
+     "blade_height_mm": {
+      "default": 0.0,
+      "description": "Blade height along the clip normal (mm)",
+      "title": "Blade Height Mm",
+      "type": "number"
+     },
      "blade_length_mm": {
       "default": 0.0,
       "title": "Blade Length Mm",
@@ -2668,6 +2709,12 @@
       "default": 0.0,
       "description": "Clip angle (0 = straight, 90 = right-angle)",
       "title": "Angle Deg",
+      "type": "number"
+     },
+     "blade_height_mm": {
+      "default": 0.0,
+      "description": "Blade height along the clip normal (mm): the default placement keeps the blade above the neck plane",
+      "title": "Blade Height Mm",
       "type": "number"
      },
      "closing_force_g": {
@@ -7001,6 +7048,14 @@
    "OcclusionOut": {
     "description": "Cómo queda el aneurisma con el clip puesto.\n\nEs la mitad contestable de «simular la deformación». Deformar la pared pide\nsu grosor, sus propiedades y la presión intraluminal, y ninguna se mide en\nla imagen —la pared tiene 0,05–0,5 mm y el vóxel 0,32— ni hay con qué\nvalidar el resultado. Lo que sí es contestable, y es la pregunta clínica, es\ncuánto aneurisma queda.",
     "properties": {
+     "branch_lumen": {
+      "description": "Orígenes de rama visibles al alcance del clip, peor primero",
+      "items": {
+       "$ref": "#/components/schemas/BranchLumenOut"
+      },
+      "title": "Branch Lumen",
+      "type": "array"
+     },
      "cautions": {
       "items": {
        "type": "string"
@@ -7019,6 +7074,17 @@
       "title": "Excluded Mm3",
       "type": "number"
      },
+     "jaw_aperture_mm": {
+      "default": 0.0,
+      "description": "Apertura supuesta de la mordaza al aplicarla: el cuello + 0,5 mm por lado",
+      "title": "Jaw Aperture Mm",
+      "type": "number"
+     },
+     "lumen_summary": {
+      "default": "",
+      "title": "Lumen Summary",
+      "type": "string"
+     },
      "outcome": {
       "enum": [
        "completa",
@@ -7028,6 +7094,44 @@
       ],
       "title": "Outcome",
       "type": "string"
+     },
+     "parent_measured": {
+      "default": false,
+      "description": "Hay línea central al alcance del clip con la que medir la arteria madre",
+      "title": "Parent Measured",
+      "type": "boolean"
+     },
+     "parent_raise_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": 0.0,
+      "description": "mm que habría que subir el clip hacia el domo para que la madre no pierda luz; 0 si ya no la pierde, null si no se libera subiéndolo 5 mm",
+      "title": "Parent Raise Mm"
+     },
+     "parent_sections": {
+      "description": "Secciones de la línea al alcance del clip, con su luz libre",
+      "items": {
+       "$ref": "#/components/schemas/ParentLumenSection"
+      },
+      "title": "Parent Sections",
+      "type": "array"
+     },
+     "parent_worst": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ParentLumenSection"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "La sección de la arteria madre que más luz pierde"
      },
      "remnant_fraction_pct": {
       "default": 0.0,
@@ -7500,6 +7604,36 @@
      "updated_at"
     ],
     "title": "OrderOut",
+    "type": "object"
+   },
+   "ParentLumenSection": {
+    "description": "Una sección de la arteria madre sobre la línea central, con el clip cerrado.",
+    "properties": {
+     "arc_mm": {
+      "title": "Arc Mm",
+      "type": "number"
+     },
+     "area_mm2": {
+      "title": "Area Mm2",
+      "type": "number"
+     },
+     "free_mm2": {
+      "description": "Área que queda fuera de la mordaza",
+      "title": "Free Mm2",
+      "type": "number"
+     },
+     "free_pct": {
+      "title": "Free Pct",
+      "type": "number"
+     }
+    },
+    "required": [
+     "arc_mm",
+     "area_mm2",
+     "free_mm2",
+     "free_pct"
+    ],
+    "title": "ParentLumenSection",
     "type": "object"
    },
    "PatientActivity": {
@@ -8451,6 +8585,12 @@
      "azimuthDeg": {
       "default": 0.0,
       "title": "Azimuthdeg",
+      "type": "number"
+     },
+     "bladeHeightMm": {
+      "default": 0.0,
+      "description": "Alto de la hoja (mm): volver al cuello deja la hoja encima del plano del cuello",
+      "title": "Bladeheightmm",
       "type": "number"
      },
      "clip_id": {

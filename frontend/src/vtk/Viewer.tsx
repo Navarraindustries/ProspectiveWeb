@@ -851,7 +851,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (id !== "clip:move") return;
     const clip = selectedClipRef.current;
     if (!clip) return;
-    const { position } = neckPlacement(morphometryRef.current);
+    const { position } = neckPlacement(morphometryRef.current, clip.bladeHeightMm ?? 0);
     setPlacedClips((p) => p.map((c) => (c.key === clip.key ? { ...c, position, azimuthDeg: 0, elevationDeg: 0 } : c)));
   }, [setPlacedClips]);
 

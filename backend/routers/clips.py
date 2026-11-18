@@ -33,7 +33,9 @@ from models.clips import (
     CustomJawOut,
     ManufactureSpecOut,
     MultiClipConstructOut,
+    BranchLumenOut,
     OcclusionOut,
+    ParentLumenSection,
 )
 from services.clips   import catalogue_to_api
 from services.clip_manufacture import resolve_perfect_clip
@@ -781,6 +783,7 @@ def _candidate_out(cand: ClipCandidate) -> ClipCandidateOut:
         manufacturer     = cand.clip.manufacturer,
         shape            = cand.clip.shape.value,
         blade_length_mm  = cand.clip.blade_length_mm,
+        blade_height_mm  = cand.clip.blade_height_mm,
         closing_force_g  = cand.clip.closing_force_g,
         score            = cand.score,
         verdict          = cand.verdict,
@@ -1485,6 +1488,52 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
 
 # ── Cómo queda el aneurisma con el clip puesto ──────────────────────────────── #
 
+def _luz_tras_clip(session_id: str, colocados: list[dict], sac):
+    """La luz que dejan los clips colocados en la arteria madre y en las ramas."""
+    import numpy as np
+
+    from services.branch_origins import thaw_scan
+    from services.luz_tras_clip import (PERDIDA_MINIMA_PCT, LuzTrasClip, luz_de_la_madre, luz_de_las_ramas,
+                                        mordaza_de, resumir, subida_para_liberar)
+    from services.segmentation import read_vtp
+
+    meshes_dir = session_subdir(session_id, "meshes")
+    vaso_path = meshes_dir / "vessel_tree.vtp"
+    if not vaso_path.exists():
+        return None
+    cuello_mm = _load_float(session_id, "morpho.neck_mm", 0.0)
+    index = _catalogue_index()
+    mordazas = []
+    for c in colocados:
+        cid = str(c.get("clip_id", ""))
+        normal = c.get("normal") or [0.0, 0.0, 1.0]
+        giro = float((c.get("orientation") or [0.0, 0.0, 0.0])[2])
+        spec = index.get(cid)
+        mordazas.append(mordaza_de(c.get("position", [0.0, 0.0, 0.0]), normal, giro,
+                                   _clip_geometry_for(cid, meshes_dir), cuello_mm,
+                                   float(getattr(spec, "fenestration_mm", 0.0) or 0.0),
+                                   float(getattr(spec, "blade_length_mm", 0.0) or 0.0),
+                                   float(getattr(spec, "blade_height_mm", 0.0) or 0.0)))
+    vaso = read_vtp(vaso_path)
+    r = LuzTrasClip(apertura_mm=2.0 * max(z.medio_y for z in mordazas))
+    linea = meshes_dir / "centerline_points.npz"
+    if linea.exists():
+        from services.ivus_virtual import en_lesion
+        with np.load(linea) as d:
+            pts = d["points"].astype(float)
+        arco = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(pts, axis=0), axis=1))])
+        r.secciones = luz_de_la_madre(pts, arco, vaso, mordazas, en_lesion(pts, sac, vaso))
+        if r.peor is not None and 100.0 - r.peor.libre_pct >= PERDIDA_MINIMA_PCT:
+            r.subida_mm = subida_para_liberar(r.secciones, mordazas)
+    else:
+        r.sin_linea = True
+    scan = thaw_scan(session_id)
+    if scan is not None:
+        r.ramas = luz_de_las_ramas(scan.origins, mordazas)
+    r.resumen = resumir(r)
+    return r
+
+
 @router.get(
     "/clips/occlusion/{session_id}",
     response_model=OcclusionOut,
@@ -1567,13 +1616,44 @@ def clip_occlusion(session_id: str) -> OcclusionOut:
             f"cierre del más proximal. Para un montaje en fila es una "
             f"aproximación del conjunto."))
 
+    # La otra mitad: cuánta luz queda en la arteria madre y en las ramas. Un
+    # fallo aquí no puede quitar la medida de la oclusión.
+    luz = None
+    try:
+        luz = _luz_tras_clip(session_id, colocados, sac)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Luz tras el clip sin medir en %s: %s", session_id, exc, exc_info=True)
+
     # El informe dice si el clip se comprobó (F1-229): se guarda con la huella
     # de los clips de ahora, y moverlos la invalida.
     from services.device_state import save_clip_evaluation
     save_clip_evaluation(session_id, "occlusion",
                          {"outcome": res.outcome, "summary": res.summary})
+    # La luz depende del giro y de la inclinación: su huella es la pose entera.
+    if luz is not None:
+        save_clip_evaluation(session_id, "lumen", {"summary": luz.resumen})
+
+    def _seccion(s):
+        return ParentLumenSection(arc_mm=round(s.arc_mm, 2), area_mm2=round(s.area_mm2, 2),
+                                  free_mm2=round(s.libre_mm2, 2), free_pct=round(s.libre_pct, 1))
+
+    extra = {}
+    if luz is not None:
+        extra = dict(
+            parent_measured=not luz.sin_linea and bool(luz.secciones),
+            parent_sections=[_seccion(s) for s in luz.secciones],
+            parent_worst=_seccion(luz.peor) if luz.peor else None,
+            branch_lumen=[BranchLumenOut(
+                index=b.index, position_mm=Position3D(x=b.posicion[0], y=b.posicion[1], z=b.posicion[2]),
+                calibre_mm=round(b.calibre_mm, 2), distance_mm=round(b.distancia_mm, 2),
+                free_pct=round(b.libre_pct, 1)) for b in luz.ramas],
+            jaw_aperture_mm=round(luz.apertura_mm, 2),
+            parent_raise_mm=(None if luz.subida_mm is None else round(luz.subida_mm, 2)),
+            lumen_summary=luz.resumen,
+        )
 
     return OcclusionOut(
+        **extra,
         outcome=res.outcome,
         sac_volume_mm3=res.sac_volume_mm3,
         excluded_mm3=res.excluded_mm3,

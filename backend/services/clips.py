@@ -479,6 +479,7 @@ def spec_to_api(c: ClipSpec) -> dict:
         "name":             c.name,
         "manufacturer":     c.manufacturer,
         "length_mm":        c.blade_length_mm,
+        "blade_height_mm":  c.blade_height_mm,
         "angle_deg":        _SHAPE_ANGLE.get(c.shape, 0.0),
         "is_fenestrated":   c.shape == ClipShape.FENESTRATED,
         "closing_force_g":  c.closing_force_g,

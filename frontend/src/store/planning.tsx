@@ -18,6 +18,8 @@ export interface PlacedClip {
   rotation_deg: number;
   azimuthDeg: number;
   elevationDeg: number;
+  /** Alto de la hoja (mm), para que «volver al cuello» la deje encima del plano. */
+  bladeHeightMm?: number;
 }
 
 /** Dónde acabó una captura del visor: en el caso o, sin estudio archivado,

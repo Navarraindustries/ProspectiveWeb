@@ -19,6 +19,8 @@ class ClipLibraryItem(BaseModel):
     name: str = Field(..., description="Commercial name (e.g. 'Yasargil FT740T')")
     manufacturer: str
     length_mm: float = Field(..., description="Blade length (mm). Typical: 5–20 mm")
+    blade_height_mm: float = Field(
+        0.0, description="Blade height along the clip normal (mm): the default placement keeps the blade above the neck plane")
     angle_deg: float = Field(
         0.0, description="Clip angle (0 = straight, 90 = right-angle)"
     )
@@ -165,6 +167,7 @@ class ClipCandidateOut(BaseModel):
     manufacturer: str = ""
     shape: str = Field("", description="Recto | Curvo | Angulado 90° | Angulado 45° | Bayoneta | Fenestrado")
     blade_length_mm: float = 0.0
+    blade_height_mm: float = Field(0.0, description="Blade height along the clip normal (mm)")
     closing_force_g: float = 0.0
     score: float = Field(0.0, ge=0.0, le=100.0, description="0 when any criterion failed")
     verdict: Literal["ok", "warn", "fail"] = "ok"
@@ -490,6 +493,38 @@ class OcclusionOut(BaseModel):
     remnant_mesh_url: str | None = Field(
         None, description="El muñón, para pintarlo. Null si no queda nada medible.")
     clip_name: str = ""
+    # La otra mitad del clipaje: lo que NO debe ocluirse (services/luz_tras_clip.py).
+    parent_measured: bool = Field(
+        False, description="Hay línea central al alcance del clip con la que medir la arteria madre")
+    parent_sections: list["ParentLumenSection"] = Field(
+        default_factory=list, description="Secciones de la línea al alcance del clip, con su luz libre")
+    parent_worst: "ParentLumenSection | None" = Field(
+        None, description="La sección de la arteria madre que más luz pierde")
+    branch_lumen: list["BranchLumenOut"] = Field(
+        default_factory=list, description="Orígenes de rama visibles al alcance del clip, peor primero")
+    jaw_aperture_mm: float = Field(
+        0.0, description="Apertura supuesta de la mordaza al aplicarla: el cuello + 0,5 mm por lado")
+    parent_raise_mm: float | None = Field(
+        0.0, description="mm que habría que subir el clip hacia el domo para que la madre no pierda luz; "
+                         "0 si ya no la pierde, null si no se libera subiéndolo 5 mm")
+    lumen_summary: str = ""
+
+
+class ParentLumenSection(BaseModel):
+    """Una sección de la arteria madre sobre la línea central, con el clip cerrado."""
+    arc_mm: float
+    area_mm2: float
+    free_mm2: float = Field(..., description="Área que queda fuera de la mordaza")
+    free_pct: float
+
+
+class BranchLumenOut(BaseModel):
+    """Un origen de rama visible al alcance del clip: qué parte queda fuera de la mordaza."""
+    index: int
+    position_mm: Position3D
+    calibre_mm: float
+    distance_mm: float = Field(..., description="Del origen al centro del clip más cercano")
+    free_pct: float = Field(..., description="% de una esfera del calibre de la rama que queda fuera de la mordaza")
 
 
 class ClipFieldClip(BaseModel):
@@ -544,6 +579,8 @@ class PlacedClipState(BaseModel):
     rotation_deg: float = 0.0
     azimuthDeg: float = 0.0
     elevationDeg: float = 0.0
+    bladeHeightMm: float = Field(
+        0.0, description="Alto de la hoja (mm): volver al cuello deja la hoja encima del plano del cuello")
 
 
 class PlacedClipsState(BaseModel):

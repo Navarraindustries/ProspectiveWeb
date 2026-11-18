@@ -53,7 +53,7 @@ describe("HudIvus", () => {
     expect(ivusVirtual).toHaveBeenCalledWith("s");
     expect(ivusStack).toHaveBeenCalledWith("/data/sessions/s/meshes/ivus_pullback.u8?v=1");
     act(() => p.progreso.poner(1.0));                    // sección 2: la más estrecha
-    expect(screen.getByText("3,14 mm²")).toBeInTheDocument();
+    expect(await screen.findByText("3,14 mm²")).toBeInTheDocument();
     expect(screen.getByText("Estenosis de área 56 %")).toBeInTheDocument();
     expect(screen.getByText(/muestra la luz, no la pared/)).toBeInTheDocument();
   });
@@ -62,9 +62,9 @@ describe("HudIvus", () => {
     const p = montar();
     await screen.findByText("7,07 mm²");
     act(() => p.progreso.poner(1.5));
-    expect(screen.getByText(/sin medidas/)).toBeInTheDocument();
+    expect(await screen.findByText(/sin medidas/)).toBeInTheDocument();
     act(() => p.progreso.poner(2.0));
-    expect(screen.getByText("EN LA LESIÓN")).toBeInTheDocument();
+    expect(await screen.findByText("EN LA LESIÓN")).toBeInTheDocument();
   });
 
   it("el botón de la MLA lleva el recorrido allí y ✕ lo oculta", async () => {

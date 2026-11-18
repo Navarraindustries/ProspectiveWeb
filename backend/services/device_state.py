@@ -85,7 +85,12 @@ def read_placed_clips(session_id: str) -> dict | None:
 #: PDF no podía decir si el clip se había comprobado. Cada evaluación lleva la
 #: huella de los clips con los que se hizo: si se mueven, deja de valer.
 _CLIP_EVAL_KEYS = {"occlusion": "devices.clip_occlusion.json",
-                   "field": "devices.clip_field.json"}
+                   "field": "devices.clip_field.json",
+                   # La luz que dejan en la madre y las ramas: depende del giro y
+                   # de la inclinación, no solo de la posición (P1, 18-11).
+                   "lumen": "devices.clip_lumen.json"}
+#: Las evaluaciones que dependen de la pose entera, no solo de dónde está el clip.
+_EVAL_CON_POSE = {"field", "lumen"}
 
 
 #: Una pose de clip para la huella: id, posición, giro y normal de la hoja.
@@ -133,7 +138,7 @@ def _placed_poses(session_id: str) -> list[ClipPose]:
 def save_clip_evaluation(session_id: str, kind: str, record: dict,
                          clips: list[ClipPose] | None = None) -> None:
     """Guarda `record` con la huella de `clips` (por defecto, los colocados)."""
-    pose = kind == "field"
+    pose = kind in _EVAL_CON_POSE
     huella = clips_fingerprint(clips if clips is not None else _placed_poses(session_id),
                                pose=pose)
     _dump(session_id, _CLIP_EVAL_KEYS[kind], {**record, "fingerprint": huella})
@@ -144,7 +149,7 @@ def read_clip_evaluation(session_id: str, kind: str) -> dict | None:
     v = _load(session_id, _CLIP_EVAL_KEYS[kind], None)
     if not isinstance(v, dict) or not read_clips(session_id):
         return None
-    actual = clips_fingerprint(_placed_poses(session_id), pose=kind == "field")
+    actual = clips_fingerprint(_placed_poses(session_id), pose=kind in _EVAL_CON_POSE)
     return v if v.get("fingerprint") == actual else None
 
 

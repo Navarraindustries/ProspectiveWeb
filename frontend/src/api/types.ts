@@ -741,6 +741,8 @@ export interface PlacedClipState {
   rotation_deg: number;
   azimuthDeg: number;
   elevationDeg: number;
+  /** Alto de la hoja (mm): volver al cuello deja la hoja encima del plano del cuello. */
+  bladeHeightMm?: number;
 }
 
 export interface PlacedClipsState {
@@ -1306,6 +1308,8 @@ export interface ClipLibraryItem {
   name: string;
   manufacturer: string;
   length_mm: number;
+  /** Alto de la hoja a lo largo de la normal del clip (mm). */
+  blade_height_mm?: number;
   angle_deg: number;
   is_fenestrated: boolean;
   closing_force_g: number;
@@ -1356,6 +1360,8 @@ export interface ClipCandidateOut {
   manufacturer: string;
   shape: string;
   blade_length_mm: number;
+  /** Alto de la hoja a lo largo de la normal del clip (mm). */
+  blade_height_mm?: number;
   closing_force_g: number;
   score: number;
   verdict: ClipVerdict;
@@ -1428,6 +1434,37 @@ export interface OcclusionOut {
   cautions: string[];
   remnant_mesh_url: string | null;
   clip_name: string;
+  /** Hay línea central al alcance del clip con la que medir la arteria madre. */
+  parent_measured?: boolean;
+  parent_sections?: ParentLumenSection[];
+  /** La sección de la arteria madre que más luz pierde. */
+  parent_worst?: ParentLumenSection | null;
+  /** Orígenes de rama visibles al alcance del clip, peor primero. */
+  branch_lumen?: BranchLumenOut[];
+  /** Apertura supuesta de la mordaza al aplicarla: el cuello + 0,5 mm por lado. */
+  jaw_aperture_mm?: number;
+  /** mm que habría que subir el clip hacia el domo para liberar la madre; 0 si ya está libre, null si no se libera en 5 mm. */
+  parent_raise_mm?: number | null;
+  lumen_summary?: string;
+}
+
+/** Una sección de la arteria madre sobre la línea central, con el clip cerrado. */
+export interface ParentLumenSection {
+  arc_mm: number;
+  area_mm2: number;
+  /** Área que queda fuera de la mordaza. */
+  free_mm2: number;
+  free_pct: number;
+}
+
+/** Un origen de rama visible al alcance del clip. */
+export interface BranchLumenOut {
+  index: number;
+  position_mm: Position3D;
+  calibre_mm: number;
+  distance_mm: number;
+  /** % de una esfera del calibre de la rama que queda fuera de la mordaza. */
+  free_pct: number;
 }
 
 /** Veredicto del campo del clip: cuánto cuello cubre, qué presión estima y si cae

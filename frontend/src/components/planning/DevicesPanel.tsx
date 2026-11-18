@@ -408,10 +408,17 @@ function ClipsTab() {
 
   const addClip = () => {
     if (!sel || !esModelo(sel)) return;
-    const { position } = neckPlacement(morphometry);
+    // El alto de la hoja sube el clip media hoja sobre el plano del cuello (P1):
+    // centrado en él, la hoja entraba en la arteria madre.
+    const alto = recs.find((r) => r.clip_id === sel)?.blade_height_mm
+      ?? catalogo.find((c) => c.id === sel)?.blade_height_mm ?? 0;
+    const { position } = neckPlacement(morphometry, alto);
     const key = Math.max(nextKey.current, ...placed.map((c) => c.key + 1));
     nextKey.current = key + 1;
-    setPlaced((p) => [...p, { key, clip_id: sel, name: nameFor(sel), position, rotation_deg: 0, azimuthDeg: 0, elevationDeg: 0 }]);
+    setPlaced((p) => [...p, {
+      key, clip_id: sel, name: nameFor(sel), position, rotation_deg: 0, azimuthDeg: 0, elevationDeg: 0,
+      ...(alto > 0 ? { bladeHeightMm: alto } : {}),
+    }]);
     setSelectedClipKey(key);
   };
 
@@ -1647,6 +1654,7 @@ function OcclusionReport() {
               {data.remnant_width_mm > 0 && ` · ancho ${cifra(data.remnant_width_mm, 1)} mm`}
             </div>
           )}
+          <LumenAfterClip data={data} />
           {/* Lo que esta medida NO es. Sin esto, «oclusión completa» se lee
               como una simulación mecánica que nadie ha hecho. */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
@@ -1660,6 +1668,86 @@ function OcclusionReport() {
       )}
       <ErrorNote>{error}</ErrorNote>
     </Card>
+  );
+}
+
+/* ── La luz que queda en la arteria madre y en las ramas (P1, 18-11) ───── */
+
+/** Por debajo de esta pérdida la luz se da por intacta (ruido de muestreo). */
+const LUZ_INTACTA_PCT = 99.5;
+
+function colorLuz(pct: number): string {
+  return pct >= LUZ_INTACTA_PCT ? "var(--success)" : pct >= 75 ? "var(--warning)" : "var(--destructive)";
+}
+
+/** La otra mitad del clipaje: lo que NO debe ocluirse. Geometría con el clip
+ *  cerrado (services/luz_tras_clip.py), sin deformar el vaso. */
+export function LumenAfterClip({ data }: { data: OcclusionOut }) {
+  const secciones = data.parent_sections ?? [];
+  const peor = data.parent_worst ?? null;
+  const ramas = data.branch_lumen ?? [];
+  if (!data.lumen_summary && !secciones.length && !ramas.length) return null;
+  const tocadas = ramas.filter((r) => r.free_pct < LUZ_INTACTA_PCT);
+  return (
+    <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--foreground)" }}>Luz que queda</div>
+      {data.parent_measured && peor ? (
+        <>
+          <div style={{ fontSize: 12, marginTop: 4, color: colorLuz(peor.free_pct) }}>
+            {peor.free_pct >= LUZ_INTACTA_PCT
+              ? "Arteria madre: el clip no invade su luz."
+              : `Arteria madre: queda el ${cifra(peor.free_pct, 0)} % en la sección más afectada (a ${cifra(peor.arc_mm, 1)} mm de la línea).`}
+          </div>
+          {peor.free_pct < LUZ_INTACTA_PCT && (
+            <div style={{ fontSize: 11.5, marginTop: 2, color: "var(--foreground)", lineHeight: 1.45 }}>
+              {data.parent_raise_mm == null
+                ? "Subiéndolo hasta 5 mm no queda libre: prueba otro giro u otro clip."
+                : `Subiendo el clip ${cifra(data.parent_raise_mm, 1)} mm hacia el domo queda libre (a costa de más resto de cuello: vuelve a medir).`}
+            </div>
+          )}
+          {secciones.length > 1 && <PerfilLuz secciones={secciones} />}
+        </>
+      ) : (
+        <div style={{ fontSize: 11.5, marginTop: 4, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+          {data.lumen_summary?.split(". ")[0] ?? "Arteria madre: sin medir."}
+        </div>
+      )}
+      {ramas.length > 0 && (
+        <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 2 }}>
+          {ramas.map((r) => (
+            <div key={r.index} style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: colorLuz(r.free_pct) }}>
+              {`Rama Ø ${cifra(r.calibre_mm, 1)} mm a ${cifra(r.distance_mm, 1)} mm del clip: `}
+              {r.free_pct >= LUZ_INTACTA_PCT ? "origen libre" : `conserva el ${cifra(r.free_pct, 0)} %`}
+            </div>
+          ))}
+          {tocadas.length === 0 && (
+            <div style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>Ninguna rama visible cercana queda dentro de la mordaza.</div>
+          )}
+        </div>
+      )}
+      <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>
+        {`— Geometría con el clip cerrado, sin deformar el vaso. Apertura supuesta de la mordaza: ${cifra(data.jaw_aperture_mm ?? 0, 1)} mm (el cuello + 0,5 mm por lado). Las perforantes no se ven en la imagen.`}
+      </div>
+    </div>
+  );
+}
+
+/** Perfil de la luz libre a lo largo de la línea, alrededor del clip: dónde y cuánto pinza. */
+function PerfilLuz({ secciones }: { secciones: NonNullable<OcclusionOut["parent_sections"]> }) {
+  const w = 240, h = 40, pad = 2;
+  const a0 = secciones[0].arc_mm, a1 = secciones[secciones.length - 1].arc_mm;
+  const x = (a: number) => pad + ((a - a0) / Math.max(1e-6, a1 - a0)) * (w - 2 * pad);
+  const y = (p: number) => pad + (1 - Math.max(0, Math.min(100, p)) / 100) * (h - 2 * pad);
+  const linea = secciones.map((s, i) => `${i ? "L" : "M"}${x(s.arc_mm).toFixed(1)},${y(s.free_pct).toFixed(1)}`).join(" ");
+  return (
+    <svg role="img" aria-label="Luz libre de la arteria madre a lo largo de la línea central"
+      viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: h, marginTop: 4, display: "block" }}>
+      <line x1={pad} x2={w - pad} y1={y(100)} y2={y(100)} stroke="var(--border)" strokeDasharray="3 3" />
+      <path d={linea} fill="none" stroke="var(--foreground)" strokeWidth={1.5} />
+      <text x={w - pad} y={h - 3} textAnchor="end" fontSize={8} fill="var(--muted-foreground)">
+        {`${cifra(a0, 1)}–${cifra(a1, 1)} mm · 100 % arriba`}
+      </text>
+    </svg>
   );
 }
 

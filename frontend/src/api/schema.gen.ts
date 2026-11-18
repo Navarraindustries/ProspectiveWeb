@@ -3686,6 +3686,27 @@ export interface components {
             file: string;
         };
         /**
+         * BranchLumenOut
+         * @description Un origen de rama visible al alcance del clip: qué parte queda fuera de la mordaza.
+         */
+        BranchLumenOut: {
+            /** Calibre Mm */
+            calibre_mm: number;
+            /**
+             * Distance Mm
+             * @description Del origen al centro del clip más cercano
+             */
+            distance_mm: number;
+            /**
+             * Free Pct
+             * @description % de una esfera del calibre de la rama que queda fuera de la mordaza
+             */
+            free_pct: number;
+            /** Index */
+            index: number;
+            position_mm: components["schemas"]["Position3D"];
+        };
+        /**
          * BranchUnderClipOut
          * @description A visible branch origin within reach of the placed clip.
          */
@@ -4506,6 +4527,12 @@ export interface components {
              */
             bend_angle_deg: number;
             /**
+             * Blade Height Mm
+             * @description Blade height along the clip normal (mm)
+             * @default 0
+             */
+            blade_height_mm: number;
+            /**
              * Blade Length Mm
              * @default 0
              */
@@ -4849,6 +4876,12 @@ export interface components {
              * @default 0
              */
             angle_deg: number;
+            /**
+             * Blade Height Mm
+             * @description Blade height along the clip normal (mm): the default placement keeps the blade above the neck plane
+             * @default 0
+             */
+            blade_height_mm: number;
             /**
              * Closing Force G
              * @description Closing force in grams (typical: 80–200 g)
@@ -7417,6 +7450,11 @@ export interface components {
          *     cuánto aneurisma queda.
          */
         OcclusionOut: {
+            /**
+             * Branch Lumen
+             * @description Orígenes de rama visibles al alcance del clip, peor primero
+             */
+            branch_lumen?: components["schemas"]["BranchLumenOut"][];
             /** Cautions */
             cautions?: string[];
             /**
@@ -7431,10 +7469,40 @@ export interface components {
              */
             excluded_mm3: number;
             /**
+             * Jaw Aperture Mm
+             * @description Apertura supuesta de la mordaza al aplicarla: el cuello + 0,5 mm por lado
+             * @default 0
+             */
+            jaw_aperture_mm: number;
+            /**
+             * Lumen Summary
+             * @default
+             */
+            lumen_summary: string;
+            /**
              * Outcome
              * @enum {string}
              */
             outcome: "completa" | "resto_de_cuello" | "residual" | "sin_saco";
+            /**
+             * Parent Measured
+             * @description Hay línea central al alcance del clip con la que medir la arteria madre
+             * @default false
+             */
+            parent_measured: boolean;
+            /**
+             * Parent Raise Mm
+             * @description mm que habría que subir el clip hacia el domo para que la madre no pierda luz; 0 si ya no la pierde, null si no se libera subiéndolo 5 mm
+             * @default 0
+             */
+            parent_raise_mm: number | null;
+            /**
+             * Parent Sections
+             * @description Secciones de la línea al alcance del clip, con su luz libre
+             */
+            parent_sections?: components["schemas"]["ParentLumenSection"][];
+            /** @description La sección de la arteria madre que más luz pierde */
+            parent_worst?: components["schemas"]["ParentLumenSection"] | null;
             /**
              * Remnant Fraction Pct
              * @default 0
@@ -7794,6 +7862,23 @@ export interface components {
              * @default
              */
             workshop_name: string;
+        };
+        /**
+         * ParentLumenSection
+         * @description Una sección de la arteria madre sobre la línea central, con el clip cerrado.
+         */
+        ParentLumenSection: {
+            /** Arc Mm */
+            arc_mm: number;
+            /** Area Mm2 */
+            area_mm2: number;
+            /**
+             * Free Mm2
+             * @description Área que queda fuera de la mordaza
+             */
+            free_mm2: number;
+            /** Free Pct */
+            free_pct: number;
         };
         /**
          * PatientActivity
@@ -8482,6 +8567,12 @@ export interface components {
              * @default 0
              */
             azimuthDeg: number;
+            /**
+             * Bladeheightmm
+             * @description Alto de la hoja (mm): volver al cuello deja la hoja encima del plano del cuello
+             * @default 0
+             */
+            bladeHeightMm: number;
             /** Clip Id */
             clip_id: string;
             /**

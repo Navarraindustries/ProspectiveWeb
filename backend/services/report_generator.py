@@ -508,6 +508,10 @@ def build_report_data_from_session(
         for i, c in enumerate(colocados)
     ]
     clip_occlusion = read_clip_evaluation(session_id, "occlusion") or {}
+    # La luz tras el clip vale solo con la misma pose (giro e inclinación incluidos).
+    luz = read_clip_evaluation(session_id, "lumen") or {}
+    if clip_occlusion and luz.get("summary"):
+        clip_occlusion = {**clip_occlusion, "lumen_summary": luz["summary"]}
     clip_field = read_clip_evaluation(session_id, "field") or {}
     coils = [
         CoilEntry(
@@ -1681,6 +1685,12 @@ class ReportGenerator:
             Paragraph(f"<b>Oclusión:</b> {oclusion}", self._style_body),
             Paragraph(f"<b>Mapa de calor:</b> {calor}", self._style_body),
         ]
+        # La otra mitad del clipaje: lo que no debe ocluirse (P1, 18-11).
+        if occ and occ.get("lumen_summary"):
+            notas.insert(1, Paragraph(
+                f"<b>Luz tras el clip:</b> {escape_xml(str(occ['lumen_summary']))} "
+                f"<font size='7' color='#6b7280'>Geometría con el clip cerrado, sin deformar el vaso; "
+                f"apertura supuesta: el cuello + 0,5 mm por lado.</font>", self._style_body))
         heading.keepWithNext = True
         return [heading, tbl, Spacer(1, 0.1*cm), *notas]
 

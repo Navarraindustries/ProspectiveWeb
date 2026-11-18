@@ -75,7 +75,7 @@ describe("HudIvus · ramas", () => {
     await screen.findByText(/rama visible bajo/);
     expect(screen.queryByText(/Nace una rama/)).toBeNull();
     act(() => p.progreso.poner(1.0));
-    expect(screen.getByText("Nace una rama Ø 1,4 mm")).toBeInTheDocument();
+    expect(await screen.findByText("Nace una rama Ø 1,4 mm")).toBeInTheDocument();
   });
 });
 

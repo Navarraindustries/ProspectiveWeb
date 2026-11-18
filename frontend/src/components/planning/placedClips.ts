@@ -26,17 +26,24 @@ export function neckAxis(m: MorphometryResult | null): Vec3 | null {
     Es la pose de partida de un clip recién añadido. El ensayo NO la usa si hay
     clips en la lista: anima hasta la pose del clip activo (ver `activeClip`),
     que el cirujano puede haber movido, girado e inclinado a mano. */
-export function neckPlacement(m: MorphometryResult | null): { position: Vec3; normal: Vec3 } {
+export function neckPlacement(m: MorphometryResult | null, altoHojaMm = 0): { position: Vec3; normal: Vec3 } {
   const ax = neckAxis(m);
   const normal: Vec3 = ax ?? [0, 0, 1];
+  // La posición de un clip es el CENTRO de su mordaza. Puesto justo en el plano
+  // del cuello, la mitad inferior de la hoja entra en la arteria madre: en case 3
+  // un NAVARRO de 3,6 mm de alto le quitaba el 45 % de la luz a la basilar (P1,
+  // 18-11). Se sube media hoja hacia el domo, para que el canto inferior quede
+  // en el plano. Un stent (alto 0) sigue en el centro del cuello.
+  const sube = ax ? Math.max(0, altoHojaMm) / 2 : 0;
+  const subir = (p: Vec3): Vec3 => [p[0] + ax![0] * sube, p[1] + ax![1] * sube, p[2] + ax![2] * sube];
 
   const o = m?.neck_origin;
-  if (o) return { position: [o.x, o.y, o.z], normal };
+  if (o) return { position: subir([o.x, o.y, o.z]), normal };
 
   const c = m?.centroid;
   const dh = m?.dome_height_mm ?? 0;
   if (c && ax) {
-    return { position: [c.x - (ax[0] * dh) / 2, c.y - (ax[1] * dh) / 2, c.z - (ax[2] * dh) / 2], normal };
+    return { position: subir([c.x - (ax[0] * dh) / 2, c.y - (ax[1] * dh) / 2, c.z - (ax[2] * dh) / 2]), normal };
   }
   return { position: [0, 0, 0], normal };
 }
@@ -68,6 +75,7 @@ export function toStoredClip(c: PlacedClip): PlacedClipState {
   return {
     key: c.key, clip_id: c.clip_id, name: c.name, position: [...c.position],
     rotation_deg: c.rotation_deg, azimuthDeg: c.azimuthDeg, elevationDeg: c.elevationDeg,
+    ...(c.bladeHeightMm ? { bladeHeightMm: c.bladeHeightMm } : {}),
   };
 }
 
@@ -79,6 +87,7 @@ export function fromStoredClip(s: PlacedClipState): PlacedClip | null {
   return {
     key: s.key, clip_id: s.clip_id, name: s.name || s.clip_id, position: [x, y, z],
     rotation_deg: s.rotation_deg, azimuthDeg: s.azimuthDeg, elevationDeg: s.elevationDeg,
+    ...(s.bladeHeightMm ? { bladeHeightMm: s.bladeHeightMm } : {}),
   };
 }
 

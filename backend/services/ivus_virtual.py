@@ -523,3 +523,67 @@ def calcular_pullback(puntos: np.ndarray, radios: np.ndarray, arco: np.ndarray,
     ruido = min(vox) if vox else DEFAULT_NOISE_MM
     return Pullback(pila=pila, fov_mm=fov, ventana=ventana, secciones=secs, resumen=resumen, nota=nota,
                     stent=resumir_stent(secs, ruido))
+
+
+# ── Ramas a lo largo de la línea (VINI 3D, 18-11) ───────────────────────────── #
+#
+# El barrido de orígenes de rama (services/branch_origins.py) da DÓNDE nace un
+# vaso fino de uno grueso. Uno de esos orígenes está en la arteria que se
+# recorre si cae sobre su pared: a menos del radio local más un margen del
+# punto más cercano de la línea. Sirve para lo que más importa de un flow
+# diverter o un stent: qué ramas visibles quedan tapadas por el despliegue.
+# Las perforantes de verdad (0,1–0,5 mm) no se ven en la imagen y no salen.
+
+RAMA_MARGEN_MM = 1.5
+
+
+@dataclass
+class RamaEnLinea:
+    arc_mm: float                 # posición a lo largo de la línea
+    calibre_mm: float             # diámetro de la rama
+    padre_mm: float               # diámetro de aquello de lo que nace
+    angulo_deg: float             # en el marco (u, v) de su sección, como el contorno
+    distancia_mm: float           # del origen a la línea
+
+
+def ramas_en_linea(puntos: np.ndarray, radios: np.ndarray, arco: np.ndarray,
+                   origenes) -> list[RamaEnLinea]:
+    p = np.asarray(puntos, dtype=np.float64)
+    r = np.asarray(radios, dtype=np.float64)
+    if len(p) < 3:
+        return []
+    _t, u, v = marcos(p)
+    out: list[RamaEnLinea] = []
+    for o in origenes:
+        pos = np.asarray(o.position, dtype=np.float64)
+        d = np.linalg.norm(p - pos, axis=1)
+        i = int(np.argmin(d))
+        if d[i] > r[i] + RAMA_MARGEN_MM:
+            continue
+        w = pos - p[i]
+        ang = float(np.degrees(np.arctan2(float(w @ v[i]), float(w @ u[i]))))
+        out.append(RamaEnLinea(arc_mm=float(arco[i]), calibre_mm=float(o.calibre_mm),
+                               padre_mm=float(o.parent_calibre_mm), angulo_deg=ang,
+                               distancia_mm=float(d[i])))
+    out.sort(key=lambda x: x.arc_mm)
+    return out
+
+
+# ── El mismo recorrido sobre otro estudio (seguimiento) ────────────────────── #
+
+def medir_sobre_malla(puntos: np.ndarray, arco: np.ndarray, vaso: vtk.vtkPolyData,
+                      lesion_pt: np.ndarray | None = None) -> list[Seccion]:
+    """Secciones de `vaso` con los mismos planos que la línea actual.
+
+    `vaso` tiene que estar ya en el marco de la malla actual (la superposición
+    de Seguimiento): así la sección i de los dos estudios es el mismo sitio y
+    las áreas se comparan una a una. Sin imagen: solo contorno y medidas.
+    """
+    p = np.asarray(puntos, dtype=np.float64)
+    t, u, v = marcos(p)
+    secs = [medir_seccion(vaso, p[i], t[i], u[i], v[i], float(arco[i])) for i in range(len(p))]
+    if lesion_pt is not None:
+        for s, dentro in zip(secs, lesion_pt):
+            s.en_lesion = bool(dentro)
+    marcar_ramas(secs)
+    return secs

@@ -34,7 +34,7 @@ export function FollowupOverlay({ sessionId }: { sessionId: string }) {
       setR(res);
       // Satura el color en el doble del ruido o en el crecimiento máximo, lo que
       // sea mayor: así un cambio real se ve rojo y el ruido no.
-      setFollowup({ mapUrl: res.map_url, ghostUrl: res.ghost_url, noise: res.noise_mm,
+      setFollowup({ mapUrl: res.map_url, ghostUrl: res.ghost_url, noise: res.noise_mm, previousSessionId: s.session_id,
                     range: Math.max(res.max_growth_mm, res.max_shrink_mm, res.noise_mm * 2, 0.5) });
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo superponer el estudio");

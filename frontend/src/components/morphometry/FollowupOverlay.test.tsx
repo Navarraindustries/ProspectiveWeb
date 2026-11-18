@@ -47,7 +47,7 @@ describe("superponer un estudio anterior", () => {
     expect(await screen.findByText(/Ha crecido hasta 1.37 mm en 5 % de la lesión/)).toBeInTheDocument();
     expect(api.followup).toHaveBeenCalledWith("s1", "antes");
     await waitFor(() => expect(visto?.followup).toEqual({
-      mapUrl: res().map_url, ghostUrl: res().ghost_url, noise: 0.32, range: 1.37,
+      mapUrl: res().map_url, ghostUrl: res().ghost_url, noise: 0.32, range: 1.37, previousSessionId: "antes",
     }));
     fireEvent.click(screen.getByText("Quitar la superposición del visor"));
     await waitFor(() => expect(visto?.followup).toBeNull());

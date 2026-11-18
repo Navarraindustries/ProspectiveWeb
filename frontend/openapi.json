@@ -4745,9 +4745,193 @@
     "title": "HTTPValidationError",
     "type": "object"
    },
+   "IvusBranch": {
+    "description": "A visible branch origin on the wall of the walked vessel (from the frozen branch scan).",
+    "properties": {
+     "angle_deg": {
+      "description": "Direction in the section frame (0° = +u, counter-clockwise), like the contour",
+      "title": "Angle Deg",
+      "type": "number"
+     },
+     "arc_mm": {
+      "description": "Position along the centreline (mm from its start)",
+      "title": "Arc Mm",
+      "type": "number"
+     },
+     "calibre_mm": {
+      "description": "Branch diameter",
+      "title": "Calibre Mm",
+      "type": "number"
+     },
+     "distance_mm": {
+      "description": "From the origin to the centreline",
+      "title": "Distance Mm",
+      "type": "number"
+     },
+     "parent_mm": {
+      "description": "Diameter of the vessel it leaves",
+      "title": "Parent Mm",
+      "type": "number"
+     }
+    },
+    "required": [
+     "arc_mm",
+     "calibre_mm",
+     "parent_mm",
+     "angle_deg",
+     "distance_mm"
+    ],
+    "title": "IvusBranch",
+    "type": "object"
+   },
+   "IvusCompareRequest": {
+    "properties": {
+     "previous_session_id": {
+      "description": "The earlier study, already superimposed in Seguimiento",
+      "title": "Previous Session Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "previous_session_id"
+    ],
+    "title": "IvusCompareRequest",
+    "type": "object"
+   },
+   "IvusCompareResult": {
+    "description": "The current centreline cut through the earlier study, superimposed with the Seguimiento registration.",
+    "properties": {
+     "noise_mm": {
+      "description": "Registration noise from Seguimiento: a diameter change below it cannot be told apart",
+      "title": "Noise Mm",
+      "type": "number"
+     },
+     "previous_session_id": {
+      "title": "Previous Session Id",
+      "type": "string"
+     },
+     "residual_median_mm": {
+      "title": "Residual Median Mm",
+      "type": "number"
+     },
+     "sections": {
+      "items": {
+       "$ref": "#/components/schemas/IvusCompareSection"
+      },
+      "title": "Sections",
+      "type": "array"
+     },
+     "summary": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/IvusSummary"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "IVUS summary of the earlier study at the same positions"
+     }
+    },
+    "required": [
+     "previous_session_id",
+     "sections",
+     "noise_mm",
+     "residual_median_mm"
+    ],
+    "title": "IvusCompareResult",
+    "type": "object"
+   },
+   "IvusCompareSection": {
+    "properties": {
+     "arc_mm": {
+      "title": "Arc Mm",
+      "type": "number"
+     },
+     "area_mm2": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Area Mm2"
+     },
+     "contour": {
+      "description": "Earlier lumen contour (u, v) in mm, same section planes as the current pullback",
+      "items": {
+       "items": {
+        "type": "number"
+       },
+       "type": "array"
+      },
+      "title": "Contour",
+      "type": "array"
+     },
+     "d_max_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "D Max Mm"
+     },
+     "d_min_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "D Min Mm"
+     },
+     "in_branch": {
+      "default": false,
+      "title": "In Branch",
+      "type": "boolean"
+     },
+     "valid": {
+      "title": "Valid",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "arc_mm",
+     "valid"
+    ],
+    "title": "IvusCompareSection",
+    "type": "object"
+   },
    "IvusResult": {
     "description": "Virtual IVUS pullback computed from the volume along the centreline.",
     "properties": {
+     "branch_floor_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Below this diameter the scan cannot resolve a vessel; null without a scan",
+      "title": "Branch Floor Mm"
+     },
+     "branches": {
+      "description": "Visible branch origins along the line. Perforators (0.1–0.5 mm) are not visible and never listed",
+      "items": {
+       "$ref": "#/components/schemas/IvusBranch"
+      },
+      "title": "Branches",
+      "type": "array"
+     },
      "fov_mm": {
       "description": "Side of each section image (mm)",
       "title": "Fov Mm",
@@ -14504,6 +14688,64 @@
      }
     ],
     "summary": "Virtual IVUS pullback along the centreline (VINI 3D)",
+    "tags": [
+     "centerline"
+    ]
+   }
+  },
+  "/api/centerline/{session_id}/ivus/compare": {
+   "post": {
+    "description": "Uses the registration computed in Seguimiento (earlier study → current mesh) and cuts the earlier vessel mesh with the same section planes as the current pullback, so section i of both studies is the same place. Contours and measures only (no image). 409 until that study has been superimposed in Seguimiento.",
+    "operationId": "ivus_compare_api_centerline__session_id__ivus_compare_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/IvusCompareRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/IvusCompareResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Cut the earlier study with the current centreline (VINI 3D follow-up)",
     "tags": [
      "centerline"
     ]

@@ -4,7 +4,8 @@
    Marco de cada sección: (u, v) en mm, la línea central en (0, 0); en la
    imagen, la columna crece con u y la fila con v. Un ángulo θ es la dirección
    (cos θ, sin θ) en ese marco. */
-import type { FdOption, FdSizingResult, IvusSection, IvusSectionStent } from "../api/types";
+import type { FdOption, FdSizingResult, IvusBranch, IvusCompareSection, IvusSection, IvusSectionStent } from "../api/types";
+import type { Annotation } from "./annotations";
 import type { CenterlineTrack } from "./centerlineWalk";
 
 /** Firma de una línea central: si cambia (otra extracción), el pullback se vuelve a pedir. */
@@ -133,4 +134,49 @@ export function diferenciaDispositivo(dispositivoMm: number, vasoMm: number | nu
 export function estadoDeSeccion(s: IvusSection, ruidoMm: number): EstadoAposicion | null {
   if (!s.stent) return null;
   return s.in_lesion ? "cuello" : estadoSeccionStent(s.stent, ruidoMm);
+}
+
+// ── VINI 3D, segunda tanda (18-11): ramas, comparación y marcas ─────────── #
+
+/** Las ramas visibles cuyo origen cae a menos de `tolMm` de esta posición. */
+export function ramasCerca(ramas: IvusBranch[] | undefined, arcMm: number, tolMm = 0.75): IvusBranch[] {
+  return (ramas ?? []).filter((r) => Math.abs(r.arc_mm - arcMm) <= tolMm);
+}
+
+/** Las ramas visibles que tapa un dispositivo desplegado de `a` a `b` (mm de la línea). */
+export function ramasBajo(ramas: IvusBranch[] | undefined, a: number, b: number): IvusBranch[] {
+  const lo = Math.min(a, b), hi = Math.max(a, b);
+  return (ramas ?? []).filter((r) => r.arc_mm >= lo - 1e-6 && r.arc_mm <= hi + 1e-6);
+}
+
+/** Cambio de área de la sección actual frente a la misma sección del estudio
+ *  anterior, en % del área anterior (null si alguna de las dos no mide). */
+export function cambioArea(ahora: IvusSection | undefined, antes: IvusCompareSection | undefined): number | null {
+  const a = ahora?.valid ? ahora.area_mm2 : null, b = antes?.valid ? antes.area_mm2 : null;
+  return a == null || b == null || !(b > 0) ? null : ((a - b) / b) * 100;
+}
+
+/** Un marcador de anotación situado sobre la línea central. */
+export interface MarcaEnLinea { id: string; arc_mm: number; etiqueta: string; nota: string }
+
+/** Margen sobre el radio local: un marcador más lejos no es de esta arteria. */
+export const MARCA_MARGEN_MM = 2;
+
+/** Los marcadores visibles que caen sobre la arteria recorrida, con su posición
+ *  a lo largo de la línea (el punto más cercano), ordenados. */
+export function marcasEnLinea(anotaciones: Annotation[], t: CenterlineTrack | null): MarcaEnLinea[] {
+  if (!t || t.points.length < 2) return [];
+  const out: MarcaEnLinea[] = [];
+  for (const a of anotaciones) {
+    if (a.kind !== "marcador" || !a.visible || !a.points[0]) continue;
+    const p = a.points[0];
+    let mejor = -1, dMin = Infinity;
+    t.points.forEach((q, k) => {
+      const d = Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]);
+      if (d < dMin) { dMin = d; mejor = k; }
+    });
+    if (mejor < 0 || dMin > (t.radiiMm[mejor] ?? 0) + MARCA_MARGEN_MM) continue;
+    out.push({ id: a.id, arc_mm: t.arcMm[mejor], etiqueta: a.label, nota: a.note });
+  }
+  return out.sort((x, y) => x.arc_mm - y.arc_mm);
 }

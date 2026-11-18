@@ -62,6 +62,9 @@ class FollowupResult:
     volume_curr_mm3: float | None
     rotation_deg: float                 # cuánto giró el ajuste fino
     warnings: list[str] = field(default_factory=list)
+    #: Anterior → actual (4×4, por filas): la superposición entera, para que
+    #: otras comparaciones (el IVUS de VINI 3D) usen exactamente la misma.
+    prev_to_curr: list[list[float]] = field(default_factory=list)
 
 
 # ── Geometría DICOM → espacio del paciente ─────────────────────────────────── #
@@ -299,6 +302,7 @@ def compare(
         volume_prev_mm3=round(vprev, 1) if vprev else None,
         volume_curr_mm3=round(vcurr, 1) if vcurr else None,
         rotation_deg=round(rot, 1), warnings=warnings,
+        prev_to_curr=[[float(x) for x in fila] for fila in M],
     )
 
 

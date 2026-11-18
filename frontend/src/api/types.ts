@@ -271,6 +271,41 @@ export interface IvusResult {
   summary?: IvusSummary | null;
   note?: string;
   stent?: IvusStentSummary | null;
+  /** Orígenes de rama visibles sobre la pared de la arteria recorrida (las perforantes no se ven). */
+  branches?: IvusBranch[];
+  /** Por debajo de este diámetro el barrido no resuelve un vaso; null sin barrido. */
+  branch_floor_mm?: number | null;
+}
+
+/** Un origen de rama visible a lo largo de la línea central. */
+export interface IvusBranch {
+  arc_mm: number;
+  calibre_mm: number;
+  parent_mm: number;
+  /** En el marco de la sección (0° = +u, antihorario), como el contorno. */
+  angle_deg: number;
+  distance_mm: number;
+}
+
+/** La sección i del estudio anterior: los mismos planos que el pullback actual. */
+export interface IvusCompareSection {
+  arc_mm: number;
+  valid: boolean;
+  in_branch?: boolean;
+  area_mm2?: number | null;
+  d_min_mm?: number | null;
+  d_max_mm?: number | null;
+  contour: number[][];
+}
+
+/** La línea actual cortando el estudio anterior superpuesto en Seguimiento. */
+export interface IvusCompareResult {
+  previous_session_id: string;
+  sections: IvusCompareSection[];
+  summary?: IvusSummary | null;
+  /** Ruido de la superposición: un cambio de diámetro menor no se distingue. */
+  noise_mm: number;
+  residual_median_mm: number;
 }
 
 export interface CrossSectionRequest {

@@ -702,6 +702,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/centerline/{session_id}/ivus/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cut the earlier study with the current centreline (VINI 3D follow-up)
+         * @description Uses the registration computed in Seguimiento (earlier study → current mesh) and cuts the earlier vessel mesh with the same section planes as the current pullback, so section i of both studies is the same place. Contours and measures only (no image). 409 until that study has been superimposed in Seguimiento.
+         */
+        post: operations["ivus_compare_api_centerline__session_id__ivus_compare_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/centerline/{session_id}/points": {
         parameters: {
             query?: never;
@@ -6096,10 +6116,101 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * IvusBranch
+         * @description A visible branch origin on the wall of the walked vessel (from the frozen branch scan).
+         */
+        IvusBranch: {
+            /**
+             * Angle Deg
+             * @description Direction in the section frame (0° = +u, counter-clockwise), like the contour
+             */
+            angle_deg: number;
+            /**
+             * Arc Mm
+             * @description Position along the centreline (mm from its start)
+             */
+            arc_mm: number;
+            /**
+             * Calibre Mm
+             * @description Branch diameter
+             */
+            calibre_mm: number;
+            /**
+             * Distance Mm
+             * @description From the origin to the centreline
+             */
+            distance_mm: number;
+            /**
+             * Parent Mm
+             * @description Diameter of the vessel it leaves
+             */
+            parent_mm: number;
+        };
+        /** IvusCompareRequest */
+        IvusCompareRequest: {
+            /**
+             * Previous Session Id
+             * @description The earlier study, already superimposed in Seguimiento
+             */
+            previous_session_id: string;
+        };
+        /**
+         * IvusCompareResult
+         * @description The current centreline cut through the earlier study, superimposed with the Seguimiento registration.
+         */
+        IvusCompareResult: {
+            /**
+             * Noise Mm
+             * @description Registration noise from Seguimiento: a diameter change below it cannot be told apart
+             */
+            noise_mm: number;
+            /** Previous Session Id */
+            previous_session_id: string;
+            /** Residual Median Mm */
+            residual_median_mm: number;
+            /** Sections */
+            sections: components["schemas"]["IvusCompareSection"][];
+            /** @description IVUS summary of the earlier study at the same positions */
+            summary?: components["schemas"]["IvusSummary"] | null;
+        };
+        /** IvusCompareSection */
+        IvusCompareSection: {
+            /** Arc Mm */
+            arc_mm: number;
+            /** Area Mm2 */
+            area_mm2?: number | null;
+            /**
+             * Contour
+             * @description Earlier lumen contour (u, v) in mm, same section planes as the current pullback
+             */
+            contour?: number[][];
+            /** D Max Mm */
+            d_max_mm?: number | null;
+            /** D Min Mm */
+            d_min_mm?: number | null;
+            /**
+             * In Branch
+             * @default false
+             */
+            in_branch: boolean;
+            /** Valid */
+            valid: boolean;
+        };
+        /**
          * IvusResult
          * @description Virtual IVUS pullback computed from the volume along the centreline.
          */
         IvusResult: {
+            /**
+             * Branch Floor Mm
+             * @description Below this diameter the scan cannot resolve a vessel; null without a scan
+             */
+            branch_floor_mm?: number | null;
+            /**
+             * Branches
+             * @description Visible branch origins along the line. Perforators (0.1–0.5 mm) are not visible and never listed
+             */
+            branches?: components["schemas"]["IvusBranch"][];
             /**
              * Fov Mm
              * @description Side of each section image (mm)
@@ -12363,6 +12474,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IvusResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ivus_compare_api_centerline__session_id__ivus_compare_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IvusCompareRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IvusCompareResult"];
                 };
             };
             /** @description Validation Error */

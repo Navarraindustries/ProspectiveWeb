@@ -25,6 +25,7 @@ import type {
   CenterlineRequest,
   CenterlinePoints,
   IvusResult,
+  IvusCompareResult,
   CenterlineResult,
   ClipAnimationResult,
   ClipOrder,
@@ -672,6 +673,10 @@ export const api = {
    *  su contorno y sus medidas. El servidor lo guarda hasta que cambie algo. */
   ivusVirtual: (sessionId: string) =>
     post<IvusResult>(`/api/centerline/${sessionId}/ivus`, undefined, 120_000),
+  /** La línea actual cortando el estudio anterior ya superpuesto en Seguimiento
+   *  (409 si no se superpuso ese estudio). Mismas secciones que el pullback. */
+  ivusCompare: (sessionId: string, previousSessionId: string) =>
+    post<IvusCompareResult>(`/api/centerline/${sessionId}/ivus/compare`, { previous_session_id: previousSessionId }, 120_000),
   /** La pila de imágenes del IVUS virtual (uint8 crudo). */
   ivusStack: async (url: string): Promise<Uint8Array> => new Uint8Array(await (await getBlob(url)).arrayBuffer()),
   /** Copia suavizada de una malla de la sesión, solo para verla (picos y aristas fuera). */

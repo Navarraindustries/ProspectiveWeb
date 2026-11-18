@@ -207,6 +207,15 @@
 .hud-ivus-dispositivo { display: flex; flex-direction: column; gap: 3px; padding-top: 6px; border-top: var(--hud-line) solid var(--hud-text-dim); font-variant-numeric: tabular-nums; }
 .hud-ivus-dispositivo select { font: inherit; color: var(--hud-text); background: var(--viewer-bg); border: var(--hud-line) solid var(--hud-text-dim); border-radius: var(--radius-sm); padding: 2px 4px; }
 .hud-ivus-dispositivo select:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
+/* VINI 3D, 18-11: ramas que nacen aquí, marcadores y avisos con enlaces. */
+.hud-ivus-rama { color: var(--hud-red); }
+.hud-ivus-marcas { display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: center; }
+.hud-ivus-marcas form { display: flex; gap: 4px; width: 100%; }
+.hud-ivus-marcas input { flex: 1; min-width: 0; font: inherit; color: var(--hud-text); background: var(--viewer-bg); border: var(--hud-line) solid var(--hud-text-dim); border-radius: var(--radius-sm); padding: 2px 4px; }
+.hud-ivus-marcas input:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
+.hud-ivus .hud-ivus-marca { color: var(--plane-libre); }
+.hud-ivus .hud-ivus-enlace { padding: 0 2px; color: inherit; text-decoration: underline dotted; }
+.hud-ivus .hud-ivus-enlace:disabled { text-decoration: none; cursor: default; }
 @media (max-width: 640px) { .hud-ivus { display: none; } }
 /* ── Modo presentación (sesión clínica) ─────────────────────────────────
    Para proyectar: letra grande, poco texto y un velo suave arriba y abajo

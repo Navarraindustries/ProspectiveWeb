@@ -6,8 +6,10 @@ import type { FdSizingResult, IvusResult } from "../../api/types";
 const ivusVirtual = vi.fn();
 const ivusStack = vi.fn();
 const fdSizing = vi.fn();
+const ivusCompare = vi.fn();
 vi.mock("../../api/client", () => ({ api: {
   ivusVirtual: (...a: unknown[]) => ivusVirtual(...a), ivusStack: (...a: unknown[]) => ivusStack(...a), fdSizing: (...a: unknown[]) => fdSizing(...a),
+  ivusCompare: (...a: unknown[]) => ivusCompare(...a),
 } }));
 
 import { HudIvus, olvidarIvus } from "./HudIvus";
@@ -33,6 +35,7 @@ beforeEach(() => {
   ivusVirtual.mockReset().mockResolvedValue(datos());
   ivusStack.mockReset().mockResolvedValue(new Uint8Array(5 * 4 * 4));
   fdSizing.mockReset().mockRejectedValue(new Error("Falta la morfometría: hace falta el cuello medido."));
+  ivusCompare.mockReset();
 });
 
 function montar() {

@@ -271,6 +271,16 @@ class IvusSummary(BaseModel):
     area_stenosis_pct: float | None = Field(None, description="(1 − MLA / reference) × 100")
 
 
+class IvusBranch(BaseModel):
+    """A visible branch origin on the wall of the walked vessel (from the frozen branch scan)."""
+
+    arc_mm: float = Field(..., description="Position along the centreline (mm from its start)")
+    calibre_mm: float = Field(..., description="Branch diameter")
+    parent_mm: float = Field(..., description="Diameter of the vessel it leaves")
+    angle_deg: float = Field(..., description="Direction in the section frame (0° = +u, counter-clockwise), like the contour")
+    distance_mm: float = Field(..., description="From the origin to the centreline")
+
+
 class IvusResult(BaseModel):
     """Virtual IVUS pullback computed from the volume along the centreline."""
 
@@ -283,3 +293,30 @@ class IvusResult(BaseModel):
     summary: IvusSummary | None = None
     note: str = ""
     stent: IvusStentSummary | None = Field(None, description="Apposition of the deployed centreline stent, if any")
+    branches: list[IvusBranch] = Field(
+        default_factory=list, description="Visible branch origins along the line. Perforators (0.1–0.5 mm) are not visible and never listed")
+    branch_floor_mm: float | None = Field(None, description="Below this diameter the scan cannot resolve a vessel; null without a scan")
+
+
+class IvusCompareRequest(BaseModel):
+    previous_session_id: str = Field(..., description="The earlier study, already superimposed in Seguimiento")
+
+
+class IvusCompareSection(BaseModel):
+    arc_mm: float
+    valid: bool
+    in_branch: bool = False
+    area_mm2: float | None = None
+    d_min_mm: float | None = None
+    d_max_mm: float | None = None
+    contour: list[list[float]] = Field(default_factory=list, description="Earlier lumen contour (u, v) in mm, same section planes as the current pullback")
+
+
+class IvusCompareResult(BaseModel):
+    """The current centreline cut through the earlier study, superimposed with the Seguimiento registration."""
+
+    previous_session_id: str
+    sections: list[IvusCompareSection]
+    summary: IvusSummary | None = Field(None, description="IVUS summary of the earlier study at the same positions")
+    noise_mm: float = Field(..., description="Registration noise from Seguimiento: a diameter change below it cannot be told apart")
+    residual_median_mm: float

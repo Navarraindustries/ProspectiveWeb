@@ -48,13 +48,14 @@ import {
   type HudLevel,
 } from "./viewerPrefs";
 import { applyStep, cineShouldStop, clampFps, nextIndex } from "./cine";
-import { planoDeLinea, stepTrackIndex } from "./centerlineWalk";
+import { indexAtArc, planoDeLinea, stepTrackIndex } from "./centerlineWalk";
 import { useCenterlineTrack } from "./useCenterlineTrack";
 import { startClock } from "./cineClock";
 import { HudCineBar } from "./hud/HudCineBar";
 import { HudRecorrido, crearProgreso } from "./hud/HudRecorrido";
 import { HudIvus } from "./hud/HudIvus";
-import { claveDeLinea } from "./ivusVirtual";
+import { claveDeLinea, marcasEnLinea } from "./ivusVirtual";
+import type { GrabFn } from "./captureRenderWindow";
 import { HudPresentacion } from "./hud/HudPresentacion";
 import { GIRO_PRESENTACION_GRADOS_S, cifrasClave, escenasDisponibles } from "./presentation";
 import { GIRO_ESPERA_GRADOS_S } from "./meshSweep";
@@ -1008,6 +1009,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // izquierda y nada del paciente. Empieza fuera del vaso (la vista de antes de
   // entrar), se zambulle, avanza y da la vuelta final; se para sola al acabar y
   // se descarga. Teclas y mirada siguen valiendo mientras graba.
+  // El panel IVUS se copia en el vídeo si estaba abierto al empezar a grabar:
+  // el tamaño del vídeo se fija con el primer fotograma.
+  const copiaIvus = useRef<GrabFn | null>(null);
+  const ivusEnVideo = useRef(false);
+  const registrarCopiaIvus = useCallback((g: GrabFn | null) => { copiaIvus.current = g; }, []);
   const fuenteRecorrido = useMemo<FrameSource>(() => ({
     read: () => {
       const v = leerVisorRef.current();
@@ -1016,13 +1022,14 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (!v || !pane || !cl) return null;
       const mm = progresoRecorrido.leer();
       const { w, h } = pane.rect;
+      const anchoIvus = ivusEnVideo.current ? Math.min(420, Math.max(260, Math.round(h * 0.42))) : 0;
       return {
-        width: w, height: h, colors: v.colors, fontFamily: v.fontFamily, hudLevel: "completo",
+        width: w + anchoIvus, height: h, colors: v.colors, fontFamily: v.fontFamily, hudLevel: "completo",
         panes: [{
           id: "scene", rect: { x: 0, y: 0, w, h }, label: "VINI 3D",
           readouts: [{ at: "bl", lines: [`${cifra(mm, 1)} / ${cifra(longitudRecorrido(cl), 1)} mm`, `Ø ${cifra(diameterAtArc(cl, mm), 1)} mm`] }],
-        }],
-        grabs: [pane.capture?.grab ?? null],
+        }, ...(anchoIvus ? [{ id: "ivus", rect: { x: w, y: 0, w: anchoIvus, h } }] : [])],
+        grabs: [pane.capture?.grab ?? null, ...(anchoIvus ? [copiaIvus.current] : [])],
       };
     },
   }), [progresoRecorrido]);
@@ -1047,6 +1054,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const cam = camaraRecorrido.current ?? camera;
     if (!cam || !centerline || grabacionRecorrido.current) return;
     // Desde fuera: la vista que había antes de entrar, y de ahí la zambullida.
+    ivusEnVideo.current = ivusVisible && !!copiaIvus.current;
     cam.salirRecorrido(null);
     if (volverA.current) cam.setState(volverA.current);
     let rec: Recording;
@@ -1820,6 +1828,26 @@ export function ViewerWorkspace({ step }: { step: string }) {
     setPickMode(null);
   }, [pickMode, annotations.length, setAnnotations, setSelectedAnnotation, setAnnotationDraft, setPickMode, setNoteFocusRequest, showHintText]);
 
+  // VINI 3D: «Marcar aquí» en el IVUS deja un marcador en el punto de la línea
+  // donde va el recorrido. Es una anotación más: se guarda con ellas, se ve en
+  // la vista longitudinal y entra en el informe.
+  const marcasLinea = useMemo(() => marcasEnLinea(annotations, centerline), [annotations, centerline]);
+  const marcarEnRecorrido = useCallback((nota: string) => {
+    const t = centerlineRef.current;
+    if (!t || t.points.length === 0) return;
+    if (annotations.length >= ANNOTATIONS_MAX) { showHintText(`Máximo ${ANNOTATIONS_MAX} anotaciones por sesión`); return; }
+    const mm = progresoRecorrido.leer();
+    const p = t.points[indexAtArc(t.arcMm, mm)];
+    const donde = `VINI 3D, ${cifra(mm, 1)} mm`;
+    const a: Annotation = {
+      id: newId(), kind: "marcador", points: [[p[0], p[1], p[2]]], plane: null, label: "",
+      note: nota ? `${donde}: ${nota}` : donde,
+      visible: true, created_at: new Date().toISOString(), created_by: "",
+    };
+    setAnnotations((prev) => [...prev, { ...a, label: nextLabel("marcador", prev) }]);
+    showHintText(`Marcador guardado a ${cifra(mm, 1)} mm: entra en el informe`);
+  }, [annotations.length, progresoRecorrido, setAnnotations, showHintText]);
+
   // Corte de la región en curso: se fija con su primer punto.
   const draftPlaneRef = useRef<AnnotationPlane | null>(null);
   // `plane` es el corte del clic (null en el 3D); una regla o un ángulo pueden
@@ -2323,7 +2351,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
         {!compact && isMesh && recorrido && centerline && sessionId && ivusVisible && (
           <HudIvus sessionId={sessionId} claveLinea={`${claveDeLinea(centerline)}|${deviceMeshes.stent ?? ""}`} progreso={progresoRecorrido}
             onIrA={(mm) => { camaraRecorrido.current?.irARecorrido(mm); setRecorrido({ estado: "pausa" }); }}
-            onCerrar={() => setIvusVisible(false)} />
+            onCerrar={() => setIvusVisible(false)}
+            anterior={followup?.previousSessionId ?? null} marcas={marcasLinea} onMarcar={marcarEnRecorrido}
+            registrarCopia={registrarCopiaIvus} />
         )}
         {/* Dentro del vaso las vistas DESDE pelearían con el recorrido: se esconden hasta salir. */}
         {presentacion && (

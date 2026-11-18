@@ -1,9 +1,10 @@
 /* Pintado del IVUS virtual en canvas: el corte transversal circular y la vista
    longitudinal. Los colores salen de los tokens del HUD (nada de literales, ver
    UNI-83) y la geometría de ../ivusVirtual. */
-import type { FdOption, FdSizingResult, IvusResult } from "../../api/types";
+import type { FdOption, FdSizingResult, IvusCompareResult, IvusResult } from "../../api/types";
 import {
-  anillosMm, bordesEnL, cuerda, estadoAposicion, estadoDeSeccion, mmAPx, vistaL, type EstadoAposicion,
+  anillosMm, bordesEnL, cuerda, estadoAposicion, estadoDeSeccion, mmAPx, ramasCerca, vistaL, type EstadoAposicion,
+  type MarcaEnLinea,
 } from "../ivusVirtual";
 
 export interface ColoresIvus { texto: string; tenue: string; ambar: string; rojo: string; plano: string; fuente: string }
@@ -11,6 +12,11 @@ export interface ColoresIvus { texto: string; tenue: string; ambar: string; rojo
 /** Lo del dispositivo que se pinta encima: el plan del flow diverter (sin
  *  stent desplegado) y la opción elegida del catálogo. */
 export interface CapaDispositivo { fd: FdSizingResult | null; opcion: FdOption | null }
+
+/** Lo demás que se pinta encima (18-11): las ramas visibles, el estudio
+ *  anterior superpuesto (discontinuo) y los marcadores sobre la línea. */
+export interface CapaExtra { previo: IvusCompareResult | null; marcas: MarcaEnLinea[] }
+const SIN_EXTRA: CapaExtra = { previo: null, marcas: [] };
 
 /** Color de cada estado de aposición, el mismo criterio que el mapa 3D
  *  (rojo separado de la pared, azul comprimido). */
@@ -55,7 +61,7 @@ function grisALienzo(gris: Uint8Array, ancho: number, alto: number): HTMLCanvasE
 }
 
 export function pintarCorte(cv: HTMLCanvasElement, d: IvusResult, pila: Uint8Array, i: number, anguloL: number, col: ColoresIvus,
-  disp: CapaDispositivo = { fd: null, opcion: null }): void {
+  disp: CapaDispositivo = { fd: null, opcion: null }, extra: CapaExtra = SIN_EXTRA): void {
   const p = preparar(cv); if (!p) return;
   const { ctx, w } = p;
   const S = d.size_px, lado = w, r = lado / 2, s = d.sections[i];
@@ -80,6 +86,20 @@ export function pintarCorte(cv: HTMLCanvasElement, d: IvusResult, pila: Uint8Arr
     ctx.beginPath();
     s.contour.forEach(([u, v], k) => { const [x, y] = aPx(u, v); if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
     ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+  }
+  // El estudio anterior en esta misma sección, discontinuo.
+  const prev = extra.previo?.sections[i];
+  if (prev && prev.contour.length > 2) {
+    ctx.strokeStyle = col.tenue; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    prev.contour.forEach(([u, v], k) => { const [x, y] = aPx(u, v); if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+    ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+  }
+  // Las ramas visibles que nacen aquí: un punto rojo en su dirección, sobre la pared.
+  for (const rama of ramasCerca(d.branches, s.arc_mm)) {
+    const a = (rama.angle_deg * Math.PI) / 180;
+    const [x, y] = aPx(Math.cos(a) * rama.distance_mm, Math.sin(a) * rama.distance_mm);
+    ctx.fillStyle = col.rojo; ctx.beginPath(); ctx.arc(x, y, 4, 0, 2 * Math.PI); ctx.fill();
   }
   // Diámetros mínimo y máximo por el centroide.
   for (const [ang, color] of [[s.angle_max_deg, col.texto], [s.angle_min_deg, col.ambar]] as const) {
@@ -132,7 +152,7 @@ export const columnaDe = (i: number, n: number, w: number) => (n > 1 ? (i / (n -
 export const seccionDe = (x: number, n: number, w: number) => Math.min(n - 1, Math.max(0, Math.round((x / w) * (n - 1))));
 
 export function pintarL(cv: HTMLCanvasElement, d: IvusResult, pila: Uint8Array, i: number, anguloL: number, col: ColoresIvus,
-  disp: CapaDispositivo = { fd: null, opcion: null }): void {
+  disp: CapaDispositivo = { fd: null, opcion: null }, extra: CapaExtra = SIN_EXTRA): void {
   const p = preparar(cv); if (!p) return;
   const { ctx, w, h } = p;
   const n = d.n_sections, S = d.size_px;
@@ -159,6 +179,20 @@ export function pintarL(cv: HTMLCanvasElement, d: IvusResult, pila: Uint8Array, 
       if (abierto) ctx.lineTo(x, y); else { ctx.moveTo(x, y); abierto = true; }
     });
     ctx.stroke();
+  }
+  // El estudio anterior: sus bordes, discontinuos, en las mismas secciones.
+  if (extra.previo) {
+    for (const lado of [0, 1] as const) {
+      ctx.strokeStyle = col.tenue; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.beginPath();
+      let abierto = false;
+      extra.previo.sections.forEach((s, k) => {
+        const b = s.valid ? bordesEnL(s.contour, anguloL) : null;
+        if (!b || k >= n) { abierto = false; return; }
+        const x = columnaDe(k, n, w), y = yDe(lado === 0 ? b[0] : -b[1]);
+        if (abierto) ctx.lineTo(x, y); else { ctx.moveTo(x, y); abierto = true; }
+      });
+      ctx.stroke(); ctx.setLineDash([]);
+    }
   }
   // El stent desplegado: sus bordes sobre la recta y, abajo, una franja con
   // la aposición de cada sección.
@@ -209,6 +243,27 @@ export function pintarL(cv: HTMLCanvasElement, d: IvusResult, pila: Uint8Array, 
   if (sm) {
     for (const ref of [sm.ref_prox_arc_mm, sm.ref_dist_arc_mm]) { const k = indiceDe(ref); if (k >= 0) vertical(k, col.tenue, [2, 3]); }
     vertical(sm.mla_index, col.ambar, [4, 2]);
+  }
+  // Columna de una posición de la línea (mm).
+  const xDeArco = (mm: number) => {
+    let k = 0;
+    while (k < n - 1 && d.sections[k + 1].arc_mm <= mm) k++;
+    return columnaDe(k, n, w);
+  };
+  // Ramas visibles: un triángulo rojo arriba, apuntando al vaso.
+  ctx.fillStyle = col.rojo;
+  for (const rama of d.branches ?? []) {
+    const x = xDeArco(rama.arc_mm);
+    ctx.beginPath(); ctx.moveTo(x - 4, 0); ctx.lineTo(x + 4, 0); ctx.lineTo(x, 7); ctx.closePath(); ctx.fill();
+  }
+  // Marcadores sobre la línea: una banderita con su etiqueta.
+  ctx.font = `9px ${col.fuente}`;
+  for (const m of extra.marcas) {
+    const x = xDeArco(m.arc_mm);
+    ctx.strokeStyle = col.plano; ctx.fillStyle = col.plano; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, h); ctx.lineTo(x, h - 14); ctx.stroke();
+    ctx.fillRect(x, h - 14, 5, 4);
+    ctx.fillText(m.etiqueta, x + 3, h - 16);
   }
   // Dónde va el recorrido.
   vertical(i, col.texto, []);

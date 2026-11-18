@@ -473,6 +473,8 @@ export interface FollowupOverlay {
   /** Saturación del color (mm) y franja gris de ruido (mm). */
   range: number;
   noise: number;
+  /** El estudio superpuesto: el IVUS de VINI 3D lo corta con la misma superposición. */
+  previousSessionId?: string;
 }
 export type PickMode =
   | "cl_source" | "cl_target" | "neck_origin" | "neck_dome"

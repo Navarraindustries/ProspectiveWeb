@@ -295,6 +295,9 @@ class ReportData:
     #: F1-188: la familia marcada como estrategia (clips, coils, stent,
     #: stent_cl, web) o "". Su sección es el plan; las demás, alternativas.
     device_strategy: str = ""
+    #: VINI 3D: el pullback del IVUS virtual con sus figuras
+    #: (services.informe_vini3d.Vini3d), o None sin línea central.
+    vini3d: Any = None
 
 
 # ──────────────────────────────────────────────────────────────────────────── #
@@ -669,7 +672,18 @@ def build_report_data_from_session(
         treatment    = treatment,
         team         = team,
         device_strategy = device_strategy,
+        vini3d       = _vini3d(session_id),
     )
+
+
+def _vini3d(session_id: str):
+    """VINI 3D para el informe; un fallo aquí no puede dejar sin informe."""
+    try:
+        from services.informe_vini3d import datos_vini3d
+        return datos_vini3d(session_id)
+    except Exception:  # noqa: BLE001
+        logger.warning("VINI 3D no entra en el informe de %s", session_id, exc_info=True)
+        return None
 
 
 def _render_plan_views(session_id: str) -> dict[str, bytes]:
@@ -937,6 +951,7 @@ class ReportGenerator:
         story += self._section_manufacture()
         story += self._section_coils()
         story += self._section_stent()
+        story += self._section_vini3d()
         story += self._section_trajectory()
         story += self._section_annotations()
         story += self._section_risk()
@@ -1898,6 +1913,131 @@ class ReportGenerator:
         # El título nunca se queda solo al pie de la página.
         heading.keepWithNext = True
         return [heading, tbl]
+
+    def _section_vini3d(self) -> list:
+        """VINI 3D: el IVUS virtual a lo largo de la línea central (18-11).
+
+        En pantalla se ve junto al recorrido por dentro del vaso; aquí van la
+        vista longitudinal, el corte en la MLA, las medidas, las ramas que caen
+        dentro del dispositivo y, si se superpuso un estudio anterior, la
+        comparación. Sin línea central no hay sección.
+        """
+        v = self._data.vini3d
+        if v is None:
+            return []
+        d = v.datos
+        r = d.get("summary") or {}
+        out: list = [
+            Spacer(1, 0.2*cm),
+            Paragraph("VINI 3D · IVUS virtual a lo largo de la línea central", self._style_h2),
+            Paragraph(
+                "Una sección perpendicular a la línea central cada ~0,5 mm, como el «pullback» de un "
+                "IVUS: la imagen del volumen en ese plano y el contorno de la luz cortado de la "
+                "segmentación. Es una reconstrucción, no un ultrasonido.", self._style_small),
+        ]
+        if v.vista_l_png:
+            out.append(Image(io.BytesIO(v.vista_l_png), width=17*cm, height=4.6*cm, kind="proportional"))
+            leyenda = ("Vista longitudinal (la arteria estirada; izquierda = origen de la línea). "
+                       "Azul: borde de la luz · ámbar: MLA · gris: referencias · triángulos rojos: "
+                       "ramas visibles · barra violeta: ")
+            leyenda += (v.dispositivo["nombre"] if v.dispositivo else "sin dispositivo")
+            if v.dispositivo and v.dispositivo.get("cuello"):
+                leyenda += " · barra ámbar: cuello"
+            if v.comparacion:
+                leyenda += " · blanco discontinuo: estudio anterior"
+            out.append(Paragraph(escape_xml(leyenda) + ".", self._style_small))
+
+        def _fila(etiqueta: str, valor: str) -> list:
+            return [etiqueta, Paragraph(escape_xml(valor), self._style_cell)]
+
+        rows = [_fila("Longitud recorrida", f"{cifra(v.longitud_mm)} mm · {d.get('n_sections', 0)} secciones")]
+        if r:
+            rows.append(_fila("Área luminal mínima (MLA)",
+                              f"{cifra(r['mla_mm2'], 2)} mm² a {cifra(r['mla_arc_mm'])} mm · "
+                              f"Ø {cifra(r['d_min_mm'], 2)}–{cifra(r['d_max_mm'], 2)} mm"))
+            for nombre, a, arc in (("Referencia proximal", r.get("ref_prox_mm2"), r.get("ref_prox_arc_mm")),
+                                   ("Referencia distal", r.get("ref_dist_mm2"), r.get("ref_dist_arc_mm"))):
+                rows.append(_fila(nombre, f"{cifra(a, 2)} mm² a {cifra(arc)} mm" if a is not None else "sin sección válida"))
+            if r.get("area_stenosis_pct") is not None:
+                rows.append(_fila("Estenosis de área", f"{cifra(r['area_stenosis_pct'])} % frente a la referencia media"))
+        elif d.get("note"):
+            rows.append(_fila("MLA", d["note"]))
+        if v.dispositivo:
+            rows.append(_fila("Dispositivo", f"{v.dispositivo['nombre']}: de {cifra(v.dispositivo['desde'])} "
+                                             f"a {cifra(v.dispositivo['hasta'])} mm"))
+        tbl = Table(rows, colWidths=[5.5*cm, 12.4*cm])
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (0, -1), self._GREY_LIGHT),
+            ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+            ("GRID", (0, 0), (-1, -1), 0.4, self._GREY_MED),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]))
+        out += [Spacer(1, 0.15*cm), tbl]
+
+        if v.corte_png:
+            out += [Spacer(1, 0.2*cm),
+                    Image(io.BytesIO(v.corte_png), width=5.5*cm, height=5.5*cm),
+                    Paragraph("Corte en la MLA: contorno de la luz (azul), diámetro mínimo (ámbar) y "
+                              "máximo (gris); la barra blanca mide 1 mm.", self._style_small)]
+
+        # Las ramas visibles a lo largo de la línea, y las que tapa el dispositivo.
+        if v.ramas:
+            dentro = {id(x) for x in v.ramas_en_dispositivo()}
+            filas = [["Posición", "Ø rama", "Ø de donde nace", "Dentro del dispositivo"]]
+            for x in v.ramas:
+                filas.append([f"{cifra(x['arc_mm'])} mm", f"{cifra(x['calibre_mm'], 2)} mm",
+                              f"{cifra(x['parent_mm'], 2)} mm", "sí" if id(x) in dentro else "no"])
+            t = Table(filas, colWidths=[3.5*cm, 3*cm, 4*cm, 5*cm])
+            t.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), self._GREY_LIGHT),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.4, self._GREY_MED),
+            ]))
+            out += [Spacer(1, 0.2*cm), Paragraph("<b>Ramas visibles a lo largo de la línea</b>", self._style_body), t]
+            if dentro:
+                out.append(Paragraph(
+                    f"<b>{len(dentro)} rama{'s' if len(dentro) != 1 else ''} visible{'s' if len(dentro) != 1 else ''} "
+                    f"queda{'n' if len(dentro) != 1 else ''} bajo el dispositivo.</b> Un flow diverter o un stent "
+                    "cubre su origen: comprobarlo antes de decidir.", self._style_body))
+        if v.suelo_ramas_mm:
+            out.append(Paragraph(
+                f"Las perforantes (0,1–0,5 mm) no se ven en esta imagen: por debajo de "
+                f"{cifra(v.suelo_ramas_mm)} mm de diámetro no se resuelve un vaso, así que una lista vacía "
+                "no prueba que no las haya.", self._style_small))
+
+        st = d.get("stent")
+        if st:
+            out.append(Paragraph(
+                f"<b>Aposición del stent</b> (ruido: {cifra(st['noise_mm'], 2)} mm): separado de la pared en "
+                f"{cifra(st['gap_length_mm'])} mm (máx. {cifra(st['max_gap_mm'], 2)} mm), comprimido en "
+                f"{cifra(st['compressed_length_mm'])} mm; anclajes proximal {cifra(st['proximal_gap_mm'], 2)} mm "
+                f"y distal {cifra(st['distal_gap_mm'], 2)} mm; {cifra(st['neck_length_mm'])} mm sin pared "
+                "(cuello o lesión).", self._style_body))
+
+        c = v.comparacion
+        if c:
+            rp = c.get("summary") or {}
+            texto = "<b>Comparación con el estudio anterior</b> (superpuesto en Seguimiento, ruido "
+            texto += f"{cifra(c['noise_mm'], 2)} mm): "
+            if rp and r:
+                texto += (f"MLA {cifra(rp['mla_mm2'], 2)} mm² antes y {cifra(r['mla_mm2'], 2)} mm² ahora. ")
+            pares = [(a, b) for a, b in zip(d["sections"], c.get("sections") or [])
+                     if a.get("valid") and b.get("valid") and not a.get("in_lesion")
+                     and a.get("area_mm2") is not None and b.get("area_mm2") is not None]
+            if pares:
+                a, b = max(pares, key=lambda ab: abs(ab[0]["area_mm2"] - ab[1]["area_mm2"]))
+                texto += (f"Mayor cambio de área en el mismo sitio: {cifra(b['area_mm2'], 2)} → "
+                          f"{cifra(a['area_mm2'], 2)} mm² a {cifra(a['arc_mm'])} mm.")
+            out.append(Paragraph(texto, self._style_body))
+
+        out.append(Paragraph(
+            "Límites: las medidas salen de la segmentación, con un error del orden de un vóxel en el "
+            "diámetro; en arterias de 2–4 mm eso puede mover el área en torno a un ±15 %. La pared "
+            "intracraneal (~0,3 mm) no se resuelve: no hay medida de placa ni de remodelado.",
+            self._style_small))
+        return out
 
     def _section_stent(self) -> list:
         st = self._data.stent

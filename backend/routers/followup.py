@@ -61,6 +61,10 @@ class FollowupResultOut(BaseModel):
     warnings: list[str]
 
 
+#: La última superposición calculada en esta sesión (JSON).
+FOLLOWUP_STATE_KEY = "followup.registro_json"
+
+
 # ── Lo que hace falta de cada estudio, esté vivo o guardado ───────────────── #
 
 def _study_dir(session_id: str) -> Path:
@@ -222,6 +226,14 @@ async def followup(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     warnings = list(r.warnings)
+    # La superposición se guarda: el IVUS de VINI 3D corta el estudio anterior
+    # con la misma, y su comparación dice qué estudio y con qué ruido.
+    import json
+    from services.sessions import write_state
+    write_state(session_id, FOLLOWUP_STATE_KEY, json.dumps({
+        "previous_session_id": req.previous_session_id, "prev_to_curr": r.prev_to_curr,
+        "noise_mm": r.noise_mm, "residual_median_mm": r.residual_median_mm,
+    }))
     mc, mp = (sc.get("dicom.modality", "") or "").upper(), (sp.get("dicom.modality", "") or "").upper()
     if mc and mp and mc != mp:
         warnings.append(

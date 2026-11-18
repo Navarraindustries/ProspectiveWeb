@@ -157,11 +157,21 @@ class TestPorLaApi:
         return sid
 
     def test_devuelve_el_desenlace_y_los_dos_volumenes(self):
-        body = client.get(f"/api/clips/occlusion/{self._sesion(-4.0)}").json()
+        # El corte va por el canto inferior de la hoja: el clip por defecto mide
+        # 1,4 mm de alto, así que su centro a −3,3 corta a −4,0.
+        body = client.get(f"/api/clips/occlusion/{self._sesion(-3.3)}").json()
         assert body["outcome"] == "resto_de_cuello"
         assert body["excluded_mm3"] > body["remnant_mm3"] > 0
         assert body["summary"]
         assert body["clip_name"] == "Clip 0"
+
+    def test_corta_por_el_canto_inferior_de_la_hoja_no_por_el_centro(self):
+        # Lo que hay entre el canto y el centro de la mordaza está pinzado, no
+        # comunicado: con el centro a −4,0 el corte va a −4,7 y el muñón es menor
+        # que si se cortara por el centro.
+        por_canto = client.get(f"/api/clips/occlusion/{self._sesion(-4.0)}").json()
+        por_centro = client.get(f"/api/clips/occlusion/{self._sesion(-3.3)}").json()
+        assert por_canto["remnant_mm3"] < por_centro["remnant_mm3"]
 
     def test_el_munon_se_puede_pintar(self):
         body = client.get(f"/api/clips/occlusion/{self._sesion(0.0)}").json()

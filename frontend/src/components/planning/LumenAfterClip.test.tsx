@@ -43,3 +43,17 @@ describe("LumenAfterClip", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+describe("LumenAfterClip · ramas", () => {
+  const rama = (index: number, free_pct: number) => ({ index, position_mm: { x: 0, y: 0, z: 0 }, calibre_mm: 1, distance_mm: 3, free_pct });
+  it("lista solo las ramas que el clip alcanza y resume las libres", () => {
+    render(<LumenAfterClip data={{ ...base, lumen_summary: "x", branch_lumen: [rama(1, 60), rama(2, 100), rama(3, 100)] }} />);
+    expect(screen.getAllByText(/^Rama Ø/)).toHaveLength(1);
+    expect(screen.getByText("Otras 2 ramas visibles cercanas quedan libres.")).toBeInTheDocument();
+  });
+  it("si ninguna queda dentro, lo dice con el número", () => {
+    render(<LumenAfterClip data={{ ...base, lumen_summary: "x", branch_lumen: [rama(1, 100), rama(2, 100)] }} />);
+    expect(screen.queryByText(/^Rama Ø/)).toBeNull();
+    expect(screen.getByText("Ninguna de las 2 ramas visibles cercanas queda dentro de la mordaza.")).toBeInTheDocument();
+  });
+});

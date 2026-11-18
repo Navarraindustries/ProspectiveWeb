@@ -1488,6 +1488,19 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
 
 # ── Cómo queda el aneurisma con el clip puesto ──────────────────────────────── #
 
+def _canto_inferior_mm(session_id: str, clip: dict) -> float:
+    """Cuánto baja el canto inferior de la hoja desde el centro de la mordaza (mm)."""
+    from services.luz_tras_clip import mordaza_de
+
+    cid = str(clip.get("clip_id", ""))
+    spec = _catalogue_index().get(cid)
+    m = mordaza_de((0.0, 0.0, 0.0), (0.0, 0.0, 1.0), 0.0,
+                   _clip_geometry_for(cid, session_subdir(session_id, "meshes")), 0.0,
+                   largo_hoja_mm=float(getattr(spec, "blade_length_mm", 0.0) or 0.0),
+                   alto_hoja_mm=float(getattr(spec, "blade_height_mm", 0.0) or 0.0))
+    return max(0.0, -m.z_min)
+
+
 def _luz_tras_clip(session_id: str, colocados: list[dict], sac):
     """La luz que dejan los clips colocados en la arteria madre y en las ramas."""
     import numpy as np
@@ -1597,7 +1610,21 @@ def clip_occlusion(session_id: str) -> OcclusionOut:
         return float(_np.dot(p - origen_cuello, n))
 
     proximal = min(colocados, key=_altura)
+    # La línea de cierre es el canto inferior de la hoja, no el centro de la
+    # mordaza: las hojas aplastan todo lo que abarcan de alto, y lo que queda
+    # entre ese canto y el centro está pinzado, no comunicado. Cortar por el
+    # centro contaba como muñón media hoja de saco aplastado: con el clip nuevo,
+    # que nace media hoja encima del cuello, salía «aneurisma residual» donde la
+    # luz tras el clip veía el cuello cerrado. Es el mismo canto que usa
+    # services/luz_tras_clip.py.
     corte = _np.asarray(proximal.get("position", [0.0, 0.0, 0.0]), dtype=float)
+    try:
+        canto = _canto_inferior_mm(session_id, proximal)
+        n_hoja = _np.asarray(proximal.get("normal") or n, dtype=float)
+        n_hoja = n_hoja / (float(_np.linalg.norm(n_hoja)) or 1.0)
+        corte = corte - n_hoja * canto
+    except Exception as exc:  # noqa: BLE001 — sin geometría, el centro como antes
+        logger.warning("Canto de la hoja sin calcular en %s: %s", session_id, exc)
 
     res = occlusion_after_clip(sac, tuple(corte), tuple(n),
                                neck_origin=cuello, neck_axis=tuple(n))

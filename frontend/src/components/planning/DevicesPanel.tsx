@@ -1714,15 +1714,17 @@ export function LumenAfterClip({ data }: { data: OcclusionOut }) {
       )}
       {ramas.length > 0 && (
         <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 2 }}>
-          {ramas.map((r) => (
+          {/* Solo las que el clip alcanza: las libres, en una línea (en case 3 eran 8 filas de «origen libre»). */}
+          {tocadas.map((r) => (
             <div key={r.index} style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: colorLuz(r.free_pct) }}>
-              {`Rama Ø ${cifra(r.calibre_mm, 1)} mm a ${cifra(r.distance_mm, 1)} mm del clip: `}
-              {r.free_pct >= LUZ_INTACTA_PCT ? "origen libre" : `conserva el ${cifra(r.free_pct, 0)} %`}
+              {`Rama Ø ${cifra(r.calibre_mm, 1)} mm a ${cifra(r.distance_mm, 1)} mm del clip: conserva el ${cifra(r.free_pct, 0)} %`}
             </div>
           ))}
-          {tocadas.length === 0 && (
-            <div style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>Ninguna rama visible cercana queda dentro de la mordaza.</div>
-          )}
+          <div style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>
+            {tocadas.length === 0
+              ? `Ninguna de las ${ramas.length} ramas visibles cercanas queda dentro de la mordaza.`
+              : ramas.length > tocadas.length ? `Otras ${ramas.length - tocadas.length} ramas visibles cercanas quedan libres.` : ""}
+          </div>
         </div>
       )}
       <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>

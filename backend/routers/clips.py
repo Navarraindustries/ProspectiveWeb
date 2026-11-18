@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import functools
 import json
 import logging
 import time
@@ -60,6 +61,29 @@ router = APIRouter(prefix="/api", tags=["clips"])
 #: that an unmeasurable mesh leaves the clip step usable instead of empty.
 _TYPICAL_NECK_MM = 4.0
 _TYPICAL_AR = 1.4
+
+#: Un cerrojo por sesión para los endpoints que escriben ficheros de la sesión.
+_cerrojos: dict[str, asyncio.Lock] = {}
+
+
+def _de_una_en_una_por_sesion(fn):
+    """Corre el endpoint (síncrono) en un hilo; los de una misma sesión, de uno en uno.
+
+    Eran `async def` sin ningún `await`: su cálculo (colocar clips, el cierre
+    animado, la oclusión, la pieza a medida…) corría dentro del bucle de
+    eventos y dejaba el servidor entero sin responder mientras tanto, como la
+    selección de clips (218e3d2). En hilos, dos peticiones de la misma sesión
+    podrían escribir los mismos ficheros a la vez; antes las serializaba el
+    bucle, ahora el cerrojo, y las de sesiones distintas ya no se esperan.
+    """
+    @functools.wraps(fn)
+    async def envoltura(*args, **kwargs):
+        sid = kwargs.get("session_id") or getattr(kwargs.get("req"), "session_id", None) or ""
+        cerrojo = _cerrojos.setdefault(sid, asyncio.Lock())
+        async with cerrojo:
+            return await asyncio.to_thread(fn, *args, **kwargs)
+    return envoltura
+
 
 def _clip_geometry_for(clip_id: str, meshes_dir):
     """The real geometry for this clip id, in the clip's own local frame.
@@ -221,7 +245,7 @@ def _custom_clip_name(session_id: str, clip_id: str) -> str:
         "offer, and are not listed here (`OFFER_COMMERCIAL_CLIPS`)."
     ),
 )
-async def get_clip_library() -> list[ClipLibraryItem]:
+def get_clip_library() -> list[ClipLibraryItem]:
     return [ClipLibraryItem(**item) for item in catalogue_to_api()]
 
 
@@ -237,7 +261,7 @@ async def get_clip_library() -> list[ClipLibraryItem]:
         "to id, name and score — not a second opinion."
     ),
 )
-async def get_clip_recommendations(session_id: str) -> list[ClipRecommendation]:
+def get_clip_recommendations(session_id: str) -> list[ClipRecommendation]:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
@@ -360,7 +384,8 @@ async def upload_custom_clip(
         "Returns the combined clip mesh URL (.vtp) for the 3D viewer."
     ),
 )
-async def plan_clips(
+@_de_una_en_una_por_sesion
+def plan_clips(
     req: ClipPlanRequest,
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> ClipPlanResult:
@@ -567,7 +592,7 @@ def _trajectory_mesh(entry, target):
         "disk. This restores the list."
     ),
 )
-async def list_custom_clips(session_id: str) -> list[CustomClipInfo]:
+def list_custom_clips(session_id: str) -> list[CustomClipInfo]:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     registry = _custom_registry(session_id)
@@ -589,7 +614,8 @@ async def list_custom_clips(session_id: str) -> list[CustomClipInfo]:
         "devices step."
     ),
 )
-async def delete_custom_clip(session_id: str, clip_index: int) -> list[CustomClipInfo]:
+@_de_una_en_una_por_sesion
+def delete_custom_clip(session_id: str, clip_index: int) -> list[CustomClipInfo]:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
@@ -950,7 +976,8 @@ async def clip_selection(
         "spring. It is a specification to manufacture FROM, not a finished part."
     ),
 )
-async def clip_manufacture_spec(
+@_de_una_en_una_por_sesion
+def clip_manufacture_spec(
     session_id: str,
     case_id: int | None = Query(None, description="Clinical case, when the session is not yet saved"),
 ) -> ManufactureSpecOut:
@@ -1062,7 +1089,8 @@ async def clip_manufacture_spec(
         "the manufacturing master, which comes from the parametric CAD."
     ),
 )
-async def build_navarro_clip(
+@_de_una_en_una_por_sesion
+def build_navarro_clip(
     session_id: str,
     jaw_mm: float = Query(..., gt=0.5, le=40.0, description="Useful grip length (mm)"),
     angle_deg: float = Query(0.0, ge=0.0, le=90.0, description="Bend angle (0 = straight)"),
@@ -1150,7 +1178,8 @@ async def build_navarro_clip(
         "and nothing here says the corridor can be reached with human hands."
     ),
 )
-async def clip_animation(
+@_de_una_en_una_por_sesion
+def clip_animation(
     session_id: str,
     req: ClipPlanRequest,
 ) -> ClipAnimationResult:
@@ -1474,7 +1503,8 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
         "Geometry, not mechanics. It does not model how the wall yields."
     ),
 )
-async def clip_occlusion(session_id: str) -> OcclusionOut:
+@_de_una_en_una_por_sesion
+def clip_occlusion(session_id: str) -> OcclusionOut:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 

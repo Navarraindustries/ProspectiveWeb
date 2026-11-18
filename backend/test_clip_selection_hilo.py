@@ -63,3 +63,51 @@ def test_otra_clave_calcula_aparte(monkeypatch):
 
     asyncio.run(escenario())
     assert sorted(llamadas) == [("s1", False), ("s1", True)]
+
+
+def test_endpoints_que_escriben_van_en_hilo_y_de_uno_en_uno_por_sesion():
+    activos: dict[str, int] = {}
+    maximo: dict[str, int] = {}
+    cerrojo = threading.Lock()
+
+    def escribe(session_id: str):
+        with cerrojo:
+            activos[session_id] = activos.get(session_id, 0) + 1
+            maximo[session_id] = max(maximo.get(session_id, 0), activos[session_id])
+        time.sleep(0.2)
+        with cerrojo:
+            activos[session_id] -= 1
+        return session_id
+
+    envuelto = clips._de_una_en_una_por_sesion(escribe)
+
+    async def escenario():
+        latido = []
+
+        async def pulso():
+            for _ in range(5):
+                latido.append(time.perf_counter())
+                await asyncio.sleep(0.05)
+
+        t0 = time.perf_counter()
+        await asyncio.gather(
+            envuelto(session_id="a"), envuelto(session_id="a"),
+            envuelto(session_id="b"), pulso(),
+        )
+        return time.perf_counter() - t0, latido
+
+    total, latido = asyncio.run(escenario())
+    assert maximo == {"a": 1, "b": 1}      # la misma sesión nunca a la vez
+    assert 0.38 < total < 0.6              # «b» no esperó a las dos de «a»
+    assert latido[-1] - latido[0] < 0.3    # el bucle siguió libre
+
+
+def test_los_endpoints_de_clips_ya_no_calculan_en_el_bucle():
+    import ast
+    import inspect
+
+    arbol = ast.parse(inspect.getsource(clips))
+    asincronos = {n.name for n in arbol.body if isinstance(n, ast.AsyncFunctionDef)}
+    # Solo quedan los que de verdad esperan algo: la subida (lee el fichero)
+    # y la selección (espera su hilo).
+    assert asincronos == {"upload_custom_clip", "_seleccion_compartida", "clip_selection"}

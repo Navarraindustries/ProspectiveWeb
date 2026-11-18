@@ -63,6 +63,11 @@ class Mordaza:
     ventana_x: float | None = None       # centro de la ventana (fenestrado)
     ventana_r: float = 0.0
     subida: float = 0.0                  # desplazamiento a lo largo de la normal (hacia el domo)
+    #: El plano del cuello medido en Morfometría (origen, normal hacia el domo).
+    #: Separa aneurisma de arteria y NO se mueve con el clip. Sin él, el plano
+    #: que pasa por el centro de la mordaza (el clip puesto en el cuello).
+    cuello_origen: np.ndarray | None = None
+    cuello_normal: np.ndarray | None = None
 
     def subido(self, mm: float) -> "Mordaza":
         from dataclasses import replace
@@ -100,11 +105,21 @@ class Mordaza:
         return self._huella(x, y, z) & (z >= self.z_min)
 
     def lado_del_domo(self, puntos_mundo: np.ndarray) -> np.ndarray:
-        """Entre las hojas y por encima del plano de cierre: es aneurisma (la boca del
-        cuello), no arteria. El clip debe cerrarlo y no cuenta como luz perdida."""
+        """Entre las hojas y por encima del plano del cuello: es aneurisma (la boca del
+        cuello), no arteria. El clip debe cerrarlo y no cuenta como luz perdida.
+
+        Con el plano del cuello de la morfometría, no con el del centro de la
+        mordaza: el clip nace con el canto de la hoja en el cuello, y la franja
+        entre el cuello y el centro de la mordaza es saco, no arteria pinzada.
+        Con el canto por debajo del cuello, esa franja sí es arteria: es lo que
+        pinza un clip demasiado bajo."""
         x, y, z = self._local(puntos_mundo).T
         z = z - self.subida
-        return self._huella(x, y, z) & (z >= 0.0)
+        if self.cuello_origen is not None and self.cuello_normal is not None:
+            encima = (puntos_mundo - self.cuello_origen) @ self.cuello_normal >= 0.0
+        else:
+            encima = z >= 0.0
+        return self._huella(x, y, z) & encima
 
 
 def mordaza_de(posicion, normal, giro_deg: float, local: vtk.vtkPolyData,

@@ -1552,6 +1552,12 @@ def _luz_tras_clip(session_id: str, colocados: list[dict], sac):
                                    float(getattr(spec, "fenestration_mm", 0.0) or 0.0),
                                    float(getattr(spec, "blade_length_mm", 0.0) or 0.0),
                                    float(getattr(spec, "blade_height_mm", 0.0) or 0.0)))
+    # El plano del cuello separa aneurisma de arteria, sea cual sea la altura del clip.
+    eje = np.array([_load_float(session_id, f"morpho.axis_{k}", 0.0) for k in "xyz"])
+    origen = np.array([_load_float(session_id, f"morpho.neck_origin_{k}", float("nan")) for k in "xyz"])
+    if np.all(np.isfinite(origen)) and np.linalg.norm(eje) > 1e-9:
+        for z in mordazas:
+            z.cuello_origen, z.cuello_normal = origen, eje / np.linalg.norm(eje)
     vaso = read_vtp(vaso_path)
     r = LuzTrasClip(apertura_mm=2.0 * max(z.medio_y for z in mordazas))
     linea = meshes_dir / "centerline_points.npz"

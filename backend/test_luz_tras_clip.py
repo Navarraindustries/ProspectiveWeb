@@ -203,3 +203,22 @@ def test_con_la_colocacion_nueva_la_oclusion_corta_en_el_plano_del_cuello():
     from routers.clips import _caida_hoja_mm, _canto_inferior_mm
     caida = _caida_hoja_mm("navarro:t3:15:7.0")
     assert _canto_inferior_mm("cualquiera", {"clip_id": "navarro:t3:15:7.0"}) == caida
+
+
+def test_con_el_plano_del_cuello_un_clip_con_el_canto_en_el_cuello_deja_la_madre_libre():
+    # El cuello medido está en el techo del tubo. Un clip cuyo canto (0,7 mm bajo el
+    # centro) queda justo en ese plano no pinza nada: lo que hay entre el cuello y el
+    # centro de la mordaza es saco. Bajado hasta centrarlo en el cuello, pinza 0,7 mm.
+    vaso, (pts, arco) = _madre(), _linea()
+    techo = EJE_Z + R
+
+    def con_cuello(m):
+        m.cuello_origen, m.cuello_normal = np.array([20.0, EJE_Y, techo]), np.array([0.0, 0.0, 1.0])
+        return m
+
+    arriba = [con_cuello(_clip_en(techo + ALTO_HOJA / 2.0))]
+    assert min(s.libre_pct for s in luz_de_la_madre(pts, arco, vaso, arriba)) > 99.5
+    centrado = [con_cuello(_clip_en(techo))]
+    peor = min(luz_de_la_madre(pts, arco, vaso, centrado), key=lambda s: s.libre_pct)
+    esperado = 100.0 * (1.0 - _segmento(ALTO_HOJA / 2.0) / (math.pi * R * R))
+    assert abs(peor.libre_pct - esperado) < 2.5, (peor.libre_pct, esperado)

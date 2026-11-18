@@ -4527,6 +4527,12 @@ export interface components {
              */
             bend_angle_deg: number;
             /**
+             * Blade Drop Mm
+             * @description Lower blade edge below the jaw centre, from the real geometry (mm)
+             * @default 0
+             */
+            blade_drop_mm: number;
+            /**
              * Blade Height Mm
              * @description Blade height along the clip normal (mm)
              * @default 0
@@ -4877,8 +4883,14 @@ export interface components {
              */
             angle_deg: number;
             /**
+             * Blade Drop Mm
+             * @description How far the blade's lower edge lies below the jaw centre, from the real geometry (mm). The default placement raises the clip by this much so the edge sits on the neck plane
+             * @default 0
+             */
+            blade_drop_mm: number;
+            /**
              * Blade Height Mm
-             * @description Blade height along the clip normal (mm): the default placement keeps the blade above the neck plane
+             * @description Blade height along the clip normal (mm), from the data sheet
              * @default 0
              */
             blade_height_mm: number;
@@ -8568,11 +8580,11 @@ export interface components {
              */
             azimuthDeg: number;
             /**
-             * Bladeheightmm
-             * @description Alto de la hoja (mm): volver al cuello deja la hoja encima del plano del cuello
+             * Bladedropmm
+             * @description Cuánto baja el canto inferior de la hoja desde el centro de la mordaza (mm): volver al cuello sube eso, para que el canto quede en el plano del cuello
              * @default 0
              */
-            bladeHeightMm: number;
+            bladeDropMm: number;
             /** Clip Id */
             clip_id: string;
             /**

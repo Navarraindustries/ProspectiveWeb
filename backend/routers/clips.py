@@ -248,7 +248,8 @@ def _custom_clip_name(session_id: str, clip_id: str) -> str:
     ),
 )
 def get_clip_library() -> list[ClipLibraryItem]:
-    return [ClipLibraryItem(**item) for item in catalogue_to_api()]
+    return [ClipLibraryItem(**item, blade_drop_mm=round(_caida_hoja_mm(item["id"]), 2))
+            for item in catalogue_to_api()]
 
 
 @router.get(
@@ -784,6 +785,7 @@ def _candidate_out(cand: ClipCandidate) -> ClipCandidateOut:
         shape            = cand.clip.shape.value,
         blade_length_mm  = cand.clip.blade_length_mm,
         blade_height_mm  = cand.clip.blade_height_mm,
+        blade_drop_mm    = round(_caida_hoja_mm(cand.clip.identifier), 2),
         closing_force_g  = cand.clip.closing_force_g,
         score            = cand.score,
         verdict          = cand.verdict,
@@ -1488,17 +1490,40 @@ def clip_field(session_id: str, req: ClipPlanRequest) -> ClipFieldResult:
 
 # ── Cómo queda el aneurisma con el clip puesto ──────────────────────────────── #
 
-def _canto_inferior_mm(session_id: str, clip: dict) -> float:
-    """Cuánto baja el canto inferior de la hoja desde el centro de la mordaza (mm)."""
+def _caida_de(cid: str, meshes_dir) -> float:
+    """Cuánto baja el canto inferior de la hoja desde el centro de la mordaza (mm).
+
+    De la geometría real, acotada por la ficha (services/luz_tras_clip.mordaza_de):
+    la ficha de un NAVARRO dice 4,4 mm de alto, pero el T1 recto baja 1,8 mm y el
+    T3 angulado, cuya hoja sube al doblarse, solo 1,19. La colocación por defecto,
+    la oclusión y la luz tras el clip usan esta misma cifra.
+    """
     from services.luz_tras_clip import mordaza_de
 
-    cid = str(clip.get("clip_id", ""))
     spec = _catalogue_index().get(cid)
-    m = mordaza_de((0.0, 0.0, 0.0), (0.0, 0.0, 1.0), 0.0,
-                   _clip_geometry_for(cid, session_subdir(session_id, "meshes")), 0.0,
+    m = mordaza_de((0.0, 0.0, 0.0), (0.0, 0.0, 1.0), 0.0, _clip_geometry_for(cid, meshes_dir), 0.0,
                    largo_hoja_mm=float(getattr(spec, "blade_length_mm", 0.0) or 0.0),
                    alto_hoja_mm=float(getattr(spec, "blade_height_mm", 0.0) or 0.0))
     return max(0.0, -m.z_min)
+
+
+@functools.lru_cache(maxsize=512)
+def _caida_hoja_mm(clip_id: str) -> float:
+    """`_caida_de` para los clips del catálogo, que no dependen de la sesión."""
+    from pathlib import Path
+    try:
+        return _caida_de(clip_id, Path("."))
+    except Exception as exc:  # noqa: BLE001 — sin geometría, sin subida
+        logger.warning("Caída de la hoja sin calcular para %s: %s", clip_id, exc)
+        return 0.0
+
+
+def _canto_inferior_mm(session_id: str, clip: dict) -> float:
+    """Cuánto baja el canto inferior de la hoja desde el centro de la mordaza (mm)."""
+    cid = str(clip.get("clip_id", ""))
+    if cid.startswith("custom:"):
+        return _caida_de(cid, session_subdir(session_id, "meshes"))
+    return _caida_hoja_mm(cid)
 
 
 def _luz_tras_clip(session_id: str, colocados: list[dict], sac):

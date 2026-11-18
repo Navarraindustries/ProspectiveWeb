@@ -2222,6 +2222,12 @@
       "title": "Bend Angle Deg",
       "type": "number"
      },
+     "blade_drop_mm": {
+      "default": 0.0,
+      "description": "Lower blade edge below the jaw centre, from the real geometry (mm)",
+      "title": "Blade Drop Mm",
+      "type": "number"
+     },
      "blade_height_mm": {
       "default": 0.0,
       "description": "Blade height along the clip normal (mm)",
@@ -2711,9 +2717,15 @@
       "title": "Angle Deg",
       "type": "number"
      },
+     "blade_drop_mm": {
+      "default": 0.0,
+      "description": "How far the blade's lower edge lies below the jaw centre, from the real geometry (mm). The default placement raises the clip by this much so the edge sits on the neck plane",
+      "title": "Blade Drop Mm",
+      "type": "number"
+     },
      "blade_height_mm": {
       "default": 0.0,
-      "description": "Blade height along the clip normal (mm): the default placement keeps the blade above the neck plane",
+      "description": "Blade height along the clip normal (mm), from the data sheet",
       "title": "Blade Height Mm",
       "type": "number"
      },
@@ -8587,10 +8599,10 @@
       "title": "Azimuthdeg",
       "type": "number"
      },
-     "bladeHeightMm": {
+     "bladeDropMm": {
       "default": 0.0,
-      "description": "Alto de la hoja (mm): volver al cuello deja la hoja encima del plano del cuello",
-      "title": "Bladeheightmm",
+      "description": "Cuánto baja el canto inferior de la hoja desde el centro de la mordaza (mm): volver al cuello sube eso, para que el canto quede en el plano del cuello",
+      "title": "Bladedropmm",
       "type": "number"
      },
      "clip_id": {

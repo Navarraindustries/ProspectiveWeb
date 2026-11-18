@@ -408,16 +408,16 @@ function ClipsTab() {
 
   const addClip = () => {
     if (!sel || !esModelo(sel)) return;
-    // El alto de la hoja sube el clip media hoja sobre el plano del cuello (P1):
-    // centrado en él, la hoja entraba en la arteria madre.
-    const alto = recs.find((r) => r.clip_id === sel)?.blade_height_mm
-      ?? catalogo.find((c) => c.id === sel)?.blade_height_mm ?? 0;
-    const { position } = neckPlacement(morphometry, alto);
+    // Se sube lo que baja el canto inferior de la hoja, para que quede en el
+    // plano del cuello (P1): centrado en él, la hoja entraba en la arteria madre.
+    const caida = recs.find((r) => r.clip_id === sel)?.blade_drop_mm
+      ?? catalogo.find((c) => c.id === sel)?.blade_drop_mm ?? 0;
+    const { position } = neckPlacement(morphometry, caida);
     const key = Math.max(nextKey.current, ...placed.map((c) => c.key + 1));
     nextKey.current = key + 1;
     setPlaced((p) => [...p, {
       key, clip_id: sel, name: nameFor(sel), position, rotation_deg: 0, azimuthDeg: 0, elevationDeg: 0,
-      ...(alto > 0 ? { bladeHeightMm: alto } : {}),
+      ...(caida > 0 ? { bladeDropMm: caida } : {}),
     }]);
     setSelectedClipKey(key);
   };

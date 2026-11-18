@@ -20,7 +20,10 @@ class ClipLibraryItem(BaseModel):
     manufacturer: str
     length_mm: float = Field(..., description="Blade length (mm). Typical: 5–20 mm")
     blade_height_mm: float = Field(
-        0.0, description="Blade height along the clip normal (mm): the default placement keeps the blade above the neck plane")
+        0.0, description="Blade height along the clip normal (mm), from the data sheet")
+    blade_drop_mm: float = Field(
+        0.0, description="How far the blade's lower edge lies below the jaw centre, from the real geometry (mm). "
+                         "The default placement raises the clip by this much so the edge sits on the neck plane")
     angle_deg: float = Field(
         0.0, description="Clip angle (0 = straight, 90 = right-angle)"
     )
@@ -168,6 +171,7 @@ class ClipCandidateOut(BaseModel):
     shape: str = Field("", description="Recto | Curvo | Angulado 90° | Angulado 45° | Bayoneta | Fenestrado")
     blade_length_mm: float = 0.0
     blade_height_mm: float = Field(0.0, description="Blade height along the clip normal (mm)")
+    blade_drop_mm: float = Field(0.0, description="Lower blade edge below the jaw centre, from the real geometry (mm)")
     closing_force_g: float = 0.0
     score: float = Field(0.0, ge=0.0, le=100.0, description="0 when any criterion failed")
     verdict: Literal["ok", "warn", "fail"] = "ok"
@@ -579,8 +583,9 @@ class PlacedClipState(BaseModel):
     rotation_deg: float = 0.0
     azimuthDeg: float = 0.0
     elevationDeg: float = 0.0
-    bladeHeightMm: float = Field(
-        0.0, description="Alto de la hoja (mm): volver al cuello deja la hoja encima del plano del cuello")
+    bladeDropMm: float = Field(
+        0.0, description="Cuánto baja el canto inferior de la hoja desde el centro de la mordaza (mm): "
+                         "volver al cuello sube eso, para que el canto quede en el plano del cuello")
 
 
 class PlacedClipsState(BaseModel):

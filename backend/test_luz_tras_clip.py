@@ -186,3 +186,20 @@ def test_la_boca_del_aneurisma_no_cuenta_como_arteria():
     secs = luz_de_la_madre(pts, arco, vaso, [_clip_en(EJE_Z + R - 0.5)])
     peor = min(secs, key=lambda s: s.libre_pct)
     assert peor.area_mm2 < math.pi * R * R - _segmento(0.5) + 0.3
+
+
+def test_la_caida_de_la_hoja_sale_de_la_geometria_real_y_la_da_el_catalogo():
+    from routers.clips import _caida_hoja_mm
+    # La ficha dice 4,4 mm de alto para los dos, pero el T3 angulado sube al doblarse.
+    assert abs(_caida_hoja_mm("navarro:t1:0:7.0") - 1.8) < 0.05
+    assert abs(_caida_hoja_mm("navarro:t3:15:7.0") - 1.19) < 0.05
+    libreria = {c["id"]: c for c in client.get("/api/clips").json()}
+    assert abs(libreria["navarro:t3:15:7.0"]["blade_drop_mm"] - 1.19) < 0.05
+
+
+def test_con_la_colocacion_nueva_la_oclusion_corta_en_el_plano_del_cuello():
+    # Un clip subido exactamente su caída corta el saco en el plano del cuello: el
+    # mismo corte que un clip «sin caída» puesto en el cuello.
+    from routers.clips import _caida_hoja_mm, _canto_inferior_mm
+    caida = _caida_hoja_mm("navarro:t3:15:7.0")
+    assert _canto_inferior_mm("cualquiera", {"clip_id": "navarro:t3:15:7.0"}) == caida

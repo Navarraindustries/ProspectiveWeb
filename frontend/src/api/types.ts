@@ -741,8 +741,8 @@ export interface PlacedClipState {
   rotation_deg: number;
   azimuthDeg: number;
   elevationDeg: number;
-  /** Alto de la hoja (mm): volver al cuello deja la hoja encima del plano del cuello. */
-  bladeHeightMm?: number;
+  /** Cuánto baja el canto inferior de la hoja (mm): volver al cuello sube eso. */
+  bladeDropMm?: number;
 }
 
 export interface PlacedClipsState {
@@ -1308,8 +1308,10 @@ export interface ClipLibraryItem {
   name: string;
   manufacturer: string;
   length_mm: number;
-  /** Alto de la hoja a lo largo de la normal del clip (mm). */
+  /** Alto de la hoja a lo largo de la normal del clip (mm), de la ficha. */
   blade_height_mm?: number;
+  /** Cuánto baja el canto inferior de la hoja desde el centro de la mordaza (mm), de la geometría real. */
+  blade_drop_mm?: number;
   angle_deg: number;
   is_fenestrated: boolean;
   closing_force_g: number;
@@ -1362,6 +1364,8 @@ export interface ClipCandidateOut {
   blade_length_mm: number;
   /** Alto de la hoja a lo largo de la normal del clip (mm). */
   blade_height_mm?: number;
+  /** Canto inferior de la hoja bajo el centro de la mordaza (mm), de la geometría real. */
+  blade_drop_mm?: number;
   closing_force_g: number;
   score: number;
   verdict: ClipVerdict;

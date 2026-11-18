@@ -22,16 +22,16 @@ describe("placedClips", () => {
   it("neckPlacement parte del origen del cuello", () => {
     expect(neckPlacement(morpho).position).toEqual([1, 2, 3]);
   });
-  it("con el alto de la hoja, sube media hoja hacia el domo para no pinzar la madre (P1)", () => {
-    // El eje del cuello es +y: una hoja de 3,6 mm sube 1,8 mm por y.
-    expect(neckPlacement(morpho, 3.6).position.map((v) => +v.toFixed(6))).toEqual([1, 3.8, 3]);
-    expect(neckPlacement(null, 3.6).position).toEqual([0, 0, 0]);      // sin eje no se sabe hacia dónde
+  it("sube lo que baja el canto inferior de la hoja, para no pinzar la madre (P1)", () => {
+    // El eje del cuello es +y: un canto 1,8 mm por debajo del centro sube el clip 1,8 mm por y.
+    expect(neckPlacement(morpho, 1.8).position.map((v) => +v.toFixed(6))).toEqual([1, 3.8, 3]);
+    expect(neckPlacement(null, 1.8).position).toEqual([0, 0, 0]);      // sin eje no se sabe hacia dónde
   });
   it("el alto de la hoja va y vuelve con la sesión", () => {
-    const guardado = toStoredClip({ ...clip, bladeHeightMm: 4.4 });
-    expect(guardado.bladeHeightMm).toBe(4.4);
-    expect(fromStoredClip(guardado)?.bladeHeightMm).toBe(4.4);
-    expect("bladeHeightMm" in toStoredClip(clip)).toBe(false);          // sin alto, la fila de siempre
+    const guardado = toStoredClip({ ...clip, bladeDropMm: 1.19 });
+    expect(guardado.bladeDropMm).toBe(1.19);
+    expect(fromStoredClip(guardado)?.bladeDropMm).toBe(1.19);
+    expect("bladeDropMm" in toStoredClip(clip)).toBe(false);            // sin caída, la fila de siempre
   });
 });
 

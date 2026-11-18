@@ -9,7 +9,7 @@ describe("clipGizmo", () => {
   it("tres asas en su sitio", () => {
     const h = clipHandles(clip, n);
     expect(h.map((x) => x.id)).toEqual(["clip:move", "clip:roll", "clip:tilt"]);
-    expect(h[2].pos).toEqual([0, 0, 6]); expect(h[2].lineTo).toEqual([0, 0, 0]); expect(h[1].radiusMm).toBe(3);
+    expect(h[2].pos).toEqual([0, 0, 5]); expect(h[2].lineTo).toEqual([0, 0, 0]); expect(h[1].radiusMm).toBe(3);
   });
   it("desplazar en el plano del cuello: 50 px a la derecha son 10 mm en x", () => {
     const s = beginDrag("clip:move", clip, n, n, cam, vp, 100, 50, false);

@@ -1,6 +1,8 @@
 """Surgical clip library and planning router."""
 from __future__ import annotations
 
+import asyncio
+import copy
 import json
 import logging
 import time
@@ -825,6 +827,26 @@ def _run_selection(session_id: str, case_id: int | None, verify: bool) -> ClipSe
     return selection
 
 
+#: Selecciones en curso, por (sesión, caso, verificar): la verificación
+#: geométrica tarda ~20 s en el Caso 3 y Dispositivos la pide dos veces al
+#: entrar; la segunda espera a la primera en vez de repetirla.
+_selecciones_en_curso: dict[tuple, asyncio.Future] = {}
+
+
+async def _seleccion_compartida(session_id: str, case_id: int | None, verify: bool) -> ClipSelection:
+    clave = (session_id, case_id, verify)
+    fut = _selecciones_en_curso.get(clave)
+    if fut is None:
+        # En un hilo: dentro del bucle de eventos, los ~20 s de colocar clips
+        # contra la malla dejaban el servidor entero sin responder (ni mallas,
+        # ni cortes, ni el resto de pestañas) y la escena 3D sin encuadrar.
+        fut = asyncio.ensure_future(asyncio.to_thread(_run_selection, session_id, case_id, verify))
+        _selecciones_en_curso[clave] = fut
+        fut.add_done_callback(lambda f: _selecciones_en_curso.pop(clave) if _selecciones_en_curso.get(clave) is f else None)
+    # Copia: el endpoint retoca la selección (pieza colocada) y la comparten.
+    return copy.deepcopy(await asyncio.shield(fut))
+
+
 @router.get(
     "/clips/selection/{session_id}",
     response_model=ClipSelectionResult,
@@ -849,7 +871,7 @@ async def clip_selection(
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
-    selection = _run_selection(session_id, case_id, verify)
+    selection = await _seleccion_compartida(session_id, case_id, verify)
     # La pieza colocada manda también aquí, no solo en Fabricación y el pedido.
     # La fijaba el frontend (`pinToPlaced`) con el prefill del pedido, pero el
     # resumen seguía nombrando la pieza del selector: «La alternativa a medida

@@ -282,7 +282,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     pickMiss, setPickMiss,
   } = usePlanning();
   // El recorrido VASO necesita los puntos aunque el panel de la línea central no se abra.
-  useCenterlineTrack();
+  const lineaSinPuntos = useCenterlineTrack();
 
   // Cuánto HUD se ve (completo · esencial · limpio, tecla H): preferencia del
   // profesional, en su navegador; la rejilla lo publica como `data-hud` y lo
@@ -926,8 +926,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
       }
     }
     // Con los puntos cargados la línea va como trazo fino (`trazoLinea`); el
-    // tubo del servidor queda solo para una línea sin puntos.
-    if (showCenterline && centerlineMesh && !centerline) {
+    // tubo del servidor queda solo para una línea sin puntos (no mientras cargan).
+    if (showCenterline && centerlineMesh && lineaSinPuntos) {
       out.push({ url: centerlineMesh, color: CENTERLINE_COLOR, opacity: 1 });
     }
     // Lo que se llevaría la tijera, en rojo y encima: el profesional decide
@@ -944,7 +944,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (followup.ghostUrl) out.push({ url: followup.ghostUrl, color: FOLLOWUP_GHOST_COLOR, opacity: 0.3, id: "saco-anterior" });
     }
     return out;
-  }, [followup, stentMap, displayMeshUrl, meshUrl, candidate?.dome_mesh_url, candidates, rejectedCandidates, selectedCandidate, showRejectedIn3d, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, centerline, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible]);
+  }, [followup, stentMap, displayMeshUrl, meshUrl, candidate?.dome_mesh_url, candidates, rejectedCandidates, selectedCandidate, showRejectedIn3d, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, lineaSinPuntos, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible]);
 
   // ── Recorrido por dentro del vaso (vesselWalk) ─────────────────────── #
   // Lo pide el panel de la línea central (o DENTRO en la cinta DESDE) por el

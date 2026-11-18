@@ -16,7 +16,10 @@ import { angleAround, pixelRay, screenToAxis, screenToPlane, screenToSphereBoth,
 import { clampTilt, neckFrameAngles, neckFrameNormal } from "./clipPose";
 import { HUD_HEX, hexToRgb01, planeRgb01 } from "./planeColors";
 
-export const RING_MM = 3, TILT_ARM_MM = 6, HANDLE_MM = 0.9;
+/** Asas del clip. Las esferas tenían 0,9 mm de radio: casi 2 mm sobre un saco
+ *  de 8 mm, y con la cámara cerca tapaban el cuello. Con 0,55 siguen siendo
+ *  fáciles de coger en el encuadre del candidato. */
+export const RING_MM = 3, TILT_ARM_MM = 5, HANDLE_MM = 0.55;
 /** Tope de un arrastre de desplazamiento, en los dos modos. Con Shift, a lo
  *  largo de la normal: con la vista casi paralela a la normal el rayo y el eje
  *  se cortan muy lejos y un píxel serían metros. En el plano del cuello pasa lo

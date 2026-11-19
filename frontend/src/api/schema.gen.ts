@@ -1888,6 +1888,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mesh-neck-detail/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rebuild the neck zone of the mesh with full detail
+         * @description Rebuilds the working mesh from the mask saved at segmentation with a sphere around the neck at full detail: lighter pre-blur (0.5 voxel instead of 0.7) and no decimation. Measured on case 3 and Zenodo 015, decimation removes nothing near the neck; the 0.7-voxel blur is what cuts thin branches into islands that the island cleanup then drops.
+         *
+         *     Outside the zone the mesh comes out as before. Pieces the working mesh no longer has (main-tree filter, crops, erased pieces) stay out. The branch-origin scan is redone inside the zone. Undoable like any mesh edit; it does not clear the morphometry (the sac surface moves < 0.1 mm).
+         *
+         *     409 if the mesh predates this feature (no saved mask) or there is no neck yet.
+         */
+        post: operations["mesh_neck_detail_api_mesh_neck_detail__session_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/mesh-restore/{session_id}": {
         parameters: {
             query?: never;
@@ -7460,6 +7484,64 @@ export interface components {
             shape: string;
         };
         /**
+         * NeckDetailRequest
+         * @description Rehacer la zona del cuello con todo el detalle (P6).
+         */
+        NeckDetailRequest: {
+            /**
+             * Radius Mm
+             * @description Radio de la esfera fina alrededor del cuello, mm.
+             * @default 10
+             */
+            radius_mm: number;
+        };
+        /**
+         * NeckDetailResult
+         * @description La malla con la zona del cuello fina, y qué cambió.
+         */
+        NeckDetailResult: {
+            /**
+             * Added Vertices
+             * @description Vértices de más respecto a la malla anterior
+             */
+            added_vertices: number;
+            /**
+             * Branches In Zone
+             * @description Orígenes de rama dentro de la zona tras rehacerla
+             */
+            branches_in_zone: number;
+            /**
+             * Branches In Zone Before
+             * @description Los que había antes
+             */
+            branches_in_zone_before: number;
+            /** @description Centro de la zona fina (el cuello), mm */
+            center: components["schemas"]["Position3D"];
+            /** Faces */
+            faces: number;
+            /**
+             * Mesh Url
+             * @description Malla nueva (.vtp), con marca de versión
+             */
+            mesh_url: string;
+            /**
+             * Neck Source
+             * @description De dónde salió el centro: el cuello medido o el candidato elegido
+             * @enum {string}
+             */
+            neck_source: "morfometria" | "candidato";
+            /** Radius Mm */
+            radius_mm: number;
+            /**
+             * Undo Depth
+             * @description Cuántas ediciones se pueden deshacer
+             * @default 0
+             */
+            undo_depth: number;
+            /** Vertices */
+            vertices: number;
+        };
+        /**
          * NeckPlaneRequest
          * @description User-defined neck plane for semi-automatic closed-sac morphometry.
          *
@@ -8540,6 +8622,17 @@ export interface components {
              * @description Number of medium-risk candidates (risk_level=2)
              */
             medium_count: number;
+            /**
+             * Neck Detail Available
+             * @description The mesh saved its mask at segmentation, so the neck zone can be rebuilt.
+             * @default false
+             */
+            neck_detail_available: boolean;
+            /**
+             * Neck Detail Radius Mm
+             * @description Radius of the full-detail neck zone if the mesh has one (POST /mesh-neck-detail), else null.
+             */
+            neck_detail_radius_mm?: number | null;
             /**
              * Scanned Mesh Points
              * @description Points in the mesh the scan actually ran on.
@@ -14712,6 +14805,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegionEraseResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mesh_neck_detail_api_mesh_neck_detail__session_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NeckDetailRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NeckDetailResult"];
                 };
             };
             /** @description Validation Error */

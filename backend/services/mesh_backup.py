@@ -37,6 +37,7 @@ STEP_LABELS = {
     "crop": "Recorte de malla",
     "grow": "Crecimiento desde semillas",
     "edit": "Edición de malla",
+    "cuello": "Detalle del cuello",
 }
 
 _MESH_NAME = "vessel_tree.vtp"

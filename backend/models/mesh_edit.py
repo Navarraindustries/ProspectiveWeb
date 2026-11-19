@@ -258,3 +258,29 @@ class ScissorsResult(BaseModel):
         None, description="Malla ya cortada. Solo cuando se aplica."
     )
     undo_depth: int = Field(0, description="Cuántas ediciones se pueden deshacer")
+
+
+class NeckDetailRequest(BaseModel):
+    """Rehacer la zona del cuello con todo el detalle (P6)."""
+
+    radius_mm: float = Field(
+        10.0, ge=4.0, le=20.0,
+        description="Radio de la esfera fina alrededor del cuello, mm.",
+    )
+
+
+class NeckDetailResult(BaseModel):
+    """La malla con la zona del cuello fina, y qué cambió."""
+
+    mesh_url: str = Field(..., description="Malla nueva (.vtp), con marca de versión")
+    vertices: int
+    faces: int
+    added_vertices: int = Field(..., description="Vértices de más respecto a la malla anterior")
+    center: Position3D = Field(..., description="Centro de la zona fina (el cuello), mm")
+    radius_mm: float
+    neck_source: Literal["morfometria", "candidato"] = Field(
+        ..., description="De dónde salió el centro: el cuello medido o el candidato elegido"
+    )
+    branches_in_zone: int = Field(..., description="Orígenes de rama dentro de la zona tras rehacerla")
+    branches_in_zone_before: int = Field(..., description="Los que había antes")
+    undo_depth: int = Field(0, description="Cuántas ediciones se pueden deshacer")

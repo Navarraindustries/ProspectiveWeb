@@ -91,3 +91,14 @@ class PerforatorsResult(BaseModel):
             "hard-coding its own."
         ),
     )
+    neck_detail_radius_mm: float | None = Field(
+        None,
+        description=(
+            "Radius of the full-detail neck zone if the mesh has one "
+            "(POST /mesh-neck-detail), else null."
+        ),
+    )
+    neck_detail_available: bool = Field(
+        False,
+        description="The mesh saved its mask at segmentation, so the neck zone can be rebuilt.",
+    )

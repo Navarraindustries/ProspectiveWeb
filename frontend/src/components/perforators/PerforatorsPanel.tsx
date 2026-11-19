@@ -21,13 +21,47 @@ import { usePlanning } from "../../store/planning";
 import { cifra } from "../../lib/numero";
 
 export function PerforatorsPanel() {
-  const { sessionId, setPerforators, visiblePerforators, togglePerforator, setVisiblePerforators } = usePlanning();
+  const {
+    sessionId, setPerforators, visiblePerforators, togglePerforator, setVisiblePerforators,
+    segmentation, setSegmentation,
+  } = usePlanning();
   const [result, setResult] = useState<PerforatorsResult | null>(null);
   // Dos fallos distintos: «sin-malla» (el 422 del servidor: aún no hay nada que
   // analizar) y cualquier otro (red, 500, sesión caducada), que antes salía
   // igual, como si faltara ejecutar la detección, y sin forma de repetirlo.
   const [error, setError] = useState<"sin-malla" | string | null>(null);
   const [intento, setIntento] = useState(0);
+  // Zona del cuello con todo el detalle (P6): rehace la malla, así que va con
+  // su propio estado de trabajo y su propio aviso.
+  const [afinando, setAfinando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [fallo, setFallo] = useState<string | null>(null);
+
+  async function afinarCuello() {
+    if (!sessionId || afinando) return;
+    setAfinando(true);
+    setAviso(null);
+    setFallo(null);
+    try {
+      const r = await api.meshNeckDetail(sessionId, 10);
+      if (segmentation) {
+        setSegmentation({ ...segmentation, mesh_url: r.mesh_url, vertices: r.vertices, faces: r.faces });
+      }
+      const donde = r.neck_source === "morfometria" ? "del cuello medido" : "del candidato elegido";
+      const signo = r.added_vertices >= 0 ? "+" : "−";
+      setAviso(
+        `Rehecha con todo el detalle la esfera de ${cifra(r.radius_mm, 0)} mm alrededor ${donde} ` +
+        `(${signo}${Math.abs(r.added_vertices).toLocaleString("es")} vértices). Orígenes de rama ` +
+        `en esa esfera: ${r.branches_in_zone_before} → ${r.branches_in_zone}. ` +
+        `Se deshace desde la edición de malla.`,
+      );
+      setIntento((n) => n + 1);
+    } catch (e) {
+      setFallo(loadErrorText(e));
+    } finally {
+      setAfinando(false);
+    }
+  }
 
   useEffect(() => {
     if (!sessionId) return;
@@ -94,6 +128,28 @@ export function PerforatorsPanel() {
               No son perforantes: por debajo de {cifra(result.calibre_floor_mm, 1)} mm de
               diámetro la imagen no resuelve un vaso, y una perforante mide 0,1–0,5 mm.
             </>
+          )}
+        </div>
+      )}
+      {result?.neck_detail_available && (
+        <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+          {result.neck_detail_radius_mm
+            ? <>La malla ya tiene todo el detalle a {cifra(result.neck_detail_radius_mm, 0)} mm del cuello.</>
+            : <>La malla se suaviza igual en todas partes, y eso corta en trozos las ramas
+                más finas junto al cuello. Puedes rehacer el cuello con todo el detalle que tiene
+                la segmentación (no inventa vasos que la imagen no resuelve).</>}
+          <div style={{ marginTop: 6 }}>
+            <Button variant="secondary" size="sm" onClick={afinarCuello} disabled={afinando}>
+              {afinando
+                ? "Rehaciendo el cuello…"
+                : result.neck_detail_radius_mm ? "Rehacer el cuello otra vez" : "Ver el cuello con todo el detalle"}
+            </Button>
+          </div>
+          {aviso && <div role="status" style={{ marginTop: 6, color: "var(--foreground)" }}>{aviso}</div>}
+          {fallo && (
+            <div role="alert" style={{ marginTop: 6, color: "var(--destructive)" }}>
+              No se pudo rehacer el cuello: {fallo}
+            </div>
           )}
         </div>
       )}

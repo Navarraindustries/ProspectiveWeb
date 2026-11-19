@@ -21,6 +21,7 @@ from models.mesh_edit import (
     MeshCropRequest, MeshCropResult, MeshHistoryResult, MeshHistoryStep,
     MeshRestoreRequest, ScissorsRequest, ScissorsResult,
     MeshRestoreResult, RegionEraseRequest, RegionEraseResult,
+    NeckDetailRequest, NeckDetailResult,
 )
 import threading
 from collections import defaultdict
@@ -491,5 +492,146 @@ async def mesh_scissors(session_id: str, req: ScissorsRequest) -> ScissorsResult
         removed_vertices=res.removed_vertices,
         kept_vertices=res.kept.GetNumberOfPoints(),
         mesh_url=_versioned(session_id, "vessel_tree.vtp"),
+        undo_depth=mesh_backup.depth(session_id),
+    )
+
+
+# ── POST /mesh-neck-detail/{session_id}: la zona del cuello fina (P6) ─────── #
+
+def _neck_center(session_id: str) -> "tuple[tuple[float, float, float], str] | None":
+    """El cuello medido por la morfometría o, sin ella, el candidato elegido."""
+    from services.sessions import measured_candidate_centroid, read_state
+
+    vals = [read_state(session_id, f"morpho.neck_origin_{k}", "") for k in "xyz"]
+    if all(vals):
+        try:
+            return (float(vals[0]), float(vals[1]), float(vals[2])), "morfometria"
+        except ValueError:
+            pass
+    cand = measured_candidate_centroid(session_id)
+    if cand is not None:
+        return (float(cand[0]), float(cand[1]), float(cand[2])), "candidato"
+    return None
+
+
+def _volume_loader(session_id: str):
+    """(volumen, espaciado) del estudio tal como se segmentó, al pedirlo."""
+    def cargar():
+        import json as _json
+
+        from routers.segment import _preprocessed_source
+        from services.dicom_loader import load_series
+        from services.sessions import read_state
+
+        series = (_json.loads(read_state(session_id, "seg.params", "") or "{}").get("series_id")
+                  or read_state(session_id, "dicom.series_id", ""))
+        dcm = _preprocessed_source(session_id, series) or load_series(series, session_subdir(session_id, "dicom"))
+        return dcm.volume, tuple(float(v) for v in dcm.spacing)
+    return cargar
+
+
+def _in_zone(scan, center, radius: float) -> int:
+    import math
+    return 0 if scan is None else sum(1 for o in scan.origins if math.dist(o.position, center) <= radius)
+
+
+@router.post(
+    "/mesh-neck-detail/{session_id}",
+    response_model=NeckDetailResult,
+    summary="Rebuild the neck zone of the mesh with full detail",
+    description=(
+        "Rebuilds the working mesh from the mask saved at segmentation with a "
+        "sphere around the neck at full detail: lighter pre-blur (0.5 voxel "
+        "instead of 0.7) and no decimation. Measured on case 3 and Zenodo 015, "
+        "decimation removes nothing near the neck; the 0.7-voxel blur is what "
+        "cuts thin branches into islands that the island cleanup then drops.\n\n"
+        "Outside the zone the mesh comes out as before. Pieces the working mesh "
+        "no longer has (main-tree filter, crops, erased pieces) stay out. The "
+        "branch-origin scan is redone inside the zone. Undoable like any mesh "
+        "edit; it does not clear the morphometry (the sac surface moves < 0.1 mm).\n\n"
+        "409 if the mesh predates this feature (no saved mask) or there is no neck yet."
+    ),
+)
+async def mesh_neck_detail(session_id: str, req: NeckDetailRequest) -> NeckDetailResult:
+    import json as _json
+    import math
+
+    from routers.segment import mesh_fingerprint
+    from services import zona_fina
+    from services.branch_origins import (BranchScan, freeze_scan, scan_branch_origins,
+                                         thaw_scan)
+    from services.segmentation import _with_normals
+    from services.sessions import read_state, write_states
+
+    path = _mesh_or_404(session_id)
+    meshes = path.parent
+    datos = await asyncio.to_thread(zona_fina.cargar, meshes)
+    if datos is None:
+        raise HTTPException(status_code=409, detail=(
+            "Esta malla no guardó su máscara (es de una segmentación anterior a esta función "
+            "o del umbral clásico). Vuelve a segmentar con el método tubular para poder afinar el cuello."))
+    neck = _neck_center(session_id)
+    if neck is None:
+        raise HTTPException(status_code=409, detail=(
+            "Aún no hay cuello: elige el aneurisma y mide la morfometría primero."))
+    center, source = neck
+    radius = float(req.radius_mm)
+    # Huellas de una malla de trabajo sin editar: la de la segmentación y la de
+    # una zona fina anterior (rehacerla con otro radio no es una edición).
+    try:
+        previa = _json.loads(read_state(session_id, "seg.neck_detail", "") or "{}").get("huella", "")
+    except ValueError:
+        previa = ""
+    limpias = {h for h in (datos.get("huella", ""), previa) if h}
+
+    def _trabajo():
+        with _edit_lock(session_id):
+            actual = read_vtp(path)
+            nueva = zona_fina.rehacer(datos, center, radius, volumen=_volume_loader(session_id))
+            nueva = _with_normals(zona_fina.ajustar(nueva, actual, datos, center, radius, limpias))
+            if nueva.GetNumberOfPolys() == 0:
+                raise ValueError("La malla rehecha quedó vacía: no se ha cambiado nada.")
+            mesh_backup.snapshot(session_id, "cuello")
+            write_vtp(nueva, path)
+            return actual, nueva
+
+    try:
+        actual, nueva = await asyncio.to_thread(_trabajo)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    # Ramas: las de fuera de la zona, como estaban (pueden venir del árbol
+    # entero antes de un recorte); las de dentro, del barrido de la malla nueva.
+    antes = thaw_scan(session_id)
+    nuevo = await asyncio.to_thread(scan_branch_origins, nueva)
+    fuera = [o for o in (antes.origins if antes else []) if math.dist(o.position, center) > radius]
+    dentro = [o for o in nuevo.origins if math.dist(o.position, center) <= radius]
+    for i, o in enumerate(fuera + dentro, start=1):
+        o.index = i
+    freeze_scan(session_id, BranchScan(
+        origins=fuera + dentro, voxel_mm=nuevo.voxel_mm, calibre_floor_mm=nuevo.calibre_floor_mm,
+        mesh_points=nueva.GetNumberOfPoints(), elapsed_s=nuevo.elapsed_s))
+
+    estado = {
+        "seg.n_vertices": str(nueva.GetNumberOfPoints()),
+        "seg.n_faces": str(nueva.GetNumberOfPolys()),
+        "seg.neck_detail": _json.dumps({"center": list(center), "radius_mm": radius, "source": source,
+                                        "huella": mesh_fingerprint(nueva)}),
+    }
+    # Afinar el cuello no es una edición para el detector: si detect_tree.vtp
+    # acompañaba a la malla de antes, acompaña a esta (routers/detect.py).
+    if (read_state(session_id, "seg.detect_tree_for", "") or "") == mesh_fingerprint(actual):
+        estado["seg.detect_tree_for"] = mesh_fingerprint(nueva)
+    write_states(session_id, estado)
+    # La malla teñida por zonas de riesgo se hizo sobre la de antes.
+    (meshes / "perforators_risk.vtp").unlink(missing_ok=True)
+
+    return NeckDetailResult(
+        mesh_url=_versioned(session_id, "vessel_tree.vtp"),
+        vertices=nueva.GetNumberOfPoints(), faces=nueva.GetNumberOfPolys(),
+        added_vertices=nueva.GetNumberOfPoints() - actual.GetNumberOfPoints(),
+        center=Position3D(x=center[0], y=center[1], z=center[2]), radius_mm=radius,
+        neck_source=source,
+        branches_in_zone=len(dentro), branches_in_zone_before=_in_zone(antes, center, radius),
         undo_depth=mesh_backup.depth(session_id),
     )

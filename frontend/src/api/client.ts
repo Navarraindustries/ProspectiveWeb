@@ -73,6 +73,7 @@ import type {
   MeshRestoreScope,
   Position3D,
   RegionEraseResult,
+  NeckDetailResult,
   MorphometryResult,
   OcclusionOut,
   NeckPlaneRequest,
@@ -619,6 +620,10 @@ export const api = {
    *  árbol, donde el borrador de piezas no puede hacer nada. */
   meshEraseRegion: (sessionId: string, point: Position3D, radius_mm: number) =>
     post<RegionEraseResult>(`/api/mesh-erase-region/${sessionId}`, { point, radius_mm }),
+  /** Rehace la zona del cuello con todo el detalle (P6). 409 si la malla no
+      guardó su máscara o aún no hay cuello. */
+  meshNeckDetail: (sessionId: string, radius_mm = 10) =>
+    post<NeckDetailResult>(`/api/mesh-neck-detail/${sessionId}`, { radius_mm }),
   meshComponentDelete: (
     sessionId: string,
     point: { x: number; y: number; z: number },

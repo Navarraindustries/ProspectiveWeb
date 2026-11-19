@@ -1142,6 +1142,10 @@ export interface PerforatorsResult {
    *  legend states the bands actually used — it used to hard-code its own and
    *  had drifted (it said 3–6 mm for a computation that uses 3–5). */
   zone_radii_mm: number[];
+  /** Radio de la zona del cuello con todo el detalle, si la malla la tiene (P6). */
+  neck_detail_radius_mm?: number | null;
+  /** La segmentación guardó su máscara: el cuello se puede rehacer fino. */
+  neck_detail_available?: boolean;
 }
 
 /* ── treatment decision ────────────────────────────────────────────────── */
@@ -2179,6 +2183,22 @@ export interface RegionEraseResult {
   faces: number;
   removed_vertices: number;
   warning: string;
+  undo_depth: number;
+}
+
+/** La zona del cuello rehecha con todo el detalle (P6): menos desenfoque y sin
+ *  decimar dentro de una esfera alrededor del cuello. Se deshace como
+ *  cualquier edición de malla. */
+export interface NeckDetailResult {
+  mesh_url: string;
+  vertices: number;
+  faces: number;
+  added_vertices: number;
+  center: Position3D;
+  radius_mm: number;
+  neck_source: "morfometria" | "candidato";
+  branches_in_zone: number;
+  branches_in_zone_before: number;
   undo_depth: number;
 }
 

@@ -7125,6 +7125,90 @@
     "title": "MultiClipConstructOut",
     "type": "object"
    },
+   "NeckDetailRequest": {
+    "description": "Rehacer la zona del cuello con todo el detalle (P6).",
+    "properties": {
+     "radius_mm": {
+      "default": 10.0,
+      "description": "Radio de la esfera fina alrededor del cuello, mm.",
+      "maximum": 20.0,
+      "minimum": 4.0,
+      "title": "Radius Mm",
+      "type": "number"
+     }
+    },
+    "title": "NeckDetailRequest",
+    "type": "object"
+   },
+   "NeckDetailResult": {
+    "description": "La malla con la zona del cuello fina, y qué cambió.",
+    "properties": {
+     "added_vertices": {
+      "description": "Vértices de más respecto a la malla anterior",
+      "title": "Added Vertices",
+      "type": "integer"
+     },
+     "branches_in_zone": {
+      "description": "Orígenes de rama dentro de la zona tras rehacerla",
+      "title": "Branches In Zone",
+      "type": "integer"
+     },
+     "branches_in_zone_before": {
+      "description": "Los que había antes",
+      "title": "Branches In Zone Before",
+      "type": "integer"
+     },
+     "center": {
+      "$ref": "#/components/schemas/Position3D",
+      "description": "Centro de la zona fina (el cuello), mm"
+     },
+     "faces": {
+      "title": "Faces",
+      "type": "integer"
+     },
+     "mesh_url": {
+      "description": "Malla nueva (.vtp), con marca de versión",
+      "title": "Mesh Url",
+      "type": "string"
+     },
+     "neck_source": {
+      "description": "De dónde salió el centro: el cuello medido o el candidato elegido",
+      "enum": [
+       "morfometria",
+       "candidato"
+      ],
+      "title": "Neck Source",
+      "type": "string"
+     },
+     "radius_mm": {
+      "title": "Radius Mm",
+      "type": "number"
+     },
+     "undo_depth": {
+      "default": 0,
+      "description": "Cuántas ediciones se pueden deshacer",
+      "title": "Undo Depth",
+      "type": "integer"
+     },
+     "vertices": {
+      "title": "Vertices",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "mesh_url",
+     "vertices",
+     "faces",
+     "added_vertices",
+     "center",
+     "radius_mm",
+     "neck_source",
+     "branches_in_zone",
+     "branches_in_zone_before"
+    ],
+    "title": "NeckDetailResult",
+    "type": "object"
+   },
    "NeckPlaneRequest": {
     "description": "User-defined neck plane for semi-automatic closed-sac morphometry.\n\nThe user places a point on the neck and a normal pointing toward the dome.\nThe backend clips the vessel tree at this plane, keeps the dome-side\nconnected component, caps the opening into a closed watertight sac, and\nmeasures the neck directly from the plane∩tree contour.",
     "properties": {
@@ -8603,6 +8687,24 @@
       "description": "Number of medium-risk candidates (risk_level=2)",
       "title": "Medium Count",
       "type": "integer"
+     },
+     "neck_detail_available": {
+      "default": false,
+      "description": "The mesh saved its mask at segmentation, so the neck zone can be rebuilt.",
+      "title": "Neck Detail Available",
+      "type": "boolean"
+     },
+     "neck_detail_radius_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Radius of the full-detail neck zone if the mesh has one (POST /mesh-neck-detail), else null.",
+      "title": "Neck Detail Radius Mm"
      },
      "scanned_mesh_points": {
       "default": 0,
@@ -18437,6 +18539,64 @@
      }
     ],
     "summary": "Erase attached tissue around the picked point",
+    "tags": [
+     "mesh-edit"
+    ]
+   }
+  },
+  "/api/mesh-neck-detail/{session_id}": {
+   "post": {
+    "description": "Rebuilds the working mesh from the mask saved at segmentation with a sphere around the neck at full detail: lighter pre-blur (0.5 voxel instead of 0.7) and no decimation. Measured on case 3 and Zenodo 015, decimation removes nothing near the neck; the 0.7-voxel blur is what cuts thin branches into islands that the island cleanup then drops.\n\nOutside the zone the mesh comes out as before. Pieces the working mesh no longer has (main-tree filter, crops, erased pieces) stay out. The branch-origin scan is redone inside the zone. Undoable like any mesh edit; it does not clear the morphometry (the sac surface moves < 0.1 mm).\n\n409 if the mesh predates this feature (no saved mask) or there is no neck yet.",
+    "operationId": "mesh_neck_detail_api_mesh_neck_detail__session_id__post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/NeckDetailRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/NeckDetailResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Rebuild the neck zone of the mesh with full detail",
     "tags": [
      "mesh-edit"
     ]

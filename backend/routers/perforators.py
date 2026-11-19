@@ -200,4 +200,16 @@ def _run_perforators_sync(
         zone_radii_mm  = [float(r) for r in _ZONE_RADII],
         calibre_floor_mm = scan.calibre_floor_mm,
         scanned_mesh_points = scan.mesh_points,
+        neck_detail_radius_mm = _neck_detail_radius(session_id),
+        neck_detail_available = (meshes_dir / "vessel_mask.npz").exists(),
     )
+
+
+def _neck_detail_radius(session_id: str) -> float | None:
+    """Radio de la zona fina del cuello, si la malla la tiene (services.zona_fina)."""
+    import json
+    try:
+        r = json.loads(read_state(session_id, "seg.neck_detail", "") or "{}").get("radius_mm")
+    except ValueError:
+        return None
+    return float(r) if r else None

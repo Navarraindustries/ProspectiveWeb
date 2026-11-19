@@ -364,6 +364,7 @@ def segment_tubular(
     band_refine: bool = True,
     say=None,
     ct_recipe: str | None = None,
+    keep_mask: bool = False,
 ) -> tuple[object, dict]:
     """La receta tubular del servidor, de volumen a malla (vtkPolyData), en un solo sitio.
 
@@ -381,7 +382,9 @@ def segment_tubular(
     sin mirar la memoria libre: es lo reproducible. `say(fase, pct)` publica
     el progreso con las mismas fases que la interfaz. Devuelve (malla, info);
     `info["seg_volume"]` —el volumen reducido con el que se hizo la máscara—
-    solo si `keep_volume`.
+    solo si `keep_volume`. Con `keep_mask`, `info["surface_mask"]` lleva la
+    máscara de la que salió la malla y lo necesario para rehacerla igual con
+    la zona del cuello fina (`services.zona_fina`, P6).
 
     El techo lo decide `tubular_ceiling` por modalidad: ninguno en XA/3DRA
     (en Case 3 vaciaba el tubo) y 700 HU en TC (el cráneo fuera). Se fija
@@ -443,7 +446,7 @@ def segment_tubular(
         return _segment_cta_vessels(
             dcm, volume, band, head, lower=lower, upper=upper, strategy=strategy,
             smooth_iters=smooth_iters, half_resolution=half_resolution,
-            memory_guard=memory_guard, keep_volume=keep_volume, say=_say)
+            memory_guard=memory_guard, keep_volume=keep_volume, say=_say, keep_mask=keep_mask)
 
     # ── Resolución ─────────────────────────────────────────────────────────── #
     # El método tubular no rechaza un volumen grande: lo baja a media
@@ -569,6 +572,18 @@ def segment_tubular(
     poly = mask_to_surface(
         mesh_mask, mesh_spacing, smooth_iters=max(40, smooth_iters), pass_band=0.05,
         on_progress=lambda f, p: None if f == "superficie lista" else _say(f, 85 + 0.12 * p))
+    surface_mask = None
+    if keep_mask:
+        # Del marco de la máscara (índice × espaciado) al de la malla: las dos
+        # traslaciones de abajo, en el mismo orden.
+        z0m, y0m, x0m = mesh_offset
+        surface_mask = {
+            "mask": mesh_mask, "spacing": tuple(float(v) for v in mesh_spacing),
+            "shift_xyz": (x0m * mesh_spacing[2], y0m * mesh_spacing[1],
+                          z0m * mesh_spacing[0] + (band.cut_mm if band.applied else 0.0)),
+            "surface_kw": {"smooth_iters": max(40, smooth_iters), "pass_band": 0.05},
+            "refine": None,
+        }
     del mesh_mask
     if mesh_offset != (0, 0, 0):
         from services.band_refine import translate_poly
@@ -607,12 +622,14 @@ def segment_tubular(
     if keep_volume:
         info["seg_volume"] = seg_volume
         info["seg_origin_mm"] = (0.0, 0.0, float(band.cut_mm) if band.applied else 0.0)
+    if surface_mask is not None:
+        info["surface_mask"] = surface_mask
     return poly, info
 
 
 def _segment_cta_vessels(dcm, volume, band, head, *, lower: float, upper: float, strategy: str,
                          smooth_iters: int, half_resolution: bool, memory_guard: bool,
-                         keep_volume: bool, say) -> tuple[object, dict]:
+                         keep_volume: bool, say, keep_mask: bool = False) -> tuple[object, dict]:
     """La receta "vessels" de la angio-TC (services.cta_vessels), de la banda de la cabeza a malla.
 
     `lower` (el umbral de la interfaz) es el umbral FUERTE: lo que lo supera ancla
@@ -663,6 +680,21 @@ def _segment_cta_vessels(dcm, volume, band, head, *, lower: float, upper: float,
     poly = mask_to_surface(res.mask, seg_spacing, smooth_iters=max(40, smooth_iters), pass_band=0.05,
                            on_progress=lambda f, p: None if f == "superficie lista" else say(f, 82 + 0.1 * p))
     mask_vox = int(res.mask.sum())
+    surface_mask = None
+    if keep_mask:
+        # refine_surface trabaja en el marco de la máscara (antes de trasladar):
+        # para rehacerla hace falta el mismo volumen, que sale de la caché del
+        # estudio cortando la banda (z0) y reduciendo por `factor`.
+        surface_mask = {
+            "mask": res.mask, "spacing": tuple(float(v) for v in seg_spacing),
+            "shift_xyz": tuple(float(a + b) for a, b in zip(
+                reduced_center_shift(dcm.spacing, factor) if factor > 1 else (0.0, 0.0, 0.0),
+                (0.0, 0.0, band.cut_mm if band.applied else 0.0))),
+            "surface_kw": {"smooth_iters": max(40, smooth_iters), "pass_band": 0.05},
+            "refine": {"background_hu": float(res.background_hu),
+                       "low_hu": float(st.get("weak_hu", 100.0)), "cap_hu": float(lower),
+                       "z0": int(band.z0) if band.applied else 0, "factor": int(factor)},
+        }
     res.mask = None
     say("borde", 93)
     poly = refine_surface(poly, seg_volume, seg_spacing, res.background_hu,
@@ -701,6 +733,8 @@ def _segment_cta_vessels(dcm, volume, band, head, *, lower: float, upper: float,
     if keep_volume:
         info["seg_volume"] = seg_volume
         info["seg_origin_mm"] = (0.0, 0.0, float(band.cut_mm) if band.applied else 0.0)
+    if surface_mask is not None:
+        info["surface_mask"] = surface_mask
     return poly, info
 
 
@@ -1280,6 +1314,7 @@ def _run_segmentation_sync(
     fallback_note = ""
     n_voxels = int(np.prod(dcm.volume.shape))
     detect_poly = None          # malla solo para detectar (TC con la receta de vasos)
+    surface_mask = None         # máscara de la malla, para la zona fina del cuello (P6)
     if method == "tubular":
         # La receta entera vive en segment_tubular, compartida con el banco de
         # Zenodo y la línea base XA. El techo efectivo (0 = sin techo) vuelve en
@@ -1287,8 +1322,9 @@ def _run_segmentation_sync(
         # misma banda que hizo la malla.
         poly, info = segment_tubular(
             dcm, lower=lower, upper=upper, strategy=strategy, reclaim_mm=reclaim_mm,
-            smooth_iters=smooth_iters, half_resolution=half_resolution,
+            smooth_iters=smooth_iters, half_resolution=half_resolution, keep_mask=True,
             say=(lambda f, p: clock.say(f, p * 0.3)) if _hybrid_ct(dcm) else clock.say)
+        surface_mask = info.pop("surface_mask", None)
         if info.get("recipe") == "vessels":
             # La malla de vasos es la que se ve; la detección sigue sobre la malla
             # de la receta anterior (detect_tree.vtp), que es a la que está
@@ -1400,6 +1436,19 @@ def _run_segmentation_sync(
     # edit like any other: snapshot first, and it can be undone.
     mesh_backup.snapshot(session_id, "segment")
     write_vtp(seg_result.poly_data, vtp_path)
+    # La máscara de ESTA malla, para rehacer el cuello con todo el detalle cuando
+    # se conozca (services.zona_fina). Una de otra segmentación no sirve: fuera.
+    from services import zona_fina
+    if surface_mask is not None:
+        try:
+            zona_fina.guardar(meshes_dir, surface_mask, mesh_fingerprint(seg_result.poly_data),
+                              main_tree=main_applied)
+        except OSError as exc:      # sin disco: la malla ya está, solo falta el extra
+            logger.warning("No se guardó la máscara de la malla: %s", exc)
+            zona_fina.borrar(meshes_dir)
+        surface_mask = None
+    else:
+        zona_fina.borrar(meshes_dir)
     # La malla de detección va con ESTA segmentación o no va: una que quedara de
     # otra anterior (p. ej. antes de pasar a umbral clásico) detectaría sobre
     # algo que ya no se ve.
@@ -1460,6 +1509,8 @@ def _run_segmentation_sync(
     estado["seg.downsample_factor"] = str(ds_factor)
     estado["seg.fallback_note"] = fallback_note
     estado["seg.strategy"] = strategy
+    # Malla recién salida de la máscara: sin zona fina todavía (services.zona_fina).
+    estado["seg.neck_detail"] = ""
     # Qué malla de trabajo acompaña a detect_tree.vtp: si luego se recorta o se
     # deshace, la detección lo nota y filtra los sitios por cercanía a la malla
     # que se ve (routers/detect.py).

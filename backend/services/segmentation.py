@@ -665,6 +665,104 @@ def _decimate_preserving(poly: vtk.vtkPolyData, reduction: float) -> vtk.vtkPoly
     return dec.GetOutput()
 
 
+# ── Zona fina alrededor del cuello (P6) ────────────────────────────────────── #
+# Medido en Case 3 (3DRA, vóxel 0,32 mm) y Zenodo 015 (angio-TC, 0,3 × 0,62 mm):
+# la decimación NO borra nada junto al cuello (desvío medio 0,02 mm, p99 ≤ 0,12
+# mm a ≤ 15 mm del cuello, y los mismos vóxeles de máscara fuera de la malla con
+# y sin decimar). Lo que borra las ramas finas es el desenfoque gaussiano de 0,7
+# vóxeles previo a marching cubes: en Case 3 deja fuera 167 vóxeles de máscara
+# a ≤ 15 mm del cuello (44 grupos, el mayor de 29) y parte las ramas en 19
+# trozos que luego quita la limpieza de islas; con 0,5 vóxeles no queda fuera
+# ninguno y quedan 3 piezas. Por eso la zona fina cambia las dos cosas: menos
+# desenfoque y sin decimar. Fuera de ella la malla sale como siempre (el
+# detector está ajustado a esa malla).
+SIGMA_ZONA_FINA_VOX = 0.5
+#: Ancho de la transición entre el desenfoque de la zona y el de fuera.
+RAMPA_ZONA_FINA_MM = 2.0
+
+
+def _afinar_zona(suavizado: np.ndarray, binaria: np.ndarray, spacing, centro_idx_mm, radio_mm: float,
+                 sigma_vox: float) -> None:
+    """Sustituye, dentro de la zona, el campo desenfocado por uno con `sigma_vox`.
+
+    `suavizado` y `binaria` son los volúmenes con el vóxel de relleno (mismo
+    tamaño); `centro_idx_mm` es (x, y, z) en mm desde el vóxel [0, 0, 0] de
+    `binaria`. Mezcla con una rampa de RAMPA_ZONA_FINA_MM para que el campo siga
+    siendo continuo (una sola superficie, sin costura). Modifica `suavizado`.
+    """
+    from scipy import ndimage
+
+    sp = np.asarray(spacing, dtype=np.float64)                      # (sz, sy, sx)
+    c = np.asarray(centro_idx_mm, dtype=np.float64)[::-1] / sp      # (z, y, x) en vóxeles
+    alcance = radio_mm + RAMPA_ZONA_FINA_MM
+    h = np.ceil(alcance / sp + 4 * max(sigma_vox, 0.7) + 2).astype(int)
+    lo = np.maximum(np.floor(c).astype(int) - h, 0)
+    hi = np.minimum(np.ceil(c).astype(int) + h + 1, binaria.shape)
+    if np.any(hi <= lo):
+        return
+    caja = tuple(slice(a, b) for a, b in zip(lo, hi))
+    fino = ndimage.gaussian_filter(binaria[caja].astype(np.float32), sigma_vox)
+    zz, yy, xx = np.ogrid[lo[0]:hi[0], lo[1]:hi[1], lo[2]:hi[2]]
+    d = np.sqrt(((zz - c[0]) * sp[0]) ** 2 + ((yy - c[1]) * sp[1]) ** 2 + ((xx - c[2]) * sp[2]) ** 2)
+    w = np.clip((alcance - d) / RAMPA_ZONA_FINA_MM, 0.0, 1.0).astype(np.float32)
+    suavizado[caja] = w * fino + (1.0 - w) * suavizado[caja]
+
+
+def _decimate_outside(poly: vtk.vtkPolyData, reduction: float, centro, radio_mm: float) -> vtk.vtkPolyData:
+    """Decima como `_decimate_preserving` salvo los triángulos con algún vértice en la zona.
+
+    La parte de fuera se decima sin borrar sus vértices de borde, que son los
+    mismos que los de la parte de dentro: al unirlas y fundir los puntos
+    coincidentes la malla queda tan cerrada como estaba.
+    """
+    if reduction <= 0 or poly.GetNumberOfPolys() == 0:
+        return poly
+    pts = ns.vtk_to_numpy(poly.GetPoints().GetData()).astype(np.float64)
+    cells = ns.vtk_to_numpy(poly.GetPolys().GetConnectivityArray()).reshape(-1, 3)
+    cerca = np.linalg.norm(pts - np.asarray(centro, dtype=np.float64), axis=1) <= radio_mm
+    dentro = cerca[cells].any(axis=1)
+    if not dentro.any():
+        return _decimate_preserving(poly, reduction)
+    if dentro.all():
+        return poly
+
+    def parte(sel: np.ndarray) -> vtk.vtkPolyData:
+        ids = vtk.vtkIdTypeArray()
+        ids.SetNumberOfComponents(1)
+        for i in np.flatnonzero(sel):
+            ids.InsertNextValue(int(i))
+        node = vtk.vtkSelectionNode()
+        node.SetFieldType(vtk.vtkSelectionNode.CELL)
+        node.SetContentType(vtk.vtkSelectionNode.INDICES)
+        node.SetSelectionList(ids)
+        s = vtk.vtkSelection(); s.AddNode(node)
+        ex = vtk.vtkExtractSelection(); ex.SetInputData(0, poly); ex.SetInputData(1, s); ex.Update()
+        gf = vtk.vtkGeometryFilter(); gf.SetInputData(ex.GetOutput()); gf.Update()
+        out = vtk.vtkPolyData(); out.SetPoints(gf.GetOutput().GetPoints()); out.SetPolys(gf.GetOutput().GetPolys())
+        return out
+
+    fuera = _decimate_preserving(parte(~dentro), reduction)
+    ap = vtk.vtkAppendPolyData(); ap.AddInputData(parte(dentro)); ap.AddInputData(fuera); ap.Update()
+    cl = vtk.vtkCleanPolyData(); cl.SetInputData(ap.GetOutput())
+    cl.PointMergingOn(); cl.SetTolerance(0.0); cl.SetAbsoluteTolerance(0.0)
+    cl.ConvertLinesToPointsOff(); cl.ConvertPolysToLinesOff(); cl.ConvertStripsToPolysOff()
+    cl.Update()
+    # vtkDecimatePro deja puntos sin celda y vtkCleanPolyData no siempre los
+    # quita (Case 3: 71); vtkPolyDataConnectivityFilter, en la limpieza de
+    # islas, no los etiqueta y las cuentas por región dejan de cuadrar.
+    m = cl.GetOutput()
+    tri = ns.vtk_to_numpy(m.GetPolys().GetConnectivityArray()).reshape(-1, 3)
+    usados, nuevo = np.unique(tri, return_inverse=True)
+    p = vtk.vtkPoints()
+    p.SetData(ns.numpy_to_vtk(np.ascontiguousarray(
+        ns.vtk_to_numpy(m.GetPoints().GetData())[usados]), deep=True))
+    ca = vtk.vtkCellArray()
+    ca.SetData(ns.numpy_to_vtkIdTypeArray(np.arange(0, 3 * len(tri) + 1, 3, dtype=np.int64), deep=True),
+               ns.numpy_to_vtkIdTypeArray(nuevo.reshape(-1).astype(np.int64), deep=True))
+    out = vtk.vtkPolyData(); out.SetPoints(p); out.SetPolys(ca)
+    return out
+
+
 def _with_normals(poly: vtk.vtkPolyData) -> vtk.vtkPolyData:
     """Normales de punto suaves, consistentes y orientadas hacia afuera."""
     nrm = vtk.vtkPolyDataNormals()
@@ -688,8 +786,15 @@ def mask_to_surface(
     fill_holes_mm: float = 4.0,
     min_island_mm3: float = 2.0,
     gauss_sigma_vox: float = 0.7,
+    zona_fina: "tuple[tuple[float, float, float], float] | None" = None,
     on_progress=None,
 ) -> vtk.vtkPolyData:
+    """Superficie estanca de una máscara binaria (marco: índice × espaciado).
+
+    `zona_fina=((x, y, z), radio_mm)`, en ese mismo marco, deja una esfera con
+    todo el detalle (P6): desenfoque de SIGMA_ZONA_FINA_VOX y sin decimar. Ver
+    el comentario de SIGMA_ZONA_FINA_VOX para lo medido.
+    """
     from scipy import ndimage
 
     def say(phase: str, pct: float) -> None:
@@ -705,6 +810,11 @@ def mask_to_surface(
     # que las coordenadas sigan en el marco del volumen.
     padded = np.pad(np.asarray(mask, dtype=bool), 1)
     suavizado = ndimage.gaussian_filter(padded.astype(np.float32), gauss_sigma_vox)
+    if zona_fina is not None and SIGMA_ZONA_FINA_VOX < gauss_sigma_vox:
+        # El relleno corre el vóxel [0,0,0] un espaciado: el centro, también.
+        (cx, cy, cz), radio = zona_fina
+        _afinar_zona(suavizado, padded, spacing,
+                     (cx + spacing[2], cy + spacing[1], cz + spacing[0]), float(radio), SIGMA_ZONA_FINA_VOX)
     del padded
     img = SegmentationPipeline._to_vtk_image(suavizado, spacing)
     del suavizado
@@ -739,7 +849,10 @@ def mask_to_surface(
     tf.SetInputData(poly); tf.Update(); poly = tf.GetOutput()
 
     say("decimación", 55)
-    poly = _decimate_preserving(poly, decimation)
+    if zona_fina is not None:
+        poly = _decimate_outside(poly, decimation, zona_fina[0], float(zona_fina[1]))
+    else:
+        poly = _decimate_preserving(poly, decimation)
 
     say("normales", 75)
     poly = _with_normals(poly)

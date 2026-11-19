@@ -1965,6 +1965,12 @@ class ReportGenerator:
             rows.append(_fila("Área luminal mínima (MLA)",
                               f"{cifra(r['mla_mm2'], 2)} mm² a {cifra(r['mla_arc_mm'])} mm · "
                               f"Ø {cifra(r['d_min_mm'], 2)}–{cifra(r['d_max_mm'], 2)} mm"))
+            secs = d.get("sections") or []
+            m = secs[r["mla_index"]] if 0 <= r.get("mla_index", -1) < len(secs) else {}
+            if m.get("d_inscribed_mm") is not None and m.get("circularity") is not None:
+                rows.append(_fila("Forma de la luz en la MLA",
+                                  f"Ø inscrito {cifra(m['d_inscribed_mm'], 2)} mm · Ø por perímetro "
+                                  f"{cifra(m['d_perimeter_mm'], 2)} mm · circularidad {cifra(m['circularity'], 2)}"))
             for nombre, a, arc in (("Referencia proximal", r.get("ref_prox_mm2"), r.get("ref_prox_arc_mm")),
                                    ("Referencia distal", r.get("ref_dist_mm2"), r.get("ref_dist_arc_mm"))):
                 rows.append(_fila(nombre, f"{cifra(a, 2)} mm² a {cifra(arc)} mm" if a is not None else "sin sección válida"))

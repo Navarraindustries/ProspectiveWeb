@@ -10,7 +10,10 @@ perpendicular a la línea central en cada punto (~0,5 mm), con
 - el contorno de la luz, cortando la malla del vaso por ese plano y quedándose
   con el lazo que rodea a la línea central (el más grande puede ser otra rama);
 - las medidas IVUS de ese contorno: área, perímetro, diámetros mínimo y máximo
-  por el centroide, diámetro equivalente y excentricidad.
+  por el centroide, diámetro equivalente y excentricidad; y, desde la P4,
+  diámetro por perímetro (P/π), diámetro inscrito (el mayor círculo que cabe)
+  y circularidad (4πA/P²), que separan una luz aplastada de una redonda con
+  la misma área.
 
 Los ejes de cada sección son un marco de rotación mínima (doble reflexión,
 Wang et al. 2008): la imagen no gira sobre sí misma al avanzar, y la vista
@@ -46,6 +49,7 @@ RAMA_EXCENTRICIDAD = 0.5
 MARGEN_EXTREMOS_MM = 1.0     # los extremos de la línea son ruidosos
 PUNTOS_CONTORNO = 72         # contorno remuestreado para enviarlo
 ANGULOS_DIAMETRO = 180       # diámetros por el centroide, cada 1°
+INSCRITO_PRECISION_MM = 0.01   # error máximo del radio del círculo inscrito (el vóxel es de 0,3–0,6 mm)
 
 
 @dataclass
@@ -60,6 +64,10 @@ class Seccion:
     d_max_mm: float | None = None
     d_eq_mm: float | None = None
     excentricidad: float | None = None
+    d_perimetro_mm: float | None = None      # P/π: el círculo con el mismo perímetro (lo que abre un stent que se apoya en toda la pared)
+    d_inscrito_mm: float | None = None       # el mayor círculo que cabe en la luz (lo que pasa un catéter o un balón)
+    centro_inscrito: tuple[float, float] | None = None
+    circularidad: float | None = None        # 4πA/P²: 1 = círculo; baja si la luz está aplastada o tiene entrantes
     angulo_min_deg: float | None = None
     angulo_max_deg: float | None = None
     centroide: tuple[float, float] | None = None
@@ -298,6 +306,52 @@ def diametros(q: np.ndarray, c: np.ndarray, n: int = ANGULOS_DIAMETRO):
     return angs, cuerdas
 
 
+def _distancia_con_signo(q: np.ndarray, pt) -> float:
+    """Distancia del punto al contorno: positiva dentro, negativa fuera."""
+    d = _distancia_a(q, pt)
+    return d if _contiene(q, pt) else -d
+
+
+def circulo_inscrito(q: np.ndarray, precision_mm: float = INSCRITO_PRECISION_MM) -> tuple[float, np.ndarray]:
+    """El mayor círculo que cabe dentro del contorno: (diámetro, centro).
+
+    Es lo que pasa por la parte más estrecha de una luz aplastada o en media
+    luna, donde el diámetro mínimo por el centroide engaña (el centroide puede
+    caer cerca de una pared). Búsqueda por cuadrantes con cota superior
+    («polylabel», Agafonkin 2016): una celda se descarta si ni su mejor punto
+    posible mejora lo hallado; el error queda por debajo de `precision_mm`.
+    """
+    import heapq
+
+    lo, hi = q.min(axis=0), q.max(axis=0)
+    lado = float(min(hi - lo))
+    if lado <= 0:
+        return 0.0, q.mean(axis=0)
+    h = lado / 2.0
+    cola: list[tuple[float, float, float, float, float]] = []   # (−cota, d, h, x, y)
+
+    def meter(x: float, y: float, h: float) -> None:
+        d = _distancia_con_signo(q, (x, y))
+        heapq.heappush(cola, (-(d + h * np.sqrt(2.0)), d, h, x, y))
+
+    for x in np.arange(lo[0], hi[0], 2 * h):
+        for y in np.arange(lo[1], hi[1], 2 * h):
+            meter(x + h, y + h, h)
+    c = _centroide(q)
+    mejor_d, mejor = _distancia_con_signo(q, c), c
+    while cola:
+        cota, d, h, x, y = heapq.heappop(cola)
+        if d > mejor_d:
+            mejor_d, mejor = d, np.array([x, y])
+        if -cota - mejor_d <= precision_mm:
+            continue
+        h /= 2.0
+        for dx in (-h, h):
+            for dy in (-h, h):
+                meter(x + dx, y + dy, h)
+    return 2.0 * max(mejor_d, 0.0), np.asarray(mejor, float)
+
+
 def remuestrear_contorno(q: np.ndarray, n: int = PUNTOS_CONTORNO) -> np.ndarray:
     cerrado = np.vstack([q, q[:1]])
     seg = np.linalg.norm(np.diff(cerrado, axis=0), axis=1)
@@ -412,6 +466,11 @@ def medir_seccion(poly: vtk.vtkPolyData, o, t, u, v, arc_mm: float) -> Seccion:
     sec.d_eq_mm = 2.0 * float(np.sqrt(area / np.pi))
     sec.excentricidad = (sec.d_max_mm - sec.d_min_mm) / sec.d_max_mm if sec.d_max_mm > 0 else 0.0
     sec.centroide = (float(c[0]), float(c[1]))
+    sec.d_perimetro_mm = sec.perimetro_mm / np.pi
+    d_ins, c_ins = circulo_inscrito(q)
+    sec.d_inscrito_mm = float(d_ins)
+    sec.centro_inscrito = (float(c_ins[0]), float(c_ins[1]))
+    sec.circularidad = float(min(1.0, 4.0 * np.pi * area / sec.perimetro_mm ** 2)) if sec.perimetro_mm > 0 else None
     return sec
 
 

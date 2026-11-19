@@ -5,17 +5,20 @@
    Sale de la angio-TC o la 3DRA, no de un ultrasonido: se ve la luz, no la
    pared (con vóxeles de ~0,5 mm la pared intracraneal no se resuelve), y el
    panel lo dice. Arrastrar sobre el corte gira la recta de la vista
-   longitudinal; un clic en la vista longitudinal lleva el recorrido allí. */
-import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type SyntheticEvent } from "react";
+   longitudinal; un clic en la vista longitudinal o en el gráfico de
+   secciones (P4: área, diámetros o circularidad a lo largo de la línea)
+   lleva el recorrido allí. */
+import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type ReactNode, type SyntheticEvent } from "react";
 import { api } from "../../api/client";
 import type { FdSizingResult, IvusBranch, IvusCompareResult, IvusResult } from "../../api/types";
 import { cifra } from "../../lib/numero";
 import { indexAtArc } from "../centerlineWalk";
 import type { GrabFn } from "../captureRenderWindow";
 import {
-  cambioArea, diferenciaDispositivo, estadoDeSeccion, opcionesQueEncajan, ramasBajo, ramasCerca, zonaDelPlan, type MarcaEnLinea,
+  cambioArea, diferenciaDispositivo, estadoDeSeccion, graficoDe, METRICAS_GRAFICO, opcionesQueEncajan, ramasBajo, ramasCerca, zonaDelPlan,
+  type MarcaEnLinea, type MetricaGrafico,
 } from "../ivusVirtual";
-import { coloresDe, pintarCorte, pintarL, seccionDe } from "./dibujoIvus";
+import { coloresDe, pintarCorte, pintarGrafico, pintarL, seccionDe } from "./dibujoIvus";
 import type { ProgresoRecorrido } from "./HudRecorrido";
 
 interface Pullback { datos: IvusResult; pila: Uint8Array }
@@ -105,9 +108,11 @@ export function HudIvus({ sessionId, claveLinea, progreso, onIrA, onCerrar, ante
   const [comparar, setComparar] = useState(false);
   const [comparacion, setComparacion] = useState<Comparacion | null>(null);
   const [nota, setNota] = useState<string | null>(null);        // null = sin escribir marcador
+  const [metrica, setMetrica] = useState<MetricaGrafico>("area");
   const caja = useRef<HTMLDivElement>(null);
   const corte = useRef<HTMLCanvasElement>(null);
   const largo = useRef<HTMLCanvasElement>(null);
+  const grafico = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -149,7 +154,8 @@ export function HudIvus({ sessionId, claveLinea, progreso, onIrA, onCerrar, ante
     const extra = { previo: comp, marcas };
     if (corte.current) pintarCorte(corte.current, pb.datos, pb.pila, i, angulo, col, disp, extra);
     if (largo.current) pintarL(largo.current, pb.datos, pb.pila, i, angulo, col, disp, extra);
-  }, [pb, i, angulo, sinStent, fd, opcion, comp, marcas]);
+    if (grafico.current) pintarGrafico(grafico.current, pb.datos, i, graficoDe(pb.datos.sections, metrica, comp?.sections), col);
+  }, [pb, i, angulo, sinStent, fd, opcion, comp, marcas, metrica]);
 
   // Para la grabación: el corte arriba y la vista longitudinal debajo, con la
   // posición y el área, en el rectángulo que le toque del vídeo.
@@ -223,6 +229,10 @@ export function HudIvus({ sessionId, claveLinea, progreso, onIrA, onCerrar, ante
               <dt>Área</dt><dd>{mm2(s.area_mm2)}</dd>
               <dt>Ø mín · máx</dt><dd><span className="hud-ivus-min">{mm1(s.d_min_mm)}</span>{` · ${mm1(s.d_max_mm)} mm`}</dd>
               <dt>Excentricidad</dt><dd>{s.eccentricity == null ? "—" : cifra(s.eccentricity, 2)}</dd>
+              <dt title="Ø por perímetro (P/π) y Ø del mayor círculo que cabe en la luz">Ø perím. · inscrito</dt>
+              <dd>{`${mm1(s.d_perimeter_mm)} · `}<span className="hud-ivus-min">{mm1(s.d_inscribed_mm)}</span>{" mm"}</dd>
+              <dt title="4πA/P²: 1 es un círculo; baja si la luz está aplastada o tiene entrantes">Circularidad</dt>
+              <dd>{s.circularity == null ? "—" : cifra(s.circularity, 2)}</dd>
               {comp && (
                 <>
                   <dt>Antes</dt>
@@ -235,6 +245,15 @@ export function HudIvus({ sessionId, claveLinea, progreso, onIrA, onCerrar, ante
           )}
           <canvas ref={largo} className="hud-ivus-largo" role="img" title="Clic para llevar el recorrido a esa sección"
             aria-label="Vista longitudinal del vaso enderezado" onPointerDown={irA} onPointerMove={irA} />
+          <div className="hud-ivus-metricas" role="group" aria-label="Medida del gráfico de secciones">
+            {METRICAS_GRAFICO.map((m) => (
+              <button key={m.id} type="button" aria-pressed={metrica === m.id} onClick={() => setMetrica(m.id)}>{m.rotulo}</button>
+            ))}
+            <span className="hud-ivus-leyenda">{leyendaGrafico(metrica, !!comp)}</span>
+          </div>
+          <canvas ref={grafico} className="hud-ivus-grafico" role="img" title="Clic para llevar el recorrido a esa sección"
+            aria-label={`Gráfico de secciones: ${METRICAS_GRAFICO.find((m) => m.id === metrica)?.rotulo} a lo largo de la línea`}
+            onPointerDown={irA} onPointerMove={irA} />
           {sm ? (
             <div className="hud-ivus-resumen">
               <button type="button" className="hud-ivus-mla" title="Llevar el recorrido a la sección más estrecha"
@@ -356,6 +375,15 @@ function BloquePlan({ plan, fd, opciones, opcionIdx, setOpcionIdx, arcMm, vasoMm
       <span className="hud-ivus-pie">Ámbar: cuello · franja inferior: despliegue. Para ver la aposición real, despliega el stent en Dispositivos.</span>
     </div>
   );
+}
+
+/** Qué es cada curva del gráfico de secciones (los colores, como en el corte). */
+function leyendaGrafico(m: MetricaGrafico, conAntes: boolean): ReactNode {
+  if (m === "diametros") {
+    return <>máx · <span className="hud-ivus-titulo">perímetro</span> · <span className="hud-ivus-min">inscrito</span></>;
+  }
+  if (m === "circularidad") return "1 = círculo";
+  return conAntes ? "mm² · discontinuo: antes" : "mm²";
 }
 
 /** «Antes: 6,12 mm² (−8 %)»: la misma sección en el estudio anterior. */

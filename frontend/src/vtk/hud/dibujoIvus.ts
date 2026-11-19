@@ -4,8 +4,9 @@
 import type { FdOption, FdSizingResult, IvusCompareResult, IvusResult } from "../../api/types";
 import {
   anillosMm, bordesEnL, cuerda, estadoAposicion, estadoDeSeccion, mmAPx, ramasCerca, vistaL, type EstadoAposicion,
-  type MarcaEnLinea,
+  type Grafico, type MarcaEnLinea,
 } from "../ivusVirtual";
+import { cifra } from "../../lib/numero";
 
 export interface ColoresIvus { texto: string; tenue: string; ambar: string; rojo: string; plano: string; fuente: string }
 
@@ -108,6 +109,13 @@ export function pintarCorte(cv: HTMLCanvasElement, d: IvusResult, pila: Uint8Arr
     ctx.strokeStyle = color; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
     for (const [x, y] of [p0, p1]) { ctx.beginPath(); ctx.arc(x, y, 2, 0, 2 * Math.PI); ctx.fillStyle = color; ctx.fill(); }
+  }
+  // El mayor círculo que cabe en la luz (Ø inscrito), punteado en ámbar como el Ø mínimo.
+  if (s.valid && s.d_inscribed_mm && s.inscribed_center) {
+    const [cx, cy] = aPx(s.inscribed_center[0], s.inscribed_center[1]);
+    ctx.strokeStyle = col.ambar; ctx.lineWidth = 1; ctx.setLineDash([1.5, 2.5]);
+    ctx.beginPath(); ctx.arc(cx, cy, (s.d_inscribed_mm / 2) * mmPx, 0, 2 * Math.PI); ctx.stroke();
+    ctx.setLineDash([]);
   }
   // El stent desplegado, tramo a tramo con el color de su aposición; si no lo
   // hay y la sección cae en el despliegue del plan, el círculo nominal de la
@@ -267,4 +275,68 @@ export function pintarL(cv: HTMLCanvasElement, d: IvusResult, pila: Uint8Array, 
   }
   // Dónde va el recorrido.
   vertical(i, col.texto, []);
+}
+
+/** Gráfico de secciones (P4): la medida elegida a lo largo de la línea, con
+ *  las mismas columnas que la vista longitudinal para que queden alineadas.
+ *  Lesión y ramas sombreadas, MLA y referencias como en la vista L, y la
+ *  posición del recorrido. */
+export function pintarGrafico(cv: HTMLCanvasElement, d: IvusResult, i: number, g: Grafico, col: ColoresIvus): void {
+  const p = preparar(cv); if (!p) return;
+  const { ctx, w, h } = p;
+  const n = d.n_sections, arriba = 4, abajo = 3;
+  // Recortado a la escala: las secciones de rama pueden pasarse (graficoDe no las cuenta).
+  const yDe = (v: number) => arriba + (1 - Math.min(1, Math.max(0, (v - g.min) / Math.max(1e-9, g.max - g.min)))) * (h - arriba - abajo);
+  const anchoCol = Math.max(1, w / Math.max(1, n - 1));
+  d.sections.forEach((s, k) => {
+    if (!s.in_lesion && !s.in_branch) return;
+    ctx.globalAlpha = s.in_lesion ? 0.28 : 0.18;
+    ctx.fillStyle = s.in_lesion ? col.rojo : col.tenue;
+    ctx.fillRect(columnaDe(k, n, w) - anchoCol / 2, 0, anchoCol, h);
+  });
+  ctx.globalAlpha = 1;
+  // Rejilla: el máximo de la escala y la mitad, rotulados.
+  ctx.font = `9px ${col.fuente}`; ctx.lineWidth = 1;
+  for (const v of [g.max, (g.max + g.min) / 2]) {
+    const y = yDe(v);
+    ctx.strokeStyle = col.tenue; ctx.globalAlpha = 0.5; ctx.setLineDash([1, 3]);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    ctx.globalAlpha = 1; ctx.setLineDash([]);
+    ctx.fillStyle = col.tenue;
+    ctx.fillText(g.unidad ? `${cifra(v, v < 10 ? 1 : 0)}` : cifra(v, 2), 2, y + 9);
+  }
+  const tono = { texto: col.texto, tenue: col.tenue, ambar: col.ambar };
+  for (const serie of g.series) {
+    ctx.strokeStyle = tono[serie.tono]; ctx.lineWidth = serie.tono === "texto" ? 1.5 : 1;
+    ctx.setLineDash(serie.raya ? [4, 3] : []);
+    ctx.beginPath();
+    let abierto = false;
+    serie.valores.forEach((v, k) => {
+      if (v == null) { abierto = false; return; }
+      const x = columnaDe(k, n, w), y = yDe(v);
+      if (abierto) ctx.lineTo(x, y); else { ctx.moveTo(x, y); abierto = true; }
+    });
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+  const vertical = (k: number, color: string, raya: number[]) => {
+    const x = columnaDe(k, n, w);
+    ctx.strokeStyle = color; ctx.setLineDash(raya); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); ctx.setLineDash([]);
+  };
+  const sm = d.summary;
+  if (sm) {
+    for (const ref of [sm.ref_prox_arc_mm, sm.ref_dist_arc_mm]) {
+      const k = ref == null ? -1 : d.sections.findIndex((s) => Math.abs(s.arc_mm - ref) < 1e-6);
+      if (k >= 0) vertical(k, col.tenue, [2, 3]);
+    }
+    vertical(sm.mla_index, col.ambar, [4, 2]);
+  }
+  vertical(i, col.texto, []);
+  // El valor de cada curva donde va el recorrido, sobre su línea.
+  for (const serie of g.series) {
+    const v = serie.valores[i];
+    if (v == null) continue;
+    ctx.fillStyle = tono[serie.tono];
+    ctx.beginPath(); ctx.arc(columnaDe(i, n, w), yDe(v), 2.5, 0, 2 * Math.PI); ctx.fill();
+  }
 }

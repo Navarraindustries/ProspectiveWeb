@@ -247,6 +247,10 @@ class IvusSection(BaseModel):
     d_max_mm: float | None = Field(None, description="Longest chord through the lumen centroid")
     d_eq_mm: float | None = Field(None, description="Equivalent-circle diameter 2·√(A/π)")
     eccentricity: float | None = Field(None, description="(d_max − d_min) / d_max")
+    d_perimeter_mm: float | None = Field(None, description="Perimeter-derived diameter P/π")
+    d_inscribed_mm: float | None = Field(None, description="Diameter of the largest circle inside the lumen")
+    inscribed_center: list[float] | None = Field(None, description="Centre (u, v) in mm of the largest inscribed circle")
+    circularity: float | None = Field(None, description="4πA/P²: 1 for a circle, lower for a flattened or indented lumen")
     angle_min_deg: float | None = Field(None, description="Direction of d_min in the section frame (0° = +u, counter-clockwise)")
     angle_max_deg: float | None = None
     centroid: list[float] | None = Field(None, description="Lumen centroid (u, v) in mm, centreline at (0, 0)")

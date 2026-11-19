@@ -195,6 +195,10 @@
 .hud-ivus button:focus-visible { outline: var(--hud-line) dashed var(--hud-text); outline-offset: 2px; }
 .hud-ivus-corte { display: block; flex: none; width: 222px; height: 222px; align-self: center; cursor: crosshair; touch-action: none; }
 .hud-ivus-largo { display: block; flex: none; width: 100%; height: 72px; cursor: pointer; touch-action: none; }
+.hud-ivus-grafico { display: block; flex: none; width: 100%; height: 64px; cursor: pointer; touch-action: none; }
+.hud-ivus-metricas { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.hud-ivus-metricas button[aria-pressed="true"] { color: var(--hud-text); text-decoration: underline; text-underline-offset: 3px; }
+.hud-ivus-leyenda { margin-left: auto; font-size: 9.5px; opacity: .85; }
 .hud-ivus-fila { display: flex; justify-content: space-between; color: var(--hud-text); font-variant-numeric: tabular-nums; }
 .hud-ivus-aviso { color: var(--hud-red); }
 .hud-ivus-medidas { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; }

@@ -23,6 +23,8 @@ router = APIRouter(prefix="/api", tags=["centerline"])
 PILA = "ivus_pullback.u8"
 DATOS = "ivus_pullback.json"
 STENT = "cl_stent.vtp"
+# Sube cuando cambian las medidas que se guardan: la caché vieja no las trae.
+VERSION_DATOS = 2           # 2: Ø por perímetro, Ø inscrito y circularidad (P4)
 
 
 def _clave(rutas) -> str:
@@ -69,6 +71,9 @@ def serializar(pb) -> dict:
         "arc_mm": round(s.arc_mm, 2), "valid": s.valida, "in_lesion": s.en_lesion, "in_branch": s.en_rama,
         "area_mm2": _r(s.area_mm2), "perimeter_mm": _r(s.perimetro_mm), "d_min_mm": _r(s.d_min_mm),
         "d_max_mm": _r(s.d_max_mm), "d_eq_mm": _r(s.d_eq_mm), "eccentricity": _r(s.excentricidad),
+        "d_perimeter_mm": _r(s.d_perimetro_mm), "d_inscribed_mm": _r(s.d_inscrito_mm),
+        "inscribed_center": [round(c, 3) for c in s.centro_inscrito] if s.centro_inscrito else None,
+        "circularity": _r(s.circularidad),
         "angle_min_deg": _r(s.angulo_min_deg, 1), "angle_max_deg": _r(s.angulo_max_deg, 1),
         "centroid": [round(c, 3) for c in s.centroide] if s.centroide else None,
         "contour": [[a, b] for a, b in s.contorno],
@@ -124,13 +129,13 @@ def obtener_pullback(session_id: str) -> dict:
     if datos_path.exists() and pila_path.exists():
         try:
             guardado = json.loads(datos_path.read_text(encoding="utf-8"))
-            if guardado.get("clave") == _clave(entradas):
+            if guardado.get("clave") == f"v{VERSION_DATOS}|{_clave(entradas)}":
                 return guardado["datos"]
         except (OSError, ValueError, KeyError):
             pass
     datos = _calcular(session_id, meshes_dir, lesion)
     # La clave se toma después: el cálculo puede haber escrito el volumen en caché.
-    datos_path.write_text(json.dumps({"clave": _clave(entradas), "datos": datos}), encoding="utf-8")
+    datos_path.write_text(json.dumps({"clave": f"v{VERSION_DATOS}|{_clave(entradas)}", "datos": datos}), encoding="utf-8")
     return datos
 
 
@@ -165,7 +170,8 @@ def ramas_de_la_linea(session_id: str) -> tuple[list[dict], float | None]:
         "One section perpendicular to the centreline at each of its points: the volume "
         "resampled in that plane (raw uint8 stack at `stack_url`), the lumen contour cut "
         "from the vessel mesh (the loop around the centreline) and its IVUS measures "
-        "(area, perimeter, min/max diameter through the centroid, eccentricity), plus the "
+        "(area, perimeter, min/max diameter through the centroid, eccentricity, perimeter and "
+        "inscribed diameters, circularity), plus the "
         "minimal lumen area and the proximal/distal references. Cached until the "
         "centreline, the vessel mesh, the lesion or the volume change."
     ),

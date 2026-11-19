@@ -5120,6 +5120,18 @@
       "description": "Lumen centroid (u, v) in mm, centreline at (0, 0)",
       "title": "Centroid"
      },
+     "circularity": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "4πA/P²: 1 for a circle, lower for a flattened or indented lumen",
+      "title": "Circularity"
+     },
      "contour": {
       "description": "Lumen contour (u, v) in mm, closed, ~72 points",
       "items": {
@@ -5142,6 +5154,18 @@
       ],
       "description": "Equivalent-circle diameter 2·√(A/π)",
       "title": "D Eq Mm"
+     },
+     "d_inscribed_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Diameter of the largest circle inside the lumen",
+      "title": "D Inscribed Mm"
      },
      "d_max_mm": {
       "anyOf": [
@@ -5167,6 +5191,18 @@
       "description": "Shortest chord through the lumen centroid",
       "title": "D Min Mm"
      },
+     "d_perimeter_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Perimeter-derived diameter P/π",
+      "title": "D Perimeter Mm"
+     },
      "eccentricity": {
       "anyOf": [
        {
@@ -5190,6 +5226,21 @@
       "description": "The section is inside the lesion (sac or candidate zone): not a vessel measure",
       "title": "In Lesion",
       "type": "boolean"
+     },
+     "inscribed_center": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "number"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Centre (u, v) in mm of the largest inscribed circle",
+      "title": "Inscribed Center"
      },
      "perimeter_mm": {
       "anyOf": [
@@ -14799,7 +14850,7 @@
   },
   "/api/centerline/{session_id}/ivus": {
    "post": {
-    "description": "One section perpendicular to the centreline at each of its points: the volume resampled in that plane (raw uint8 stack at `stack_url`), the lumen contour cut from the vessel mesh (the loop around the centreline) and its IVUS measures (area, perimeter, min/max diameter through the centroid, eccentricity), plus the minimal lumen area and the proximal/distal references. Cached until the centreline, the vessel mesh, the lesion or the volume change.",
+    "description": "One section perpendicular to the centreline at each of its points: the volume resampled in that plane (raw uint8 stack at `stack_url`), the lumen contour cut from the vessel mesh (the loop around the centreline) and its IVUS measures (area, perimeter, min/max diameter through the centroid, eccentricity, perimeter and inscribed diameters, circularity), plus the minimal lumen area and the proximal/distal references. Cached until the centreline, the vessel mesh, the lesion or the volume change.",
     "operationId": "ivus_virtual_api_centerline__session_id__ivus_post",
     "parameters": [
      {

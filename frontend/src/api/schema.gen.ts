@@ -693,7 +693,7 @@ export interface paths {
         put?: never;
         /**
          * Virtual IVUS pullback along the centreline (VINI 3D)
-         * @description One section perpendicular to the centreline at each of its points: the volume resampled in that plane (raw uint8 stack at `stack_url`), the lumen contour cut from the vessel mesh (the loop around the centreline) and its IVUS measures (area, perimeter, min/max diameter through the centroid, eccentricity), plus the minimal lumen area and the proximal/distal references. Cached until the centreline, the vessel mesh, the lesion or the volume change.
+         * @description One section perpendicular to the centreline at each of its points: the volume resampled in that plane (raw uint8 stack at `stack_url`), the lumen contour cut from the vessel mesh (the loop around the centreline) and its IVUS measures (area, perimeter, min/max diameter through the centroid, eccentricity, perimeter and inscribed diameters, circularity), plus the minimal lumen area and the proximal/distal references. Cached until the centreline, the vessel mesh, the lesion or the volume change.
          */
         post: operations["ivus_virtual_api_centerline__session_id__ivus_post"];
         delete?: never;
@@ -6314,6 +6314,11 @@ export interface components {
              */
             centroid?: number[] | null;
             /**
+             * Circularity
+             * @description 4πA/P²: 1 for a circle, lower for a flattened or indented lumen
+             */
+            circularity?: number | null;
+            /**
              * Contour
              * @description Lumen contour (u, v) in mm, closed, ~72 points
              */
@@ -6324,6 +6329,11 @@ export interface components {
              */
             d_eq_mm?: number | null;
             /**
+             * D Inscribed Mm
+             * @description Diameter of the largest circle inside the lumen
+             */
+            d_inscribed_mm?: number | null;
+            /**
              * D Max Mm
              * @description Longest chord through the lumen centroid
              */
@@ -6333,6 +6343,11 @@ export interface components {
              * @description Shortest chord through the lumen centroid
              */
             d_min_mm?: number | null;
+            /**
+             * D Perimeter Mm
+             * @description Perimeter-derived diameter P/π
+             */
+            d_perimeter_mm?: number | null;
             /**
              * Eccentricity
              * @description (d_max − d_min) / d_max
@@ -6350,6 +6365,11 @@ export interface components {
              * @default false
              */
             in_lesion: boolean;
+            /**
+             * Inscribed Center
+             * @description Centre (u, v) in mm of the largest inscribed circle
+             */
+            inscribed_center?: number[] | null;
             /** Perimeter Mm */
             perimeter_mm?: number | null;
             /** @description The deployed centreline stent at this section, if it passes here */

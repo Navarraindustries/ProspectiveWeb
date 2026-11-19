@@ -180,3 +180,55 @@ export function marcasEnLinea(anotaciones: Annotation[], t: CenterlineTrack | nu
   }
   return out.sort((x, y) => x.arc_mm - y.arc_mm);
 }
+
+/* ── Gráfico de secciones (P4, 18-11) ─────────────────────────────────── */
+
+/** Qué enseña el gráfico de secciones a lo largo de la línea. */
+export type MetricaGrafico = "area" | "diametros" | "circularidad";
+export const METRICAS_GRAFICO: { id: MetricaGrafico; rotulo: string }[] = [
+  { id: "area", rotulo: "Área" }, { id: "diametros", rotulo: "Ø" }, { id: "circularidad", rotulo: "Circularidad" },
+];
+
+/** Una curva del gráfico: un valor por sección (null = hueco: sin medida o en la lesión). */
+export interface SerieGrafico { nombre: string; tono: "texto" | "tenue" | "ambar"; valores: (number | null)[]; raya?: boolean }
+export interface Grafico { series: SerieGrafico[]; min: number; max: number; unidad: string }
+
+/** Las curvas del gráfico de secciones y su escala. Dentro de la lesión no hay
+ *  valor: allí el área es la del saco y aplastaría la escala del vaso. */
+export function graficoDe(secs: IvusSection[], metrica: MetricaGrafico, previo?: IvusCompareSection[] | null): Grafico {
+  const de = (f: (s: IvusSection) => number | null | undefined) =>
+    secs.map((s) => (s.valid && !s.in_lesion ? f(s) ?? null : null));
+  let series: SerieGrafico[];
+  let unidad = "mm";
+  if (metrica === "area") {
+    unidad = "mm²";
+    series = [{ nombre: "Área", tono: "texto", valores: de((s) => s.area_mm2) }];
+    if (previo?.length) {
+      series.push({
+        nombre: "Antes", tono: "tenue", raya: true,
+        valores: secs.map((s, k) => (s.in_lesion || !previo[k]?.valid ? null : previo[k].area_mm2 ?? null)),
+      });
+    }
+  } else if (metrica === "diametros") {
+    series = [
+      { nombre: "Ø máx", tono: "tenue", valores: de((s) => s.d_max_mm) },
+      { nombre: "Ø perímetro", tono: "texto", valores: de((s) => s.d_perimeter_mm) },
+      { nombre: "Ø inscrito", tono: "ambar", valores: de((s) => s.d_inscribed_mm) },
+    ];
+  } else {
+    unidad = "";
+    series = [{ nombre: "Circularidad", tono: "texto", valores: de((s) => s.circularity) }];
+  }
+  // La escala, sin las secciones de rama: allí el corte abarca dos luces y una
+  // sola confluencia aplastaría todo el vaso (se pintan recortadas arriba).
+  const numeros = (filtro: (k: number) => boolean) => series.flatMap((s) => s.valores.filter((v, k): v is number =>
+    v != null && Number.isFinite(v) && filtro(k)));
+  const sinRamas = numeros((k) => !secs[k]?.in_branch);
+  const todos = sinRamas.length ? sinRamas : numeros(() => true);
+  if (metrica === "circularidad") {
+    const bajo = todos.length ? Math.min(...todos) : 1;
+    return { series, unidad, max: 1, min: Math.max(0, Math.min(0.6, Math.floor(bajo * 10) / 10)) };
+  }
+  const alto = todos.length ? Math.max(...todos) : 1;
+  return { series, unidad, min: 0, max: alto > 0 ? alto * 1.1 : 1 };
+}

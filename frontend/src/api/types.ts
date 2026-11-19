@@ -211,6 +211,13 @@ export interface IvusSection {
   d_max_mm?: number | null;
   d_eq_mm?: number | null;
   eccentricity?: number | null;
+  /** P/π: el círculo con el mismo perímetro. */
+  d_perimeter_mm?: number | null;
+  /** El mayor círculo que cabe en la luz, y su centro (u, v) mm. */
+  d_inscribed_mm?: number | null;
+  inscribed_center?: number[] | null;
+  /** 4πA/P²: 1 = círculo; baja si la luz está aplastada o tiene entrantes. */
+  circularity?: number | null;
   /** Dirección de cada diámetro en la sección (0° = +u, antihorario). */
   angle_min_deg?: number | null;
   angle_max_deg?: number | null;

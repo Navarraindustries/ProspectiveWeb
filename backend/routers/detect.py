@@ -559,6 +559,7 @@ def _detect_hits_cap(poly: "vtk.vtkPolyData", modality: str, detector: AneurysmD
     su curvatura) para la siguiente llamada con otro tope.
     """
     from services.aneurysm_consensus import consensus, promote_coarse
+    from services.brain_mask import drop_outside_brain
     from services.hu_floor import HuFloor, drop_air
     from services.segmentation import decimate_to, decimate_to_edge
 
@@ -596,14 +597,21 @@ def _detect_hits_cap(poly: "vtk.vtkPolyData", modality: str, detector: AneurysmD
     # Se piden el doble de sitios de los que se dan: el suelo de HU quita los
     # que están en aire y los siguientes de la misma lista ordenada ocupan su
     # sitio. Recortar la lista ya ordenada no cambia el puesto de nadie.
+    if shared is None:
+        shared = {}
+    # Máscara de cerebro externa (`services.brain_mask`, P8): si la sesión la
+    # tiene, quita los candidatos lejos del cerebro. Puede quitar muchos más
+    # que el suelo de HU, así que entonces se piden cuatro veces los sitios.
+    if "brain" not in shared:
+        shared["brain"] = _session_brain(session_id)
+    brain, brain_filter = shared["brain"]
     geo_cache: dict = {}
-    hits = consensus(curv, detector, top=2 * top, geometric_poly=small,
+    pedir = (4 if brain is not None else 2) * top
+    hits = consensus(curv, detector, top=pedir, geometric_poly=small,
                      curvature_result=det_result, tree_poly=poly,
                      geometric_cache=geo_cache)
     floor = HuFloor(applied=False)
     is_ct = modality.upper().startswith("CT")
-    if shared is None:
-        shared = {}
     if is_ct:
         if volume is None and session_id:
             if "volume" not in shared:
@@ -611,6 +619,9 @@ def _detect_hits_cap(poly: "vtk.vtkPolyData", modality: str, detector: AneurysmD
             volume = shared["volume"]
         if volume is not None:
             hits, floor = drop_air(hits, *volume)
+    if brain is not None:
+        hits, brain_filter = drop_outside_brain(hits, brain.mascara, brain.origin,
+                                                brain.direction, brain.margen_mm)
     coarse_edge = getattr(detector, "coarse_edge_mm", None)
     if coarse_edge:
         # Segunda escala de curvatura (ver el preset de TC y
@@ -633,17 +644,33 @@ def _detect_hits_cap(poly: "vtk.vtkPolyData", modality: str, detector: AneurysmD
             if "coarse_det" not in shared:
                 shared["coarse_det"] = detector.detect(coarse_poly)
             coarse_det = shared["coarse_det"]
-        coarse_hits = consensus(coarse_poly, detector, top=2 * top, geometric_poly=small,
+        coarse_hits = consensus(coarse_poly, detector, top=pedir, geometric_poly=small,
                                 curvature_result=coarse_det, tree_poly=poly,
                                 geometric_cache=geo_cache)
         if is_ct and volume is not None:
             coarse_hits, _ = drop_air(coarse_hits, *volume)
+        if brain is not None:
+            coarse_hits, _ = drop_outside_brain(coarse_hits, brain.mascara, brain.origin,
+                                                brain.direction, brain.margen_mm)
         hits = promote_coarse(hits, coarse_hits,
                               min_diameter_mm=float(detector.coarse_promote_min_mm),
                               top=int(detector.coarse_promote_top))
     hits = hits[:top]
     det_result.hu_floor = floor.as_dict()
+    det_result.brain_mask = brain_filter.as_dict()
     return hits, det_result
+
+
+def _session_brain(session_id: str | None):
+    """``(CerebroSesion | None, FiltroCerebro)`` de la sesión: ver `services.brain_mask.de_sesion`."""
+    from services.brain_mask import FiltroCerebro, de_sesion
+    if not session_id:
+        return None, FiltroCerebro(applied=False, reason="sin sesión")
+    try:
+        return de_sesion(session_id)
+    except Exception as exc:  # la máscara es opcional: nunca rompe la detección
+        logger.warning("Máscara de cerebro de la sesión %s: %s", session_id, exc)
+        return None, FiltroCerebro(applied=False, reason="error")
 
 
 def _session_volume(session_id: str):

@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { api } from "../../api/client";
-import type { FdLandingZone, FdSizingResult } from "../../api/types";
+import type { FdLandingZone, FdOption, FdSizingResult } from "../../api/types";
 import { Button } from "../Button";
 import { Card, ErrorNote, SectionLabel } from "../PanelHead";
 import { cifra } from "../../lib/numero";
@@ -42,7 +42,8 @@ export function FdSizing({
 }: {
   sessionId: string;
   /** Lleva la opción elegida al despliegue sobre la línea central. */
-  onApply: (diameterMm: number, startArcMm: number, endArcMm: number) => void;
+  /** El dispositivo va también: su trenza da el mapa de cobertura del despliegue. */
+  onApply: (diameterMm: number, startArcMm: number, endArcMm: number, deviceId: string) => void;
 }) {
   const [r, setR] = useState<FdSizingResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -109,12 +110,13 @@ export function FdSizing({
                 {o.neck_note && (
                   <div style={{ fontSize: 11.5, marginTop: 4, lineHeight: 1.5 }}><b>En el cuello:</b> {o.neck_note}</div>
                 )}
+                {o.fits && o.neck_coverage_pct != null && <Trenza o={o} />}
                 {o.narrow_end_note && (
                   <div style={{ fontSize: 11.5, marginTop: 4, lineHeight: 1.5 }}><b>En el anclaje estrecho:</b> {o.narrow_end_note}</div>
                 )}
                 {o.fits && (
                   <Button size="sm" variant="ghost" style={{ marginTop: 6 }}
-                          onClick={() => onApply(o.diameter_mm, o.deploy_arc_mm[0], o.deploy_arc_mm[1])}>
+                          onClick={() => onApply(o.diameter_mm, o.deploy_arc_mm[0], o.deploy_arc_mm[1], o.device_id)}>
                     Usar en el despliegue
                   </Button>
                 )}
@@ -132,6 +134,39 @@ export function FdSizing({
             </ul>
           </details>
         </Card>
+      )}
+    </div>
+  );
+}
+
+/* P5: lo que hará la trenza de esta opción en este vaso, con el trenzado del
+   catálogo: cobertura, porosidad y densidad de poros delante del cuello, y la
+   longitud a la que llega la etiqueta. */
+function Trenza({ o }: { o: FdOption }) {
+  const fila = { display: "flex", justifyContent: "space-between", gap: 8, fontSize: 11.5, lineHeight: 1.6 } as const;
+  const num = { fontFamily: "var(--font-mono)" } as const;
+  return (
+    <div role="group" aria-label={`Trenza de ${o.name} en este vaso`}
+         style={{ marginTop: 6, padding: "6px 8px", background: "var(--muted)", borderRadius: "var(--radius-sm)" }}>
+      <div style={fila}>
+        <span>Delante del cuello</span>
+        <span style={num}>{`cobertura ≈ ${cifra(o.neck_coverage_pct!, 0)} % · porosidad ≈ ${cifra(o.neck_porosity_pct ?? 100 - o.neck_coverage_pct!, 0)} %`}</span>
+      </div>
+      {o.neck_pore_density != null && (
+        <div style={fila}>
+          <span>Densidad de poros</span>
+          <span style={num}>
+            {`≈ ${cifra(o.neck_pore_density, 0)} poros/mm²`}
+            {o.nominal_pore_density != null && ` (${cifra(o.nominal_pore_density, 0)} al nominal)`}
+            {o.wires ? ` · ${o.wires} hilos` : ""}
+          </span>
+        </div>
+      )}
+      {o.deployed_length_mm != null && (
+        <div style={fila}>
+          <span>Desplegado en este vaso</span>
+          <span style={num}>{`≈ ${cifra(o.deployed_length_mm, 0)} mm (${(o.elongation_pct ?? 0) >= 0 ? "+" : "−"}${cifra(Math.abs(o.elongation_pct ?? 0), 0)} % sobre la etiqueta)`}</span>
+        </div>
       )}
     </div>
   );

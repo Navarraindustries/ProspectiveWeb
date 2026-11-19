@@ -369,7 +369,14 @@ function BloquePlan({ plan, fd, opciones, opcionIdx, setOpcionIdx, arcMm, vasoMm
       {opcion && zona && (
         <span>{`Aquí (${zona}): Ø ${mm2d(opcion.diameter_mm)} frente a vaso ${mm2d(vasoMm)} mm${dif == null ? "" : ` (${conSigno(dif)})`}`}</span>
       )}
-      {opcion && <span>{`Longitud etiquetada ${cifra(opcion.length_mm, 0)} mm; desplegado puede llegar a ~${cifra(opcion.elongated_length_mm, 0)} mm`}</span>}
+      {opcion && (opcion.deployed_length_mm != null ? (
+        <span>{`Etiquetada ${cifra(opcion.length_mm, 0)} mm; en este vaso se despliega a ~${cifra(opcion.deployed_length_mm, 0)} mm`}</span>
+      ) : (
+        <span>{`Longitud etiquetada ${cifra(opcion.length_mm, 0)} mm; desplegado puede llegar a ~${cifra(opcion.elongated_length_mm, 0)} mm`}</span>
+      ))}
+      {opcion?.neck_coverage_pct != null && (
+        <span>{`En el cuello: cobertura ~${cifra(opcion.neck_coverage_pct, 0)} %${opcion.neck_pore_density != null ? ` · ${cifra(opcion.neck_pore_density, 0)} poros/mm²` : ""}`}</span>
+      )}
       {fd.multiple_devices && <span className="hud-ivus-aviso">Los anclajes difieren mucho: valorar más de un dispositivo.</span>}
       {opcion && <AvisoRamas ramas={ramasBajo(ramas, opcion.deploy_arc_mm[0], opcion.deploy_arc_mm[1])} sueloMm={sueloMm} onIrA={onIrA} />}
       <span className="hud-ivus-pie">Ámbar: cuello · franja inferior: despliegue. Para ver la aposición real, despliega el stent en Dispositivos.</span>

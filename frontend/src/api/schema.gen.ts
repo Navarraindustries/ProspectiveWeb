@@ -673,7 +673,7 @@ export interface paths {
         put?: never;
         /**
          * Dimensionar un flow-diverter sobre la línea central
-         * @description Mide el calibre del vaso en el anclaje proximal y en el distal del cuello con cortes perpendiculares a la línea central, y propone el diámetro y la longitud etiquetada de cada flow-diverter del catálogo. Necesita la línea central y la morfometría. No simula el despliegue de la trenza: ver services/fd_sizing.py.
+         * @description Mide el calibre del vaso en el anclaje proximal y en el distal del cuello con cortes perpendiculares a la línea central, y propone el diámetro y la longitud etiquetada de cada flow-diverter del catálogo. Necesita la línea central y la morfometría. Con el trenzado del dispositivo en el catálogo estima, en este vaso, la cobertura, la porosidad y la densidad de poros delante del cuello y la longitud desplegada; no simula el despliegue: ver services/fd_sizing.py.
          */
         post: operations["fd_sizing_api_centerline__session_id__fd_sizing_post"];
         delete?: never;
@@ -4311,6 +4311,11 @@ export interface components {
              */
             neck_coverage_pct?: number | null;
             /**
+             * Neck Pore Density
+             * @description Poros por mm² delante del cuello (null sin cuello o sin número de hilos)
+             */
+            neck_pore_density?: number | null;
+            /**
              * Nominal Angle Deg
              * @description Ángulo de los hilos con el eje al nominal
              */
@@ -4324,6 +4329,11 @@ export interface components {
             notes?: string[];
             /** Sources */
             sources?: string[];
+            /**
+             * Wires
+             * @description Hilos de la trenza a esta medida
+             */
+            wires?: number | null;
         };
         /**
          * ClStentRequest
@@ -4342,6 +4352,11 @@ export interface components {
              * @default 6
              */
             braid_count: number;
+            /**
+             * Device Id
+             * @description Catalogue device whose braid gives the coverage map (default: the Pipeline family)
+             */
+            device_id?: string | null;
             /**
              * End Arc Mm
              * @description Arc-length end (mm). Omit for the centreline end.
@@ -6011,10 +6026,21 @@ export interface components {
         /** FdOption */
         FdOption: {
             /**
+             * Braid Note
+             * @description Lo anterior, en una frase
+             * @default
+             */
+            braid_note: string;
+            /**
              * Deploy Arc Mm
-             * @description [inicio, fin] centrado en el cuello
+             * @description [inicio, fin] centrado en el cuello; con trenza conocida, con su largo desplegado en este vaso
              */
             deploy_arc_mm: number[];
+            /**
+             * Deployed Length Mm
+             * @description Longitud desplegada estimada en este vaso (sin empujar ni tirar)
+             */
+            deployed_length_mm?: number | null;
             /** Device Id */
             device_id: string;
             /**
@@ -6027,6 +6053,11 @@ export interface components {
              * @description La etiqueta + 32,6 % (alargamiento medio medido)
              */
             elongated_length_mm: number;
+            /**
+             * Elongation Pct
+             * @description Cuánto más que la etiqueta (%)
+             */
+            elongation_pct?: number | null;
             /** Fits */
             fits: boolean;
             /**
@@ -6045,13 +6076,38 @@ export interface components {
              */
             narrow_end_note: string;
             /**
+             * Neck Coverage Pct
+             * @description Cobertura metálica estimada delante del cuello (%)
+             */
+            neck_coverage_pct?: number | null;
+            /**
              * Neck Note
              * @description Cobertura metálica a la altura del cuello
              * @default
              */
             neck_note: string;
+            /**
+             * Neck Pore Density
+             * @description Poros por mm² delante del cuello
+             */
+            neck_pore_density?: number | null;
+            /**
+             * Neck Porosity Pct
+             * @description 100 − cobertura (%)
+             */
+            neck_porosity_pct?: number | null;
+            /**
+             * Nominal Pore Density
+             * @description Poros por mm² al diámetro nominal
+             */
+            nominal_pore_density?: number | null;
             /** Reason */
             reason: string;
+            /**
+             * Wires
+             * @description Hilos de la trenza a esta medida (null sin trenzado en el catálogo)
+             */
+            wires?: number | null;
         };
         /** FdSizingResult */
         FdSizingResult: {

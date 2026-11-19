@@ -96,6 +96,16 @@ class FdOption:
     narrow_end_note: str = ""
     deploy_arc_mm: tuple[float, float] = (0.0, 0.0)
     elongated_length_mm: float = 0.0
+    # P5: lo que hará la trenza de este dispositivo en este vaso (None si el
+    # catálogo no trae su trenzado, services/braid_coverage.BRAIDS).
+    wires: int | None = None
+    neck_coverage_pct: float | None = None
+    neck_porosity_pct: float | None = None
+    neck_pore_density: float | None = None
+    nominal_pore_density: float | None = None
+    deployed_length_mm: float | None = None
+    elongation_pct: float | None = None
+    braid_note: str = ""
 
 
 @dataclass
@@ -190,6 +200,37 @@ def measure_zone(poly, points, arc, tangents, s_from: float, s_to: float) -> Lan
     return zone
 
 
+#: Paso del perfil del vaso que alarga la trenza, y cuánto se mira a cada lado
+#: del cuello (un dispositivo de 35 mm alargado un 60 % llega a 28 mm del centro).
+PROFILE_STEP_MM = 0.5
+PROFILE_REACH_MM = 32.0
+
+
+def vessel_profile(poly, points, arc, tangents, s_from: float, s_to: float,
+                   neck: tuple[float, float], fallback_mm: float) -> tuple[np.ndarray, np.ndarray]:
+    """Diámetro del vaso a lo largo de la línea, para alargar la trenza.
+
+    Donde el corte no vale (el saco, una rama, el final) se interpola entre
+    los vecinos que sí; dentro del cuello no hay pared, y lo que sujeta la
+    trenza es el vaso de alrededor, así que también se interpola."""
+    total = float(arc[-1])
+    ss = np.arange(max(0.0, s_from), min(total, s_to) + 1e-9, PROFILE_STEP_MM)
+    if len(ss) == 0:
+        return np.array([0.0]), np.array([fallback_mm])
+    dd = np.zeros(len(ss))
+    for k, s in enumerate(ss):
+        if neck[0] - NECK_CLEARANCE_MM <= s <= neck[1] + NECK_CLEARANCE_MM:
+            continue
+        p, t = _at_arc(points, arc, tangents, s)
+        d = _transverse_diameter(poly, p, t)
+        if d > 0 and _centred(poly, p, t, d):
+            dd[k] = d
+    ok = dd > 0
+    if not ok.any():
+        return ss, np.full(len(ss), fallback_mm)
+    return ss, np.interp(ss, ss[ok], dd[ok])
+
+
 def pick_diameter(target: float, item: dict) -> float:
     """La medida comercializada más cercana al anclaje que no se queda corta
     más que la tolerancia de medida; 0 si ninguna."""
@@ -270,6 +311,8 @@ def size_flow_diverter(
     # Calibre del vaso a la altura del cuello: entre los dos anclajes.
     neck_vessel = sum(medidos) / len(medidos) if medidos else 0.0
 
+    perfil = vessel_profile(poly, pts, arc, tan, s0 - PROFILE_REACH_MM, s1 + PROFILE_REACH_MM,
+                            (s0, s1), target) if target > 0 else (np.array([0.0]), np.array([0.0]))
     options: list[FdOption] = []
     for item in library:
         if item.get("type") != "flow_diverter":
@@ -301,6 +344,7 @@ def size_flow_diverter(
             b = min(total, a + L)
             opt.deploy_arc_mm = (round(a, 1), round(b, 1))
             opt.elongated_length_mm = round(L * (1 + MEAN_ELONGATION), 1)
+            _con_trenza(opt, item, d, L, neck_vessel, mid, total, perfil)
         options.append(opt)
 
     if any(o.fits for o in options):
@@ -309,6 +353,12 @@ def size_flow_diverter(
             f"La longitud es la etiquetada. Desplegado, un Pipeline midió de media "
             f"un 33 % más (26–109 %): el más largo de estos llegaría a unos "
             f"{largo:.0f} mm. Comprueba qué ramas quedan debajo.")
+    if any(o.deployed_length_mm for o in options):
+        notes.append(
+            "Cobertura, porosidad, densidad de poros y longitud desplegada salen de la "
+            "geometría de la trenza de cada dispositivo en este vaso, soltada sin empujar "
+            "ni tirar: compactarla sobre el cuello sube la cobertura y aquí no se simula. "
+            "Es una estimación, redondeada al entero.")
     notes.append(
         f"Anclaje de {LANDING_ZONE_MM:.0f} mm a cada lado del cuello, más "
         f"{NECK_CLEARANCE_MM:.0f} mm de margen: valor de partida, no publicado.")
@@ -329,8 +379,48 @@ def size_flow_diverter(
         options=options,
         warnings=warnings,
         notes=notes,
-        sources=[SRC_MISMATCH, SRC_ELONGATION, SRC_OVERSIZING, SRC_BRAID],
+        sources=[SRC_MISMATCH, SRC_ELONGATION, SRC_OVERSIZING, SRC_BRAID]
+        + _fuentes_trenza(library, options),
     )
+
+
+def _con_trenza(opt: FdOption, item: dict, d: float, L: float, cuello_mm: float, centro: float,
+                total: float, perfil: tuple[np.ndarray, np.ndarray]) -> None:
+    """Rellena lo de la trenza (P5) si el catálogo trae el trenzado de este
+    dispositivo y la medida cae en lo que la familia fabrica."""
+    from services.braid_coverage import braid_for, estimar_en_vaso
+    b = braid_for(item.get("id"))
+    if b is None or not (b.min_diameter_mm - 1e-6 <= d <= b.max_diameter_mm + 1e-6):
+        return
+    e = estimar_en_vaso(b, d, L, cuello_mm, centro, perfil[0], perfil[1], total)
+    opt.wires = e.wires
+    opt.neck_coverage_pct = e.neck_coverage_pct
+    opt.neck_porosity_pct = 100.0 - e.neck_coverage_pct
+    opt.neck_pore_density = e.neck_pore_density
+    opt.nominal_pore_density = e.nominal_pore_density
+    opt.deployed_length_mm = e.deployed_length_mm
+    opt.elongation_pct = e.elongation_pct
+    # Donde cae de verdad: centrada en el cuello con su largo desplegado, no
+    # con la etiqueta (las ramas que tapa dependen de esto).
+    opt.deploy_arc_mm = e.deploy_arc_mm
+    poros = "" if e.neck_pore_density is None else f", {cifra(e.neck_pore_density, 0)} poros/mm²"
+    opt.braid_note = (
+        f"Delante del cuello queda abierto a {cifra(e.neck_diameter_mm, 2)} mm: cobertura "
+        f"{e.neck_coverage_pct:.0f} % (porosidad {100 - e.neck_coverage_pct:.0f} %){poros}. "
+        f"En este vaso sus {L:.0f} mm etiquetados llegan a unos {e.deployed_length_mm:.0f} mm "
+        f"({e.elongation_pct:+.0f} %)."
+    )
+
+
+def _fuentes_trenza(library: list[dict], options: list[FdOption]) -> list[str]:
+    from services.braid_coverage import SRC_MODEL, braid_for
+    vistas = {o.device_id for o in options if o.deployed_length_mm}
+    out = []
+    for item in library:
+        b = braid_for(item.get("id"))
+        if b is not None and item.get("id") in vistas:
+            out.append(f"{b.source}. Ángulo de los hilos {b.nominal_angle_deg:.0f}°, {b.angle_source}.")
+    return out + ([SRC_MODEL] if out else [])
 
 
 def segment_diameter(poly, points: np.ndarray, s_from: float, s_to: float,

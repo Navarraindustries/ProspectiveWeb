@@ -300,9 +300,10 @@ def _coverage(result, req: ClStentRequest, out_path):
     """Cobertura metálica de la trenza sobre el mapa de aposición. Igual que
     él, si no sale el stent se queda como estaba."""
     from dataclasses import asdict
-    from services.braid_coverage import annotate
+    from services.braid_coverage import PIPELINE, annotate, braid_for
     try:
-        c = annotate(result.stent_poly_data, result.centerline_segment, req.stent_diameter_mm)
+        c = annotate(result.stent_poly_data, result.centerline_segment, req.stent_diameter_mm,
+                     braid_for(req.device_id) or PIPELINE)
         write_vtp(result.stent_poly_data, out_path)
         return asdict(c)
     except ValueError as exc:            # fuera de las medidas de la familia
@@ -488,8 +489,10 @@ def _run_fd_sizing(session_id: str, vessel_path, points_path):
         "Mide el calibre del vaso en el anclaje proximal y en el distal del "
         "cuello con cortes perpendiculares a la línea central, y propone el "
         "diámetro y la longitud etiquetada de cada flow-diverter del catálogo. "
-        "Necesita la línea central y la morfometría. No simula el despliegue "
-        "de la trenza: ver services/fd_sizing.py."
+        "Necesita la línea central y la morfometría. Con el trenzado del "
+        "dispositivo en el catálogo estima, en este vaso, la cobertura, la "
+        "porosidad y la densidad de poros delante del cuello y la longitud "
+        "desplegada; no simula el despliegue: ver services/fd_sizing.py."
     ),
 )
 async def fd_sizing(session_id: str) -> FdSizingResult:

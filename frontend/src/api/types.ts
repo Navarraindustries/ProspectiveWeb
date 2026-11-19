@@ -904,6 +904,8 @@ export interface ClStentRequest {
   end_arc_mm?: number | null;
   braid?: boolean;
   braid_count?: number;
+  /** Dispositivo del catálogo cuya trenza da el mapa de cobertura (por defecto, Pipeline). */
+  device_id?: string | null;
 }
 
 export interface ClStentResult {
@@ -934,6 +936,9 @@ export interface ClStentCoverage {
   labelled_length_mm: number;
   notes: string[];
   sources: string[];
+  /** Poros por mm² delante del cuello (P5); null sin cuello o sin número de hilos. */
+  neck_pore_density?: number | null;
+  wires?: number | null;
 }
 
 export interface ClStentApposition {
@@ -2378,6 +2383,16 @@ export interface FdOption {
   narrow_end_note: string;
   deploy_arc_mm: [number, number];
   elongated_length_mm: number;
+  /** P5: la trenza de este dispositivo en este vaso (null si el catálogo no trae su trenzado). */
+  wires?: number | null;
+  neck_coverage_pct?: number | null;
+  neck_porosity_pct?: number | null;
+  neck_pore_density?: number | null;
+  nominal_pore_density?: number | null;
+  /** Longitud desplegada estimada en este vaso, sin empujar ni tirar. */
+  deployed_length_mm?: number | null;
+  elongation_pct?: number | null;
+  braid_note?: string;
 }
 
 export interface FdSizingResult {

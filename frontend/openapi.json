@@ -1840,6 +1840,18 @@
       "description": "Cobertura estimada delante del cuello",
       "title": "Neck Coverage Pct"
      },
+     "neck_pore_density": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Poros por mm² delante del cuello (null sin cuello o sin número de hilos)",
+      "title": "Neck Pore Density"
+     },
      "nominal_angle_deg": {
       "description": "Ángulo de los hilos con el eje al nominal",
       "title": "Nominal Angle Deg",
@@ -1863,6 +1875,18 @@
       },
       "title": "Sources",
       "type": "array"
+     },
+     "wires": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Hilos de la trenza a esta medida",
+      "title": "Wires"
      }
     },
     "required": [
@@ -1894,6 +1918,18 @@
       "minimum": 0.0,
       "title": "Braid Count",
       "type": "integer"
+     },
+     "device_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Catalogue device whose braid gives the coverage map (default: the Pipeline family)",
+      "title": "Device Id"
      },
      "end_arc_mm": {
       "anyOf": [
@@ -4451,13 +4487,31 @@
    },
    "FdOption": {
     "properties": {
+     "braid_note": {
+      "default": "",
+      "description": "Lo anterior, en una frase",
+      "title": "Braid Note",
+      "type": "string"
+     },
      "deploy_arc_mm": {
-      "description": "[inicio, fin] centrado en el cuello",
+      "description": "[inicio, fin] centrado en el cuello; con trenza conocida, con su largo desplegado en este vaso",
       "items": {
        "type": "number"
       },
       "title": "Deploy Arc Mm",
       "type": "array"
+     },
+     "deployed_length_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Longitud desplegada estimada en este vaso (sin empujar ni tirar)",
+      "title": "Deployed Length Mm"
      },
      "device_id": {
       "title": "Device Id",
@@ -4472,6 +4526,18 @@
       "description": "La etiqueta + 32,6 % (alargamiento medio medido)",
       "title": "Elongated Length Mm",
       "type": "number"
+     },
+     "elongation_pct": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Cuánto más que la etiqueta (%)",
+      "title": "Elongation Pct"
      },
      "fits": {
       "title": "Fits",
@@ -4496,15 +4562,75 @@
       "title": "Narrow End Note",
       "type": "string"
      },
+     "neck_coverage_pct": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Cobertura metálica estimada delante del cuello (%)",
+      "title": "Neck Coverage Pct"
+     },
      "neck_note": {
       "default": "",
       "description": "Cobertura metálica a la altura del cuello",
       "title": "Neck Note",
       "type": "string"
      },
+     "neck_pore_density": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Poros por mm² delante del cuello",
+      "title": "Neck Pore Density"
+     },
+     "neck_porosity_pct": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "100 − cobertura (%)",
+      "title": "Neck Porosity Pct"
+     },
+     "nominal_pore_density": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Poros por mm² al diámetro nominal",
+      "title": "Nominal Pore Density"
+     },
      "reason": {
       "title": "Reason",
       "type": "string"
+     },
+     "wires": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Hilos de la trenza a esta medida (null sin trenzado en el catálogo)",
+      "title": "Wires"
      }
     },
     "required": [
@@ -14802,7 +14928,7 @@
   },
   "/api/centerline/{session_id}/fd-sizing": {
    "post": {
-    "description": "Mide el calibre del vaso en el anclaje proximal y en el distal del cuello con cortes perpendiculares a la línea central, y propone el diámetro y la longitud etiquetada de cada flow-diverter del catálogo. Necesita la línea central y la morfometría. No simula el despliegue de la trenza: ver services/fd_sizing.py.",
+    "description": "Mide el calibre del vaso en el anclaje proximal y en el distal del cuello con cortes perpendiculares a la línea central, y propone el diámetro y la longitud etiquetada de cada flow-diverter del catálogo. Necesita la línea central y la morfometría. Con el trenzado del dispositivo en el catálogo estima, en este vaso, la cobertura, la porosidad y la densidad de poros delante del cuello y la longitud desplegada; no simula el despliegue: ver services/fd_sizing.py.",
     "operationId": "fd_sizing_api_centerline__session_id__fd_sizing_post",
     "parameters": [
      {

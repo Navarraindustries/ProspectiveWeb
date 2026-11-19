@@ -1387,6 +1387,8 @@ function ClStentTab() {
   const [startArc, setStartArc] = useState(0);
   const [endArc, setEndArc] = useState(0);
   const [braid, setBraid] = useState(true);
+  // El flow diverter elegido en el dimensionado: su trenza da el mapa de cobertura.
+  const [deviceId, setDeviceId] = useState<string | null>(null);
   const [plan, setPlan] = useState<ClStentResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1411,6 +1413,7 @@ function ClStentTab() {
         end_arc_mm: endArc,
         braid,
         braid_count: 6,
+        device_id: deviceId,
       });
       setPlan(res);
       setDeviceMesh("stent", res.stent_mesh_url || null);
@@ -1440,7 +1443,8 @@ function ClStentTab() {
       {sessionId && (
         <FdSizing
           sessionId={sessionId}
-          onApply={(d, a, b) => {
+          onApply={(d, a, b, id) => {
+            setDeviceId(id);
             setDiameter(d);
             setStartArc(Math.floor(a));
             setEndArc(Math.ceil(b));
@@ -1550,6 +1554,9 @@ export function CoverageSummary({ c }: { c: ClStentCoverage }) {
       {cuello !== null && (
         <Metric label="Delante del cuello" value={`≈ ${cuello.toFixed(0)}`} unit=" %"
                 badge={baja ? ["Baja", "warning"] : ["Como el catálogo", "success"]} />
+      )}
+      {c.neck_pore_density != null && (
+        <Metric label="Densidad de poros delante del cuello" value={`≈ ${cifra(c.neck_pore_density, 0)}`} unit=" poros/mm²" />
       )}
       <Metric label="A lo largo del vaso" value={`${c.min_coverage_pct.toFixed(0)}–${c.max_coverage_pct.toFixed(0)}`} unit=" %" />
       <Metric label="Longitud de catálogo" value={c.labelled_length_mm.toFixed(0)} unit=" mm" />

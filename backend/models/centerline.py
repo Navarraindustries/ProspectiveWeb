@@ -83,6 +83,8 @@ class ClStentRequest(BaseModel):
     )
     braid: bool = Field(True, description="Add helical braid wires for a flow-diverter look")
     braid_count: int = Field(6, ge=0, le=16, description="Braid wires per wind direction")
+    device_id: str | None = Field(
+        None, description="Catalogue device whose braid gives the coverage map (default: the Pipeline family)")
 
 
 class ClStentApposition(BaseModel):
@@ -112,6 +114,8 @@ class ClStentCoverage(BaseModel):
     labelled_length_mm: float = Field(..., description="Longitud de catálogo que, alargada, lo cubre")
     notes: list[str] = Field(default_factory=list)
     sources: list[str] = Field(default_factory=list)
+    neck_pore_density: float | None = Field(None, description="Poros por mm² delante del cuello (null sin cuello o sin número de hilos)")
+    wires: int | None = Field(None, description="Hilos de la trenza a esta medida")
 
 
 class ClStentResult(BaseModel):
@@ -187,8 +191,16 @@ class FdOption(BaseModel):
     reason: str
     neck_note: str = Field("", description="Cobertura metálica a la altura del cuello")
     narrow_end_note: str = Field("", description="Cobertura en el anclaje más estrecho")
-    deploy_arc_mm: list[float] = Field(..., description="[inicio, fin] centrado en el cuello")
+    deploy_arc_mm: list[float] = Field(..., description="[inicio, fin] centrado en el cuello; con trenza conocida, con su largo desplegado en este vaso")
     elongated_length_mm: float = Field(..., description="La etiqueta + 32,6 % (alargamiento medio medido)")
+    wires: int | None = Field(None, description="Hilos de la trenza a esta medida (null sin trenzado en el catálogo)")
+    neck_coverage_pct: float | None = Field(None, description="Cobertura metálica estimada delante del cuello (%)")
+    neck_porosity_pct: float | None = Field(None, description="100 − cobertura (%)")
+    neck_pore_density: float | None = Field(None, description="Poros por mm² delante del cuello")
+    nominal_pore_density: float | None = Field(None, description="Poros por mm² al diámetro nominal")
+    deployed_length_mm: float | None = Field(None, description="Longitud desplegada estimada en este vaso (sin empujar ni tirar)")
+    elongation_pct: float | None = Field(None, description="Cuánto más que la etiqueta (%)")
+    braid_note: str = Field("", description="Lo anterior, en una frase")
 
 
 class FdSizingResult(BaseModel):

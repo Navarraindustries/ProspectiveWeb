@@ -49,7 +49,7 @@ describe("dimensionado de flow-diverter", () => {
     render(<FdSizing sessionId="s1" onApply={onApply} />);
     fireEvent.click(screen.getByText("Dimensionar"));
     fireEvent.click(await screen.findByText("Usar en el despliegue"));
-    expect(onApply).toHaveBeenCalledWith(4.5, 22.4, 38.4);
+    expect(onApply).toHaveBeenCalledWith(4.5, 22.4, 38.4, "pipeline");
   });
 
   it("dice qué falta cuando el servidor no puede medir", async () => {

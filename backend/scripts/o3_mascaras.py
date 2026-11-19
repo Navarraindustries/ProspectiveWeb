@@ -4,6 +4,7 @@ Para el PC de la oficina. Por cada estudio de `<dicom>/Studies/<id>`:
   1. lee la serie más larga con SimpleITK (la misma que usa la evaluación) y
      la escribe como NIfTI temporal — así TotalSegmentator no tiene que
      adivinar qué serie usar si la carpeta trae varias;
+     con `--espaciado-mm 1.5` la remuestrea antes, para equipos con poca RAM;
   2. llama a `TotalSegmentator -i <nifti> -o <salida>/<id> --fast --roi_subset brain`;
   3. borra el NIfTI temporal y sigue. Los hechos no se repiten (se puede
      cortar y relanzar); los que fallan quedan en `<salida>/fallos.json`.
@@ -36,19 +37,27 @@ def serie_mas_larga(carpeta: Path) -> list[str]:
     return max((list(r.GetGDCMSeriesFileNames(str(carpeta), s)) for s in ids), key=len)
 
 
-def a_nifti(carpeta: Path, destino: Path) -> Path:
+def a_nifti(carpeta: Path, destino: Path, espaciado_mm: float = 0.0) -> Path:
     import SimpleITK as sitk
     r = sitk.ImageSeriesReader()
     r.SetFileNames(serie_mas_larga(carpeta))
-    sitk.WriteImage(r.Execute(), str(destino))
+    img = r.Execute()
+    if espaciado_mm > 0:
+        # Misma caja física, vóxel isótropo más grueso. La máscara sale en esta rejilla
+        # y `services.brain_mask` la lee con su propia geometría.
+        n = [max(1, round(t * e / espaciado_mm)) for t, e in zip(img.GetSize(), img.GetSpacing())]
+        img = sitk.Resample(img, n, sitk.Transform(), sitk.sitkLinear, img.GetOrigin(),
+                            [espaciado_mm] * 3, img.GetDirection(), -1024, img.GetPixelID())
+    sitk.WriteImage(img, str(destino))
     return destino
 
 
-def procesar(sid: str, dicom: Path, salida: Path, comando: list[str], log=print) -> None:
+def procesar(sid: str, dicom: Path, salida: Path, comando: list[str], log=print,
+             espaciado_mm: float = 0.0) -> None:
     t0 = time.perf_counter()
     tmp = salida / "_tmp"
     tmp.mkdir(parents=True, exist_ok=True)
-    nifti = a_nifti(dicom / "Studies" / sid, tmp / f"{sid}.nii.gz")
+    nifti = a_nifti(dicom / "Studies" / sid, tmp / f"{sid}.nii.gz", espaciado_mm)
     destino = salida / sid
     try:
         r = subprocess.run([*comando, "-i", str(nifti), "-o", str(destino), "--fast", "--roi_subset", "brain"],
@@ -70,6 +79,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--estudios", nargs="*", help="solo estos")
     ap.add_argument("--comando", default="TotalSegmentator", help="ejecutable de TotalSegmentator")
     ap.add_argument("--reintentar", action="store_true", help="volver a intentar los que fallaron")
+    ap.add_argument("--espaciado-mm", type=float, default=0.0,
+                    help="remuestrear a este vóxel isótropo antes de TotalSegmentator (0 = nativo); "
+                         "con poca RAM, 1.5: a 0,5 mm un estudio de 1.300 cortes pasa de 12 GB")
     a = ap.parse_args(argv)
 
     comando = a.comando.split()
@@ -86,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
     t0 = time.perf_counter()
     for j, sid in enumerate(pendientes, start=1):
         try:
-            procesar(sid, a.dicom, a.salida, comando)
+            procesar(sid, a.dicom, a.salida, comando, espaciado_mm=a.espaciado_mm)
         except Exception as e:  # un estudio malo no para la pasada
             print(f"[{sid}] FALLO: {type(e).__name__}: {e}", flush=True)
             fallos[sid] = f"{type(e).__name__}: {e}"

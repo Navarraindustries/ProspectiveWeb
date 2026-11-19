@@ -18,7 +18,7 @@ import {
   cambioArea, diferenciaDispositivo, estadoDeSeccion, graficoDe, METRICAS_GRAFICO, opcionesQueEncajan, ramasBajo, ramasCerca, zonaDelPlan,
   type MarcaEnLinea, type MetricaGrafico,
 } from "../ivusVirtual";
-import { coloresDe, pintarCorte, pintarGrafico, pintarL, seccionDe } from "./dibujoIvus";
+import { coloresDe, FONDO_GRABACION, pintarCorte, pintarGrafico, pintarL, seccionDe } from "./dibujoIvus";
 import type { ProgresoRecorrido } from "./HudRecorrido";
 
 interface Pullback { datos: IvusResult; pila: Uint8Array }
@@ -168,7 +168,7 @@ export function HudIvus({ sessionId, claveLinea, progreso, onIrA, onCerrar, ante
       if (!a || !b || !actual) return false;
       const col = caja.current ? coloresDe(caja.current) : null;
       ctx.save();
-      ctx.fillStyle = "rgba(6, 10, 14, 0.92)"; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.fillStyle = FONDO_GRABACION; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
       const m = 10, lado = Math.min(rect.w - 2 * m, rect.h * 0.55);
       ctx.drawImage(a, rect.x + (rect.w - lado) / 2, rect.y + m, lado, lado);
       const altoL = Math.min(rect.h - lado - 3 * m - 30, (rect.w - 2 * m) * (b.height / Math.max(1, b.width)));

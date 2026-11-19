@@ -156,6 +156,8 @@ export function pintarCorte(cv: HTMLCanvasElement, d: IvusResult, pila: Uint8Arr
 }
 
 /** Columna de la vista longitudinal para la sección i, y al revés. */
+/** Fondo del recuadro del IVUS en el vídeo grabado: el canvas no lee los tokens CSS. */
+export const FONDO_GRABACION = "rgba(6, 10, 14, 0.92)";
 export const columnaDe = (i: number, n: number, w: number) => (n > 1 ? (i / (n - 1)) * w : w / 2);
 export const seccionDe = (x: number, n: number, w: number) => Math.min(n - 1, Math.max(0, Math.round((x / w) * (n - 1))));
 

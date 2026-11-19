@@ -48,9 +48,9 @@ client = TestClient(app, raise_server_exceptions=True)   # admin (conftest)
 
 _CLIPS = [
     {"key": 1, "clip_id": "yasargil-fe720k", "name": "Yaşargil FE720K",
-     "position": [1.0, 2.0, 3.0], "rotation_deg": 15.0, "azimuthDeg": 10.0, "elevationDeg": -5.0},
+     "position": [1.0, 2.0, 3.0], "rotation_deg": 15.0, "azimuthDeg": 10.0, "elevationDeg": -5.0, "bladeDropMm": 0.37},
     {"key": 2, "clip_id": "yasargil-fe740k", "name": "Yaşargil FE740K",
-     "position": [4.0, 5.0, 6.0], "rotation_deg": 0.0, "azimuthDeg": 0.0, "elevationDeg": 0.0},
+     "position": [4.0, 5.0, 6.0], "rotation_deg": 0.0, "azimuthDeg": 0.0, "elevationDeg": 0.0, "bladeDropMm": 0.0},
 ]
 
 

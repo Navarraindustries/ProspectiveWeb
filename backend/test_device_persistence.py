@@ -220,7 +220,7 @@ class TestClipEditable:
     guardan aparte y vuelven con GET /devices."""
 
     _LISTA = [{"key": 3, "clip_id": "c1", "name": "Clip 1", "position": [1.0, 2.0, 3.0],
-               "rotation_deg": 20.0, "azimuthDeg": 15.0, "elevationDeg": -10.0}]
+               "rotation_deg": 20.0, "azimuthDeg": 15.0, "elevationDeg": -10.0, "bladeDropMm": 0.42}]
 
     def test_la_lista_vuelve_y_limpiar_la_borra(self):
         sid = _session_with_volume()

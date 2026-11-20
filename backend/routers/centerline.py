@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 import time
 from pathlib import Path
@@ -18,7 +19,7 @@ from services.db_models import User
 from models.centerline import (
     CenterlineClearResult, CenterlinePoints, CenterlineRequest, CenterlineResult,
     CrossSectionRequest, CrossSectionResult, ClStentApposition, ClStentCoverage, ClStentRequest, ClStentResult,
-    FdSizingResult,
+    FdSizingResult, StentTresClicsRequest, StentTresClicsResult,
 )
 from models.detection import Position3D
 from services.centerline import extract_centerline, voxel_linea
@@ -542,12 +543,180 @@ async def fd_sizing(session_id: str) -> FdSizingResult:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    return _sizing_out(r)
+
+
+def _sizing_out(r) -> FdSizingResult:
     from dataclasses import asdict
     d = asdict(r)
     d["neck_arc_mm"] = list(r.neck_arc_mm)
     for o in d["options"]:
         o["deploy_arc_mm"] = list(o["deploy_arc_mm"])
     return FdSizingResult(**d)
+
+
+# ── POST /stent-tres-clics/{session_id} (P10) ─────────────────────────────── #
+
+def _mallas_de_lesion(session_id: str, meshes_dir: Path) -> list[tuple[str, np.ndarray]]:
+    """El saco medido primero, luego el candidato elegido y los demás."""
+    from vtkmodules.util.numpy_support import vtk_to_numpy
+
+    nombres: list[str] = []
+    saco = read_state(session_id, "morpho.sac_vtp_name", "") or "aneurysm_sac.vtp"
+    nombres.append(saco)
+    elegido = _lesion_mesh(session_id, meshes_dir)
+    if elegido is not None:
+        nombres.append(elegido.name)
+    nombres += sorted(p.name for p in meshes_dir.glob("aneurysm_cand_*.vtp"))
+    out: list[tuple[str, np.ndarray]] = []
+    for n in dict.fromkeys(nombres):                 # sin repetir, en orden
+        p = meshes_dir / n
+        if not p.exists():
+            continue
+        poly = read_vtp(p)
+        if poly.GetNumberOfPoints() > 0:
+            out.append((n, vtk_to_numpy(poly.GetPoints().GetData()).astype(float)))
+    return out
+
+
+def _run_stent_tres_clics(session_id: str, meshes_dir: Path, req):
+    """Lo pesado, en un hilo: extraer, localizar el cuello y dimensionar."""
+    from services.stent_tres_clics import elegir_saco
+
+    vessel_path = meshes_dir / "vessel_tree.vtp"
+    clic = (req.sac.x, req.sac.y, req.sac.z) if req.sac is not None else None
+    elegida = elegir_saco(_mallas_de_lesion(session_id, meshes_dir), clic)
+    if elegida is None:
+        raise ValueError(
+            "El tercer clic no cae sobre ningún saco ni candidato detectado (a menos de 3 mm). "
+            "Haz clic sobre el saco, o detecta aneurismas primero."
+            if clic is not None else
+            "No hay saco medido ni candidatos: detecta aneurismas o haz clic sobre el saco.")
+    nombre, lesion = elegida
+
+    source = (req.source.x, req.source.y, req.source.z)
+    target = (req.target.x, req.target.y, req.target.z)
+    # La línea nueva se escribe aparte y solo sustituye a la actual si todo
+    # cuadra: un fallo (cuello fuera de la línea, dispositivo que no encaja)
+    # deja intacta la línea de antes y lo que cuelga de ella.
+    tmp_vtp, tmp_npz = meshes_dir / "centerline_p10.vtp", meshes_dir / "centerline_p10.npz"
+    try:
+        linea = _run_extraction(vessel_path, source, target, 0.8, tmp_vtp, tmp_npz)
+        linea, sizing, cuello, opcion = _cuello_y_dimensionado(session_id, vessel_path, linea, lesion, req)
+    except BaseException:
+        for p in (tmp_vtp, tmp_npz):
+            p.unlink(missing_ok=True)
+        raise
+    _quitar_lo_que_cuelga_de_la_linea(session_id, meshes_dir)
+    os.replace(tmp_vtp, meshes_dir / "centerline.vtp")
+    os.replace(tmp_npz, meshes_dir / "centerline_points.npz")
+    return linea, sizing, cuello, nombre, opcion
+
+
+def _cuello_y_dimensionado(session_id: str, vessel_path: Path, linea, lesion, req):
+    from routers.detect import _read_rim_points
+    from routers.plan import _STENT_LIBRARY, _load_float
+    from services.fd_sizing import size_flow_diverter
+    from services.stent_tres_clics import (MAX_CUELLO_A_SACO_MM, Cuello, cuello_desde_saco,
+                                           distancia_a_malla, elegir_opcion)
+
+    # El cuello medido, si es de este saco; si no, donde la línea toca el saco.
+    neck = [_load_float(session_id, f"morpho.neck_origin_{k}", float("nan")) for k in "xyz"]
+    neck_mm = _load_float(session_id, "morpho.neck_mm", 0.0)
+    cuello = None
+    if not any(v != v for v in neck) and neck_mm > 0 and \
+            distancia_a_malla(lesion, neck) <= MAX_CUELLO_A_SACO_MM:
+        cuello = Cuello(centro=tuple(neck), ancho_mm=neck_mm, fuente="morfometria",
+                        borde=[(p.x, p.y, p.z) for p in _read_rim_points(session_id)])
+    if cuello is None:
+        cuello = cuello_desde_saco(linea.points, linea.radii, lesion)
+    if cuello is None:
+        raise ValueError(
+            "La línea central no pasa por delante de ese saco: marca el punto proximal antes del "
+            "cuello y el distal después, sobre la arteria que lo lleva.")
+
+    sizing = size_flow_diverter(read_vtp(vessel_path), linea.points, cuello.centro, cuello.ancho_mm,
+                                [s.model_dump() for s in _STENT_LIBRARY], rim_points=cuello.borde)
+    return linea, sizing, cuello, elegir_opcion(sizing.options, req.device_id)
+
+
+@router.post(
+    "/stent-tres-clics/{session_id}",
+    response_model=StentTresClicsResult,
+    summary="Flow diverter en tres clics: proximal, distal y saco (P10)",
+    description=(
+        "Extracts the centreline from the proximal to the distal point (it REPLACES the current "
+        "one), locates the neck along it (the measured neck of that sac, or where the line's "
+        "inscribed sphere touches the sac mesh), sizes the flow diverter like "
+        "POST /centerline/{id}/fd-sizing and deploys the first catalogue option that fits — or "
+        "`device_id` — like POST /cl-stent/{id}. When no option fits, nothing is deployed and "
+        "the sizing says why."
+    ),
+)
+async def stent_tres_clics(
+    session_id: str,
+    req: StentTresClicsRequest,
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> StentTresClicsResult:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
+    meshes_dir = session_subdir(session_id, "meshes")
+    if not (meshes_dir / "vessel_tree.vtp").exists():
+        raise HTTPException(status_code=409, detail="No hay malla vascular. Ejecuta la segmentación primero.")
+    try:
+        linea, sizing, cuello, nombre, opcion = await asyncio.to_thread(
+            _run_stent_tres_clics, session_id, meshes_dir, req)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    url = f"{mesh_url(session_id, 'centerline.vtp')}?v={int(time.time() * 1000)}"
+    out = StentTresClicsResult(
+        centerline=_to_out(linea, url), sizing=_sizing_out(sizing),
+        neck_source=cuello.fuente, lesion_mesh=nombre, message="")
+    if opcion is None:
+        out.message = ("Ninguna opción del catálogo encaja en este vaso: no se ha desplegado nada. "
+                       "El dimensionado dice por qué.")
+        return out
+
+    a, b = opcion.deploy_arc_mm
+    stent = await deploy_cl_stent(session_id, ClStentRequest(
+        session_id=session_id, stent_diameter_mm=opcion.diameter_mm,
+        start_arc_mm=a, end_arc_mm=b, braid=True, device_id=opcion.device_id), current_user)
+    out.device_id, out.device_name = opcion.device_id, opcion.name
+    out.diameter_mm, out.labelled_length_mm = opcion.diameter_mm, opcion.length_mm
+    out.deploy_arc_mm, out.stent = [a, b], stent
+    cuello_txt = ("el cuello medido en Morfometría" if cuello.fuente == "morfometria"
+                  else "el tramo donde la línea toca el saco")
+    out.message = (f"{opcion.name} Ø{cifra(opcion.diameter_mm, 2)} × {opcion.length_mm:.0f} mm "
+                   f"desplegado de {cifra(a)} a {cifra(b)} mm, centrado en {cuello_txt}.")
+    return out
+
+
+def _quitar_archivos(session_id: str, meshes_dir: Path, nombres) -> list[str]:
+    removed: list[str] = []
+    for name in nombres:
+        path = meshes_dir / name
+        if path.exists():
+            try:
+                path.unlink()
+                removed.append(name)
+            except OSError as exc:  # noqa: BLE001
+                logger.warning("Could not delete %s for %s: %s", name, session_id, exc)
+    return removed
+
+
+def _quitar_lo_que_cuelga_de_la_linea(session_id: str, meshes_dir: Path) -> list[str]:
+    """El stent guiado y el IVUS se construyen sobre la línea central: al
+    quitarla o sustituirla, dejarlos seguiría una línea que ya no existe."""
+    removed = _quitar_archivos(session_id, meshes_dir,
+                               ("cl_stent.vtp", "ivus_pullback.u8", "ivus_pullback.json"))
+    # A centreline-guided stent is recorded as the session's stent; dropping its
+    # geometry without the record would leave the report describing a phantom.
+    if "cl_stent.vtp" in removed:
+        from services.device_state import read_stent, save_stent
+        if (read_stent(session_id) or {}).get("kind") == "centerline":
+            save_stent(session_id, None)
+    return removed
 
 
 # ── DELETE /centerline/{session_id} ───────────────────────────────────────── #
@@ -571,22 +740,8 @@ async def clear_centerline(session_id: str) -> CenterlineClearResult:
     meshes_dir = session_subdir(session_id, "meshes")
     had = (meshes_dir / "centerline.vtp").exists() or (meshes_dir / "centerline_points.npz").exists()
 
-    removed: list[str] = []
-    for name in ("centerline.vtp", "centerline_points.npz", "cl_stent.vtp", "ivus_pullback.u8", "ivus_pullback.json"):
-        path = meshes_dir / name
-        if path.exists():
-            try:
-                path.unlink()
-                removed.append(name)
-            except OSError as exc:  # noqa: BLE001
-                logger.warning("Could not delete %s for %s: %s", name, session_id, exc)
-
-    # A centreline-guided stent is recorded as the session's stent; dropping its
-    # geometry without the record would leave the report describing a phantom.
-    if "cl_stent.vtp" in removed:
-        from services.device_state import read_stent, save_stent
-        if (read_stent(session_id) or {}).get("kind") == "centerline":
-            save_stent(session_id, None)
+    removed = _quitar_archivos(session_id, meshes_dir, ("centerline.vtp", "centerline_points.npz"))
+    removed += _quitar_lo_que_cuelga_de_la_linea(session_id, meshes_dir)
 
     logger.info("Cleared centreline for session=%s (%s)", session_id, removed or "nothing")
     return CenterlineClearResult(removed=removed, had_centerline=had)

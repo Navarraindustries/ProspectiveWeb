@@ -2701,6 +2701,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/stent-tres-clics/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Flow diverter en tres clics: proximal, distal y saco (P10)
+         * @description Extracts the centreline from the proximal to the distal point (it REPLACES the current one), locates the neck along it (the measured neck of that sac, or where the line's inscribed sphere touches the sac mesh), sizes the flow diverter like POST /centerline/{id}/fd-sizing and deploys the first catalogue option that fits — or `device_id` — like POST /cl-stent/{id}. When no option fits, nothing is deployed and the sizing says why.
+         */
+        post: operations["stent_tres_clics_api_stent_tres_clics__session_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/stents": {
         parameters: {
             query?: never;
@@ -10342,6 +10362,61 @@ export interface components {
             stent_id: string;
         };
         /**
+         * StentTresClicsRequest
+         * @description P10: los tres clics del stent virtual.
+         */
+        StentTresClicsRequest: {
+            /**
+             * Device Id
+             * @description Catalogue flow diverter to deploy; default the first that fits
+             */
+            device_id?: string | null;
+            /** @description Click on the sac (mm). Optional: without it, the measured sac or the selected candidate */
+            sac?: components["schemas"]["Position3D"] | null;
+            /** @description Proximal point on the parent artery (mm), before the neck */
+            source: components["schemas"]["Position3D"];
+            /** @description Distal point on the parent artery (mm), after the neck */
+            target: components["schemas"]["Position3D"];
+        };
+        /**
+         * StentTresClicsResult
+         * @description P10: línea central, dimensionado y despliegue encadenados.
+         */
+        StentTresClicsResult: {
+            centerline: components["schemas"]["CenterlineResult"];
+            /** Deploy Arc Mm */
+            deploy_arc_mm?: number[] | null;
+            /**
+             * Device Id
+             * @description Deployed device; null when no option fits
+             */
+            device_id?: string | null;
+            /** Device Name */
+            device_name?: string | null;
+            /** Diameter Mm */
+            diameter_mm?: number | null;
+            /** Labelled Length Mm */
+            labelled_length_mm?: number | null;
+            /**
+             * Lesion Mesh
+             * @description Lesion mesh the neck was located against
+             */
+            lesion_mesh: string;
+            /**
+             * Message
+             * @description What was done, in one sentence, or why nothing was deployed
+             */
+            message: string;
+            /**
+             * Neck Source
+             * @description 'morfometria' (the measured neck of this sac) or 'saco' (where the centreline's inscribed sphere touches the sac mesh)
+             */
+            neck_source: string;
+            sizing: components["schemas"]["FdSizingResult"];
+            /** @description Null when no catalogue option fits */
+            stent?: components["schemas"]["ClStentResult"] | null;
+        };
+        /**
          * StudyCard
          * @description One study as shown in the study gallery (preview + who it belongs to).
          *
@@ -16363,6 +16438,41 @@ export interface operations {
                 };
                 content: {
                     "image/png": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stent_tres_clics_api_stent_tres_clics__session_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StentTresClicsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StentTresClicsResult"];
                 };
             };
             /** @description Validation Error */

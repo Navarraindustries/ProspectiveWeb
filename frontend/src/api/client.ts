@@ -45,6 +45,8 @@ import type {
   ClipShapeSuggestion,
   ClStentRequest,
   ClStentResult,
+  StentTresClicsRequest,
+  StentTresClicsResult,
   CoilConstructResult,
   CoilLibraryItem,
   CoilPlacement,
@@ -699,6 +701,9 @@ export const api = {
   /** Calibre de los anclajes y medida de cada flow-diverter del catálogo. */
   fdSizing: (sessionId: string) =>
     post<FdSizingResult>(`/api/centerline/${sessionId}/fd-sizing`),
+  /** P10: línea central, dimensionado y despliegue a partir de tres clics. */
+  stentTresClics: (sessionId: string, req: StentTresClicsRequest) =>
+    post<StentTresClicsResult>(`/api/stent-tres-clics/${sessionId}`, req),
   /** Cuánto aneurisma queda con el clip colocado: oclusión completa, resto de
    *  cuello o residual. Geometría, no mecánica. */
   clipOcclusion: (sessionId: string) =>

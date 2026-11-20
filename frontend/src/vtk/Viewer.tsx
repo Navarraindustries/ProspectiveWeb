@@ -178,6 +178,7 @@ const CENTERLINE_RADIUS_MM = 0.3;
 const NECK_MARK_SCALE = 0.6;
 const SOURCE_COLOR: Vector3 = [0.25, 0.73, 0.31];     // green — picked source endpoint
 const TARGET_COLOR: Vector3 = [0.97, 0.32, 0.29];     // red — picked target endpoint
+const STENT_SAC_COLOR: Vector3 = [0.98, 0.75, 0.14];  // ámbar — el saco del stent en tres clics (P10)
 const PENDING_COLOR: Vector3 = [0.98, 0.55, 0.10];    // orange — borrador de anotación (DRAFT_HEX en los cortes)
 /** La anotación seleccionada, más gruesa en el 3D (en los cortes, trazo 3). */
 const ANNOTATION_SELECTED_SCALE = 1.6;
@@ -264,6 +265,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     sessionId, segmentation, allCandidates, selectedCandidate, series, deviceMeshes, stentMap,
     candidates, rejectedCandidates, showRejectedIn3d, setSelectedCandidate,
     centerlineMesh, pickMode, clSource, clTarget, setPickMode, setClSource, setClTarget,
+    stentSac, setStentSac,
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
     scissorsPoints, setScissorsPoints, scissorsPreview,
     annotations, setAnnotations, annotationDraft, setAnnotationDraft, selectedAnnotation, setSelectedAnnotation, setNoteFocusRequest, previewBand, previewMeshUrl,
@@ -1366,7 +1368,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
     const out: MeshMarker[] = [];
     // Origen y destino de la línea central: mientras se marcan. Extraída, el
     // tubo ya dice por dónde va y las dos bolas solo estorban.
-    const marcandoLinea = !centerlineMesh || pickMode === "cl_source" || pickMode === "cl_target";
+    // P10: el stent en tres clics marca los mismos origen y destino.
+    const tresClics = pickMode === "stent_prox" || pickMode === "stent_dist" || pickMode === "stent_saco";
+    const marcandoLinea = !centerlineMesh || pickMode === "cl_source" || pickMode === "cl_target" || tresClics;
+    if (stentSac && tresClics) out.push({ pos: stentSac, color: STENT_SAC_COLOR });
     if (clSource && marcandoLinea) out.push({ pos: clSource, color: SOURCE_COLOR });
     if (clTarget && marcandoLinea) out.push({ pos: clTarget, color: TARGET_COLOR });
     for (const p of annotationDraft) out.push({ pos: p, color: PENDING_COLOR });
@@ -1402,7 +1407,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       });
     }
     return out;
-  }, [clSource, clTarget, centerlineMesh, pickMode, step, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
+  }, [clSource, clTarget, stentSac, centerlineMesh, pickMode, step, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
 
   const trazoLinea = useMemo<MeshTrazo | null>(
     () => (showCenterline && centerline ? { points: centerline.points, color: CENTERLINE_COLOR, radiusMm: CENTERLINE_RADIUS_MM } : null),
@@ -1900,6 +1905,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
       focusFromMm(xyz);
       if (pickMode === "cl_source") { setClSource(xyz); setPickMode(null); }
       else if (pickMode === "cl_target") { setClTarget(xyz); setPickMode(null); }
+      // P10: los tres clics del stent se encadenan solos: proximal → distal → saco.
+      else if (pickMode === "stent_prox") { setClSource(xyz); setPickMode("stent_dist"); }
+      else if (pickMode === "stent_dist") { setClTarget(xyz); setPickMode("stent_saco"); }
+      else if (pickMode === "stent_saco") { setStentSac(xyz); setPickMode(null); }
       else if (pickMode === "neck_origin") { setNeckOrigin(xyz); setPickMode(null); }
       else if (pickMode === "neck_dome") { setNeckDome(xyz); setPickMode(null); }
       else if (pickMode === "crop_center") { setCropCenter(xyz); setPickMode(null); }
@@ -1914,7 +1923,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       else if (pickMode === "scissors") { setScissorsPoints([...scissorsPoints, xyz]); }
       else if (kindOfMode(pickMode)) addAnnotationPoint(xyz, null);
     },
-    [morphometry, pickMode, addAnnotationPoint, setClSource, setClTarget, setNeckOrigin, setNeckDome, setCropCenter, setLesionMark, setErasePick, setTrajEntry, setTrajTarget, setPickMode, focusFromMm, syncViews, meta],
+    [morphometry, pickMode, addAnnotationPoint, setClSource, setClTarget, setStentSac, setNeckOrigin, setNeckDome, setCropCenter, setLesionMark, setErasePick, setTrajEntry, setTrajTarget, setPickMode, focusFromMm, syncViews, meta],
   );
 
   // Un marcado se hace sobre la malla: si la escena es una vista lateral, sube
@@ -2559,6 +2568,9 @@ function pickText(mode: NonNullable<PickMode>, draftCount: number, rimCount: num
   switch (mode) {
     case "cl_source": return "Clic sobre el vaso para marcar el origen";
     case "cl_target": return "Clic sobre el vaso para marcar el destino";
+    case "stent_prox": return "Stent · 1 de 3: clic sobre la arteria ANTES del cuello (proximal)";
+    case "stent_dist": return "Stent · 2 de 3: clic sobre la arteria DESPUÉS del cuello (distal)";
+    case "stent_saco": return "Stent · 3 de 3: clic sobre el saco del aneurisma";
     case "neck_origin": return "Clic sobre el cuello del aneurisma";
     case "neck_dome": return "Clic sobre el ápice del domo";
     case "neck_rim": return `Clic alrededor del borde del cuello (${rimCount}${rimCount < 3 ? " · faltan " + (3 - rimCount) : ""})`;

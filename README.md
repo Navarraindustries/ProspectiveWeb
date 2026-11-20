@@ -2831,6 +2831,7 @@ answer 429 until the oldest expires (`services/login_throttle.py`).
 | `POST` | `/api/coils/plan` · `/api/plan` | Coil packing · stent deployment |
 | `POST` | `/api/cl-stent/{sid}` | Centerline-guided stent along vessel curvature |
 | `POST` | `/api/centerline/{sid}/fd-sizing` | Flow-diverter sizing: landing-zone calibres, catalogue diameter and labelled length |
+| `POST` | `/api/stent-tres-clics/{sid}` | P10: flow diverter in three clicks (proximal, distal, sac) — extracts the centreline (replacing the current one), locates the neck, sizes and deploys the first option that fits |
 | `POST` | `/api/web-sizing/{sid}` | WEB sizing: sac width and height on the neck plane, catalogue SL/SLS sizes by the +1/−1 rule |
 | `POST` `DELETE` | `/api/trajectory/{sid}` | Surgical trajectory |
 

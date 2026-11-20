@@ -148,6 +148,9 @@ interface PlanningState {
   pickMode: PickMode;
   clSource: Vec3 | null;
   clTarget: Vec3 | null;
+  /** P10: el tercer clic del stent en tres clics (el saco). Proximal y distal
+   *  son clSource y clTarget: son el origen y el destino de la línea central. */
+  stentSac: Vec3 | null;
   /** Semi-automatic neck plane: a point on the neck and the dome apex (click on the mesh). */
   neckOrigin: Vec3 | null;
   neckDome: Vec3 | null;
@@ -408,6 +411,7 @@ interface PlanningState {
   setPickMode: (m: PickMode) => void;
   setClSource: (p: Vec3 | null) => void;
   setClTarget: (p: Vec3 | null) => void;
+  setStentSac: (p: Vec3 | null) => void;
   setNeckOrigin: (p: Vec3 | null) => void;
   setNeckDome: (p: Vec3 | null) => void;
   setAnnotations: (a: Annotation[] | ((prev: Annotation[]) => Annotation[])) => void;
@@ -480,6 +484,7 @@ export interface FollowupOverlay {
 }
 export type PickMode =
   | "cl_source" | "cl_target" | "neck_origin" | "neck_dome"
+  | "stent_prox" | "stent_dist" | "stent_saco"
   | "neck_rim"
   | "scissors"
   | "crop_center" | "erase_piece" | "traj_entry" | "traj_target"
@@ -569,6 +574,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   }, []);
   const [clSource, setClSource] = useState<Vec3 | null>(null);
   const [clTarget, setClTarget] = useState<Vec3 | null>(null);
+  const [stentSac, setStentSac] = useState<Vec3 | null>(null);
   const [neckOrigin, setNeckOrigin] = useState<Vec3 | null>(null);
   const [neckDome, setNeckDome] = useState<Vec3 | null>(null);
   const [annotations, _setAnnotations] = useState<Annotation[]>([]);
@@ -802,6 +808,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setPickMode(null);
     setClSource(null);
     setClTarget(null);
+    setStentSac(null);
     setNeckOrigin(null);
     setNeckDome(null);
     setNeckRim([]);
@@ -885,7 +892,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
       value={{
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
         selectedCandidate, morphoInvalidatedNotice, morphometry, aneurysmSite, setAneurysmSite, treatment, deviceMeshes,
-        centerlineMesh, centerline, setCenterline, obliqueWalk, setObliqueWalk, recorridoVaso, setRecorridoVaso, segmentando, setSegmentando, centerlineArcMm, stentMap, setStentMap, mprWl, restoreWl, takeRestoredWl, mprVoxel, pickMode, clSource, clTarget, neckOrigin, neckDome,
+        centerlineMesh, centerline, setCenterline, obliqueWalk, setObliqueWalk, recorridoVaso, setRecorridoVaso, segmentando, setSegmentando, centerlineArcMm, stentMap, setStentMap, mprWl, restoreWl, takeRestoredWl, mprVoxel, pickMode, clSource, clTarget, stentSac, neckOrigin, neckDome,
         annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, clipPlan, setClipPlan, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropInvert, trajEntry, trajTarget, trajSaved, setTrajSaved, trajectorySavedAt, setTrajectorySavedAt, pickMiss, setPickMiss, reportUrls, setReportUrls, morphoOverlay, showRejectedIn3d, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, sceneFramer, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion, volumeReady, setVolumeReady,
         freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, mipWindow, mipLocal, cine, focusedPane,
@@ -893,7 +900,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setCandidates, setRejectedCandidates, setSelectedCandidate, setMorphometry, setTreatment, treatmentInputs, setTreatmentInputs,
         setMorphoInvalidatedNotice, clearMorphometry,
         setDeviceMesh, clearDeviceMeshes, restoreDeviceMesh, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
-        setPickMode, setClSource, setClTarget, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setFieldMeshShown, setFieldMeshUrl, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
+        setPickMode, setClSource, setClTarget, setStentSac, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setFieldMeshShown, setFieldMeshUrl, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
         setNeckOrigin, setNeckDome,
         setAnnotations, setAnnotationDraft, setSelectedAnnotation, setAnnotationsSync, setAnnotationsLoaded, setAnnotationsLoadState, clearAnnotations, setNoteFocusRequest, setCropCenter, setErasePick, setCropRadius, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay, setShowRejectedIn3d,
         setCaptureViewport, setCenterOnLesion, registerSceneFramer, markSaved, registerSaver, saveNow,

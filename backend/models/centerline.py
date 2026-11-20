@@ -357,3 +357,31 @@ class IvusCompareResult(BaseModel):
     summary: IvusSummary | None = Field(None, description="IVUS summary of the earlier study at the same positions")
     noise_mm: float = Field(..., description="Registration noise from Seguimiento: a diameter change below it cannot be told apart")
     residual_median_mm: float
+
+
+class StentTresClicsRequest(BaseModel):
+    """P10: los tres clics del stent virtual."""
+
+    source: Position3D = Field(..., description="Proximal point on the parent artery (mm), before the neck")
+    target: Position3D = Field(..., description="Distal point on the parent artery (mm), after the neck")
+    sac: Position3D | None = Field(
+        None, description="Click on the sac (mm). Optional: without it, the measured sac or the selected candidate")
+    device_id: str | None = Field(
+        None, description="Catalogue flow diverter to deploy; default the first that fits")
+
+
+class StentTresClicsResult(BaseModel):
+    """P10: línea central, dimensionado y despliegue encadenados."""
+
+    centerline: CenterlineResult
+    sizing: FdSizingResult
+    neck_source: str = Field(..., description="'morfometria' (the measured neck of this sac) or 'saco' "
+                                              "(where the centreline's inscribed sphere touches the sac mesh)")
+    lesion_mesh: str = Field(..., description="Lesion mesh the neck was located against")
+    device_id: str | None = Field(None, description="Deployed device; null when no option fits")
+    device_name: str | None = None
+    diameter_mm: float | None = None
+    labelled_length_mm: float | None = None
+    deploy_arc_mm: list[float] | None = None
+    stent: ClStentResult | None = Field(None, description="Null when no catalogue option fits")
+    message: str = Field(..., description="What was done, in one sentence, or why nothing was deployed")

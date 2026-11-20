@@ -2630,3 +2630,27 @@ export interface AnnotationWire {
   created_at: string; created_by: string;
 }
 export interface AnnotationsResult { annotations: AnnotationWire[] }
+
+/** P10: los tres clics del stent virtual (POST /api/stent-tres-clics). */
+export interface StentTresClicsRequest {
+  source: Position3D;
+  target: Position3D;
+  sac?: Position3D | null;
+  device_id?: string | null;
+}
+
+export interface StentTresClicsResult {
+  centerline: CenterlineResult;
+  sizing: FdSizingResult;
+  /** "morfometria" (el cuello medido de ese saco) o "saco" (donde la línea toca su malla). */
+  neck_source: string;
+  lesion_mesh: string;
+  device_id: string | null;
+  device_name: string | null;
+  diameter_mm: number | null;
+  labelled_length_mm: number | null;
+  deploy_arc_mm: [number, number] | null;
+  /** Null cuando ninguna opción del catálogo encaja. */
+  stent: ClStentResult | null;
+  message: string;
+}

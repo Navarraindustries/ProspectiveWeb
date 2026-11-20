@@ -11228,6 +11228,153 @@
     "title": "StentParams",
     "type": "object"
    },
+   "StentTresClicsRequest": {
+    "description": "P10: los tres clics del stent virtual.",
+    "properties": {
+     "device_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Catalogue flow diverter to deploy; default the first that fits",
+      "title": "Device Id"
+     },
+     "sac": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Position3D"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Click on the sac (mm). Optional: without it, the measured sac or the selected candidate"
+     },
+     "source": {
+      "$ref": "#/components/schemas/Position3D",
+      "description": "Proximal point on the parent artery (mm), before the neck"
+     },
+     "target": {
+      "$ref": "#/components/schemas/Position3D",
+      "description": "Distal point on the parent artery (mm), after the neck"
+     }
+    },
+    "required": [
+     "source",
+     "target"
+    ],
+    "title": "StentTresClicsRequest",
+    "type": "object"
+   },
+   "StentTresClicsResult": {
+    "description": "P10: línea central, dimensionado y despliegue encadenados.",
+    "properties": {
+     "centerline": {
+      "$ref": "#/components/schemas/CenterlineResult"
+     },
+     "deploy_arc_mm": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "number"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Deploy Arc Mm"
+     },
+     "device_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Deployed device; null when no option fits",
+      "title": "Device Id"
+     },
+     "device_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Device Name"
+     },
+     "diameter_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Diameter Mm"
+     },
+     "labelled_length_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Labelled Length Mm"
+     },
+     "lesion_mesh": {
+      "description": "Lesion mesh the neck was located against",
+      "title": "Lesion Mesh",
+      "type": "string"
+     },
+     "message": {
+      "description": "What was done, in one sentence, or why nothing was deployed",
+      "title": "Message",
+      "type": "string"
+     },
+     "neck_source": {
+      "description": "'morfometria' (the measured neck of this sac) or 'saco' (where the centreline's inscribed sphere touches the sac mesh)",
+      "title": "Neck Source",
+      "type": "string"
+     },
+     "sizing": {
+      "$ref": "#/components/schemas/FdSizingResult"
+     },
+     "stent": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ClStentResult"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Null when no catalogue option fits"
+     }
+    },
+    "required": [
+     "centerline",
+     "sizing",
+     "neck_source",
+     "lesion_mesh",
+     "message"
+    ],
+    "title": "StentTresClicsResult",
+    "type": "object"
+   },
    "StudyCard": {
     "description": "One study as shown in the study gallery (preview + who it belongs to).\n\nCarries the patient identity the gallery filters on (name / national ID) and\nthe archive state, so the grid renders without extra requests per card.",
     "properties": {
@@ -21145,6 +21292,64 @@
     "summary": "Get a single MPR slice as PNG",
     "tags": [
      "mpr"
+    ]
+   }
+  },
+  "/api/stent-tres-clics/{session_id}": {
+   "post": {
+    "description": "Extracts the centreline from the proximal to the distal point (it REPLACES the current one), locates the neck along it (the measured neck of that sac, or where the line's inscribed sphere touches the sac mesh), sizes the flow diverter like POST /centerline/{id}/fd-sizing and deploys the first catalogue option that fits — or `device_id` — like POST /cl-stent/{id}. When no option fits, nothing is deployed and the sizing says why.",
+    "operationId": "stent_tres_clics_api_stent_tres_clics__session_id__post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/StentTresClicsRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StentTresClicsResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Flow diverter en tres clics: proximal, distal y saco (P10)",
+    "tags": [
+     "centerline"
     ]
    }
   },

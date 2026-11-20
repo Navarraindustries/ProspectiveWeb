@@ -35,6 +35,7 @@ import { ClipFieldCard } from "./ClipFieldCard";
 import { ClipRehearsal } from "./ClipRehearsal";
 import { CatalogueToggle, ClipSelectionPanel } from "./ClipSelection";
 import { FdSizing } from "./FdSizing";
+import { StentTresClics } from "./StentTresClics";
 import { WebSizing } from "./WebSizing";
 import { VERDICT_LABEL } from "./approachSummary";
 import { Icon } from "../Icon";
@@ -1396,10 +1397,36 @@ function ClStentTab() {
   const total = centerlineArcMm ?? 0;
   const hasCenterline = !!centerlineMesh && total > 0;
 
+  // P10: lo que dejó el stent en tres clics; el efecto de abajo lo respeta
+  // una vez en vez de abrir el tramo a toda la línea nueva.
+  const deTresClics = useRef<[number, number] | null>(null);
+
   // Default the range to the full centreline once it's known.
   useEffect(() => {
+    if (deTresClics.current) {
+      const [a, b] = deTresClics.current;
+      deTresClics.current = null;
+      setStartArc(a); setEndArc(b);
+      return;
+    }
     if (total > 0) { setStartArc(0); setEndArc(Math.round(total)); }
   }, [total]);
+
+  const tresClics = (
+    <StentTresClics onDone={(r) => {
+      // Sin opción que encaje, el stent de antes se quitó con la línea vieja.
+      if (!r.stent || !r.deploy_arc_mm) { setPlan(null); return; }
+      const [a, b] = r.deploy_arc_mm;
+      // Solo si la línea cambia de largo: si no, el efecto no corre y el valor
+      // se quedaría esperando a la próxima línea.
+      deTresClics.current = r.centerline.arc_length_mm !== total ? [Math.floor(a), Math.ceil(b)] : null;
+      setStartArc(Math.floor(a)); setEndArc(Math.ceil(b));
+      if (r.diameter_mm) setDiameter(r.diameter_mm);
+      setDeviceId(r.device_id);
+      setBraid(true);
+      setPlan(r.stent);
+    }} />
+  );
 
   const run = async () => {
     if (!sessionId || !hasCenterline) return;
@@ -1428,8 +1455,9 @@ function ClStentTab() {
     return (
       <div style={{ marginTop: 12 }}>
         <UnSoloStent />
+        {tresClics}
         <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.6 }}>
-          Extrae primero la <b style={{ color: "var(--foreground)" }}>línea central</b> del vaso
+          O extrae primero la <b style={{ color: "var(--foreground)" }}>línea central</b> del vaso
           (paso Morfometría → Línea central). El stent se desplegará siguiendo su curvatura,
           a diferencia del de la pestaña «{TAB_STENT}».
         </div>
@@ -1440,6 +1468,7 @@ function ClStentTab() {
   return (
     <div style={{ marginTop: 12 }}>
       <UnSoloStent />
+      {tresClics}
       {sessionId && (
         <FdSizing
           sessionId={sessionId}

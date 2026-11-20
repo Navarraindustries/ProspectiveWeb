@@ -22,6 +22,7 @@ from models.centerline import (
 )
 from models.detection import Position3D
 from services.centerline import extract_centerline
+from services.curvatura import SIGMA_MM
 from services.cross_section import compute_cross_sections, grade_stenosis
 from services.stent_deployment import deploy_stent_on_centerline
 from services.numero import cifra
@@ -44,6 +45,8 @@ def _run_extraction(vessel_path, source, target, voxel_size, out_path, points_pa
         points=result.points.astype(np.float32),
         radii=result.radii.astype(np.float32),
         ends_in_lesion=np.array(region is not None),
+        # Hasta dónde llega el vaso portador (P13): -1 = toda la línea.
+        n_portador=np.array(-1 if result.n_portador is None else result.n_portador),
     )
     return result
 
@@ -142,8 +145,28 @@ def _to_out(result, url: str, ends_in_lesion: bool = False) -> CenterlineResult:
         min_diameter_mm=round(result.min_radius_mm * 2.0, 2),
         max_diameter_mm=round(result.max_radius_mm * 2.0, 2),
         ends_in_lesion=ends_in_lesion,
+        mean_curvature_per_mm=_redondeo(result.curvatura_media, 4),
+        mean_curvature_radius_mm=(round(1.0 / result.curvatura_media, 1)
+                                  if result.curvatura_media and result.curvatura_media > 1e-6 else None),
+        mean_torsion_per_mm=_redondeo(result.torsion_media, 4),
+        curvature_length_mm=_redondeo(result.longitud_curvatura_mm, 1),
+        curvature_sigma_mm=SIGMA_MM,
         warning=warning,
     )
+
+
+def _redondeo(v: float | None, n: int) -> float | None:
+    return None if v is None else round(float(v), n)
+
+
+def _n_portador(data, en_lesion: bool) -> int | None | bool:
+    """Lo que guardó la extracción. Las líneas de antes no lo llevan: si
+    terminan en la lesión no se sabe dónde empieza el saco y se devuelve
+    False (sin curvatura); si no, la línea entera es vaso portador (None)."""
+    if "n_portador" in data.files:
+        n = int(data["n_portador"])
+        return None if n < 0 else n
+    return False if en_lesion else None
 
 
 @router.get(
@@ -169,13 +192,17 @@ async def get_centerline(session_id: str) -> CenterlineResult | None:
             pts = data["points"].astype(float)
             radii = data["radii"].astype(float)
             en_lesion = _ends_in_lesion(data)
+            n_portador = _n_portador(data, en_lesion)
     except Exception as exc:  # noqa: BLE001 — un fichero dañado es «no hay»
         logger.warning("centerline_points.npz ilegible en %s: %s", session_id, exc)
         return None
     if len(pts) < 2:
         return None
     from services.centerline import CenterlineExtractor
-    result = CenterlineExtractor._compute_metrics(pts, radii)
+    if n_portador is False:
+        result = CenterlineExtractor._compute_metrics(pts, radii, 0)
+    else:
+        result = CenterlineExtractor._compute_metrics(pts, radii, n_portador)
     url = f"{mesh_url(session_id, 'centerline.vtp')}?v={int(points_path.stat().st_mtime * 1000)}"
     return _to_out(result, url, ends_in_lesion=en_lesion)
 

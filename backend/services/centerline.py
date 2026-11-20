@@ -26,6 +26,8 @@ import vtk
 from scipy.ndimage import distance_transform_edt, gaussian_filter1d
 from vtk.util.numpy_support import numpy_to_vtk, vtk_to_numpy
 
+from services.distancia_malla import DistanciaFirmada
+
 logger = logging.getLogger(__name__)
 
 
@@ -43,6 +45,13 @@ class CenterlineResult:
     mean_radius_mm:   float = 0.0
     min_radius_mm:    float = 0.0
     max_radius_mm:    float = 0.0
+
+    # Vaso portador (P13): los primeros `n_portador` puntos; si la línea entra
+    # en la lesión, sin ese tramo final. Medias sobre la línea suavizada.
+    n_portador:            int | None = None
+    curvatura_media:       float | None = None   # 1/mm
+    torsion_media:         float | None = None   # 1/mm (|τ| en el tramo curvo)
+    longitud_curvatura_mm: float | None = None   # tramo medido, sin extremos
 
     poly_data: vtk.vtkPolyData | None = field(default=None, repr=False)
 
@@ -139,7 +148,11 @@ class CenterlineExtractor:
         pts_final, radii = self._resample_with_radii(pts_smooth, dt, origin, vs, mask.shape)
 
         self._progress(0.95)
-        result = self._compute_metrics(pts_final, radii)
+        n_portador = None
+        if region_pts is not None:
+            from services.curvatura import tramo_portador
+            n_portador = tramo_portador(pts_final, radii, region_pts)
+        result = self._compute_metrics(pts_final, radii, n_portador)
         result.poly_data = build_tube(pts_final, radii)
         self._progress(1.0)
         logger.info(
@@ -400,13 +413,21 @@ class CenterlineExtractor:
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _compute_metrics(pts, radii):
+    def _compute_metrics(pts, radii, n_portador: int | None = None):
+        """`n_portador`: cuántos puntos del principio son vaso portador (la
+        línea que termina en la lesión entra en ella al final). None = toda."""
+        from services.curvatura import geometria_eje
         segs       = np.linalg.norm(np.diff(pts, axis=0), axis=1)
         arc        = float(segs.sum())
         chord      = float(np.linalg.norm(pts[-1] - pts[0]))
         tortuosity = arc / chord if chord > 1e-6 else 1.0
         ti         = (arc - chord) / chord if chord > 1e-6 else 0.0
+        geo = geometria_eje(pts[:n_portador] if n_portador is not None else pts)
         return CenterlineResult(
+            n_portador            = n_portador,
+            curvatura_media       = geo.curvatura_media if geo else None,
+            torsion_media         = geo.torsion_media if geo else None,
+            longitud_curvatura_mm = geo.longitud_medida_mm if geo else None,
             points           = pts,
             radii            = radii,
             arc_length_mm    = arc,
@@ -456,7 +477,7 @@ def _suavizar(p: np.ndarray, sigma: float) -> np.ndarray:
     return np.column_stack([gaussian_filter1d(p[:, a], sigma, mode="nearest") for a in range(3)])
 
 
-def _al_centro(q: np.ndarray, t: np.ndarray, dist: vtk.vtkImplicitPolyDataDistance) -> np.ndarray:
+def _al_centro(q: np.ndarray, t: np.ndarray, dist: DistanciaFirmada) -> np.ndarray:
     """Sube por la profundidad desde `q` sin salirse del plano perpendicular a
     `t`: cada paso va contra el gradiente de la distancia firmada (que apunta
     hacia fuera) y solo se acepta si el punto queda más hondo."""
@@ -485,7 +506,7 @@ def _al_centro(q: np.ndarray, t: np.ndarray, dist: vtk.vtkImplicitPolyDataDistan
     return q
 
 
-def _meter_dentro(p: np.ndarray, dist: vtk.vtkImplicitPolyDataDistance) -> None:
+def _meter_dentro(p: np.ndarray, dist: DistanciaFirmada) -> None:
     """Empuja hacia dentro (por el gradiente de la distancia) los puntos que
     quedan fuera de la pared o rozándola. Los extremos no se tocan."""
     g = [0.0, 0.0, 0.0]
@@ -516,8 +537,7 @@ def centrar_en_malla(pts: np.ndarray, poly_data: vtk.vtkPolyData) -> np.ndarray:
         return p
     base = p.copy()
     extremos = p[[0, -1]].copy()
-    dist = vtk.vtkImplicitPolyDataDistance()
-    dist.SetInput(poly_data)
+    dist = DistanciaFirmada(poly_data)   # no vtkImplicitPolyDataDistance: services/distancia_malla.py
     # Centrar y suavizar poco, alternados, unas cuantas rondas: en cada una se
     # vuelve al centro desde la línea ya suavizada. Solo empujar hacia dentro
     # entre suavizados encogía la línea hacia la cara interior de las curvas

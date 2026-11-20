@@ -175,3 +175,37 @@ describe("el destino es opcional (17-11)", () => {
     expect(screen.getAllByText(/del saco medido/).length).toBeGreaterThan(0);
   });
 });
+
+/* P13: curvatura y torsión medias del vaso portador. */
+describe("curvatura y torsión del vaso portador", () => {
+  it("enseña las medias, el radio y de qué tramo salen", async () => {
+    getCenterline.mockResolvedValue({
+      ...metricas, ends_in_lesion: true, mean_curvature_per_mm: 0.0857, mean_curvature_radius_mm: 11.7,
+      mean_torsion_per_mm: 0.0412, curvature_length_mm: 33.4, curvature_sigma_mm: 2,
+    });
+    render(<CenterlinePanel />);
+    // Curvatura y radio van en la misma celda: «0,086 /mm · R 11,7 mm».
+    const fila = (await screen.findByText("Curvatura media")).closest("[title]")!;
+    expect(fila.textContent).toMatch(/0,086\s*\/mm\s*· R 11,7\s*mm/);
+    expect(screen.getByText("Torsión media").closest("[title]")!.textContent).toMatch(/0,041\s*\/mm/);
+    expect(fila.getAttribute("title")).toMatch(/33,4 mm del vaso portador, sin la entrada a la lesión/);
+    expect(fila.getAttribute("title")).toMatch(/No se da el máximo/);
+  });
+
+  it("sin tramo suficiente no da cifra y dice por qué", async () => {
+    getCenterline.mockResolvedValue({ ...metricas, mean_curvature_per_mm: null, mean_torsion_per_mm: null });
+    render(<CenterlinePanel />);
+    const fila = (await screen.findByText("Curvatura media")).closest("[title]")!;
+    expect(fila.getAttribute("title")).toMatch(/demasiado corto/);
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("vaso casi recto: curvatura sí, torsión no definida", async () => {
+    getCenterline.mockResolvedValue({
+      ...metricas, mean_curvature_per_mm: 0.004, mean_curvature_radius_mm: 250, mean_torsion_per_mm: null, curvature_length_mm: 30,
+    });
+    render(<CenterlinePanel />);
+    const fila = (await screen.findByText("Torsión media")).closest("[title]")!;
+    expect(fila.getAttribute("title")).toMatch(/casi recto/);
+  });
+});

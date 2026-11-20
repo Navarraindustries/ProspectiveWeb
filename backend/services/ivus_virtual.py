@@ -33,6 +33,8 @@ import numpy as np
 import vtk
 from vtk.util.numpy_support import numpy_to_vtk, vtk_to_numpy
 
+from services.distancia_malla import DistanciaFirmada
+
 logger = logging.getLogger(__name__)
 
 TAMANO_PX = 128              # lado de cada sección de la pila
@@ -493,7 +495,7 @@ def en_lesion(p: np.ndarray, lesion: vtk.vtkPolyData | None, vaso: vtk.vtkPolyDa
         return vtk_to_numpy(enc.GetOutput().GetPointData().GetArray("SelectedPoints")).astype(bool)
     from scipy.spatial import cKDTree
     d_zona, _ = cKDTree(vtk_to_numpy(lesion.GetPoints().GetData())).query(p)
-    dist = vtk.vtkImplicitPolyDataDistance(); dist.SetInput(vaso)
+    dist = DistanciaFirmada(vaso)   # no vtkImplicitPolyDataDistance: services/distancia_malla.py
     d_pared = np.array([abs(dist.EvaluateFunction(*map(float, q))) for q in p])
     return d_zona <= d_pared + 0.5
 

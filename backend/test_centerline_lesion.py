@@ -147,3 +147,27 @@ def test_api_con_destino_marcado_no_dice_que_acaba_en_la_lesion():
     assert r.status_code == 200, r.text
     assert r.json()["ends_in_lesion"] is False
     assert client.get(f"/api/centerline/{sid}/points").json()["ends_in_lesion"] is False
+
+
+# ── Vaso portador (P13) ──────────────────────────────────────────────── #
+
+def test_la_curvatura_es_del_vaso_portador_sin_la_entrada_al_saco():
+    """El tubo es recto a lo largo de z y la línea gira al final para entrar en
+    el saco: ese giro no cuenta, el vaso portador sale casi recto."""
+    r = extract_centerline(_vaso_con_saco(), (0.0, 0.0, 5.0), None, 0.5, target_region=_saco_cerrado())
+    assert r.n_portador is not None and 0 < r.n_portador < len(r.points)
+    corte = r.points[r.n_portador]
+    assert 24.0 < corte[2] < 30.0, corte          # justo antes del cuello
+    assert np.linalg.norm(r.points[: r.n_portador, :2], axis=1).max() < 0.5   # sobre el eje del tubo
+    assert r.curvatura_media is not None and r.curvatura_media < 0.01
+    from services.curvatura import geometria_eje
+    assert geometria_eje(r.points).curvatura_media > 3 * r.curvatura_media
+
+
+def test_api_guarda_el_tramo_portador_y_lo_vuelve_a_leer_igual():
+    sid = _sesion(con_saco=True)
+    post = client.post(f"/api/centerline/{sid}", json=_sin_destino()).json()
+    get = client.get(f"/api/centerline/{sid}").json()
+    assert post["mean_curvature_per_mm"] is not None
+    for k in ("mean_curvature_per_mm", "mean_torsion_per_mm", "curvature_length_mm"):
+        assert get[k] == post[k], k

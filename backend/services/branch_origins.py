@@ -56,6 +56,8 @@ import vtk
 from scipy.ndimage import distance_transform_edt
 from vtk.util.numpy_support import vtk_to_numpy
 
+from services.distancia_malla import DistanciaFirmada
+
 logger = logging.getLogger(__name__)
 
 #: Resolución por defecto. A 0.5 mm la EDT de una caja craneal tarda ~3 s y ocupa
@@ -463,8 +465,7 @@ def branches_under_clip(session_id: str, clips_world: vtk.vtkPolyData,
     # sobre cualquier zona de malla gruesa— la esquina más próxima puede estar
     # varios milímetros más lejos que la cara, y una rama que el clip cruza se
     # queda fuera del aviso.
-    dist = vtk.vtkImplicitPolyDataDistance()
-    dist.SetInput(clips_world)
+    dist = DistanciaFirmada(clips_world)   # no vtkImplicitPolyDataDistance: services/distancia_malla.py
 
     out: list[BranchUnderClip] = []
     for o in scan.origins:

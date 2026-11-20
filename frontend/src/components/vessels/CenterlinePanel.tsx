@@ -36,6 +36,34 @@ function tortuosityBadge(t: number): [string, "success" | "warning" | "destructi
   return ["Baja", "success"];
 }
 
+const SIN_TRAMO =
+  "El tramo de vaso portador es demasiado corto para medirla: hacen falta unos 13 mm antes de la lesión " +
+  "(marca el origen más atrás). Si la línea es de antes y termina en la lesión, vuelve a extraerla.";
+
+/** Tooltip de la curvatura: qué se promedia y sobre qué tramo (P13). */
+function curvaturaTitulo(r: CenterlineResult): string {
+  if (r.mean_curvature_per_mm == null) return SIN_TRAMO;
+  const sigma = cifra(r.curvature_sigma_mm ?? 2, 1);
+  const tramo = r.curvature_length_mm != null ? `${cifra(r.curvature_length_mm, 1)} mm` : "el tramo";
+  return (
+    `Media de la curvatura a lo largo de ${tramo} del vaso portador` +
+    (r.ends_in_lesion ? ", sin la entrada a la lesión" : "") +
+    `, sobre la línea suavizada (σ ${sigma} mm). R = radio del arco con esa curvatura. ` +
+    "No se da el máximo: lo pone el punto más ruidoso de la línea, no el vaso."
+  );
+}
+
+/** Tooltip de la torsión: dónde se mide y cuándo no se da (P13). */
+function torsionTitulo(r: CenterlineResult): string {
+  if (r.mean_curvature_per_mm == null) return SIN_TRAMO;
+  if (r.mean_torsion_per_mm == null)
+    return "El vaso portador es casi recto (radio de curvatura de más de 50 mm): la torsión no está definida.";
+  return (
+    "Cuánto se sale el vaso de su plano de curvatura: media de |torsión| en los tramos que se curvan " +
+    "(radio de curvatura de menos de 50 mm). 0 = el vaso se curva en un plano."
+  );
+}
+
 export function CenterlinePanel() {
   const {
     sessionId, segmentation, pickMode, clSource, clTarget, centerlineMesh,
@@ -281,6 +309,31 @@ export function CenterlinePanel() {
               fila, y el porcentaje en su tooltip. */}
           <div title={`Longitud de arco ÷ longitud recta (1 = vaso recto): el eje es un ${cifra(result.tortuosity_index_pct, 1)} % más largo que la recta.`}>
             <Metric label="Tortuosidad" value={cifra(result.tortuosity, 3)} badge={tortuosityBadge(result.tortuosity)} />
+          </div>
+          {/* P13 (Dalmer 2026): medias del vaso portador, nunca el máximo. */}
+          <div title={curvaturaTitulo(result)}>
+            <Metric
+              label="Curvatura media"
+              value={result.mean_curvature_per_mm != null ? (
+                <>
+                  {cifra(result.mean_curvature_per_mm, 3)}
+                  <span style={{ color: "var(--muted-foreground)", fontSize: 11 }}> /mm</span>
+                  {result.mean_curvature_radius_mm != null && (
+                    <>
+                      {" · R "}{cifra(result.mean_curvature_radius_mm, 1)}
+                      <span style={{ color: "var(--muted-foreground)", fontSize: 11 }}> mm</span>
+                    </>
+                  )}
+                </>
+              ) : "—"}
+            />
+          </div>
+          <div title={torsionTitulo(result)}>
+            <Metric
+              label="Torsión media"
+              value={result.mean_torsion_per_mm != null ? cifra(result.mean_torsion_per_mm, 3) : "—"}
+              unit={result.mean_torsion_per_mm != null ? " /mm" : undefined}
+            />
           </div>
           {/* F1-168: esta tabla y la de secciones decían las dos «Ø medio /
               mínimo / máximo» con cifras distintas. Aquí es el Ø de la esfera

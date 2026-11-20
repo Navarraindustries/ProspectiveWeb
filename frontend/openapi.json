@@ -1656,6 +1656,24 @@
       "title": "Chord Length Mm",
       "type": "number"
      },
+     "curvature_length_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Length of parent vessel the curvature and torsion were measured on (ends trimmed), mm",
+      "title": "Curvature Length Mm"
+     },
+     "curvature_sigma_mm": {
+      "default": 2.0,
+      "description": "Gaussian smoothing of the centreline before differentiating (mm)",
+      "title": "Curvature Sigma Mm",
+      "type": "number"
+     },
      "ends_in_lesion": {
       "default": false,
       "description": "The line ends inside the sac / selected candidate instead of at a picked point",
@@ -1667,10 +1685,46 @@
       "title": "Max Diameter Mm",
       "type": "number"
      },
+     "mean_curvature_per_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Mean curvature of the parent vessel along the smoothed centreline (1/mm); the stretch inside the lesion is left out. Null when the measured stretch is too short",
+      "title": "Mean Curvature Per Mm"
+     },
+     "mean_curvature_radius_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Radius of the arc with the mean curvature (1 / mean curvature, mm)",
+      "title": "Mean Curvature Radius Mm"
+     },
      "mean_diameter_mm": {
       "description": "Mean vessel diameter along the path",
       "title": "Mean Diameter Mm",
       "type": "number"
+     },
+     "mean_torsion_per_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Mean |torsion| of the parent vessel where it bends (curvature ≥ 0.02 /mm), in 1/mm. Null when that stretch is almost straight or too short",
+      "title": "Mean Torsion Per Mm"
      },
      "min_diameter_mm": {
       "description": "Minimum vessel diameter (narrowest point)",

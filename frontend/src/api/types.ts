@@ -184,6 +184,16 @@ export interface CenterlineResult {
   max_diameter_mm: number;
   /** Termina dentro de la lesión (no se marcó destino). */
   ends_in_lesion?: boolean;
+  /** Curvatura media del vaso portador (1/mm), sin el tramo dentro de la lesión. Null si el tramo es corto. */
+  mean_curvature_per_mm?: number | null;
+  /** Radio del arco con esa curvatura media (mm). */
+  mean_curvature_radius_mm?: number | null;
+  /** |Torsión| media donde el vaso se curva (1/mm). Null si es casi recto o corto. */
+  mean_torsion_per_mm?: number | null;
+  /** Tramo del vaso portador medido, sin los extremos (mm). */
+  curvature_length_mm?: number | null;
+  /** Suavizado de la línea antes de derivar (mm). */
+  curvature_sigma_mm?: number;
   warning: string | null;
 }
 

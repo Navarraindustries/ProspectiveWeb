@@ -16,6 +16,8 @@ import math
 import numpy as np
 import vtk
 
+from services.distancia_malla import DistanciaFirmada
+
 logger = logging.getLogger(__name__)
 
 Vec3 = tuple[float, float, float]
@@ -155,8 +157,7 @@ def coil_mass_in_sac(
         return vtk.vtkPolyData(), 0.0
 
     # Signed distance to the sac wall: negative inside.
-    dist = vtk.vtkImplicitPolyDataDistance()
-    dist.SetInput(sac)
+    dist = DistanciaFirmada(sac)   # no vtkImplicitPolyDataDistance: services/distancia_malla.py
 
     b = sac.GetBounds()
     lo = np.array([b[0], b[2], b[4]], dtype=float)

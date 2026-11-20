@@ -4206,6 +4206,17 @@ export interface components {
              */
             chord_length_mm: number;
             /**
+             * Curvature Length Mm
+             * @description Length of parent vessel the curvature and torsion were measured on (ends trimmed), mm
+             */
+            curvature_length_mm?: number | null;
+            /**
+             * Curvature Sigma Mm
+             * @description Gaussian smoothing of the centreline before differentiating (mm)
+             * @default 2
+             */
+            curvature_sigma_mm: number;
+            /**
              * Ends In Lesion
              * @description The line ends inside the sac / selected candidate instead of at a picked point
              * @default false
@@ -4217,10 +4228,25 @@ export interface components {
              */
             max_diameter_mm: number;
             /**
+             * Mean Curvature Per Mm
+             * @description Mean curvature of the parent vessel along the smoothed centreline (1/mm); the stretch inside the lesion is left out. Null when the measured stretch is too short
+             */
+            mean_curvature_per_mm?: number | null;
+            /**
+             * Mean Curvature Radius Mm
+             * @description Radius of the arc with the mean curvature (1 / mean curvature, mm)
+             */
+            mean_curvature_radius_mm?: number | null;
+            /**
              * Mean Diameter Mm
              * @description Mean vessel diameter along the path
              */
             mean_diameter_mm: number;
+            /**
+             * Mean Torsion Per Mm
+             * @description Mean |torsion| of the parent vessel where it bends (curvature ≥ 0.02 /mm), in 1/mm. Null when that stretch is almost straight or too short
+             */
+            mean_torsion_per_mm?: number | null;
             /**
              * Min Diameter Mm
              * @description Minimum vessel diameter (narrowest point)

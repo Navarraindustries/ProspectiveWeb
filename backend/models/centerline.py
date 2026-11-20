@@ -44,6 +44,23 @@ class CenterlineResult(BaseModel):
     min_diameter_mm: float = Field(..., description="Minimum vessel diameter (narrowest point)")
     max_diameter_mm: float = Field(..., description="Maximum vessel diameter (widest point)")
     ends_in_lesion: bool = Field(False, description="The line ends inside the sac / selected candidate instead of at a picked point")
+    mean_curvature_per_mm: float | None = Field(
+        None, description="Mean curvature of the parent vessel along the smoothed centreline (1/mm); "
+                          "the stretch inside the lesion is left out. Null when the measured stretch is too short",
+    )
+    mean_curvature_radius_mm: float | None = Field(
+        None, description="Radius of the arc with the mean curvature (1 / mean curvature, mm)",
+    )
+    mean_torsion_per_mm: float | None = Field(
+        None, description="Mean |torsion| of the parent vessel where it bends (curvature ≥ 0.02 /mm), in 1/mm. "
+                          "Null when that stretch is almost straight or too short",
+    )
+    curvature_length_mm: float | None = Field(
+        None, description="Length of parent vessel the curvature and torsion were measured on (ends trimmed), mm",
+    )
+    curvature_sigma_mm: float = Field(
+        2.0, description="Gaussian smoothing of the centreline before differentiating (mm)",
+    )
     warning: str | None = Field(
         None, description="Warning shown for high tortuosity or degenerate geometry"
     )

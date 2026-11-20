@@ -14,9 +14,10 @@ describe("INDICES", () => {
     });
   });
   it("los detalles llevan los cortes con coma", () => {
-    expect(INDICES[0].detalle).toBe(`Ø máx / cuello · riesgo ↑ si ≥ ${cifra(DNR_HIGH, 1)}`);
+    // P16: el corte del DNR es la definición de cuello ancho, no un riesgo de rotura.
+    expect(INDICES[0].detalle).toBe(`Ø máx / cuello · cuello ancho si < ${cifra(DNR_HIGH, 1)} (Brinjikji)`);
     expect(INDICES[0].detalle).toContain("2,0");
-    expect(INDICES[1].detalle).toBe(`altura de domo / cuello · riesgo ↑ si ≥ ${cifra(AR_HIGH, 1)}`);
+    expect(INDICES[1].detalle).toBe(`altura de domo / cuello · alto si ≥ ${cifra(AR_HIGH, 1)} (Ujiie 2001)`);
   });
   it("nombres de cota", () => {
     expect(NOMBRE_COTA.madre).toBe("Ø arteria madre");

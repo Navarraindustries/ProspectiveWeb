@@ -281,7 +281,9 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
               </Badge>
               {/* F1-177: «100 % de los datos» junto a «Confianza baja» parecía
                   una contradicción. La baja tiene dos causas y se dice cuál. */}
-              <Badge variant="subtle" style={{ whiteSpace: "normal" }}>
+              {/* P16: «Confianza» no es una probabilidad; el tooltip dice qué es. */}
+              <Badge variant="subtle" style={{ whiteSpace: "normal" }}
+                     title="Margen entre los puntos que el motor da a cada vía, recortado si faltan datos. No es una probabilidad de acierto.">
                 {t.confidence === "Baja" && t.confidence_reason
                   ? `Confianza baja: ${t.confidence_reason}`
                   : `Confianza ${t.confidence.toLowerCase()}`}
@@ -533,7 +535,7 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
       {planning.morphometry && (
         <div style={{ marginTop: 16 }}>
           <Collapsible title="Escalas de riesgo" subtitle="PHASES, ELAPSS y UIATS" storageKey="ws.treatment.escalas">
-            <EscalasClinicas />
+            <EscalasClinicas roto={ruptured} />
           </Collapsible>
         </div>
       )}

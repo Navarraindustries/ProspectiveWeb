@@ -289,10 +289,12 @@ def jsdb_scores(
     # que queda.
     if both_poor:
         verdict = (
-            "Las DOS vías salen penalizadas en este perfil: el modelo no está "
-            "diciendo cuál es mejor, está diciendo que espera mal resultado "
-            "por cualquiera de las dos. Es la señal para sesión "
-            "multidisciplinar, no para elegir."
+            # P16: el corte (POOR_THRESHOLD) es de la aplicación; el texto se lo
+            # atribuía al modelo («espera mal resultado»).
+            "Las DOS vías salen penalizadas en este perfil, las dos por encima "
+            "del corte que pone esta aplicación (los autores no publican "
+            "bandas): el modelo no separa una de otra y las dos van mal. Es "
+            "la señal para sesión multidisciplinar, no para elegir."
         )
     elif favours == "tie":
         verdict = (

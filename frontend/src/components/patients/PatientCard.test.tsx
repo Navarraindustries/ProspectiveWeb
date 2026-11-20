@@ -130,7 +130,7 @@ describe("PatientCard", () => {
 
   it("insignias: riesgo con texto, «Compartido contigo» y «Compartido con N»", () => {
     montar(paciente({ last_risk_label: "Alto", is_shared_with_me: true, shared_with_count: 2 }));
-    expect(screen.getByText("Riesgo alto")).toBeTruthy();
+    expect(screen.getByText("Riesgo morfométrico alto")).toBeTruthy();   // P16
     expect(screen.getByText("Compartido contigo")).toBeTruthy();
     expect(screen.getByText("Compartido con 2")).toBeTruthy();
   });

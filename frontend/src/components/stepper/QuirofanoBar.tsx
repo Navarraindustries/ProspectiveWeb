@@ -8,7 +8,7 @@
    (Volver ya lleva a Pacientes) y en móvil no hay miga: solo Volver. */
 
 import type { CSSProperties, ReactNode } from "react";
-import { Badge, riskVariant } from "../Badge";
+import { MorphoRiskBadge } from "../morphometry/MorphoRiskBadge";
 import { Icon } from "../Icon";
 import { UserMenu } from "../shell/UserMenu";
 import type { Crumb } from "../shell/TopBar";
@@ -135,7 +135,7 @@ export function QuirofanoBar({ crumbs, onBack, riskLabel, status, actions, modo 
             </ol>
           </nav>
         )}
-        {riskLabel && !movil && <Badge variant={riskVariant(riskLabel)}>{riskLabel}</Badge>}
+        {riskLabel && !movil && <MorphoRiskBadge label={riskLabel} corto />}
       </div>
       <div style={{ ...glass("normal"), ...pastilla, flex: "none" }} data-glass>
         {status}

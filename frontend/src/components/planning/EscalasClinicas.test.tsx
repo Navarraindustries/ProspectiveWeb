@@ -22,7 +22,7 @@ const medida = {
   centroid: { x: 0, y: 0, z: 0 }, principal_axis: [0, 0, 1], neck_origin: { x: 0, y: 0, z: 0 },
 } as unknown as MorphometryResult;
 
-function montar(m: MorphometryResult | null, sitio: AneurysmLocation | null = null) {
+function montar(m: MorphometryResult | null, sitio: AneurysmLocation | null = null, roto = false) {
   function Seed({ children }: { children: ReactNode }) {
     const { setSession, setMorphometry, setAneurysmSite, sessionId } = usePlanning();
     useEffect(() => {
@@ -30,7 +30,7 @@ function montar(m: MorphometryResult | null, sitio: AneurysmLocation | null = nu
     }, [sessionId, setSession, setMorphometry, setAneurysmSite]);
     return <>{children}</>;
   }
-  return render(<PlanningProvider><Seed><EscalasClinicas /></Seed></PlanningProvider>);
+  return render(<PlanningProvider><Seed><EscalasClinicas roto={roto} /></Seed></PlanningProvider>);
 }
 
 describe("EscalasClinicas", () => {
@@ -59,5 +59,22 @@ describe("EscalasClinicas", () => {
     montar(medida);
     fireEvent.click(await screen.findByRole("tab", { name: "UIATS" }));
     expect(screen.getByRole("tab", { name: "UIATS" })).toHaveAttribute("aria-selected", "true");
+  });
+});
+
+/* P16: las tres escalas son para aneurismas no rotos. */
+describe("EscalasClinicas en un aneurisma roto", () => {
+  it("avisa delante de las pestañas de que no aplican", async () => {
+    montar(medida, null, true);
+    const aviso = await screen.findByRole("note");
+    expect(aviso.textContent).toMatch(/marcado como roto/);
+    expect(aviso.textContent).toMatch(/aneurismas no rotos/);
+  });
+
+  it("no roto: sin aviso, y PHASES dice que es para no rotos", async () => {
+    montar(medida);
+    await screen.findByText(/referencia poblacional/);
+    expect(screen.queryByText(/marcado como roto/)).toBeNull();
+    expect(screen.getByText("no roto", { selector: "b" })).toBeInTheDocument();
   });
 });

@@ -298,6 +298,8 @@ class ReportData:
     #: VINI 3D: el pullback del IVUS virtual con sus figuras
     #: (services.informe_vini3d.Vini3d), o None sin línea central.
     vini3d: Any = None
+    #: P15: con qué vóxel se midió (services.resolucion.Resolucion), o None.
+    resolution: Any = None
 
 
 # ──────────────────────────────────────────────────────────────────────────── #
@@ -617,6 +619,9 @@ def build_report_data_from_session(
         # El informe no la imprimía en ningún sitio: solo salía, traducida, en
         # las tablas de PHASES y ELAPSS, y cada una podía decir otra.
         "site":              _rs("clinical.site") or None,
+        # P16: PHASES, ELAPSS y UIATS son para aneurismas no rotos. Lo marcado
+        # en Decisión (None si no se pidió la recomendación).
+        "ruptured":          _roto(_rs("clinical.decision_inputs_json")),
     }
 
     # ── 8. PHASES score (recorded by POST /api/phases) ─────────────────── #
@@ -677,7 +682,29 @@ def build_report_data_from_session(
         team         = team,
         device_strategy = device_strategy,
         vini3d       = _vini3d(session_id),
+        resolution   = _resolucion(session_id),
     )
+
+
+def _roto(raw: str) -> bool | None:
+    """`is_ruptured` de las entradas de Decisión; None si no hay o no se lee."""
+    if not raw:
+        return None
+    try:
+        v = json.loads(raw).get("is_ruptured")
+    except (ValueError, TypeError, AttributeError):
+        return None
+    return bool(v) if v is not None else None
+
+
+def _resolucion(session_id: str):
+    """P15; un fallo aquí no puede dejar sin informe."""
+    try:
+        from services.resolucion import resolucion_sesion
+        return resolucion_sesion(session_id)
+    except Exception:  # noqa: BLE001
+        logger.warning("La resolución no entra en el informe de %s", session_id, exc_info=True)
+        return None
 
 
 def _vini3d(session_id: str):
@@ -947,6 +974,7 @@ class ReportGenerator:
         story += self._section_screenshot()
         story += self._section_captures()
         story += self._section_morphometrics()
+        story += self._section_resolution()
         # F1-236: lo que se eligió, antes de lo que el algoritmo recomendó.
         story += self._section_chosen_plan()
         story += self._section_treatment_decision()
@@ -1280,7 +1308,7 @@ class ReportGenerator:
              f"{cifra(m.get('surface_area_mm2', 0), 2)} mm²", "—"],
             ["Diámetro máximo",
              f"{cifra(m.get('max_diameter_mm', 0), 2)} mm",
-             "< 7 mm bajo riesgo"],
+             "Corte de 7 mm de PHASES (Greving 2014)"],
             # La procedencia con la misma frase que el pedido de clip (F1-215).
             ["Diámetro del cuello (marcado)" if m.get("neck_marked") else "Diámetro del cuello (estimado)",
              f"{cifra(m.get('neck_diameter_mm', 0), 2)} mm",
@@ -1344,6 +1372,69 @@ class ReportGenerator:
 
         tbl.setStyle(ts)
         elems.append(tbl)
+        return elems
+
+    def _section_resolution(self) -> list:
+        """P15 (Dalmer 2026): el vóxel con el que se midió cada cosa.
+
+        Sin él, un «Ø 1,6 mm» no dice si el vaso mide 1,6 o si la rejilla no
+        da para más. Va detrás de la morfometría porque es la que más cifras
+        en milímetros pone en el informe."""
+        r = self._data.resolution
+        if r is None or r.vacia:
+            return []
+
+        def _vox(v) -> str:
+            return " × ".join(cifra(x, 2) for x in v) + " mm"
+
+        def _fila(etiqueta: str, valor: str) -> list:
+            return [etiqueta, Paragraph(escape_xml(valor), self._style_cell)]
+
+        rows = []
+        if r.estudio_mm is not None:
+            rows.append(_fila("Vóxel del estudio",
+                              _vox(r.estudio_mm) + (" (x × y × z), tras el preprocesado (remuestreado)"
+                                                    if r.preprocesado else " (x × y × z), el del DICOM")))
+            if r.factor > 1:
+                rows.append(_fila("Malla de la segmentación",
+                                  f"a resolución reducida (×{r.factor}): vóxel de {_vox(r.malla_mm)}. "
+                                  "De ella salen la morfometría, las secciones y el dimensionado"))
+            else:
+                rows.append(_fila("Malla de la segmentación",
+                                  "a resolución completa, con el vóxel del estudio. De ella salen la "
+                                  "morfometría, las secciones y el dimensionado"))
+        if r.linea_mm:
+            rows.append(_fila("Línea central",
+                              f"rejilla de {cifra(r.linea_mm, 2)} mm: el Ø inscrito va a saltos de "
+                              f"{cifra(r.linea_mm, 2)} mm (un vaso de Ø 2 mm puede salir con "
+                              f"{cifra(2 - r.linea_mm / 2, 1)}). La curvatura se mide tras suavizar"))
+        if r.ramas_mm:
+            suelo = r.ramas_suelo_mm or 2 * r.ramas_mm
+            rows.append(_fila("Barrido de ramas",
+                              f"rejilla de {cifra(r.ramas_mm, 2)} mm: no ve ramas de menos de "
+                              f"{cifra(suelo, 2)} mm de diámetro"))
+        if not rows:
+            return []
+
+        elems: list = [Paragraph("Resolución de las medidas", self._style_h2)]
+        tbl = Table(rows, colWidths=[5.5*cm, 12.4*cm])
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (0, -1), self._GREY_LIGHT),
+            ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+            ("GRID", (0, 0), (-1, -1), 0.4, self._GREY_MED),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]))
+        elems.append(tbl)
+
+        lado = r.lado_mayor_mm
+        if lado:
+            nota = (f"Un diámetro medido sobre la malla tiene un error del orden de un vóxel "
+                    f"({cifra(lado, 2)} mm, el lado mayor)")
+            cuello = float(self._data.morphometrics.get("neck_diameter_mm") or 0.0)
+            if cuello > 0:
+                nota += (f": en el cuello de {cifra(cuello, 1)} mm eso es ±{cifra(100 * lado / cuello, 0)} %")
+            elems.append(Paragraph(escape_xml(nota) + ".", self._style_small))
         return elems
 
     def _device_heading(self, family: str, base: str) -> str:
@@ -1436,7 +1527,11 @@ class ReportGenerator:
             f'<font color="{rec_color_hex}"><b>{rec_text}</b></font>',
             self._style_rec_badge,
         ))
+        # P16: «Confianza» es el margen entre los puntos del motor (y la cobertura
+        # de datos), no una probabilidad de acertar.
         elems.append(Paragraph(f'Confianza: <b>{conf}</b>', self._style_center))
+        elems.append(Paragraph("Margen entre los puntos que el motor da a cada vía, recortado si faltan "
+                               "datos; no es una probabilidad de acierto.", self._style_small))
         elems.append(Spacer(1, 0.25*cm))
 
         # Aquí iba una barra proporcional con los puntos de cada lado. Se
@@ -1543,9 +1638,12 @@ class ReportGenerator:
         elems.append(Paragraph(
             # Una sola cita y la vigente (F1-228): la lista anterior mezclaba un
             # ensayo de rotos, una escala de MAV y la guía de 2015, sustituida.
-            "(*) Recomendación generada por algoritmo de soporte de decisión basado en "
-            "criterios morfométricos (AHA/ASA 2023 (Hoh BL et al., Stroke 2023;54:e314–e370)). "
-            "No sustituye el juicio clínico del equipo neurovascular tratante.",
+            # P16: decía «basado en criterios morfométricos (AHA/ASA 2023)», como
+            # si el algoritmo saliera de la guía. Los pesos son de la aplicación.
+            "(*) Recomendación generada por reglas con pesos elegidos a mano, sin validar "
+            "como predicción del resultado; los factores siguen la guía AHA/ASA 2023 (Hoh BL "
+            "et al., Stroke 2023;54:e314–e370). No sustituye el juicio clínico del equipo "
+            "neurovascular tratante.",
             self._style_td_disclaimer,
         ))
         return elems
@@ -1682,7 +1780,10 @@ class ReportGenerator:
         else:
             calor = "no calculado con estos clips"
         notas = [
-            Paragraph(f"<b>Oclusión:</b> {oclusion}", self._style_body),
+            # P16: la oclusión es geometría de la línea de cierre; la pantalla
+            # lo dice y el PDF no.
+            Paragraph(f"<b>Oclusión (geometría de la línea de cierre, no mecánica):</b> {oclusion}",
+                      self._style_body),
             Paragraph(f"<b>Mapa de calor:</b> {calor}", self._style_body),
         ]
         # La otra mitad del clipaje: lo que no debe ocluirse (P1, 18-11).
@@ -2252,18 +2353,20 @@ class ReportGenerator:
         porque = ("; ".join(motivos) + ". " if motivos else
                   "Etiqueta heurística a partir de los índices de forma (AR, DNR, "
                   "ondulación, elipticidad y cociente de tamaño). ")
+        # P16: las tres ramas dicen lo mismo de la etiqueta. Antes «Moderado»
+        # y «Bajo» daban una pauta («valorar tratamiento», «seguimiento según
+        # protocolo») salida de una regla sin validar.
+        aviso = ("Es una regla de umbrales sobre la forma, sin validar como predicción "
+                 "de rotura; la indicación la pone el equipo tratante.")
         if "Alto" in risk:
             style  = self._style_risk_high
-            detail = (porque + "Riesgo ALTO: es un índice de forma, no una "
-                      "probabilidad; la indicación la pone el equipo tratante.")
+            detail = porque + "Algún índice supera el corte alto. " + aviso
         elif "Moderado" in risk:
             style  = self._style_risk_mod
-            detail = (porque + "Riesgo MODERADO. Valorar tratamiento en función de "
-                      "clínica y preferencias del paciente.")
+            detail = porque + "Algún índice supera el corte moderado. " + aviso
         else:
             style  = self._style_risk_low
-            detail = ("Índices morfométricos dentro de rangos de bajo riesgo. "
-                      "Seguimiento radiológico según protocolo.")
+            detail = "Ningún índice de forma supera sus cortes. " + aviso
 
         elems.append(Paragraph(f"Riesgo morfométrico {risk.lower()}", style))
         elems.append(Spacer(1, 0.1*cm))
@@ -2279,8 +2382,20 @@ class ReportGenerator:
     _PHASES_POP  = {"other": "Otra población", "japan": "Japón", "finland": "Finlandia"}
     _PHASES_SITE = {"ica": "ACI (carótida interna)", "mca": "ACM (cerebral media)",
                     "aca_pcom_posterior": "ACA / ACoP / Posterior"}
-    _PHASES_BAND = {"low": "Riesgo bajo", "moderate": "Riesgo moderado",
-                    "high": "Riesgo alto"}
+    # P16: las franjas (corte en 2 y 7 %) son de la aplicación, no de Greving.
+    _PHASES_BAND = {"low": "franja baja de la aplicación", "moderate": "franja moderada de la aplicación",
+                    "high": "franja alta de la aplicación"}
+
+    def _aviso_roto(self, escala: str) -> list:
+        """P16: PHASES, ELAPSS y UIATS son para aneurismas no rotos. Si en
+        Decisión está marcado como roto, la cifra se imprime (es lo que se
+        calculó) pero con el aviso delante, no en una nota al pie."""
+        if self._data.clinical.get("ruptured") is not True:
+            return []
+        return [Paragraph(
+            f"<b>No aplica: el aneurisma está marcado como roto.</b> {escala} se hizo para "
+            "aneurismas no rotos; la cifra de abajo no describe este caso.",
+            self._style_risk_high)]
 
     def _section_phases(self) -> list:
         ph = self._data.phases
@@ -2294,7 +2409,7 @@ class ReportGenerator:
             band, self._style_risk_low
         )
 
-        elems = [Paragraph("PHASES — riesgo de rotura a 5 años", self._style_h2)]
+        elems = [Paragraph("PHASES — riesgo de rotura a 5 años", self._style_h2)] + self._aviso_roto("PHASES")
         # El mismo rótulo que la nota de Decisión (services/phases.py): el PDF
         # decía «PHASES 9 — 5.9 %» sin fuente, con la columna de riesgo corrida.
         elems.append(Paragraph(
@@ -2363,7 +2478,7 @@ class ReportGenerator:
             return []
         pts = el.get("points", {}) or {}
         inp = el.get("inputs", {}) or {}
-        elems = [Paragraph("ELAPSS — riesgo de crecimiento a 3 y 5 años", self._style_h2)]
+        elems = [Paragraph("ELAPSS — riesgo de crecimiento a 3 y 5 años", self._style_h2)] + self._aviso_roto("ELAPSS")
         elems.append(Paragraph(
             f"ELAPSS {el.get('total_score', 0)} (banda {el.get('score_band', '—')}) — "
             f"crecimiento {cifra(float(el.get('growth_3yr_pct', 0.0)))} % a 3 años · "
@@ -2414,7 +2529,7 @@ class ReportGenerator:
         u = self._data.uiats
         if not u:
             return []
-        elems = [Paragraph("UIATS — tratar frente a vigilar", self._style_h2)]
+        elems = [Paragraph("UIATS — tratar frente a vigilar", self._style_h2)] + self._aviso_roto("UIATS")
         elems.append(Paragraph(
             f"Tratar {u.get('repair', 0)} · Vigilar {u.get('conservative', 0)} "
             f"(diferencia {u.get('difference', 0):+d}) — "

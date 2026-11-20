@@ -9,7 +9,8 @@ import { useTableta } from "../../hooks/useEstrecho";
 import { fechaHora } from "../../lib/fecha";
 import { accionPrincipal, pasoDeTarjeta, tiempoRelativo } from "../../lib/pacientes";
 import { STEPS, clampStep } from "../../pipeline/steps";
-import { Badge, riskVariant } from "../Badge";
+import { Badge } from "../Badge";
+import { MorphoRiskBadge } from "../morphometry/MorphoRiskBadge";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { ageFromDob } from "../patientAge";
@@ -144,7 +145,8 @@ export function PatientCard({ patient: p, onOpen, onResume, onPlan, tour }: Prop
         </p>
 
         <div className="pt-card-badges">
-          {p.last_risk_label && <Badge variant={riskVariant(p.last_risk_label)}>{`Riesgo ${p.last_risk_label.toLowerCase()}`}</Badge>}
+          {/* P16: «Riesgo alto» a secas se leía como riesgo de rotura (F1-68 otra vez). */}
+          {p.last_risk_label && <MorphoRiskBadge label={p.last_risk_label} />}
           {p.is_shared_with_me && <Badge variant="muted">Compartido contigo</Badge>}
           {p.shared_with_count > 0 && <Badge variant="muted">{`Compartido con ${p.shared_with_count}`}</Badge>}
         </div>

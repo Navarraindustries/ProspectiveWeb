@@ -129,7 +129,7 @@ export function UiatsCalculator({
     <div>
       <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
         Suma lo que pesa a favor de <b style={{ color: "var(--foreground)" }}>tratar</b> y lo que pesa a
-        favor de <b style={{ color: "var(--foreground)" }}>vigilar</b> (Etminan et al., <i>Neurology</i> 2015).
+        favor de <b style={{ color: "var(--foreground)" }}>vigilar</b> un aneurisma no roto (Etminan et al., <i>Neurology</i> 2015).
         Con 3 puntos o más de diferencia sugiere la mayor; con menos, cualquiera de las dos se puede defender.
       </div>
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 14, lineHeight: 1.5,

@@ -1746,6 +1746,18 @@
       "title": "Tortuosity Index Pct",
       "type": "number"
      },
+     "voxel_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Voxel of the grid the radii were measured on (mm): the inscribed diameter moves in steps of this size. Null for centrelines extracted before it was stored",
+      "title": "Voxel Mm"
+     },
      "warning": {
       "anyOf": [
        {

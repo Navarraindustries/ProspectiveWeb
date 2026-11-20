@@ -209,3 +209,21 @@ describe("curvatura y torsión del vaso portador", () => {
     expect(fila.getAttribute("title")).toMatch(/casi recto/);
   });
 });
+
+/* P15: el Ø inscrito dice con qué rejilla se midió. */
+describe("la rejilla del Ø inscrito", () => {
+  it("con la rejilla guardada, la dice y lo que supone", async () => {
+    getCenterline.mockResolvedValue({ ...metricas, voxel_mm: 0.8 });
+    render(<CenterlinePanel />);
+    const t = (await screen.findByText("Ø inscrito mínimo")).closest("[title]")!.getAttribute("title")!;
+    expect(t).toMatch(/rejilla de 0,80 mm: va a saltos de 0,80 mm/);
+    expect(t).toMatch(/Ø 2 mm sale 1,6/);
+  });
+
+  it("en una línea vieja, sin cifra inventada", async () => {
+    getCenterline.mockResolvedValue({ ...metricas, voxel_mm: null });
+    render(<CenterlinePanel />);
+    const t = (await screen.findByText("Ø inscrito medio")).closest("[title]")!.getAttribute("title")!;
+    expect(t).toMatch(/0,8 mm por defecto/);
+  });
+});

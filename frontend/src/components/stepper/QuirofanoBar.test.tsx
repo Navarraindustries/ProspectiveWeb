@@ -27,9 +27,10 @@ describe("QuirofanoBar", () => {
   });
   it("con riesgo enseña la insignia, sin riesgo no", () => {
     const { rerender } = render(<QuirofanoBar crumbs={[]} onBack={vi.fn()} riskLabel="Alto" />);
-    expect(screen.getByText("Alto")).toBeTruthy();
+    // P16: «Alto» a secas no decía de qué; ahora «Forma: alto» con el criterio en el tooltip.
+    expect(screen.getByText("Forma: alto").closest("[title]")?.getAttribute("title")).toMatch(/no una probabilidad de rotura/);
     rerender(<QuirofanoBar crumbs={[]} onBack={vi.fn()} riskLabel={null} />);
-    expect(screen.queryByText("Alto")).toBeNull();
+    expect(screen.queryByText("Forma: alto")).toBeNull();
   });
   it("la HC del paciente se enseña junto a su nombre si la miga la trae", () => {
     const { rerender } = render(<QuirofanoBar crumbs={[{ label: "Ana Pérez", detail: "HC-42" }]} onBack={vi.fn()} />);
@@ -70,7 +71,7 @@ describe("QuirofanoBar", () => {
     // La píldora izquierda solo lleva «Volver»: nada puede pisarlo.
     const izq = container.querySelector("[data-glass]") as HTMLElement;
     expect(izq.children.length).toBe(1);
-    expect(screen.queryByText("Alto")).toBeNull();
+    expect(screen.queryByText("Forma: alto")).toBeNull();
     expect(screen.getByRole("button", { name: "Más acciones" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Abrir la paleta de mandos (Ctrl+K)" })).toBeNull();
     expect(screen.queryByRole("button", { name: /tema/i })).toBeNull();
@@ -81,7 +82,8 @@ describe("QuirofanoBar", () => {
     const fn = vi.fn();
     window.addEventListener(OPEN_PALETTE_EVENT, fn);
     render(<QuirofanoBar modo="tactil" crumbs={TRES} onBack={vi.fn()} riskLabel="Alto" />);
-    expect(screen.getByText("Alto")).toBeTruthy();
+    // P16: «Alto» a secas no decía de qué; ahora «Forma: alto» con el criterio en el tooltip.
+    expect(screen.getByText("Forma: alto").closest("[title]")?.getAttribute("title")).toMatch(/no una probabilidad de rotura/);
     expect(screen.queryByText("Pacientes")).toBeNull();
     expect(screen.getByText(/Ana Pérez/)).toBeTruthy();
     expect(screen.getByText("Aneurisma de la comunicante anterior")).toBeTruthy();

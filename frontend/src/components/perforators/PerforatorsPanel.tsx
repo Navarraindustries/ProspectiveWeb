@@ -20,6 +20,9 @@ import { SectionLabel, Card } from "../PanelHead";
 import { usePlanning } from "../../store/planning";
 import { cifra } from "../../lib/numero";
 
+/** La zona por distancia al cuello (risk_level 1 = la más cercana). */
+const ZONA: Record<number, string> = { 1: "alta", 2: "media", 3: "baja" };
+
 export function PerforatorsPanel() {
   const {
     sessionId, setPerforators, visiblePerforators, togglePerforator, setVisiblePerforators,
@@ -118,7 +121,7 @@ export function PerforatorsPanel() {
           Orígenes de rama visibles, con su calibre medido sobre la malla y su
           distancia al cuello.
           {zones && zones.length === 3 && (
-            <> Zonas: alto &lt;{zones[0]} mm · medio {zones[0]}–{zones[1]} mm · bajo {zones[1]}–{zones[2]} mm.</>
+            <> Zonas por distancia al cuello: alta &lt;{zones[0]} mm · media {zones[0]}–{zones[1]} mm · baja {zones[1]}–{zones[2]} mm. Son cortes de distancia, no una probabilidad de lesionar la rama.</>
           )}
           <br />
           Pulsa una fila para mostrarla u ocultarla en el visor 3D.
@@ -223,10 +226,11 @@ export function PerforatorsPanel() {
               >
                 {cifra(p.distance_to_neck_mm, 1)} mm
               </span>
-              {/* F1-167: «Medio» solo no decía de qué: es el riesgo de
-                  pinzar esa rama con el clip, por su distancia al cuello. */}
-              <span style={{ fontSize: 11, fontWeight: 700, color: p.risk_color }}>
-                {`riesgo para el clip: ${p.risk_label.toLowerCase()}`}
+              {/* F1-167: «Medio» solo no decía de qué. P16: tampoco es un
+                  riesgo medido: es la zona por distancia al cuello. */}
+              <span style={{ fontSize: 11, fontWeight: 700, color: p.risk_color }}
+                title="Zona por distancia al cuello: cuanto más cerca, más fácil que el clip la alcance. No es una probabilidad de lesionarla.">
+                {`cerca del clip: zona ${ZONA[p.risk_level] ?? p.risk_label.toLowerCase()}`}
               </span>
             </button>
           );

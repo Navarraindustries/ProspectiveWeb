@@ -614,7 +614,7 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
                       key={e.session_date + e.session_label}
                       label={CURRENT_LABELS.has(e.session_label) ? `esta sesión · ${e.session_date}` : e.session_date}
                       value={`${cifra(e.max_diameter_mm, 1)} mm · AR ${cifra(e.ar, 2)}`}
-                      badge={[e.rupture_risk_label, riskVariant(e.rupture_risk_label)]}
+                      badge={e.rupture_risk_label ? [`forma: ${e.rupture_risk_label.toLowerCase()}`, riskVariant(e.rupture_risk_label)] : undefined}
                     />
                   ))
                 ) : (

@@ -42,7 +42,9 @@ _C = {
     "AR":          ("99PRP014",  "99PRP", "Aspect Ratio"),
     "COMPACTNESS": ("99PRP015",  "99PRP", "Compactness (Wadell Sphericity)"),
     "EQ_DIAM":     ("99PRP016",  "99PRP", "Equivalent Sphere Diameter"),
-    "RISK":        ("99PRP020",  "99PRP", "Rupture Risk Assessment"),
+    # P16: era «Rupture Risk Assessment» con valores SNOMED de riesgo alto /
+    # intermedio / bajo; es una regla de umbrales sobre la forma, sin validar.
+    "RISK":        ("99PRP020",  "99PRP", "Morphometric Shape Label (not a rupture probability)"),
     "CLIP_MODEL":  ("99PRP030",  "99PRP", "Clip Model"),
     "POS_X":       ("99PRP031",  "99PRP", "Clip Position X"),
     "POS_Y":       ("99PRP032",  "99PRP", "Clip Position Y"),
@@ -58,7 +60,8 @@ _C = {
     "PHASES":       ("99PRP070", "99PRP", "PHASES Score Assessment"),
     "PHASES_TOTAL": ("99PRP071", "99PRP", "PHASES Total Score"),
     "PHASES_RISK":  ("99PRP072", "99PRP", "PHASES 5-Year Rupture Risk"),
-    "PHASES_BAND":  ("99PRP073", "99PRP", "PHASES Risk Band"),
+    "PHASES_BAND":  ("99PRP073", "99PRP", "Application Band of PHASES Risk (not from Greving 2014)"),
+    "PHASES_SCOPE": ("99PRP074", "99PRP", "PHASES Scope"),
     # F1-237: la trayectoria con conceptos propios. Iba como dos textos bajo
     # «Clip Model»: un lector del SR veía «Clip Model: Entrada (67.0, …)».
     "TRAJ_ENTRY":     ("99PRP080", "99PRP", "Approach Entry Point"),
@@ -70,7 +73,7 @@ _C = {
     "RECOMMENDATION": ("99PRP090", "99PRP", "Treatment Recommendation"),
     "REC_KEY":        ("99PRP091", "99PRP", "Recommendation Key"),
     "REC_TEXT":       ("99PRP092", "99PRP", "Recommendation Text"),
-    "REC_CONFIDENCE": ("99PRP093", "99PRP", "Recommendation Confidence"),
+    "REC_CONFIDENCE": ("99PRP093", "99PRP", "Recommendation Confidence (heuristic margin, not a probability)"),
     "ANNOTATIONS":    ("99PRP100", "99PRP", "Annotations"),
     "ANN_COUNT":      ("99PRP101", "99PRP", "Annotation Count"),
     "ANNOTATION":     ("99PRP102", "99PRP", "Annotation"),
@@ -104,11 +107,15 @@ _U = {
     "pct":   ("%",   "UCUM", "percent"),
 }
 
-_RISK_CODES = {
-    "Alto":     ("723509005", "SCT", "High risk"),
-    "Moderado": ("723510000", "SCT", "Intermediate risk"),
-    "Bajo":     ("723511001", "SCT", "Low risk"),
+#: P16: texto, no códigos SNOMED de riesgo: un lector del SR no puede leer
+#: «High risk» como una valoración clínica del riesgo de rotura.
+_RISK_TEXT = {
+    "Alto":     "Alto (algún índice de forma supera el corte alto; regla sin validar como predicción de rotura)",
+    "Moderado": "Moderado (algún índice de forma supera el corte moderado; regla sin validar como predicción de rotura)",
+    "Bajo":     "Bajo (ningún índice de forma supera sus cortes; regla sin validar como predicción de rotura)",
 }
+_PHASES_SCOPE = ("Riesgo poblacional de rotura a 5 años de un aneurisma no roto (Greving 2014); "
+                 "no es una predicción para este paciente")
 
 
 def _code_ds(code: str, scheme: str, meaning: str) -> Dataset:
@@ -302,8 +309,8 @@ class DicomSRGenerator:
         _add("AR", "aspect_ratio", "ratio")
         _add("COMPACTNESS", "compactness", "ratio")
 
-        if self._risk in _RISK_CODES:
-            items.append(_code_item("RISK", *_RISK_CODES[self._risk]))
+        if self._risk in _RISK_TEXT:
+            items.append(_text_item("RISK", _RISK_TEXT[self._risk]))
         return _container("MORPHOMETRY", items)
 
     def _build_clip_plan_container(self) -> Dataset:
@@ -359,6 +366,7 @@ class DicomSRGenerator:
         ]
         if band:
             children.append(_text_item("PHASES_BAND", band))
+        children.append(_text_item("PHASES_SCOPE", _PHASES_SCOPE))
         return _container("PHASES", children)
 
     def _build_trajectory_container(self) -> Dataset:

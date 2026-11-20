@@ -17,7 +17,7 @@ import { UiatsCalculator } from "../morphometry/UiatsCalculator";
 export const ESCALAS = ["PHASES", "ELAPSS", "UIATS"] as const;
 type Escala = (typeof ESCALAS)[number];
 
-export function EscalasClinicas() {
+export function EscalasClinicas({ roto = false }: { roto?: boolean }) {
   const planning = usePlanning();
   const { sessionId } = planning;
   const m = planning.morphometry;
@@ -29,6 +29,16 @@ export function EscalasClinicas() {
   const bodyMm = m.body_max_diameter_mm ?? null;
   return (
     <div>
+      {/* P16: las tres son para aneurismas no rotos. Se pueden calcular (es
+          lo que el equipo decida mirar), pero con el aviso delante. */}
+      {roto && (
+        <div role="note" style={{ fontSize: 12, lineHeight: 1.5, marginBottom: 10, padding: "8px 10px",
+                                  borderRadius: "var(--radius-md)", background: "var(--warning-bg)", borderLeft: "3px solid var(--warning)",
+                                  color: "var(--foreground)" }}>
+          <b>El aneurisma está marcado como roto.</b> PHASES, ELAPSS y UIATS se hicieron para
+          aneurismas no rotos: su cifra no describe este caso.
+        </div>
+      )}
       <Tabs tabs={ESCALAS} value={tab} onChange={(t) => setTab(t as Escala)} />
       <div style={{ marginTop: 12 }}>
         {tab === "PHASES" && (

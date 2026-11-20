@@ -61,6 +61,10 @@ class CenterlineResult(BaseModel):
     curvature_sigma_mm: float = Field(
         2.0, description="Gaussian smoothing of the centreline before differentiating (mm)",
     )
+    voxel_mm: float | None = Field(
+        None, description="Voxel of the grid the radii were measured on (mm): the inscribed diameter "
+                          "moves in steps of this size. Null for centrelines extracted before it was stored",
+    )
     warning: str | None = Field(
         None, description="Warning shown for high tortuosity or degenerate geometry"
     )

@@ -9,11 +9,16 @@ import { Badge, riskVariant } from "../Badge";
 /** El criterio que decide la etiqueta (backend/services/morphometrics.py, rupture_risk).
  *  Los cortes son los de thresholds.ts: los mismos que las insignias (F1-161). */
 export const MORPHO_RISK_CRITERIA =
-  "Etiqueta de forma, no una probabilidad de rotura. Alto si AR ≥ 1,6, DNR ≥ 2,0, " +
+  "Etiqueta de forma, no una probabilidad de rotura: una regla de umbrales sin validar como " +
+  "predicción. Alto si AR ≥ 1,6, DNR ≥ 2,0, " +
   "ondulación ≥ 0,25 o cociente de tamaño ≥ 3,0; Moderado si AR ≥ 1,2, DNR ≥ 1,6, " +
   "elipticidad ≥ 0,35, ondulación ≥ 0,10 o cociente de tamaño ≥ 2,0; si no, Bajo.";
 
-export function MorphoRiskBadge({ label, measured = true }: { label: string; measured?: boolean }) {
+/** `corto`: «Forma: alto», para la barra superior y las miniaturas (P16: allí
+ *  salía «Alto» o «Riesgo alto» a secas, sin decir de qué). */
+export function MorphoRiskBadge({ label, measured = true, corto = false }: {
+  label: string; measured?: boolean; corto?: boolean;
+}) {
   if (!measured) {
     return (
       <span title="Sin índices de forma medidos no hay etiqueta: marca el cuello para medir el saco.">
@@ -23,7 +28,9 @@ export function MorphoRiskBadge({ label, measured = true }: { label: string; mea
   }
   return (
     <span title={MORPHO_RISK_CRITERIA}>
-      <Badge variant={riskVariant(label)}>{`Riesgo morfométrico ${label.toLowerCase()}`}</Badge>
+      <Badge variant={riskVariant(label)}>
+        {corto ? `Forma: ${label.toLowerCase()}` : `Riesgo morfométrico ${label.toLowerCase()}`}
+      </Badge>
     </span>
   );
 }

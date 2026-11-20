@@ -184,7 +184,7 @@ describe("«Resumen del caso»", () => {
 
   it("el riesgo de la morfometría se distingue del PHASES", async () => {
     montarCon((p) => p.setMorphometry({ max_diameter_mm: 7, rupture_risk_label: "Alto" } as never));
-    expect(await screen.findByText("Índice de forma (AR, BF, UI); no es el PHASES, que está en Morfometría"))
+    expect(await screen.findByText(/Etiqueta de forma \(AR, DNR, ondulación, elipticidad, cociente de tamaño\), sin validar como\s+predicción de rotura; no es el PHASES/))
       .toBeInTheDocument();
   });
 });

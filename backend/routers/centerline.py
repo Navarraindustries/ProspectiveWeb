@@ -21,7 +21,7 @@ from models.centerline import (
     FdSizingResult,
 )
 from models.detection import Position3D
-from services.centerline import extract_centerline
+from services.centerline import extract_centerline, voxel_linea
 from services.curvatura import SIGMA_MM
 from services.cross_section import compute_cross_sections, grade_stenosis
 from services.stent_deployment import deploy_stent_on_centerline
@@ -47,6 +47,8 @@ def _run_extraction(vessel_path, source, target, voxel_size, out_path, points_pa
         ends_in_lesion=np.array(region is not None),
         # Hasta dónde llega el vaso portador (P13): -1 = toda la línea.
         n_portador=np.array(-1 if result.n_portador is None else result.n_portador),
+        # La rejilla con la que se midió el radio (P15).
+        voxel_mm=np.array(result.voxel_mm if result.voxel_mm else 0.0),
     )
     return result
 
@@ -151,6 +153,7 @@ def _to_out(result, url: str, ends_in_lesion: bool = False) -> CenterlineResult:
         mean_torsion_per_mm=_redondeo(result.torsion_media, 4),
         curvature_length_mm=_redondeo(result.longitud_curvatura_mm, 1),
         curvature_sigma_mm=SIGMA_MM,
+        voxel_mm=_redondeo(result.voxel_mm, 2) if result.voxel_mm else None,
         warning=warning,
     )
 
@@ -193,6 +196,7 @@ async def get_centerline(session_id: str) -> CenterlineResult | None:
             radii = data["radii"].astype(float)
             en_lesion = _ends_in_lesion(data)
             n_portador = _n_portador(data, en_lesion)
+            voxel = voxel_linea(data)
     except Exception as exc:  # noqa: BLE001 — un fichero dañado es «no hay»
         logger.warning("centerline_points.npz ilegible en %s: %s", session_id, exc)
         return None
@@ -203,6 +207,7 @@ async def get_centerline(session_id: str) -> CenterlineResult | None:
         result = CenterlineExtractor._compute_metrics(pts, radii, 0)
     else:
         result = CenterlineExtractor._compute_metrics(pts, radii, n_portador)
+    result.voxel_mm = voxel
     url = f"{mesh_url(session_id, 'centerline.vtp')}?v={int(points_path.stat().st_mtime * 1000)}"
     return _to_out(result, url, ends_in_lesion=en_lesion)
 

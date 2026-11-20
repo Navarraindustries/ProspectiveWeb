@@ -31,8 +31,8 @@ export interface IndiceMorfo {
 // El texto del BF estaba invertido (F1-162): un BF alto es un cuello
 // relativamente estrecho, nunca lo contrario. El NSI no tiene corte.
 export const INDICES: readonly IndiceMorfo[] = [
-  { abbr: "DNR", titulo: "Relación domo-cuello (DNR)", detalle: `Ø máx / cuello · riesgo ↑ si ≥ ${cifra(DNR_HIGH, 1)}`, cotas: ["dmax", "cuello"] },
-  { abbr: "AR", titulo: "Relación de aspecto (AR)", detalle: `altura de domo / cuello · riesgo ↑ si ≥ ${cifra(AR_HIGH, 1)}`, cotas: ["altura", "cuello"] },
+  { abbr: "DNR", titulo: "Relación domo-cuello (DNR)", detalle: `Ø máx / cuello · cuello ancho si < ${cifra(DNR_HIGH, 1)} (Brinjikji)`, cotas: ["dmax", "cuello"] },
+  { abbr: "AR", titulo: "Relación de aspecto (AR)", detalle: `altura de domo / cuello · alto si ≥ ${cifra(AR_HIGH, 1)} (Ujiie 2001)`, cotas: ["altura", "cuello"] },
   { abbr: "BF", titulo: "Factor de cuello (BF)", detalle: `Ø domo / cuello · cuello estrecho si > ${cifra(BF_WIDE, 1)}`, cotas: ["anchura", "cuello"] },
   { abbr: "UI", titulo: "Índice de ondulación (UI)", detalle: `irregularidad del domo · alto si ≥ ${cifra(UI_HIGH, 2)}`, cotas: ["contorno"] },
   { abbr: "EI", titulo: "Índice de elipticidad (EI)", detalle: `desviación elíptica · alto si ≥ ${cifra(EI_MOD, 2)}`, cotas: ["elipse"] },

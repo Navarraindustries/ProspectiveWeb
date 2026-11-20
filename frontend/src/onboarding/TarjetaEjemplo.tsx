@@ -28,7 +28,7 @@ export function TarjetaEjemplo() {
       <div className="pt-card-body">
         <h3 className="pt-card-name">Paciente de ejemplo</h3>
         <p className="pt-card-meta">HC000000 · F · 58 años</p>
-        <div className="pt-card-badges"><Badge variant="warning">Riesgo moderado</Badge></div>
+        <div className="pt-card-badges"><Badge variant="warning">Riesgo morfométrico moderado</Badge></div>
         <div className="pt-card-bar" aria-hidden="true">
           <span style={{ width: `${(PASO / STEPS.length) * 100}%` }} />
         </div>

@@ -135,7 +135,8 @@ export function PhasesCalculator({
   return (
     <div>
       <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 14, lineHeight: 1.5 }}>
-        Riesgo de rotura a 5 años (Greving et al., <i>Lancet Neurology</i> 2014). El tamaño se
+        Riesgo de rotura a 5 años de un aneurisma <b style={{ color: "var(--foreground)" }}>no roto</b> (Greving
+        et al., <i>Lancet Neurology</i> 2014). El tamaño se
         auto-rellena desde la morfometría.
       </div>
       {/* Lo que vale la cifra, dicho junto a ella y no solo en el informe: en
@@ -202,7 +203,7 @@ export function PhasesCalculator({
                 {phasesLabel(result.total_score, result.risk_5yr_pct)}
               </div>
               <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-                {BAND_LABEL[result.risk_band]} · rotura a 5 años
+                {BAND_LABEL[result.risk_band]} · franja de la aplicación (cortes en 2 y 7 %), no de PHASES
               </div>
             </div>
           </div>

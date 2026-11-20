@@ -289,7 +289,8 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
             {/* Se leía como el riesgo de rotura del PHASES; es una etiqueta de
                 forma. La misma distinción que hace el PDF (F1-234). */}
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", padding: "4px 0 6px", lineHeight: 1.45 }}>
-              Índice de forma (AR, BF, UI); no es el PHASES, que está en Morfometría
+              Etiqueta de forma (AR, DNR, ondulación, elipticidad, cociente de tamaño), sin validar como
+              predicción de rotura; no es el PHASES
             </div>
           </>
         )}

@@ -86,8 +86,8 @@ describe("handing the perforators to the 3D scene", () => {
 
   it("states the real bands in the panel too", async () => {
     withSession({});
-    expect(await screen.findByText(/alto <3 mm/)).toBeInTheDocument();
-    expect(screen.getByText(/medio 3–5 mm/)).toBeInTheDocument();
+    expect(await screen.findByText(/alta <3 mm/)).toBeInTheDocument();
+    expect(screen.getByText(/media 3–5 mm/)).toBeInTheDocument();
   });
 });
 
@@ -195,11 +195,13 @@ describe("when there is nothing to show", () => {
 /* F1-167: «br-001 ⌀1.4 3.7 mm Medio» no decía de qué era «Medio» ni que la
    fila encendía algo en el 3D. */
 describe("lo que dice cada fila", () => {
-  it("la zona lleva «riesgo para el clip»", async () => {
+  it("la zona dice que es por distancia al cuello, no un riesgo medido (P16)", async () => {
     withSession({});
-    expect(await screen.findByText("riesgo para el clip: alto")).toBeInTheDocument();
-    expect(screen.getByText("riesgo para el clip: medio")).toBeInTheDocument();
+    const alta = await screen.findByText("cerca del clip: zona alta");
+    expect(screen.getByText("cerca del clip: zona media")).toBeInTheDocument();
+    expect(alta.getAttribute("title")).toMatch(/No es una probabilidad/);
     expect(screen.queryByText("Medio")).toBeNull();
+    expect(screen.queryByText(/riesgo para el clip/)).toBeNull();
   });
 
   it("encender una fila la resalta en el 3D y lo dice", async () => {

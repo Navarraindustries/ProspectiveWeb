@@ -53,6 +53,11 @@ class CenterlineResult:
     torsion_media:         float | None = None   # 1/mm (|τ| en el tramo curvo)
     longitud_curvatura_mm: float | None = None   # tramo medido, sin extremos
 
+    # La rejilla con la que se midió (P15): el radio sale de la transformada de
+    # distancia sobre ella, así que el Ø inscrito va a saltos de ese tamaño.
+    # Es 0,8 mm salvo que la malla sea grande y `_clamp_voxel_size` la suba.
+    voxel_mm:              float | None = None
+
     poly_data: vtk.vtkPolyData | None = field(default=None, repr=False)
 
 
@@ -153,6 +158,7 @@ class CenterlineExtractor:
             from services.curvatura import tramo_portador
             n_portador = tramo_portador(pts_final, radii, region_pts)
         result = self._compute_metrics(pts_final, radii, n_portador)
+        result.voxel_mm = float(vs)
         result.poly_data = build_tube(pts_final, radii)
         self._progress(1.0)
         logger.info(
@@ -614,6 +620,15 @@ def build_tube(pts: np.ndarray, radii: np.ndarray) -> vtk.vtkPolyData:
         tube.SetRadius(max(rmin, 0.25))
     tube.Update()
     return tube.GetOutput()
+
+
+def voxel_linea(data) -> float | None:
+    """La rejilla guardada en `centerline_points.npz`; las líneas de antes de
+    P15 no la llevan y dan None."""
+    if "voxel_mm" in data.files:
+        v = float(data["voxel_mm"])
+        return v if v > 0 else None
+    return None
 
 
 def extract_centerline(

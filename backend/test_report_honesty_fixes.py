@@ -279,7 +279,7 @@ class TestClipsDelPlan:
 
     def test_sin_evaluar_lo_dice(self):
         textos = " ".join(getattr(f, "text", "") for f in self._elems(self._sesion()))
-        assert "<b>Oclusión:</b> no evaluada" in textos
+        assert "<b>Oclusión (geometría de la línea de cierre, no mecánica):</b> no evaluada" in textos
         assert "<b>Mapa de calor:</b> no calculado con estos clips" in textos
 
     def test_la_evaluacion_sale_y_caduca_si_el_clip_se_mueve(self):

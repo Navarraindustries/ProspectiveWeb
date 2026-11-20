@@ -137,7 +137,8 @@ describe("F2 (5): portada", () => {
 
   it("F2-8: umbrales con coma, tomados de thresholds.ts, y nombres en español", () => {
     const copy = text();
-    expect(copy).toContain(`≥ ${comma(DNR_HIGH, 1)}`);
+    // P16: el corte del DNR es la definición de cuello ancho (< 2,0), no un riesgo.
+    expect(copy).toContain(`< ${comma(DNR_HIGH, 1)}`);
     expect(copy).toContain(`≥ ${comma(AR_HIGH, 1)}`);
     expect(copy).toContain(`> ${comma(BF_WIDE, 1)}`);
     expect(copy).toContain(`≥ ${comma(UI_HIGH, 2)}`);

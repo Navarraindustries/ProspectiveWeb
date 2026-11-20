@@ -234,7 +234,7 @@ describe("«Estudios»: gestión (fase 9, A34–A36)", () => {
     render(<Studies {...props} />);
     const mod = await screen.findByText("CT · 621 cortes");
     expect(mod.closest("[data-insignia='modalidad']")).toHaveStyle({ background: "var(--glass-solid)", color: "var(--foreground)" });
-    expect(screen.getByText("Alto").closest("[data-insignia='riesgo']")).toHaveStyle({ background: "var(--glass-solid)" });
+    expect(screen.getByText("Forma: alto").closest("[data-insignia='riesgo']")).toHaveStyle({ background: "var(--glass-solid)" });
   });
 
   it("Reanudar como principal; lo demás en «⋯», con Borrar en rojo y separado", async () => {

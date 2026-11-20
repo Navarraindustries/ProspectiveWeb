@@ -4268,6 +4268,11 @@ export interface components {
              */
             tortuosity_index_pct: number;
             /**
+             * Voxel Mm
+             * @description Voxel of the grid the radii were measured on (mm): the inscribed diameter moves in steps of this size. Null for centrelines extracted before it was stored
+             */
+            voxel_mm?: number | null;
+            /**
              * Warning
              * @description Warning shown for high tortuosity or degenerate geometry
              */

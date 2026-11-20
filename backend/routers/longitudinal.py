@@ -42,7 +42,8 @@ def _ps_to_entry(ps: PlanningSession, label: str | None = None,
         volume_mm3          = ps.volume_mm3       or 0.0,
         ar                  = ps.ar               or 0.0,
         dnr                 = ps.dnr              or 0.0,
-        rupture_risk_label  = ps.rupture_risk_label or "Bajo",
+        # P16: una sesión sin medir no es «Bajo»; se queda sin etiqueta.
+        rupture_risk_label  = ps.rupture_risk_label or "",
     )
 
 
@@ -93,7 +94,11 @@ def _growth_message(deltas: list[LongitudinalDelta]) -> str | None:
     if not concerning:
         return None
     labels = ", ".join(d.label for d in concerning)
-    return f"Crecimiento significativo en: {labels}. Considerar revision clinica."
+    # P16: decía «Crecimiento significativo… Considerar revisión clínica». Los
+    # cortes son de la aplicación y no restan el error de la medida.
+    return (f"Cambio por encima del corte de la aplicación en: {labels} (1 mm de diámetro, "
+            f"20 % de volumen, 0,15 de AR). Los cortes son propios y no restan el error de "
+            f"la medida: revisarlo sobre las imágenes.")
 
 
 # ── GET /longitudinal/{session_id} ────────────────────────────────────────── #
@@ -130,7 +135,7 @@ async def get_longitudinal(
             vol     = _read_float(session_id, "morpho.volume_mm3")
             ar_val  = _read_float(session_id, "morpho.ar")
             dnr_val = _read_float(session_id, "morpho.dnr")
-            risk    = read_state(session_id, "morpho.rupture_risk", "") or "Bajo"
+            risk    = read_state(session_id, "morpho.rupture_risk", "") or ""
 
             current_entry = LongitudinalEntry(
                 session_date       = date.today(),

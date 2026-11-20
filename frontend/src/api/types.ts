@@ -194,6 +194,8 @@ export interface CenterlineResult {
   curvature_length_mm?: number | null;
   /** Suavizado de la línea antes de derivar (mm). */
   curvature_sigma_mm?: number;
+  /** Rejilla con la que se midió el radio (mm): el Ø inscrito va a saltos de ese tamaño. Null en líneas viejas. */
+  voxel_mm?: number | null;
   warning: string | null;
 }
 

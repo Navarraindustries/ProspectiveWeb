@@ -156,7 +156,7 @@ export const PISTAS_PASO: Record<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8, Explicacion> = {
     titulo: "Decisión terapéutica",
     como: "Indica estado y contexto clínico; verás PHASES o JSDB según el caso, y la geometría.",
     cuando: "Antes de elegir dispositivo.",
-    porque: "Propone clipaje o endovascular con escalas publicadas; decides tú.",
+    porque: "Propone clipaje o endovascular con reglas de pesos elegidos a mano; decides tú.",
   },
   6: {
     titulo: "Prueba un clip",

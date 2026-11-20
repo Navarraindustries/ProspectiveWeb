@@ -118,7 +118,7 @@ function Ilustracion({ refs, movil, altoHoja = 0 }: { refs: MutableRefObject<(HT
           <div className="qz-pastilla qz-pastilla--donde" ref={ref(3)}>
             <span className="qz-flecha">←</span>
             <span className="qz-ruta">Pacientes › Paciente de práctica (HC 0001) › Caso 1</span>
-            <span className="qz-riesgo">Riesgo bajo</span>
+            <span className="qz-riesgo">Forma: bajo</span>
           </div>
           <div className="qz-pastilla qz-pastilla--guardar" ref={ref(4)}>
             <span className="qz-guardado">Guardado</span>

@@ -16,7 +16,8 @@ import { fechaDia } from "../../lib/fecha";
 import { modalidadesDe } from "../../lib/modalidades";
 import { NuevoEstudioSheet } from "../../pages/NuevoCaso";
 import { STEP_LABELS, clampStep } from "../../pipeline/steps";
-import { Badge, riskVariant } from "../Badge";
+import { Badge } from "../Badge";
+import { MorphoRiskBadge } from "../morphometry/MorphoRiskBadge";
 import { Button } from "../Button";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { Icon } from "../Icon";
@@ -197,7 +198,7 @@ export function ColumnaCasos({
                   <div className="fc-fila-acciones" style={{ alignItems: "center" }}>
                     <Badge variant="data">{`Paso ${clampStep(ultima.current_step) + 1} · ${STEP_LABELS[clampStep(ultima.current_step)]}`}</Badge>
                     {ultima.rupture_risk_label && (
-                      <Badge variant={riskVariant(ultima.rupture_risk_label)}>{`Riesgo ${ultima.rupture_risk_label.toLowerCase()}`}</Badge>
+                      <MorphoRiskBadge label={ultima.rupture_risk_label} />
                     )}
                     {onResume && <BotonReanudar onResume={onResume} sessionId={ultima.session_id} />}
                   </div>

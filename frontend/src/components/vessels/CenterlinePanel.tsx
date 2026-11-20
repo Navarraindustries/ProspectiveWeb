@@ -64,6 +64,19 @@ function torsionTitulo(r: CenterlineResult): string {
   );
 }
 
+/** Tooltip del Ø inscrito: la rejilla con la que se midió (P15). */
+function inscritoTitulo(r: CenterlineResult): string {
+  const base = "Diámetro de la esfera más grande que cabe en el vaso a lo largo del eje. ";
+  if (r.voxel_mm == null)
+    return base + "Se mide sobre una rejilla de vóxeles (0,8 mm por defecto): va a saltos de ese tamaño.";
+  const v = cifra(r.voxel_mm, 2);
+  return (
+    base +
+    `Medido sobre una rejilla de ${v} mm: va a saltos de ${v} mm y un vaso fino sale algo más estrecho ` +
+    `(en un tubo de prueba de Ø 2 mm sale ${cifra(2 - r.voxel_mm / 2, 1)}).`
+  );
+}
+
 export function CenterlinePanel() {
   const {
     sessionId, segmentation, pickMode, clSource, clTarget, centerlineMesh,
@@ -338,9 +351,11 @@ export function CenterlinePanel() {
           {/* F1-168: esta tabla y la de secciones decían las dos «Ø medio /
               mínimo / máximo» con cifras distintas. Aquí es el Ø de la esfera
               inscrita a lo largo del eje; abajo, el del círculo de igual área. */}
-          <Metric label="Ø inscrito medio" value={cifra(result.mean_diameter_mm, 2)} unit=" mm" />
-          <Metric label="Ø inscrito mínimo" value={cifra(result.min_diameter_mm, 2)} unit=" mm" />
-          <Metric label="Ø inscrito máximo" value={cifra(result.max_diameter_mm, 2)} unit=" mm" />
+          <div title={inscritoTitulo(result)}>
+            <Metric label="Ø inscrito medio" value={cifra(result.mean_diameter_mm, 2)} unit=" mm" />
+            <Metric label="Ø inscrito mínimo" value={cifra(result.min_diameter_mm, 2)} unit=" mm" />
+            <Metric label="Ø inscrito máximo" value={cifra(result.max_diameter_mm, 2)} unit=" mm" />
+          </div>
           {/* Angioscopia virtual: la cámara del 3D entra por el origen y avanza
               por el eje hasta el destino (vesselWalk). Hacen falta los puntos. */}
           <Button variant="outline" style={{ width: "100%", marginTop: 10 }} disabled={!centerline}

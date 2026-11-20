@@ -325,8 +325,10 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
     que está resuelta cuando las dos cifras no apuntan al mismo sitio.
     """
     notes = [
-        f"Aneurisma muy pequeño (Ø {cifra(diameter_mm)} mm < 3 mm): el riesgo "
-        f"procedimental generalmente supera el riesgo de rotura."
+        # P16: antes decía que el riesgo del procedimiento «generalmente supera»
+        # al de rotura, sin fuente y sin que la aplicación estime ninguno de los dos.
+        f"Aneurisma muy pequeño (Ø {cifra(diameter_mm)} mm < 3 mm): a este tamaño se "
+        f"suele vigilar. La aplicación no estima el riesgo del procedimiento."
     ]
     # Este camino no evalúa ningún factor, así que no hay cobertura que declarar:
     # lo que decide es el tamaño y, ahora, el riesgo de rotura estimado.
@@ -381,8 +383,10 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
         ))
     else:
         notes.append(
-            f"El riesgo de rotura lo acompaña: {phases_label(score, risk)} "
-            f"({'moderado' if band == 'moderate' else 'bajo'}). "
+            # P16: la franja es de la aplicación (corte en 2 y 7 %), no de PHASES.
+            f"El riesgo de rotura lo acompaña: {phases_label(score, risk)}, "
+            f"franja {'moderada' if band == 'moderate' else 'baja'} de la aplicación "
+            f"(estimación poblacional, no de este paciente). "
             f"Seguimiento con imagen." + caveat
         )
         confidence = "Alta" if band == "low" else "Moderada"
@@ -542,7 +546,8 @@ def compute_decision(
         if max_diameter_mm > 25.0:
             _add(
                 f"Aneurisma gigante (Ø = {cifra(max_diameter_mm)} mm > 25 mm)",
-                "Gigante (>25 mm): flow diverter (PED) es tratamiento de elección.",
+                "Gigante (>25 mm): se suele valorar flow diverter o bypass; no es una "
+                "indicación automática.",
                 "endo", 20, "size",
             )
             notes.append(
@@ -558,7 +563,10 @@ def compute_decision(
         elif max_diameter_mm < 5.0:
             _add(
                 f"Aneurisma pequeño (Ø = {cifra(max_diameter_mm)} mm < 5 mm)",
-                "Pequeño (<5 mm): clipping más fiable para exclusión completa.",
+                # P16: decía «clipping más fiable para exclusión completa», un
+                # resultado que ninguna fuente de este peso mide.
+                "Pequeño (<5 mm): saco pequeño para los coils; peso elegido a mano a favor "
+                "del clipaje, sin cohorte que mida el resultado.",
                 "clip", 8, "size",
             )
         # 5–12 mm: neutral (no factor added)
@@ -599,8 +607,8 @@ def compute_decision(
         if undulation_index >= T.UI_HIGH:
             _add(
                 f"Domo muy irregular (UI = {cifra(undulation_index, 3)} ≥ {cifra(T.UI_HIGH, 2)})",
-                f"UI ≥ {cifra(T.UI_HIGH, 2)}: morfología lobulada; riesgo de llenado incompleto "
-                f"con coils.{aviso_padre}",
+                f"UI ≥ {cifra(T.UI_HIGH, 2)}: morfología lobulada, que puede complicar el "
+                f"relleno con coils (sin validación para el resultado).{aviso_padre}",
                 "clip", 10, "ui", votes=False,
             )
         elif undulation_index >= T.UI_MOD:

@@ -135,7 +135,7 @@ describe("ficha del caso: miniatura, paso, riesgo y Reanudar (A37, A41)", () => 
                   sesiones={[ses({}), ses({ session_id: "s0", updated_at: "2026-10-01T10:00:00" })]} />);
     expect(screen.getByText(/30\/10\/26/)).toBeInTheDocument();
     expect(screen.getByText("Paso 3 · Detección")).toBeInTheDocument();
-    expect(screen.getByText("Riesgo alto")).toBeInTheDocument();
+    expect(screen.getByText("Riesgo morfométrico alto")).toBeInTheDocument();   // P16
     await waitFor(() => expect(studyThumbnailObjectUrl).toHaveBeenCalledWith(40));
     fireEvent.click(screen.getByRole("button", { name: "Reanudar" }));
     expect(onResume).toHaveBeenCalledWith("s1");

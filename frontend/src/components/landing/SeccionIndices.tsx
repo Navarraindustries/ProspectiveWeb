@@ -37,8 +37,9 @@ export function Indices() {
         </div>
       </div>
       <p className="sec__nota">
-        Cuello, altura máxima y forma del saco. El sistema traduce las siglas a un nivel de riesgo
-        (bajo · moderado · alto). Referencias: Greving 2014 · Dhar 2008 · Raghavan 2005 · Wadell.
+        Cuello, altura máxima y forma del saco. Con sus cortes, el sistema resume la forma en una
+        etiqueta (bajo · moderado · alto) que no es una probabilidad de rotura. Índices: Dhar 2008 ·
+        Raghavan 2005 · Wadell; el riesgo de rotura a 5 años es el PHASES (Greving 2014).
       </p>
     </Seccion>
   );

@@ -66,9 +66,12 @@ class TestDicomSR:
         assert morph.ValueType == "CONTAINER"
         num_items = [it for it in morph.ContentSequence if it.ValueType == "NUM"]
         assert len(num_items) >= 5
-        # Risk encoded as a CODE item.
-        code_items = [it for it in morph.ContentSequence if it.ValueType == "CODE"]
-        assert len(code_items) == 1
+        # P16: la etiqueta de forma va como TEXT con su aviso, no como CODE
+        # SNOMED de riesgo (se leía como valoración del riesgo de rotura).
+        assert not [it for it in morph.ContentSequence if it.ValueType == "CODE"]
+        forma = [it for it in morph.ContentSequence if it.ValueType == "TEXT"
+                 and it.ConceptNameCodeSequence[0].CodeValue == "99PRP020"]
+        assert len(forma) == 1 and "sin validar" in str(forma[0].TextValue)
 
 
 # ── F1-206: la geometría del stent con una sola expresión ─────────────────── #
@@ -200,7 +203,7 @@ class TestLoQueElPdfDiceYElSrNoLlevaba:
 
         rec = _contenedor(ds, "Treatment Recommendation")
         assert _conceptos(rec) == ["Recommendation Key", "Recommendation Text",
-                                   "Recommendation Confidence"]
+                                   "Recommendation Confidence (heuristic margin, not a probability)"]
         assert [str(c.TextValue) for c in rec.ContentSequence] == [
             "clip", "CLIPAJE MICROQUIRÚRGICO", "Moderada"]
 

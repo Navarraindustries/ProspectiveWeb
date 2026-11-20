@@ -127,8 +127,12 @@ class TestInformeEstructuradoDicom:
         valores = {float(it.MeasuredValueSequence[0].NumericValue) for it in nums}
         assert {3.2, 7.5, 2.1} <= valores
         assert 0.0 not in valores, "una medida a cero no se informa"
+        # P16: la etiqueta de forma va como texto con su aviso, no como el
+        # código SNOMED «High risk», que un lector leía como riesgo de rotura.
+        textos = [str(it.TextValue) for it in _hojas(ds) if it.ValueType == "TEXT"]
+        assert any(t.startswith("Alto (") and "sin validar" in t for t in textos)
         codigos = [it for it in _hojas(ds) if it.ValueType == "CODE"]
-        assert any(c.ConceptCodeSequence[0].CodeMeaning == "High risk" for c in codigos)
+        assert not any(c.ConceptCodeSequence[0].CodeMeaning == "High risk" for c in codigos)
 
     def test_los_dispositivos_planificados_entran_en_el_informe(self, tmp_path):
         import pydicom

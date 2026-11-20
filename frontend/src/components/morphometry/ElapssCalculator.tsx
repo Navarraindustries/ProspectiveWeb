@@ -82,7 +82,7 @@ export function ElapssCalculator({
   return (
     <div>
       <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 14, lineHeight: 1.5 }}>
-        Riesgo de <b style={{ color: "var(--foreground)" }}>crecimiento</b> a 3 y 5 años (Backes
+        Riesgo de <b style={{ color: "var(--foreground)" }}>crecimiento</b> a 3 y 5 años de un aneurisma no roto (Backes
         et al., <i>Neurology</i> 2017). No es riesgo de rotura: sirve para decidir cada
         cuánto repetir la imagen. El tamaño se rellena desde la morfometría.
       </div>

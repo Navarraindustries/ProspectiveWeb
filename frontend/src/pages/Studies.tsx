@@ -9,7 +9,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { StudyCard } from "../api/types";
-import { Badge, riskVariant } from "../components/Badge";
+import { MorphoRiskBadge } from "../components/morphometry/MorphoRiskBadge";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useAuth } from "../store/auth";
@@ -79,7 +79,7 @@ function Thumbnail({ study }: { study: StudyCard }) {
             background: "var(--glass-solid)", border: "var(--glass-rim) solid var(--glass-border)", color: "var(--foreground)",
           }}
         >
-          <Badge variant={riskVariant(study.rupture_risk_label as never)}>{study.rupture_risk_label}</Badge>
+          <MorphoRiskBadge label={study.rupture_risk_label} corto />
         </span>
       )}
     </>

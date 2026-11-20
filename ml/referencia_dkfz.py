@@ -83,7 +83,11 @@ def main(argv=None) -> int:
             if sid in hechos:
                 continue
             t0 = time.perf_counter()
-            imagen = process_series(args.estudios / sid)
+            try:
+                imagen = process_series(args.estudios / sid)
+            except Exception as e:  # un estudio ilegible no para la pasada; se reintenta al relanzar
+                print(f"[{sid}] FALLO al leer: {type(e).__name__}: {e}", flush=True)
+                continue
             vol = sitk.GetArrayFromImage(imagen)
             espaciado = np.flip(np.array(imagen.GetSpacing()))
             caja = get_bbox(vol, espaciado)

@@ -1,8 +1,28 @@
-# PROSPECTIVE Web
+<h1 align="center">PROSPECTIVE Web</h1>
 
-> Computer-assisted planning for cerebral aneurysm surgery, in the browser.
-> FastAPI backend (VTK · SimpleITK · pydicom) + React/TypeScript frontend with
-> real-time 3D and MPR viewers — the web port of the PROSPECTIVE desktop app.
+<p align="center">
+  <b>Planificación asistida por computador de la cirugía de aneurismas cerebrales, en el navegador.</b><br>
+  Se sube un estudio DICOM y se obtiene el modelo vascular en 3D, la lesión localizada y medida,<br>
+  la comparación entre clipaje y tratamiento endovascular, los dispositivos ajustados y el informe.
+</p>
+
+<p align="center">
+  <img alt="Pruebas de backend" src="https://img.shields.io/badge/pruebas%20backend-2601-2ea44f">
+  <img alt="Archivos de pruebas de frontend" src="https://img.shields.io/badge/pruebas%20frontend-312%20archivos-2ea44f">
+  <img alt="API" src="https://img.shields.io/badge/API-179%20operaciones-1f6feb">
+  <img alt="Python" src="https://img.shields.io/badge/python-3.11%2B-3776ab">
+  <img alt="React" src="https://img.shields.io/badge/react-19-61dafb">
+  <img alt="IA" src="https://img.shields.io/badge/detector%20de%20IA-en%20desarrollo-f59e0b">
+</p>
+
+> Backend en FastAPI (VTK · SimpleITK · pydicom) y frontend en React/TypeScript con
+> visores 3D y MPR en tiempo real: la versión web de la aplicación de escritorio PROSPECTIVE.
+
+| | |
+|---|---|
+| **Qué hace hoy** | El flujo completo de planificación en ocho pasos, registro de pacientes, archivo de estudios, sesiones que se retoman, roles y una cadena de auditoría a prueba de manipulación |
+| **Novedades de noviembre de 2026** | Luz que queda tras el clip, porosidad del flow diverter y despliegue en tres clics, métricas de sección en el IVUS, cuello con todo el detalle, curvatura del vaso portador y un filtro de cerebro para el detector |
+| **En desarrollo** | Un detector de aneurismas con IA y un modelo de vasos que separa arterias de venas, entrenados con datasets públicos: ver [Hoja de ruta de IA](#hoja-de-ruta-de-ia-detector-y-modelo-de-vasos) |
 
 ---
 
@@ -10,6 +30,7 @@
 
 - [Overview](#overview)
 - [Status](#status)
+- [Hoja de ruta de IA: detector y modelo de vasos](#hoja-de-ruta-de-ia-detector-y-modelo-de-vasos)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Prerequisites](#prerequisites)
@@ -74,12 +95,85 @@ approval, and a tamper-evident audit chain.
 
 ## Status
 
+Al 20 de noviembre de 2026.
+
 | | |
 |---|---|
-| Backend tests | **2316** (`pytest`, 167 files) |
-| Frontend tests | **2847** (`vitest`, 266 files) · `tsc -b` clean · production build clean |
-| REST endpoints | **168** operations (30 routers), all authenticated except login/signup/logout; `/docs` and `/openapi.json` also require a session |
-| Feature parity with desktop | **Complete** |
+| Pruebas de backend | **2601** recogidas (`pytest`, 194 archivos) |
+| Pruebas de frontend | **312** archivos de pruebas (`vitest`) · `tsc -b` limpio · build de producción limpio |
+| Endpoints REST | **179** operaciones (32 routers), todas autenticadas salvo login/signup/logout; `/docs` y `/openapi.json` también piden sesión |
+| Paridad con la aplicación de escritorio | **Completa** |
+| Modelos de IA | **En desarrollo**: datos preparados y código de entrenamiento escrito |
+
+### Novedades de noviembre de 2026
+
+| Área | Qué cambió |
+|---|---|
+| Clipaje | Porcentaje de luz que queda en la arteria madre y en sus ramas tras el clip, con secciones sobre la línea central |
+| Flow diverters | Cobertura metálica, porosidad y poros/mm² en el cuello a partir del trenzado del catálogo, longitud desplegada en ese vaso y despliegue en tres clics (proximal, distal y saco) |
+| IVUS virtual | Diámetro por perímetro, diámetro inscrito y circularidad por sección, con un gráfico de secciones que mueve la cámara |
+| Malla | «Ver el cuello con todo el detalle» rehace una esfera de 10 mm con menos desenfoque y sin decimar, para conservar los orígenes de ramas finas |
+| Línea central | Curvatura y torsión medias del vaso portador sobre la línea suavizada; un fantoma sintético de tubos vigila la extracción como prueba de regresión |
+| Informe | Dice el tamaño de vóxel con el que se tomó cada medida; ningún índice sin validar se presenta como predicción |
+| Detector | Máscara de cerebro opcional que quita los candidatos lejos del cerebro; curva FROC y especificidad por paciente sobre el banco de estudios |
+
+### En desarrollo
+
+| Trabajo | Estado |
+|---|---|
+| Detector de aneurismas con IA (angio-TC primero, después angio-RM TOF) | Datos de entrenamiento convertidos y repartidos; código de entrenamiento escrito |
+| Modelo de vasos (arterias y venas) | En evaluación de modelos publicados |
+| Verificador de candidatos | Entrenado con validación cruzada; falta integrarlo en la aplicación |
+| Preprocesado de angio-RM (N4 y remuestreo a 1 mm) | Pendiente |
+| Comparación de dispositivos lado a lado y kit de impresión 3D automático | Pendiente |
+
+---
+
+## Hoja de ruta de IA: detector y modelo de vasos
+
+El detector que tiene hoy la aplicación es geométrico: lee la malla de los vasos y
+ordena los candidatos por curvatura y calibre. Se están construyendo dos modelos de
+IA que trabajan a su lado, sin reemplazarlo. Todo se evalúa sobre el mismo banco:
+los 172 estudios de angio-TC de cabeza de Zenodo 15697196 (82 con aneurisma, 122
+lesiones y 90 controles), que ningún modelo ve durante el entrenamiento.
+
+### Las piezas
+
+| Pieza | Qué hace | Estado |
+|---|---|---|
+| **Detector de IA** | Busca aneurismas directamente en la imagen, para cubrir las lesiones que la geometría no propone y poder decir «sin hallazgos» en un estudio sano | Datos y código listos; entrenamiento pendiente |
+| **Modelo de vasos** | Clasifica cada vóxel como arteria, vena o resto: de ahí salen la malla arterial que se mide y el filtro que acota los hallazgos | En evaluación de modelos publicados |
+| **Filtro de cerebro** | Quita los candidatos que caen lejos del cerebro, con una máscara externa | Medido sobre los 172 estudios; margen por fijar en la aplicación |
+| **Verificador de candidatos** | Una red pequeña que revisa cada candidato del detector geométrico y reordena la lista | Entrenado con validación cruzada; falta integrarlo |
+
+### El detector que se entrena
+
+| | |
+|---|---|
+| Método | nnU-Net (ResEnc M), un modelo por modalidad, empezando por angio-TC |
+| Datos de entrenamiento | Series de angio-TC de RSNA Intracranial Aneurysm Detection, convertidas con `ml/rsna_a_nnunet.py`; quedan fuera las de cortes de más de 2 mm y las de hueso sustraído |
+| Etiquetas | Una esfera de 4 mm en cada punto anotado (RSNA da puntos, no máscaras) |
+| Particiones | Cinco, fijas, por paciente y con la misma proporción de casos con aneurisma |
+| Evaluación | Los 172 estudios de Zenodo, con la misma regla de distancia que el detector geométrico |
+| Dónde corre | GPU en la nube (AWS SageMaker); cada trabajo lleva un tiempo máximo y un techo de costo |
+
+### Datos y licencias
+
+Los modelos de esta fase son de investigación. La mayor parte de los datos con los
+que se pueden entrenar no permite uso comercial.
+
+| Dataset | Para qué se usa | Uso comercial |
+|---|---|---|
+| RSNA Intracranial Aneurysm Detection | Entrenamiento (angio-TC y angio-RM) | No |
+| Zenodo 15697196 | Solo evaluación | Sí (CC BY 4.0) |
+| Lausanne y Royal Brisbane TOF-MRA (OpenNeuro) | Entrenamiento y evaluación en angio-RM | Sí (CC0) |
+| CMHA | Validación de la morfometría | Sí (CC BY 4.0) |
+| TopAneu 2026 | Más angio-TC y angio-RM con máscaras | Con permiso de los dueños |
+
+Un detector comercial de angio-TC necesitaría un acuerdo con el dueño de algún
+dataset o datos de un hospital asociado. No existe ningún dataset público de
+angiografía 2D (DSA) con aneurismas etiquetados, y solo uno de angiografía
+rotacional 3D.
 
 ---
 
@@ -108,14 +202,22 @@ ProspectiveWeb/
 ├── Makefile                # Dev shortcuts
 ├── start-all.bat           # Windows: launches backend + frontend in two windows
 │
+├── ml/                     # IA: conversión de datasets, particiones y lanzador de entrenamiento
+│   ├── rsna_a_nnunet.py          # series DICOM de RSNA → volúmenes y etiquetas de nnU-Net
+│   ├── convertir_y_subir_rsna.py # convierte por tandas y sube a S3
+│   ├── particiones.py            # particiones fijas por paciente a partir del manifest
+│   ├── referencia_dkfz.py        # corre un detector publicado y guarda dónde ve cada lesión
+│   └── sagemaker/                # entrenamiento y lanzador con techo de costo obligatorio
+│
 ├── backend/
 │   ├── main.py             # FastAPI app: lifespan, CORS, static mounts, guarded routers
 │   ├── requirements.txt          # dependencias directas
 │   ├── requirements-lock.txt     # versiones fijadas: de aquí se instala (CI, Docker, Makefile)
 │   ├── models/    (25)     # Pydantic request/response schemas
-│   ├── routers/   (30)     # Route handlers, one file per domain
-│   ├── services/  (83)     # Qt-free business logic, shared with the desktop app
-│   ├── test_*.py  (165)    # pytest suites
+│   ├── routers/   (32)     # Route handlers, one file per domain
+│   ├── services/  (97)     # Qt-free business logic, shared with the desktop app
+│   ├── scripts/   (29)     # Bancos de medida, validación y evaluaciones puntuales
+│   ├── test_*.py  (194)    # pytest suites
 │   ├── data/               # PUBLIC static mount — sessions, meshes, reports
 │   ├── clip_library/       # PRIVATE: institutional clips + templates (gitignored)
 │   ├── study_files/        # PRIVATE archive: DICOM of archived studies (gitignored)
@@ -129,7 +231,7 @@ ProspectiveWeb/
     │   ├── components/     # Design-system primitives + one panel per pipeline step
     │   ├── vtk/            # MeshView · VolumeView · MprView · ObliqueMprView · Viewer
     │   ├── store/          # planning · auth · nav · theme contexts
-    │   ├── **/*.test.* (259) # vitest + Testing Library suites, next to their code
+    │   ├── **/*.test.* (312) # vitest + Testing Library suites, next to their code
     │   └── styles/tokens/  # Design tokens (light/dark via [data-theme])
     └── public/media/       # Intro / loading / landing videos
 ```

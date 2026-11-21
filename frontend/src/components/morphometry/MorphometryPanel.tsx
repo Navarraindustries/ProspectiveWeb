@@ -88,8 +88,10 @@ const CURRENT_LABELS = new Set(["Estudio actual", "Sesion actual", "Sesión actu
    thresholds.ts; el NSI y la compacidad no tienen ninguno en la aplicación, y
    así se dice en vez de inventarlo. */
 const MORE_TIP = {
-  ei: `Elipticidad: alargamiento del saco frente a una esfera (Raghavan 2005). Alto desde ${cifra(EI_MOD, 2)}, el mismo corte que la etiqueta de riesgo.`,
-  nsi: "No-esfericidad: desviación global de la esfera (1 − compacidad; Raghavan 2005). La aplicación no le pone corte ni lo usa en la etiqueta de riesgo.",
+  ei: `Elipticidad: cuánto se aparta de una semiesfera la envolvente convexa del saco, sin el disco del cuello (Raghavan 2005): el alargamiento sin contar la ondulación. Alto desde ${cifra(EI_MOD, 2)}, el mismo corte que la etiqueta de riesgo; el corte es de la aplicación.`,
+  nsi: "No-esfericidad: cuánto se aparta el saco de una semiesfera, con su área sin el disco del cuello (Raghavan 2005). La aplicación no le pone corte ni lo usa en la etiqueta de riesgo.",
+  dmax: "Mayor distancia entre dos puntos del saco: no depende de cómo esté girado el estudio. Es la cifra de las franjas de tamaño (PHASES, Decisión).",
+  dome: "Ancho máximo del domo en cortes paralelos al cuello, medido con calibre: el numerador del DNR y del BF (Brinjikji 2009, Hoh 2007).",
   compactness: "Wadell: 1 es una esfera; valores bajos indican lobulación",
   eq: "Diámetro de la esfera con el mismo volumen",
 };
@@ -243,6 +245,8 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
   // nulled zeros as if they were measurements.
   const volOk = m ? (m.volume_valid ?? m.reliable) : false;
   const neckOk = m ? (m.neck_valid ?? m.reliable) : false;
+  // P17: EI y NSI quitan el disco del cuello del área: sin cuello no se miden.
+  const shapeOk = volOk && neckOk;
   // F1-151: sin ningún índice de forma medido la etiqueta no tiene de qué salir.
   const riskMeasured = volOk || neckOk;
   // F1-157: con el saco hasta el límite del recorte, Ø, volumen e índices
@@ -485,8 +489,10 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
                     mismo: con una sola bandera combinada, un cuello perfectamente
                     medido se ocultaba en cuanto fallaba el volumen — mientras el
                     visor, que no consulta la bandera, seguía anotándolo en 3D. */}
-                <Metric label="Ø máximo" value={(m.reliable ? <Odometro value={m.max_diameter_mm} decimals={1} /> : cifra(m.max_diameter_mm, 1))} unit=" mm"
-                        badge={provisional ? ["provisional", "warning"] : undefined} />
+                <div title={MORE_TIP.dmax}>
+                  <Metric label="Ø máximo" value={(m.reliable ? <Odometro value={m.max_diameter_mm} decimals={1} /> : cifra(m.max_diameter_mm, 1))} unit=" mm"
+                          badge={provisional ? ["provisional", "warning"] : undefined} />
+                </div>
                 {avisoCorte && (
                   <div style={{ fontSize: 11, lineHeight: 1.5, color: "var(--warning)", margin: "4px 0 6px" }}>
                     {avisoCorte}
@@ -499,6 +505,13 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
                 )}
                 <Metric label="Cuello" value={neckOk ? (m.reliable ? <Odometro value={m.neck_mm} decimals={1} /> : cifra(m.neck_mm, 1)) : "—"} unit={neckOk ? " mm" : ""} />
                 <Metric label="Altura de domo" value={neckOk ? (m.reliable ? <Odometro value={m.dome_height_mm} decimals={1} /> : cifra(m.dome_height_mm, 1)) : "—"} unit={neckOk ? " mm" : ""} />
+                {/* P17: el numerador del DNR y del BF. Las sesiones medidas antes
+                    no lo traen y la fila no sale. */}
+                {m.dome_width_mm != null && (
+                  <div title={MORE_TIP.dome}>
+                    <Metric label="Ancho del domo" value={neckOk && m.dome_width_mm > 0 ? cifra(m.dome_width_mm, 1) : "—"} unit={neckOk && m.dome_width_mm > 0 ? " mm" : ""} />
+                  </div>
+                )}
                 <Metric label="Volumen" value={volOk ? (m.reliable ? <Odometro value={m.volume_mm3} decimals={1} /> : cifra(m.volume_mm3, 1)) : "—"} unit={volOk ? " mm³" : ""}
                         badge={provisional && volOk ? ["provisional", "warning"] : undefined} />
                 {/* F1-159: con la malla abierta el área es la del parche, no la del
@@ -577,10 +590,10 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
                 <div style={{ marginTop: 12 }}>
                   <Collapsible title="Más índices" subtitle="Elipticidad, no-esfericidad, compacidad, Ø esfera equivalente" storageKey="morfo.mas-indices">
                     <div title={MORE_TIP.ei}>
-                      <Metric label="EI · Elipticidad" value={volOk ? cifra(m.ei, 2) : "—"} badge={!volOk ? ["sin medir", "outline"] : badgeFor("ei", m.ei)} />
+                      <Metric label="EI · Elipticidad" value={shapeOk ? cifra(m.ei, 2) : "—"} badge={!shapeOk ? ["sin medir", "outline"] : badgeFor("ei", m.ei)} />
                     </div>
                     <div title={MORE_TIP.nsi}>
-                      <Metric label="NSI · No-esfericidad" value={volOk ? cifra(m.nsi, 2) : "—"} badge={!volOk ? ["sin medir", "outline"] : undefined} />
+                      <Metric label="NSI · No-esfericidad" value={shapeOk ? cifra(m.nsi, 2) : "—"} badge={!shapeOk ? ["sin medir", "outline"] : undefined} />
                     </div>
                     <div title={MORE_TIP.compactness}>
                       <Metric label="Compacidad (Wadell)" value={volOk ? cifra(m.compactness, 2) : "—"} badge={!volOk ? ["sin medir", "outline"] : undefined} />

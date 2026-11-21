@@ -16,6 +16,11 @@ Lo que se sabe de cada corte, sin adornarlo:
 - BF: el índice es de Hoh 2007; el corte de 1,5 es de la aplicación.
 - UI: el índice es de Raghavan 2005; 0,10 y 0,25 son de la aplicación.
 - SR: el índice es de Dhar 2008; 2,0 y 3,0 son de uso corriente.
+- EI: el índice es de Raghavan 2005; 0,35 es de la aplicación. Hasta P17
+  (20-11-2026) la aplicación daba como EI la fórmula del NSI sobre el saco
+  tapado: en los 100 sacos de CMHA (O2), mediana 0,33 frente a 0,10 del EI bien
+  calculado; el corte saltaba en 39 de los 100 y con el EI correcto en ninguno
+  (máximo 0,21). El corte está por revisar.
 """
 from __future__ import annotations
 

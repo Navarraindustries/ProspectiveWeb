@@ -56,7 +56,8 @@ COL = {
 PARES = [
     ("Volumen (mm³)", "volumen", "V", "malla tapada por el cuello"),
     ("Área del saco (mm²)", "area_saco", "A", "sin la tapa del cuello"),
-    ("Diámetro máximo (mm)", "d_max", "Dmax", "nuestro: lado mayor de la caja alineada a los ejes"),
+    ("Diámetro máximo (mm)", "d_max", "Dmax", "nuestro: mayor distancia entre dos puntos; su Dmax: ancho paralelo al cuello"),
+    ("Ancho del domo frente a Dmax (mm)", "ancho_domo", "Dmax", "los dos: ancho máximo paralelo al cuello (P17)"),
     ("Diámetro máximo frente a L1 (mm)", "d_max", "L1", "L1: longitud máxima del aneurisma"),
     ("Cuello: diámetro (mm)", "cuello_d_eq", "NW", "nuestro: equivalente del área; NW: anchura"),
     ("Cuello: perímetro (mm)", "cuello_perimetro", "NC", ""),
@@ -65,8 +66,8 @@ PARES = [
     ("AR", "ar", "AR", "altura / cuello"),
     ("Bottleneck", "bf", "BF", ""),
     ("Ondulación (UI)", "ui", "UI", ""),
-    ("Elipticidad (EI)", "ei", "EI", ""),
-    ("No esfericidad (NSI)", "nsi", "NSI", ""),
+    ("Elipticidad (EI)", "ei", "EI", "Raghavan 2005 sobre la envolvente, sin el disco del cuello (P17)"),
+    ("No esfericidad (NSI)", "nsi", "NSI", "Raghavan 2005, área sin el disco del cuello (P17)"),
     ("SR con su definición", "sr_cmha", "SR", "nuestra H / media de sus D, D1 y D2"),
     ("SR de Prospective", "sr_dhar", "SR", "nuestro Dmáx / su D: otra definición, no deben coincidir"),
     ("Automático: cuello (mm)", "auto_cuello", "NW", "sin cuello marcado"),
@@ -189,6 +190,7 @@ def medir_saco(ruta: Path) -> dict:
     auto = an.analyze(cerrado)
     return {
         "volumen": con.volume_mm3, "area_saco": area_saco, "d_max": con.max_diameter_mm,
+        "ancho_domo": con.dome_width_mm,
         "cuello_d_eq": cuello["d_eq"], "cuello_perimetro": cuello["perimetro"], "cuello_area": cuello["area"],
         "altura": con.dome_height_mm, "ar": con.aspect_ratio, "bf": con.bottleneck_factor,
         "ui": con.undulation_index, "ei": con.ellipticity_index, "nsi": con.non_sphericity_idx,

@@ -11,8 +11,8 @@ Clinical reference ranges (Dhar 2008, Raghavan 2005, Greving 2014):
   bf:                 0.5–3.0    (> 1.5 → relatively NARROW neck; ≤ 1.5 → relatively wide)
   dnr:                0.5–3.0    (≥ 1.6 moderate, ≥ 2.0 high)
   ui:                 0.0–0.5    (≥ 0.10 moderate, ≥ 0.25 irregular dome)
-  ei:                 0.0–0.6    (> 0.35 → non-spherical, higher risk)
-  nsi:                0.0–0.5
+  ei:                 0.0–0.6    (≥ 0.35 cuenta como moderado; corte de la app)
+  nsi:                0.0–0.5    (Raghavan 2005; 0 = semiesfera)
   sr:                 0.5–5.0    (> 3.0 → elevated risk)
   compactness:        0.0–1.0    (1 = perfect sphere)
 """
@@ -195,8 +195,21 @@ class MorphometryResult(BaseModel):
         ..., description="Diameter of the volume-equivalent sphere (mm)"
     )
 
-    # ── Bounding-box dimensions ───────────────────────────────────────────── #
-    max_diameter_mm: float = Field(..., description="Maximum bounding-box dimension (mm)")
+    # ── Size and bounding-box dimensions ──────────────────────────────────── #
+    max_diameter_mm: float = Field(
+        ..., description=(
+            "Tamaño: la mayor distancia entre dos puntos del saco (mm). No depende "
+            "de la orientación del estudio (P17; antes era el lado mayor de la caja "
+            "alineada a los ejes)."
+        ),
+    )
+    dome_width_mm: float = Field(
+        0.0, ge=0.0,
+        description=(
+            "Ancho máximo del domo en cortes paralelos al cuello, con calibre (mm): "
+            "el numerador del DNR y del BF. 0 sin cuello válido."
+        ),
+    )
     bbox_w_mm: float = Field(..., description="Intermediate bounding-box dimension (mm)")
     bbox_h_mm: float = Field(..., description="Shortest bounding-box dimension (mm)")
 
@@ -208,13 +221,13 @@ class MorphometryResult(BaseModel):
 
     # ── Primary clinical ratios ───────────────────────────────────────────── #
     dnr: float = Field(
-        ..., description="Dome-to-Neck Ratio = max_diameter / neck_mm  (moderate ≥ 1.6, high ≥ 2.0)"
+        ..., description="Dome-to-Neck Ratio = dome_width / neck_mm (Brinjikji 2009; moderate ≥ 1.6, high ≥ 2.0)"
     )
     ar: float = Field(
         ..., description="Aspect Ratio = dome_height / neck_mm  (moderate ≥ 1.2, high ≥ 1.6)"
     )
     bf: float = Field(
-        ..., description="Bottleneck Factor = max_diameter / neck_mm  (> 1.5 → relatively narrow neck)"
+        ..., description="Bottleneck Factor = dome_width / neck_mm (Hoh 2007; > 1.5 → relatively narrow neck)"
     )
     compactness: float = Field(
         ..., ge=0.0, le=1.0,
@@ -228,11 +241,18 @@ class MorphometryResult(BaseModel):
     )
     ei: float = Field(
         0.0, ge=0.0, le=1.0,
-        description="Ellipticity Index  (> 0.35 → non-spherical, higher rupture risk)"
+        description=(
+            "Ellipticity Index (Raghavan 2005) = 1 − (18π)^⅓·V_ch^⅔/S_ch sobre la "
+            "envolvente convexa, sin el disco del cuello (≥ 0.35 cuenta como moderado; "
+            "corte de la app)"
+        ),
     )
     nsi: float = Field(
         0.0, ge=0.0, le=1.0,
-        description="Non-Sphericity Index = 1 − Wadell_sphericity  (0 = perfect sphere)"
+        description=(
+            "Non-Sphericity Index (Raghavan 2005) = 1 − (18π)^⅓·V^⅔/S, con S el área "
+            "del saco sin el disco del cuello (0 = semiesfera)"
+        ),
     )
     sr: float = Field(
         0.0, ge=0.0,

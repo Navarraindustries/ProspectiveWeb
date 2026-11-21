@@ -57,3 +57,19 @@ def test_comparar_ignora_ceros_y_mide_el_sesgo():
     assert c["cociente_mediano"] == pytest.approx(1.1)
     assert c["dif_relativa_mediana"] == pytest.approx(0.1)
     assert c["r"] == pytest.approx(1.0)
+
+
+def test_medir_saco_da_el_ancho_del_domo_y_los_indices_de_raghavan(tmp_path):
+    """P17: la semiesfera abierta es la forma de referencia de Raghavan (NSI y EI
+    0) y su ancho paralelo al cuello es su diámetro, que es lo que CMHA llama Dmax."""
+    from scripts.morfometria_cmha import medir_saco
+    ruta = tmp_path / "saco.stl"
+    w = vtk.vtkSTLWriter()
+    w.SetFileName(str(ruta))
+    w.SetInputData(_semiesfera())
+    w.Write()
+    m = medir_saco(ruta)
+    assert m["ancho_domo"] == pytest.approx(2 * R, rel=0.02)
+    assert m["nsi"] == pytest.approx(0.0, abs=0.02)
+    assert m["ei"] == pytest.approx(0.0, abs=0.02)
+    assert m["d_max"] == pytest.approx(2 * R, rel=0.02)

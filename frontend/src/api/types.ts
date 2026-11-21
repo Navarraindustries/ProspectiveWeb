@@ -1049,7 +1049,11 @@ export interface MorphometryResult {
   volume_mm3: number;
   surface_area_mm2: number;
   eq_sphere_diam_mm: number;
+  /** Mayor distancia entre dos puntos del saco (P17). */
   max_diameter_mm: number;
+  /** Ancho máximo del domo paralelo al cuello: numerador del DNR y del BF
+   *  (P17). Falta en las sesiones medidas antes. */
+  dome_width_mm?: number;
   bbox_w_mm: number;
   bbox_h_mm: number;
   neck_mm: number;

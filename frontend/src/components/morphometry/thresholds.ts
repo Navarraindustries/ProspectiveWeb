@@ -59,19 +59,20 @@ export function badgeFor(index: IndexKey, value: number): [string, Variant] | un
 
 /** Definición, cortes y fuente de cada índice: el tooltip de su fila. */
 export const THRESHOLD_TIP: Record<IndexKey, string> = {
-  dnr: "DNR: Ø máximo ÷ cuello. Mod desde 1,6 y Alto desde 2,0, los mismos cortes que la " +
+  dnr: "DNR: ancho del domo paralelo al cuello ÷ cuello. Mod desde 1,6 y Alto desde 2,0, los mismos cortes que la " +
     "etiqueta de riesgo y Decisión. 2,0 es la mitad «DNR < 2» de la definición de cuello " +
     "ancho (Brinjikji, AJNR 2009); 1,6, el gradiente de adyuvante del mismo trabajo.",
   ar: "AR: altura del domo ÷ cuello. Mod desde 1,2 y Alto desde 1,6, los mismos cortes que la " +
     "etiqueta de riesgo y Decisión. 1,6 es el corte de Ujiie 2001; 1,2, el extremo bajo de " +
     "uso corriente, sin cohorte propia.",
-  bf: "BF: Ø máximo del domo ÷ cuello (Hoh 2007). Por encima de 1,5 el domo es bastante más " +
+  bf: "BF: ancho del domo paralelo al cuello ÷ cuello (Hoh 2007), el mismo cociente que el DNR. Por encima de 1,5 el domo es bastante más " +
     "ancho que el cuello: cuello relativamente estrecho. Hasta 1,5, cuello relativamente " +
     "ancho. El corte de 1,5 es de la aplicación.",
   ui: "UI · Ondulación: 1 − volumen ÷ volumen de la envolvente convexa (Raghavan 2005). Mod " +
     "desde 0,10 e Irregular desde 0,25, los mismos cortes que la etiqueta de riesgo y " +
     "Decisión; los cortes son de la aplicación.",
-  ei: "EI · Elipticidad (Raghavan 2005). Alto desde 0,35, el mismo corte que la etiqueta de riesgo.",
+  ei: "EI · Elipticidad (Raghavan 2005), sobre la envolvente convexa del saco sin el disco del cuello. " +
+    "Alto desde 0,35, el mismo corte que la etiqueta de riesgo; el corte es de la aplicación.",
   sr: "SR · Size Ratio: Ø máximo ÷ arteria madre (Dhar 2008). Mod desde 2,0 y Alto desde 3,0, " +
     "los mismos cortes que la etiqueta de riesgo; cortes de uso corriente.",
 };

@@ -67,5 +67,16 @@ def test_una_bleb_de_verdad_no_se_quita():
     assert not b.inflated
 
 
+def test_el_diametro_no_cambia_al_girar_el_saco():
+    """P17: la misma definición que el Ø máximo, la mayor distancia entre dos
+    puntos. Con la caja alineada a los ejes, girado 45° medía unos 7,1 mm."""
+    t = vtk.vtkTransform(); t.RotateZ(45.0)
+    f = vtk.vtkTransformPolyDataFilter(); f.SetInputData(_con_rama()); f.SetTransform(t); f.Update()
+    b = sac_body(f.GetOutput())
+    assert b.full_max_mm == pytest.approx(9.0, abs=0.4)
+    assert b.body_max_mm == pytest.approx(5.0, abs=0.3)
+    assert b.inflated
+
+
 def test_saco_vacio():
     assert sac_body(vtk.vtkPolyData()) is None

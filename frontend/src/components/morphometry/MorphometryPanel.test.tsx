@@ -418,8 +418,8 @@ describe("F1-164: los índices de forma, plegados y explicados", () => {
     expect(screen.queryByText("EI · Elipticidad")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Más índices/ }));
     const tip = (label: string) => screen.getByText(label).closest("[title]")!.getAttribute("title");
-    expect(tip("EI · Elipticidad")).toMatch(/^Elipticidad: alargamiento del saco frente a una esfera.*Alto desde 0,35/);
-    expect(tip("NSI · No-esfericidad")).toMatch(/^No-esfericidad: desviación global de la esfera/);
+    expect(tip("EI · Elipticidad")).toMatch(/^Elipticidad: cuánto se aparta de una semiesfera la envolvente convexa.*Alto desde 0,35/);
+    expect(tip("NSI · No-esfericidad")).toMatch(/^No-esfericidad: cuánto se aparta el saco de una semiesfera/);
     expect(tip("Compacidad (Wadell)")).toBe("Wadell: 1 es una esfera; valores bajos indican lobulación");
     expect(tip("Ø esfera equivalente")).toBe("Diámetro de la esfera con el mismo volumen");
   });
@@ -539,5 +539,45 @@ describe("el cálculo automático que falla", () => {
     expect(await screen.findByText("7,0")).toBeInTheDocument();
     expect(vi.mocked(api.morphometry).mock.calls.length).toBe(antes + 1);
     expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
+  });
+});
+
+/* P17: el Ø máximo es la mayor distancia entre dos puntos del saco; el DNR y el
+   BF usan el ancho del domo paralelo al cuello, y EI y NSI necesitan el cuello
+   porque se calculan sin el disco del cuello (Raghavan 2005). */
+describe("P17: tamaño, ancho del domo, EI y NSI", () => {
+  it("el Ø máximo dice que es la mayor distancia del saco", async () => {
+    withMorphometry(openCap);
+    const fila = (await screen.findByText("Ø máximo")).closest("[title]") as HTMLElement;
+    expect(fila.title).toMatch(/mayor distancia entre dos puntos del saco/i);
+  });
+
+  it("enseña el ancho del domo con el cuello válido", async () => {
+    withMorphometry({ ...openCap, dome_width_mm: 6.3 } as unknown as MorphometryResult);
+    expect(await screen.findByText("Ancho del domo")).toBeInTheDocument();
+    expect(screen.getByText("6,3")).toBeInTheDocument();
+  });
+
+  it("el DNR se explica con el ancho del domo, no con el Ø máximo", async () => {
+    withMorphometry(openCap);
+    const fila = (await screen.findByText("DNR")).closest("[title]") as HTMLElement;
+    expect(fila.title).toContain("ancho del domo");
+    expect(fila.title).not.toContain("Ø máximo ÷");
+  });
+
+  it("sin cuello, EI y NSI salen sin medir aunque el volumen valga", async () => {
+    withMorphometry({
+      ...openCap, volume_mm3: 310.2, volume_valid: true, neck_valid: false,
+      ei: 0.2, nsi: 0.15,
+    } as unknown as MorphometryResult);
+    fireEvent.click(await screen.findByText("Índices"));
+    // El plegable recuerda si quedó abierto (storageKey) en otra prueba.
+    if (!screen.queryByText("EI · Elipticidad")) {
+      fireEvent.click(screen.getByRole("button", { name: /Más índices/ }));
+    }
+    const ei = screen.getByText("EI · Elipticidad").closest("[title]") as HTMLElement;
+    expect(ei.textContent).toContain("—");
+    const nsi = screen.getByText("NSI · No-esfericidad").closest("[title]") as HTMLElement;
+    expect(nsi.textContent).toContain("—");
   });
 });

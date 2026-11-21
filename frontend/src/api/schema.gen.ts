@@ -7326,7 +7326,7 @@ export interface components {
             bbox_w_mm: number;
             /**
              * Bf
-             * @description Bottleneck Factor = max_diameter / neck_mm  (> 1.5 → relatively narrow neck)
+             * @description Bottleneck Factor = dome_width / neck_mm (Hoh 2007; > 1.5 → relatively narrow neck)
              */
             bf: number;
             /**
@@ -7348,7 +7348,7 @@ export interface components {
             compactness: number;
             /**
              * Dnr
-             * @description Dome-to-Neck Ratio = max_diameter / neck_mm  (moderate ≥ 1.6, high ≥ 2.0)
+             * @description Dome-to-Neck Ratio = dome_width / neck_mm (Brinjikji 2009; moderate ≥ 1.6, high ≥ 2.0)
              */
             dnr: number;
             /**
@@ -7359,8 +7359,14 @@ export interface components {
             /** @description El ápice del domo que marcó el usuario, devuelto para que una sesión reanudada lo recupere. Volvían los puntos del borde pero no este, y sin él no se puede volver a medir: había que marcarlo otra vez. Null en el camino automático. */
             dome_seed?: components["schemas"]["Position3D"] | null;
             /**
+             * Dome Width Mm
+             * @description Ancho máximo del domo en cortes paralelos al cuello, con calibre (mm): el numerador del DNR y del BF. 0 sin cuello válido.
+             * @default 0
+             */
+            dome_width_mm: number;
+            /**
              * Ei
-             * @description Ellipticity Index  (> 0.35 → non-spherical, higher rupture risk)
+             * @description Ellipticity Index (Raghavan 2005) = 1 − (18π)^⅓·V_ch^⅔/S_ch sobre la envolvente convexa, sin el disco del cuello (≥ 0.35 cuenta como moderado; corte de la app)
              * @default 0
              */
             ei: number;
@@ -7371,7 +7377,7 @@ export interface components {
             eq_sphere_diam_mm: number;
             /**
              * Max Diameter Mm
-             * @description Maximum bounding-box dimension (mm)
+             * @description Tamaño: la mayor distancia entre dos puntos del saco (mm). No depende de la orientación del estudio (P17; antes era el lado mayor de la caja alineada a los ejes).
              */
             max_diameter_mm: number;
             /**
@@ -7407,7 +7413,7 @@ export interface components {
             neck_valid: boolean;
             /**
              * Nsi
-             * @description Non-Sphericity Index = 1 − Wadell_sphericity  (0 = perfect sphere)
+             * @description Non-Sphericity Index (Raghavan 2005) = 1 − (18π)^⅓·V^⅔/S, con S el área del saco sin el disco del cuello (0 = semiesfera)
              * @default 0
              */
             nsi: number;

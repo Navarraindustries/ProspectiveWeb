@@ -43,7 +43,9 @@ class MorphometricResult:
     bbox_l_mm: float           # longest axis (≈ max diameter)
     bbox_w_mm: float           # intermediate axis
     bbox_h_mm: float           # shortest axis
-    max_diameter_mm: float     # = bbox_l_mm
+    # Tamaño: la mayor distancia entre dos puntos del saco (P17). Antes era
+    # bbox_l_mm, que cambia al girar el estudio.
+    max_diameter_mm: float
 
     # ── Neck / dome (via plane slicing) ──────────────────────────────── #
     neck_diameter_mm: float
@@ -61,6 +63,9 @@ class MorphometricResult:
     ellipticity_index:  float = 0.0
     non_sphericity_idx: float = 0.0
     size_ratio:         float = 0.0
+    # Ancho máximo del domo paralelo al cuello (P17): el numerador del DNR
+    # (Brinjikji 2009) y del BF (Hoh 2007), y el Dmax de CMHA.
+    dome_width_mm:      float = 0.0
 
     # ── PCA axes ─────────────────────────────────────────────────────── #
     principal_axis: tuple[float, float, float] = field(default=(0.0, 0.0, 1.0))
@@ -177,6 +182,8 @@ class MorphometricAnalyzer:
         bbox_l, bbox_w, bbox_h = dims
 
         centroid, principal_axis = self._pca_axis(poly_data)
+        pts_all = ns.vtk_to_numpy(poly_data.GetPoints().GetData()).astype(np.float64)
+        hull_vol, hull_area = self._convex_hull(pts_all)
 
         if neck_plane is not None:
             # ── Known neck plane (semi-automatic Tier 2) ──────────────────── #
@@ -184,34 +191,39 @@ class MorphometricAnalyzer:
             n_normal = np.asarray(neck_plane[1], dtype=np.float64)
             n_normal = n_normal / (np.linalg.norm(n_normal) or 1.0)
             neck_diam = float(neck_plane[2])
-            pts = ns.vtk_to_numpy(poly_data.GetPoints().GetData()).astype(np.float64)
-            beyond = (pts - n_origin) @ n_normal          # >0 = dome side
+            beyond = (pts_all - n_origin) @ n_normal      # >0 = dome side
             dome_height = float(max(0.0, beyond.max()))
             neck_pos = 0.0                                 # neck at base of clipped sac
             # The user's plane defines the neck→dome axis; use it downstream.
             principal_axis = n_normal
             centroid = n_origin
+            neck_abs, apex_abs = 0.0, dome_height
         else:
             neck_diam, dome_height, neck_pos = self._find_neck(
                 poly_data, centroid, principal_axis
             )
+            proj = (pts_all - centroid) @ principal_axis
+            neck_abs = float(proj.min() + neck_pos * (proj.max() - proj.min()))
+            apex_abs = float(proj.max())
 
-        max_diam    = bbox_l
+        max_diam    = self._feret_diameter(pts_all) or bbox_l
         eq_diam     = (2.0 * (3.0 * volume_mm3 / (4.0 * math.pi)) ** (1.0 / 3.0)
                        if volume_mm3 > 0 else 0.0)
-        dnr         = max_diam / neck_diam  if neck_diam >= 0.1 else 0.0
+        # El ancho del domo no puede pasar del tamaño: un corte que pilla dos
+        # lazos (un trozo de arteria madre en el saco recortado) lo inflaría.
+        dome_width  = min(self._dome_width(poly_data, centroid, principal_axis,
+                                           neck_abs, apex_abs), max_diam)
+        dnr         = dome_width / neck_diam  if neck_diam >= 0.1 else 0.0
         ar          = dome_height / neck_diam if neck_diam >= 0.1 else 0.0
+        bf          = dnr      # Hoh 2007: el mismo cociente que el DNR de Brinjikji
         compactness = self._wadell_sphericity(volume_mm3, surface_area_mm2)
 
-        bf  = self._bottleneck_factor(poly_data, centroid, principal_axis, neck_pos, neck_diam)
-        # Physical bound: the widest dome cross-section cannot exceed the max
-        # diameter, so BF ≤ DNR.  The plane-slice perimeter can be inflated when
-        # a slice catches multiple loops (parent stub in the clipped sac); clamp.
-        if dnr > 0.0:
-            bf = min(bf, dnr)
-        ui  = self._undulation_index(poly_data, volume_mm3)
-        ei  = self._ellipticity_index(volume_mm3, surface_area_mm2)
-        nsi = max(0.0, 1.0 - compactness)
+        ui  = (float(max(0.0, 1.0 - volume_mm3 / hull_vol)) if hull_vol > 0 else 0.0)
+        # Raghavan 2005 normaliza a una semiesfera ABIERTA: las áreas van sin la
+        # tapa del cuello, que en la malla cerrada es el disco del cuello.
+        neck_area = math.pi * neck_diam ** 2 / 4.0 if neck_diam >= 0.1 else 0.0
+        nsi = self._raghavan_index(volume_mm3, surface_area_mm2 - neck_area)
+        ei  = self._raghavan_index(hull_vol, hull_area - neck_area)
 
         # ── Reliability guard (Tier 1) ─────────────────────────────────── #
         # Volume-based metrics and the plane-slice neck are only trustworthy on
@@ -254,11 +266,14 @@ class MorphometricAnalyzer:
             compactness = 0.0
             ui = ei = nsi = 0.0
         if not neck_reliable:
-            # Neck group (neck, dome, DNR, AR, BF) needs a valid neck.
+            # Neck group (neck, dome, DNR, AR, BF) needs a valid neck; EI and
+            # NSI too, because they take the neck disc off the area.
             neck_diam   = 0.0
             dome_height = 0.0
             neck_pos    = 0.0
+            dome_width  = 0.0
             dnr = ar = bf = 0.0
+            ei = nsi = 0.0
 
         result = MorphometricResult(
             volume_mm3         = volume_mm3,
@@ -278,7 +293,8 @@ class MorphometricAnalyzer:
             undulation_index   = ui,
             ellipticity_index  = ei,
             non_sphericity_idx = nsi,
-            principal_axis     = tuple(principal_axis),
+            dome_width_mm      = dome_width,
+            principal_axis    = tuple(principal_axis),
             centroid           = tuple(centroid),
             reliable           = reliable,
             watertight         = watertight,
@@ -398,64 +414,87 @@ class MorphometricAnalyzer:
     # Shape-complexity indices                                            #
     # ------------------------------------------------------------------ #
 
-    def _bottleneck_factor(
+    def _dome_width(
         self,
         poly_data: vtk.vtkPolyData,
-        centroid: np.ndarray,
+        origin: np.ndarray,
         axis: np.ndarray,
-        neck_pos_frac: float,
-        neck_diam: float,
+        neck_abs: float,
+        apex_abs: float,
     ) -> float:
-        if neck_diam < 0.1:
-            return 0.0
+        """Ancho máximo del domo en cortes paralelos al cuello, con calibre.
 
-        pts  = ns.vtk_to_numpy(poly_data.GetPoints().GetData()).astype(np.float64)
-        proj = (pts - centroid) @ axis
-        p_min, p_max = proj.min(), proj.max()
-        extent = p_max - p_min
+        Cada corte se mide por la mayor distancia entre dos de sus puntos, no
+        por perímetro/π: un corte ovalado o con rugosidad daba otro número.
+        Se salta el 5 % junto al cuello y el 2 % junto al ápice, como antes.
+        """
+        extent = apex_abs - neck_abs
         if extent < 1e-3:
             return 0.0
-
-        neck_abs   = p_min + neck_pos_frac * extent
-        dome_start = neck_abs + extent * 0.05
-        dome_end   = p_max   - extent * 0.02
-
-        if dome_start >= dome_end:
-            return 0.0
-
-        positions  = np.linspace(dome_start, dome_end, 30)
-        max_dome_d = neck_diam
-
+        positions = np.linspace(neck_abs + 0.05 * extent, apex_abs - 0.02 * extent, 30)
+        ancho = 0.0
         for pos in positions:
-            origin = centroid + pos * axis
-            _, d   = self._slice_perimeter(poly_data, origin, axis)
-            if d > max_dome_d:
-                max_dome_d = d
-
-        return max_dome_d / neck_diam
+            plane = vtk.vtkPlane()
+            plane.SetOrigin((origin + pos * axis).tolist())
+            plane.SetNormal(axis.tolist())
+            cutter = vtk.vtkCutter()
+            cutter.SetInputData(poly_data)
+            cutter.SetCutFunction(plane)
+            cutter.Update()
+            cut = cutter.GetOutput()
+            if cut.GetNumberOfPoints() < 2:
+                continue
+            pts = ns.vtk_to_numpy(cut.GetPoints().GetData()).astype(np.float64)
+            ancho = max(ancho, self._feret_diameter(pts))
+        return ancho
 
     @staticmethod
-    def _undulation_index(poly_data: vtk.vtkPolyData, volume_mm3: float) -> float:
-        """UI = 1 - V_sac / V_convex_hull.  Returns 0.0 if scipy unavailable."""
+    def _feret_diameter(pts: np.ndarray) -> float:
+        """Mayor distancia entre dos puntos: no depende de la orientación.
+
+        Basta con mirar los vértices de la envolvente convexa; si no se puede
+        construir (puntos coplanares, como un corte), se miran todos.
+        """
+        if len(pts) < 2:
+            return 0.0
+        cand = pts
         try:
             from scipy.spatial import ConvexHull  # type: ignore[import]
-            pts = ns.vtk_to_numpy(poly_data.GetPoints().GetData()).astype(np.float64)
-            if pts.shape[0] < 4:
-                return 0.0
-            hull = ConvexHull(pts)
-            convex_vol = float(hull.volume)
-            if convex_vol <= 0:
-                return 0.0
-            return float(max(0.0, 1.0 - volume_mm3 / convex_vol))
+            if len(pts) >= 5:
+                cand = pts[ConvexHull(pts).vertices]
         except Exception:
-            return 0.0
+            cand = pts
+        if len(cand) > 4000:      # tope de memoria; la envolvente casi nunca llega
+            cand = cand[np.linspace(0, len(cand) - 1, 4000).astype(int)]
+        mejor = 0.0
+        for i in range(0, len(cand), 512):
+            d = np.linalg.norm(cand[i:i + 512, None, :] - cand[None, :, :], axis=2)
+            mejor = max(mejor, float(d.max()))
+        return mejor
 
     @staticmethod
-    def _ellipticity_index(volume: float, area: float) -> float:
-        """EI = 1 - (18pi)^(1/3) * V^(2/3) / A  (Dhar et al. 2008)."""
-        if area <= 0 or volume <= 0:
+    def _convex_hull(pts: np.ndarray) -> tuple[float, float]:
+        """(volumen, área) de la envolvente convexa; (0, 0) si no se puede."""
+        try:
+            from scipy.spatial import ConvexHull  # type: ignore[import]
+            if pts.shape[0] < 4:
+                return 0.0, 0.0
+            hull = ConvexHull(pts)
+            return float(hull.volume), float(hull.area)
+        except Exception:
+            return 0.0, 0.0
+
+    @staticmethod
+    def _raghavan_index(volume: float, open_area: float) -> float:
+        """1 − (18π)^⅓·V^⅔/S (Raghavan 2005): 0 en una semiesfera abierta.
+
+        Con el saco da el NSI y con su envolvente convexa el EI; S es el área
+        sin la tapa del cuello. Con esta fórmula el NSI coincide con el de CMHA
+        en los 100 sacos de O2.
+        """
+        if open_area <= 0 or volume <= 0:
             return 0.0
-        return 1.0 - (18.0 * math.pi) ** (1.0 / 3.0) * volume ** (2.0 / 3.0) / area
+        return float(max(0.0, 1.0 - (18.0 * math.pi) ** (1.0 / 3.0) * volume ** (2.0 / 3.0) / open_area))
 
     @staticmethod
     def _wadell_sphericity(volume: float, area: float) -> float:

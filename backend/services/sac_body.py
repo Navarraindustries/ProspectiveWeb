@@ -8,7 +8,8 @@ salió 8,69; con el borde marcado de nuevo, 8,37 frente a 7,7 del cuerpo.
 
 Aquí se quita lo más fino que una bola de `OPEN_RADIUS_MM` de radio (apertura
 morfológica sobre el interior del saco en vóxeles) y se mide el cuerpo con la
-MISMA definición que el Ø máximo: el lado mayor de la caja que lo envuelve.
+MISMA definición que el Ø máximo: la mayor distancia entre dos de sus puntos
+(P17; antes, el lado mayor de la caja alineada a los ejes).
 No sustituye la cifra: dice cuándo está inflada, para que se revise el borde.
 Una bleb de verdad (≥ 1 mm) sobrevive a la apertura; una rama de 0,5 mm no.
 """
@@ -32,14 +33,15 @@ MIN_EXCESS_MM = 1.0
 
 @dataclass
 class SacBody:
-    full_max_mm: float     # lado mayor de la caja del saco completo
+    full_max_mm: float     # mayor distancia entre dos puntos del saco completo
     body_max_mm: float     # lo mismo, del cuerpo
     body_volume_mm3: float
     inflated: bool
 
 
-def _bbox_longest(points: np.ndarray) -> float:
-    return float(np.max(points.max(0) - points.min(0))) if len(points) else 0.0
+def _max_distance(points: np.ndarray) -> float:
+    from services.morphometrics import MorphometricAnalyzer
+    return MorphometricAnalyzer._feret_diameter(points)
 
 
 def sac_body(poly) -> SacBody | None:
@@ -61,7 +63,7 @@ def sac_body(poly) -> SacBody | None:
     body = lab == (int(np.argmax(sizes)) + 1)
     full_pts = origin + np.argwhere(mask) * VOXEL_MM
     body_pts = origin + np.argwhere(body) * VOXEL_MM
-    full, core = _bbox_longest(full_pts), _bbox_longest(body_pts)
+    full, core = _max_distance(full_pts), _max_distance(body_pts)
     return SacBody(
         full_max_mm=round(full, 2), body_max_mm=round(core, 2),
         body_volume_mm3=round(float(body.sum()) * VOXEL_MM ** 3, 1),

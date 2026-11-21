@@ -6,7 +6,7 @@
 Lee cada serie DICOM directamente del ZIP de Kaggle (no hay que descomprimir los
 311 GB) y escribe en `--salida`:
 
-    imagesTr/<caso>_0000.nii.gz   volumen en HU (int16), orientación LPS, recortado a la cabeza
+    imagesTr/<caso>_0000.nii.gz   volumen (int16), orientación LPS; en angio-TC, en HU y recortado a la cabeza
     labelsTr/<caso>.nii.gz        0 = fondo, 1 = esfera de `--radio-mm` en cada punto de aneurisma
     manifest.csv                  una fila por serie: convertida o excluida, y por qué
     dataset.json                  el que pide nnU-Net, rehecho al final de cada tanda
@@ -28,6 +28,11 @@ Lo que hace con cada serie, y por qué:
    corte) a coordenadas del paciente y pinta una esfera. Si el punto queda fuera
    del recorte la serie se excluye; si no hay contraste cerca se anota.
 6. Anota, sin excluir, las series sin hueso (angio-TC con el hueso sustraído).
+
+Con `--modalidad MRA` no hay paso 3 ni 4: la intensidad de la RM no tiene unidades y
+el estudio ya cubre solo la cabeza. Parte de las angio-RM vienen en un solo DICOM
+multiframe; ahí el punto trae además el n.º de cuadro (`f`). En vez de las HU, se anota
+si el punto cae lejos de un vaso brillante.
 
 Volver a lanzarlo continúa donde se quedó: las series que ya están en el
 manifest no se repiten. nnU-Net normaliza y remuestrea por su cuenta, así que
@@ -61,12 +66,14 @@ PICO_BLANDO = (-110, 190)  # dónde tiene que caer el pico de tejido blando si l
 HU_CUERPO = -500
 HU_CONTRASTE = 100  # por debajo de esto, cerca del punto no hay vaso con contraste
 HU_HUESO = 300  # si el percentil 99,5 no llega, la serie no tiene hueso (angio-TC sustraída)
+BRILLO_VASO = 0.5  # en RM: el punto debe llegar a esta fracción del percentil 99,5 del volumen
 RADIO_CONTROL_MM = 3.0
 
 CAMPOS = [
     "caso", "series_uid", "paciente", "modalidad", "aneurisma", "n_aneurismas", "ubicaciones",
     "estado", "motivo", "cortes", "repetidos", "forma", "espaciado_mm", "fabricante",
     "conversion_hu", "hu_p995", "recorte", "hu_max_en_punto", "edad", "sexo", "descripcion",
+    "brillo_rel_en_punto",
 ]
 
 
@@ -171,57 +178,98 @@ def esfera(forma, espaciado, centro_idx, radio_mm: float) -> tuple[tuple[slice, 
     return tuple(cortes), zz**2 + yy**2 + xx**2 <= radio_mm**2
 
 
+def _grupo(ds, cuadro: int, secuencia: str):
+    """Un grupo funcional de un DICOM multiframe: el del cuadro si lo trae, o el compartido."""
+    por_cuadro = ds.PerFrameFunctionalGroupsSequence[cuadro]
+    if secuencia in por_cuadro:
+        return por_cuadro[secuencia][0]
+    return ds.SharedFunctionalGroupsSequence[0][secuencia][0]
+
+
 def leer_serie(zf: zipfile.ZipFile, nombres: list[str]):
-    """Volumen crudo [corte, fila, columna] ordenado, su geometría y la posición de cada SOP."""
-    if len(nombres) < MIN_CORTES:
-        raise Excluida(f"pocos_cortes ({len(nombres)})")
-    cortes = []
-    for nombre in nombres:
-        ds = pydicom.dcmread(io.BytesIO(zf.read(nombre)))
-        if int(ds.get("NumberOfFrames", 1)) > 1:
-            raise Excluida("multiframe")
-        if "ImagePositionPatient" not in ds or "ImageOrientationPatient" not in ds:
+    """Volumen crudo [corte, fila, columna] ordenado, su geometría y la posición de cada corte.
+
+    Una serie es una carpeta de DICOM de un corte cada uno o, en parte de las angio-RM,
+    un solo DICOM multiframe con todos los cortes dentro.
+    """
+    multiframe = False
+    if len(nombres) == 1:
+        ds = pydicom.dcmread(io.BytesIO(zf.read(nombres[0])))
+        multiframe = int(ds.get("NumberOfFrames", 1)) > 1
+        if not multiframe:
+            raise Excluida("pocos_cortes (1)")
+        if "PerFrameFunctionalGroupsSequence" not in ds:
             raise Excluida("sin_geometria")
-        cortes.append(ds)
-    ref = cortes[0]
-    iop = np.array(ref.ImageOrientationPatient, dtype=float)
-    for ds in cortes:
-        if (ds.Rows, ds.Columns) != (ref.Rows, ref.Columns):
-            raise Excluida("tamano_distinto_entre_cortes")
-        if np.abs(np.array(ds.ImageOrientationPatient, dtype=float) - iop).max() > 1e-3:
-            raise Excluida("orientacion_distinta_entre_cortes")
-        if list(ds.PixelSpacing) != list(ref.PixelSpacing):
-            raise Excluida("pixel_distinto_entre_cortes")
+        n = int(ds.NumberOfFrames)
+        try:
+            iop = np.array(_grupo(ds, 0, "PlaneOrientationSequence").ImageOrientationPatient, dtype=float)
+            pixel = [float(v) for v in _grupo(ds, 0, "PixelMeasuresSequence").PixelSpacing]
+            posiciones = np.array([_grupo(ds, k, "PlanePositionSequence").ImagePositionPatient for k in range(n)],
+                                  dtype=float)
+        except (KeyError, AttributeError, IndexError):
+            raise Excluida("sin_geometria") from None
+        ref, pixeles, claves = ds, ds.pixel_array, list(range(n))
+    else:
+        if len(nombres) < MIN_CORTES:
+            raise Excluida(f"pocos_cortes ({len(nombres)})")
+        cortes = []
+        for nombre in nombres:
+            ds = pydicom.dcmread(io.BytesIO(zf.read(nombre)))
+            if int(ds.get("NumberOfFrames", 1)) > 1:
+                raise Excluida("multiframe_entre_cortes")
+            if "ImagePositionPatient" not in ds or "ImageOrientationPatient" not in ds:
+                raise Excluida("sin_geometria")
+            cortes.append(ds)
+        ref = cortes[0]
+        iop = np.array(ref.ImageOrientationPatient, dtype=float)
+        for ds in cortes:
+            if (ds.Rows, ds.Columns) != (ref.Rows, ref.Columns):
+                raise Excluida("tamano_distinto_entre_cortes")
+            if np.abs(np.array(ds.ImageOrientationPatient, dtype=float) - iop).max() > 1e-3:
+                raise Excluida("orientacion_distinta_entre_cortes")
+            if list(ds.PixelSpacing) != list(ref.PixelSpacing):
+                raise Excluida("pixel_distinto_entre_cortes")
+        pixel = [float(v) for v in ref.PixelSpacing]
+        posiciones = np.array([ds.ImagePositionPatient for ds in cortes], dtype=float)
+        pixeles, claves = None, [str(ds.SOPInstanceUID) for ds in cortes]
+
     dir_fila, dir_col = iop[:3], iop[3:]
     normal = np.cross(dir_fila, dir_col)
-    posiciones = np.array([ds.ImagePositionPatient for ds in cortes], dtype=float)
     conservar, dz, repetidos = ordenar_cortes(posiciones, normal)
-    vol = np.stack([cortes[i].pixel_array for i in conservar]).astype(np.int16, copy=False)
+    if multiframe:
+        vol = np.ascontiguousarray(pixeles[conservar])
+    else:
+        vol = np.stack([cortes[k].pixel_array for k in conservar])
     geo = {
         "dir_fila": dir_fila, "dir_col": dir_col, "normal": normal,
-        "sx": float(ref.PixelSpacing[1]), "sy": float(ref.PixelSpacing[0]), "dz": dz,
-        "origen": posiciones[conservar[0]],
-        "pos_sop": {str(ds.SOPInstanceUID): posiciones[i] for i, ds in enumerate(cortes)},
+        "sx": pixel[1], "sy": pixel[0], "dz": dz, "origen": posiciones[conservar[0]],
+        # Posición de cada corte: por SOPInstanceUID, o por n.º de cuadro en un multiframe.
+        "pos_corte": {clave: posiciones[k] for k, clave in enumerate(claves)}, "multiframe": multiframe,
         "pendiente": ref.get("RescaleSlope"), "ordenada": ref.get("RescaleIntercept"),
         "paciente": str(ref.get("PatientID", "")), "fabricante": str(ref.get("Manufacturer", "")),
         "descripcion": str(ref.get("SeriesDescription", "")),
-        "repetidos": repetidos, "cortes": len(nombres),
+        "repetidos": repetidos, "cortes": len(claves),
     }
     return vol, geo
 
 
 def convertir(zf: zipfile.ZipFile, nombres: list[str], puntos: list[dict], salida: Path, caso: str,
-              radio_mm: float, alto_mm: float) -> dict:
+              radio_mm: float, alto_mm: float, modalidad: str = "CTA") -> dict:
     """Convierte una serie y devuelve los campos del manifest que dependen de la imagen."""
     vol, geo = leer_serie(zf, nombres)
     info = {"paciente": geo["paciente"], "fabricante": geo["fabricante"], "descripcion": geo["descripcion"],
             "cortes": geo["cortes"], "repetidos": geo["repetidos"]}
     try:
-        nombre_hu, m, b = elegir_hu(vol, geo["pendiente"], geo["ordenada"])
-        if (m, b) != (1.0, 0.0):
-            vol = (vol.astype(np.float32) * m + b).round()
-        vol = np.clip(vol, HU_MIN, HU_MAX).astype(np.int16)
-        info["conversion_hu"] = nombre_hu
+        if modalidad == "CTA":
+            vol = vol.astype(np.int16, copy=False)
+            nombre_hu, m, b = elegir_hu(vol, geo["pendiente"], geo["ordenada"])
+            if (m, b) != (1.0, 0.0):
+                vol = (vol.astype(np.float32) * m + b).round()
+            vol = np.clip(vol, HU_MIN, HU_MAX).astype(np.int16)
+            info["conversion_hu"] = nombre_hu
+        else:
+            # En RM la intensidad no tiene unidades: se deja tal cual y nnU-Net normaliza cada imagen.
+            vol = vol.astype(np.int16 if vol.min() >= -32768 and vol.max() <= 32767 else np.float32)
 
         img = sitk.GetImageFromArray(vol)
         del vol
@@ -230,29 +278,35 @@ def convertir(zf: zipfile.ZipFile, nombres: list[str], puntos: list[dict], salid
         img.SetDirection(np.column_stack([geo["dir_fila"], geo["dir_col"], geo["normal"]]).ravel().tolist())
         img = sitk.DICOMOrient(img, "LPS")
         arr = sitk.GetArrayViewFromImage(img)
-        z0, z1, y0, y1, x0, x1 = recorte_cabeza(arr, img.GetSpacing(), alto_mm)
-        img = img[x0:x1, y0:y1, z0:z1]
-        arr = sitk.GetArrayViewFromImage(img)
-        info["recorte"] = f"z{z0}:{z1} y{y0}:{y1} x{x0}:{x1}"
+        if modalidad == "CTA":  # la angio-RM ya cubre solo la cabeza
+            z0, z1, y0, y1, x0, x1 = recorte_cabeza(arr, img.GetSpacing(), alto_mm)
+            img = img[x0:x1, y0:y1, z0:z1]
+            arr = sitk.GetArrayViewFromImage(img)
+            info["recorte"] = f"z{z0}:{z1} y{y0}:{y1} x{x0}:{x1}"
+            info["hu_p995"] = int(np.percentile(arr[::4, ::4, ::4], 99.5))
         info["forma"] = "x".join(str(n) for n in img.GetSize())
         info["espaciado_mm"] = "x".join(f"{s:.3f}" for s in img.GetSpacing())
-        info["hu_p995"] = int(np.percentile(arr[::4, ::4, ::4], 99.5))
+        brillo_vaso = float(np.percentile(arr[::4, ::4, ::4], 99.5))
 
         etiqueta = np.zeros(arr.shape, dtype=np.uint8)
-        hu_en_puntos = []
+        en_puntos = []
         for p in puntos:
-            if p["sop"] not in geo["pos_sop"]:
+            clave = p["cuadro"] if geo["multiframe"] else p["sop"]
+            if clave not in geo["pos_corte"]:
                 raise Excluida("punto_en_corte_inexistente")
-            fisico = geo["pos_sop"][p["sop"]] + p["x"] * geo["sx"] * geo["dir_fila"] + p["y"] * geo["sy"] * geo["dir_col"]
+            fisico = geo["pos_corte"][clave] + p["x"] * geo["sx"] * geo["dir_fila"] + p["y"] * geo["sy"] * geo["dir_col"]
             idx = img.TransformPhysicalPointToContinuousIndex(tuple(fisico))
             if any(not -0.5 <= i <= n - 0.5 for i, n in zip(idx, img.GetSize())):
-                raise Excluida("punto_fuera_del_recorte")
+                raise Excluida("punto_fuera_del_recorte" if modalidad == "CTA" else "punto_fuera_del_volumen")
             donde, dentro = esfera(arr.shape, img.GetSpacing(), idx, radio_mm)
             etiqueta[donde][dentro] = 1
             donde, dentro = esfera(arr.shape, img.GetSpacing(), idx, RADIO_CONTROL_MM)
-            hu_en_puntos.append(int(arr[donde][dentro].max()))
-        if hu_en_puntos:
-            info["hu_max_en_punto"] = min(hu_en_puntos)
+            en_puntos.append(float(arr[donde][dentro].max()))
+        if en_puntos:
+            if modalidad == "CTA":
+                info["hu_max_en_punto"] = int(min(en_puntos))
+            elif brillo_vaso > 0:
+                info["brillo_rel_en_punto"] = round(min(en_puntos) / brillo_vaso, 2)
     except Excluida as e:
         e.info = info
         raise
@@ -279,13 +333,15 @@ def _tarea(t: dict) -> dict:
     fila = dict(t["fila"])
     try:
         fila.update(convertir(_ZIP, t["nombres"], t["puntos"], Path(t["salida"]), fila["caso"],
-                              t["radio_mm"], t["alto_mm"]))
+                              t["radio_mm"], t["alto_mm"], fila["modalidad"]))
         fila["estado"] = "ok"
         # Avisos: la serie se convierte, pero queda marcada para decidir si entra a entrenar.
         avisos = []
         if fila.get("hu_max_en_punto", HU_CONTRASTE) < HU_CONTRASTE:
             avisos.append("punto_sin_contraste_cerca")
-        if fila["hu_p995"] < HU_HUESO:
+        if fila.get("brillo_rel_en_punto", BRILLO_VASO) < BRILLO_VASO:
+            avisos.append("punto_sin_vaso_brillante_cerca")
+        if fila.get("hu_p995", HU_HUESO) < HU_HUESO:
             avisos.append("sin_hueso")
         fila["motivo"] = "; ".join(avisos)
     except Excluida as e:
@@ -346,7 +402,8 @@ def main(argv=None) -> int:
         for r in csv.DictReader(io.TextIOWrapper(f, encoding="utf-8")):
             xy = ast.literal_eval(r["coordinates"])
             puntos[r["SeriesInstanceUID"]].append(
-                {"sop": r["SOPInstanceUID"], "x": float(xy["x"]), "y": float(xy["y"]), "ubicacion": r["location"]})
+                {"sop": r["SOPInstanceUID"], "x": float(xy["x"]), "y": float(xy["y"]),
+                 "cuadro": int(xy["f"]) if "f" in xy else None, "ubicacion": r["location"]})
     if args.series:
         pedidas = set(args.series.split(","))
         series = [r for r in series if r["SeriesInstanceUID"] in pedidas]

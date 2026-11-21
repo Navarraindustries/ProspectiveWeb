@@ -2,14 +2,19 @@
 
     python ml/topaneu_a_nnunet.py --topaneu DIR --salida DIR [--modalidad ct|mr] [--repetidos TSV]
 
-TopAneu ya viene en NIfTI, en HU, orientado en LPS y recortado a la cabeza, así que
-aquí no se toca la imagen: solo se guarda como int16 con el nombre que pide nnU-Net.
+TopAneu ya viene en NIfTI, orientado en LPS y recortado a la cabeza, así que aquí no
+se toca la imagen: solo se guarda con el nombre que pide nnU-Net. Las angio-TC (en HU)
+quedan en int16; las angio-RM conservan su tipo, porque su intensidad no tiene unidades.
 La etiqueta sale de `location_masks/` (una clase por ubicación del aneurisma): todo
 lo que no es fondo pasa a 1, igual que en los datos de RSNA, donde la etiqueta es una
 esfera. Aquí es la máscara real del saco.
 
 Con `--repetidos` (dos columnas: caso de TopAneu y sujeto de otro dataset) esos casos
-se marcan en el manifest para que no acaben en particiones distintas que su original.
+se marcan en el manifest (`repetido_de`) y `particiones.py` los manda al pliegue de su
+original. El valor tiene que ser el de «paciente» de ese sujeto en su propio manifest.
+
+Se puede cortar y relanzar: los convertidos no se repiten y los que dieron error se
+vuelven a intentar.
 
 Deja imagesTr/, labelsTr/ y manifest.csv con las mismas columnas que el de RSNA, para
 poder juntar los dos al armar las particiones.
@@ -36,6 +41,10 @@ def convertir(caso: str, topaneu: Path, salida: Path, modalidad: str) -> dict:
     mascara = sitk.ReadImage(str(topaneu / "location_masks" / f"{caso}.nii.gz"))
     if img.GetSize() != mascara.GetSize():
         raise ValueError(f"imagen {img.GetSize()} y máscara {mascara.GetSize()} de tamaño distinto")
+    # Mismo tamaño no basta: si la rejilla es otra, la máscara caería desplazada sobre la imagen.
+    for nombre in ("GetSpacing", "GetOrigin", "GetDirection"):
+        if not np.allclose(getattr(img, nombre)(), getattr(mascara, nombre)(), atol=1e-3):
+            raise ValueError(f"imagen y máscara con distinta geometría ({nombre[3:].lower()})")
     arr = sitk.GetArrayFromImage(img)
     if modalidad == "ct":
         arr = np.clip(np.rint(arr), HU_MIN, HU_MAX).astype(np.int16)
@@ -90,12 +99,17 @@ def main(argv=None) -> int:
     hechos = set()
     if ruta.exists():
         with ruta.open(newline="", encoding="utf-8") as f:
-            hechos = {r["caso"] for r in csv.DictReader(f)}
+            previas = [r for r in csv.DictReader(f) if r["estado"] != "error"]  # los errores se reintentan
+        with ruta.open("w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=CAMPOS + EXTRA)
+            w.writeheader()
+            w.writerows({k: r.get(k, "") for k in CAMPOS + EXTRA} for r in previas)
+        hechos = {r["caso"] for r in previas}
     pendientes = [c for c in casos if c not in hechos]
     print(f"{len(casos)} casos de {args.modalidad} · {len(pendientes)} por convertir", flush=True)
     with ruta.open("a", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=CAMPOS + EXTRA)
-        if not hechos:
+        if f.tell() == 0:
             w.writeheader()
         for i, caso in enumerate(pendientes, 1):
             try:

@@ -17,6 +17,11 @@ sale siempre el mismo reparto, para que los experimentos sean comparables.
 Con varios manifests (RSNA y TopAneu) cada dataset se reparte por separado y con la
 misma semilla: así cada pliegue lleva la misma parte de cada uno, y añadir un dataset
 no mueve de pliegue ningún caso de los que ya estaban.
+
+Un caso que repite a un paciente de otro dataset (columna `repetido_de`, con el valor
+de «paciente» que ese sujeto tiene en su propio manifest) no se reparte: va al pliegue
+donde ya cayó ese paciente. Si el paciente original no está en ningún manifest de los
+dados, el caso se reparte como uno más y se avisa.
 """
 from __future__ import annotations
 
@@ -39,13 +44,22 @@ def entra(fila: dict, max_espaciado_mm: float, con_sin_hueso: bool) -> bool:
 
 def repartir(filas: list[dict], pliegues: int, semilla: int) -> list[list[str]]:
     """Casos de cada pliegue: cada dataset de origen repartido por separado."""
+    pacientes = {f["paciente"] for f in filas if f["paciente"]}
+    # Los que repiten a un paciente presente en otro manifest esperan a saber dónde cayó.
+    repetidos = [f for f in filas if f.get("repetido_de") and f["repetido_de"] in pacientes]
     por_origen = collections.defaultdict(list)
     for f in filas:
-        por_origen[f.get("origen") or "rsna"].append(f)
+        if f not in repetidos:
+            por_origen[f.get("origen") or "rsna"].append(f)
     grupos: list[list[str]] = [[] for _ in range(pliegues)]
     for origen in sorted(por_origen):
         for i, g in enumerate(_repartir_un_origen(por_origen[origen], pliegues, semilla)):
             grupos[i].extend(g)
+    pliegue_de_caso = {c: i for i, g in enumerate(grupos) for c in g}
+    pliegue_de_paciente = {f["paciente"]: pliegue_de_caso[f["caso"]] for f in filas
+                           if f["caso"] in pliegue_de_caso and f["paciente"]}
+    for f in repetidos:
+        grupos[pliegue_de_paciente[f["repetido_de"]]].append(f["caso"])
     return [sorted(g) for g in grupos]
 
 
@@ -87,6 +101,11 @@ def main(argv=None) -> int:
 
     positivos = {f["caso"] for f in filas if f["aneurisma"] == "1"}
     origen = {f["caso"]: f.get("origen") or "rsna" for f in filas}
+    presentes = {f["paciente"] for f in filas}
+    sueltos = [f["caso"] for f in filas if f.get("repetido_de") and f["repetido_de"] not in presentes]
+    if sueltos:
+        print(f"AVISO: {len(sueltos)} casos repiten a un paciente que no está en estos manifests "
+              f"(p. ej. {sueltos[0]}): se reparten como uno más")
     print(f"{len(todas)} series en el manifest · {len(filas)} entran ({len(positivos)} con aneurisma)")
     for i, g in enumerate(grupos):
         por = collections.Counter(origen[c] for c in g)

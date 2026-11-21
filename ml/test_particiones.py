@@ -40,3 +40,21 @@ def test_anadir_un_dataset_no_mueve_los_que_ya_estaban():
     nuevos = {f["caso"] for f in otro}
     assert [[c for c in g if c not in nuevos] for g in despues] == antes
     assert [sum(c in nuevos for c in g) for g in despues] == [4] * 5
+
+
+def test_un_caso_repetido_va_al_pliegue_de_su_paciente_original():
+    lausanne = [dict(_fila(i, "1", paciente=f"sub-{i:03d}"), origen="lausanne") for i in range(50)]
+    topaneu = [dict(_fila(500 + i, "1"), origen="topaneu2026") for i in range(20)]
+    for i in range(10):  # diez casos de TopAneu son sujetos de Lausanne
+        topaneu[i]["repetido_de"] = f"sub-{i:03d}"
+    grupos = repartir(lausanne + topaneu, 5, 7)
+    donde = {c: j for j, g in enumerate(grupos) for c in g}
+    assert all(donde[f"c{500 + i:03d}"] == donde[f"c{i:03d}"] for i in range(10))
+    assert sorted(donde) == sorted(f["caso"] for f in lausanne + topaneu)
+    # Y no mueven de pliegue a nadie de Lausanne.
+    assert [[c for c in g if c in {f["caso"] for f in lausanne}] for g in grupos] == repartir(lausanne, 5, 7)
+
+
+def test_un_repetido_sin_su_original_se_reparte_como_uno_mas():
+    filas = [dict(_fila(i, "1"), origen="topaneu2026", repetido_de="sub-999") for i in range(10)]
+    assert sorted(c for g in repartir(filas, 5, 7) for c in g) == sorted(f["caso"] for f in filas)

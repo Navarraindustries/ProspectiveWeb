@@ -1051,8 +1051,9 @@ export interface MorphometryResult {
   eq_sphere_diam_mm: number;
   /** Mayor distancia entre dos puntos del saco (P17). */
   max_diameter_mm: number;
-  /** Ancho máximo del domo paralelo al cuello: numerador del DNR y del BF
-   *  (P17). Falta en las sesiones medidas antes. */
+  /** Ancho máximo del domo: mayor diámetro hidráulico 4·A/P de los cortes
+   *  paralelos al cuello (Dmax de CMHA); numerador del DNR y del BF (P17).
+   *  Falta en las sesiones medidas antes. */
   dome_width_mm?: number;
   bbox_w_mm: number;
   bbox_h_mm: number;

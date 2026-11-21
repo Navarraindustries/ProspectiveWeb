@@ -63,8 +63,9 @@ class MorphometricResult:
     ellipticity_index:  float = 0.0
     non_sphericity_idx: float = 0.0
     size_ratio:         float = 0.0
-    # Ancho máximo del domo paralelo al cuello (P17): el numerador del DNR
-    # (Brinjikji 2009) y del BF (Hoh 2007), y el Dmax de CMHA.
+    # Ancho máximo del domo paralelo al cuello (P17): el mayor diámetro
+    # hidráulico 4·A/P de los cortes paralelos al cuello, como el Dmax de CMHA.
+    # Es el numerador del DNR (Brinjikji 2009) y del BF (Hoh 2007).
     dome_width_mm:      float = 0.0
 
     # ── PCA axes ─────────────────────────────────────────────────────── #
@@ -422,31 +423,55 @@ class MorphometricAnalyzer:
         neck_abs: float,
         apex_abs: float,
     ) -> float:
-        """Ancho máximo del domo en cortes paralelos al cuello, con calibre.
+        """Ancho máximo del domo: el mayor diámetro hidráulico de los cortes
+        paralelos al cuello.
 
-        Cada corte se mide por la mayor distancia entre dos de sus puntos, no
-        por perímetro/π: un corte ovalado o con rugosidad daba otro número.
-        Se salta el 5 % junto al cuello y el 2 % junto al ápice, como antes.
+        Cada corte se mide por 4·área/perímetro de su envolvente convexa. Es la
+        definición del Dmax de CMHA (Song 2024): en los 105 sacos de O2
+        (21-11-2026, scripts/ancho_domo_cmha.py) coincide con cociente 1,000 y
+        83 dentro del 10 %, frente al 1,196 del Feret que se usaba. La anchura
+        del cuello NW de CMHA es la misma medida sobre el cuello. Los cortes van
+        del cuello al ápice, centrados en 60 tramos iguales, como en esa prueba.
         """
         extent = apex_abs - neck_abs
         if extent < 1e-3:
             return 0.0
-        positions = np.linspace(neck_abs + 0.05 * extent, apex_abs - 0.02 * extent, 30)
+        axis = np.asarray(axis, dtype=np.float64)
+        u = np.cross(axis, [1.0, 0.0, 0.0])
+        if np.linalg.norm(u) < 1e-3:
+            u = np.cross(axis, [0.0, 1.0, 0.0])
+        u /= np.linalg.norm(u)
+        v = np.cross(axis, u)
+        plane = vtk.vtkPlane()
+        plane.SetNormal(axis.tolist())
+        cutter = vtk.vtkCutter()
+        cutter.SetInputData(poly_data)
+        cutter.SetCutFunction(plane)
+        n_cortes = 60
         ancho = 0.0
-        for pos in positions:
-            plane = vtk.vtkPlane()
+        for k in range(n_cortes):
+            pos = neck_abs + extent * (k + 0.5) / n_cortes
             plane.SetOrigin((origin + pos * axis).tolist())
-            plane.SetNormal(axis.tolist())
-            cutter = vtk.vtkCutter()
-            cutter.SetInputData(poly_data)
-            cutter.SetCutFunction(plane)
             cutter.Update()
             cut = cutter.GetOutput()
-            if cut.GetNumberOfPoints() < 2:
+            if cut.GetNumberOfPoints() < 3:
                 continue
-            pts = ns.vtk_to_numpy(cut.GetPoints().GetData()).astype(np.float64)
-            ancho = max(ancho, self._feret_diameter(pts))
+            pts = ns.vtk_to_numpy(cut.GetPoints().GetData()).astype(np.float64) - origin
+            ancho = max(ancho, self._hydraulic_diameter(np.column_stack([pts @ u, pts @ v])))
         return ancho
+
+    @staticmethod
+    def _hydraulic_diameter(q: np.ndarray) -> float:
+        """4·área/perímetro de la envolvente convexa de unos puntos del plano ((N, 2))."""
+        if len(q) < 3:
+            return 0.0
+        try:
+            from scipy.spatial import ConvexHull  # type: ignore[import]
+            hull = ConvexHull(q)
+        except Exception:          # puntos alineados
+            return 0.0
+        # En 2D, `volume` es el área y `area` el perímetro.
+        return 4.0 * float(hull.volume) / float(hull.area) if hull.area > 0 else 0.0
 
     @staticmethod
     def _feret_diameter(pts: np.ndarray) -> float:

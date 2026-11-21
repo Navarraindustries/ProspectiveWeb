@@ -6894,7 +6894,7 @@
      },
      "dome_width_mm": {
       "default": 0.0,
-      "description": "Ancho máximo del domo en cortes paralelos al cuello, con calibre (mm): el numerador del DNR y del BF. 0 sin cuello válido.",
+      "description": "Ancho máximo del domo (mm): el mayor diámetro hidráulico 4·área/perímetro de los cortes paralelos al cuello, como el Dmax de CMHA. Es el numerador del DNR y del BF. 0 sin cuello válido.",
       "minimum": 0.0,
       "title": "Dome Width Mm",
       "type": "number"

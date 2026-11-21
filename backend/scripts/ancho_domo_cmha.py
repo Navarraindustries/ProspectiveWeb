@@ -8,12 +8,12 @@ el punto más bajo hasta el más alto) y en cada corte se miden varias definicio
 «ancho», todas sobre la envolvente convexa del corte. De cada una queda el máximo
 entre cortes, que se compara con el Dmax de CMHA:
 
-    feret_max      mayor anchura en cualquier dirección (el ancho del domo de P17)
+    feret_max      mayor anchura en cualquier dirección (el ancho del domo de P17 hasta el 21-11)
     feret_min      menor anchura
     dir_cuello     anchura en la dirección de la cuerda más larga del cuello
     perp_cuello    anchura en la dirección perpendicular a esa
     d_area         diámetro equivalente del área, 2·√(A/π)
-    d_hidraulico   diámetro hidráulico, 4·A/P
+    d_hidraulico   diámetro hidráulico, 4·A/P (el ancho del domo de la app desde el 21-11)
     d_perimetro    P/π
 
 Resultado del 21-11-2026 con los 105 sacos: coincide el diámetro hidráulico (cociente

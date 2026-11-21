@@ -56,8 +56,8 @@ COL = {
 PARES = [
     ("Volumen (mm³)", "volumen", "V", "malla tapada por el cuello"),
     ("Área del saco (mm²)", "area_saco", "A", "sin la tapa del cuello"),
-    ("Diámetro máximo (mm)", "d_max", "Dmax", "nuestro: mayor distancia entre dos puntos; su Dmax: ancho paralelo al cuello"),
-    ("Ancho del domo frente a Dmax (mm)", "ancho_domo", "Dmax", "los dos: ancho máximo paralelo al cuello (P17)"),
+    ("Diámetro máximo (mm)", "d_max", "Dmax", "nuestro: mayor distancia entre dos puntos; su Dmax: 4·A/P paralelo al cuello"),
+    ("Ancho del domo frente a Dmax (mm)", "ancho_domo", "Dmax", "los dos: mayor 4·A/P de los cortes paralelos al cuello (P17)"),
     ("Diámetro máximo frente a L1 (mm)", "d_max", "L1", "L1: longitud máxima del aneurisma"),
     ("Cuello: diámetro (mm)", "cuello_d_eq", "NW", "nuestro: equivalente del área; NW: anchura"),
     ("Cuello: perímetro (mm)", "cuello_perimetro", "NC", ""),

@@ -206,8 +206,9 @@ class MorphometryResult(BaseModel):
     dome_width_mm: float = Field(
         0.0, ge=0.0,
         description=(
-            "Ancho máximo del domo en cortes paralelos al cuello, con calibre (mm): "
-            "el numerador del DNR y del BF. 0 sin cuello válido."
+            "Ancho máximo del domo (mm): el mayor diámetro hidráulico 4·área/perímetro "
+            "de los cortes paralelos al cuello, como el Dmax de CMHA. Es el numerador "
+            "del DNR y del BF. 0 sin cuello válido."
         ),
     )
     bbox_w_mm: float = Field(..., description="Intermediate bounding-box dimension (mm)")

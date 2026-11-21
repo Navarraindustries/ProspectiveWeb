@@ -7360,7 +7360,7 @@ export interface components {
             dome_seed?: components["schemas"]["Position3D"] | null;
             /**
              * Dome Width Mm
-             * @description Ancho máximo del domo en cortes paralelos al cuello, con calibre (mm): el numerador del DNR y del BF. 0 sin cuello válido.
+             * @description Ancho máximo del domo (mm): el mayor diámetro hidráulico 4·área/perímetro de los cortes paralelos al cuello, como el Dmax de CMHA. Es el numerador del DNR y del BF. 0 sin cuello válido.
              * @default 0
              */
             dome_width_mm: number;

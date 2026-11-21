@@ -91,7 +91,7 @@ const MORE_TIP = {
   ei: `Elipticidad: cuánto se aparta de una semiesfera la envolvente convexa del saco, sin el disco del cuello (Raghavan 2005): el alargamiento sin contar la ondulación. Alto desde ${cifra(EI_MOD, 2)}, el mismo corte que la etiqueta de riesgo; el corte es de la aplicación.`,
   nsi: "No-esfericidad: cuánto se aparta el saco de una semiesfera, con su área sin el disco del cuello (Raghavan 2005). La aplicación no le pone corte ni lo usa en la etiqueta de riesgo.",
   dmax: "Mayor distancia entre dos puntos del saco: no depende de cómo esté girado el estudio. Es la cifra de las franjas de tamaño (PHASES, Decisión).",
-  dome: "Ancho máximo del domo en cortes paralelos al cuello, medido con calibre: el numerador del DNR y del BF (Brinjikji 2009, Hoh 2007).",
+  dome: "Ancho máximo del domo: el mayor diámetro hidráulico (4 × área ÷ perímetro) de los cortes paralelos al cuello, como el Dmax de CMHA. Es el numerador del DNR y del BF (Brinjikji 2009, Hoh 2007).",
   compactness: "Wadell: 1 es una esfera; valores bajos indican lobulación",
   eq: "Diámetro de la esfera con el mismo volumen",
 };

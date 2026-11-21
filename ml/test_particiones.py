@@ -31,3 +31,12 @@ def test_mismo_paciente_mismo_pliegue_y_misma_semilla():
     donde = {c: j for j, g in enumerate(grupos) for c in g}
     assert all(donde[f"c{i:03d}"] == donde[f"c{i + 1:03d}"] for i in range(0, 40, 2))
     assert repartir(filas, 5, 7) == grupos and repartir(filas, 5, 8) != grupos
+
+
+def test_anadir_un_dataset_no_mueve_los_que_ya_estaban():
+    rsna = [_fila(i, "1" if i < 55 else "0") for i in range(100)]
+    otro = [dict(_fila(1000 + i, "1"), origen="topaneu2026") for i in range(20)]
+    antes, despues = repartir(rsna, 5, 7), repartir(rsna + otro, 5, 7)
+    nuevos = {f["caso"] for f in otro}
+    assert [[c for c in g if c not in nuevos] for g in despues] == antes
+    assert [sum(c in nuevos for c in g) for g in despues] == [4] * 5

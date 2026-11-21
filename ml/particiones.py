@@ -1,6 +1,6 @@
 """Arma las particiones fijas de nnU-Net a partir del manifest de la conversión.
 
-    python ml/particiones.py --manifest DIR/manifest.csv --salida DIR/splits_final.json
+    python ml/particiones.py --manifest DIR/manifest.csv [OTRO/manifest.csv ...] --salida DIR/splits_final.json
         [--pliegues 5] [--semilla 7] [--max-espaciado-mm 2.0] [--con-sin-hueso]
 
 Entran las series convertidas («ok») que además:
@@ -13,6 +13,10 @@ Las que quedan fuera no aparecen en ninguna partición, así que nnU-Net no las 
 Los pliegues se reparten por paciente (todas las series de un paciente van juntas) y
 con la misma proporción de estudios con aneurisma en cada uno. Con la misma semilla
 sale siempre el mismo reparto, para que los experimentos sean comparables.
+
+Con varios manifests (RSNA y TopAneu) cada dataset se reparte por separado y con la
+misma semilla: así cada pliegue lleva la misma parte de cada uno, y añadir un dataset
+no mueve de pliegue ningún caso de los que ya estaban.
 """
 from __future__ import annotations
 
@@ -34,7 +38,19 @@ def entra(fila: dict, max_espaciado_mm: float, con_sin_hueso: bool) -> bool:
 
 
 def repartir(filas: list[dict], pliegues: int, semilla: int) -> list[list[str]]:
-    """Casos de cada pliegue, por paciente y estratificado por «tiene aneurisma»."""
+    """Casos de cada pliegue: cada dataset de origen repartido por separado."""
+    por_origen = collections.defaultdict(list)
+    for f in filas:
+        por_origen[f.get("origen") or "rsna"].append(f)
+    grupos: list[list[str]] = [[] for _ in range(pliegues)]
+    for origen in sorted(por_origen):
+        for i, g in enumerate(_repartir_un_origen(por_origen[origen], pliegues, semilla)):
+            grupos[i].extend(g)
+    return [sorted(g) for g in grupos]
+
+
+def _repartir_un_origen(filas: list[dict], pliegues: int, semilla: int) -> list[list[str]]:
+    """Por paciente y estratificado por «tiene aneurisma»."""
     por_paciente = collections.defaultdict(list)
     for f in filas:
         por_paciente[f["paciente"] or f["caso"]].append(f)
@@ -51,7 +67,7 @@ def repartir(filas: list[dict], pliegues: int, semilla: int) -> list[list[str]]:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--manifest", type=Path, required=True)
+    ap.add_argument("--manifest", type=Path, nargs="+", required=True)
     ap.add_argument("--salida", type=Path, required=True)
     ap.add_argument("--pliegues", type=int, default=5)
     ap.add_argument("--semilla", type=int, default=7)
@@ -59,8 +75,10 @@ def main(argv=None) -> int:
     ap.add_argument("--con-sin-hueso", action="store_true")
     args = ap.parse_args(argv)
 
-    with args.manifest.open(newline="", encoding="utf-8") as f:
-        todas = list(csv.DictReader(f))
+    todas = []
+    for ruta in args.manifest:
+        with ruta.open(newline="", encoding="utf-8") as f:
+            todas.extend(csv.DictReader(f))
     filas = [f for f in todas if entra(f, args.max_espaciado_mm, args.con_sin_hueso)]
     grupos = repartir(filas, args.pliegues, args.semilla)
     particiones = [{"train": sorted(c for j, g in enumerate(grupos) if j != i for c in g), "val": g}
@@ -68,9 +86,12 @@ def main(argv=None) -> int:
     args.salida.write_text(json.dumps(particiones, indent=1) + "\n", encoding="utf-8")
 
     positivos = {f["caso"] for f in filas if f["aneurisma"] == "1"}
+    origen = {f["caso"]: f.get("origen") or "rsna" for f in filas}
     print(f"{len(todas)} series en el manifest · {len(filas)} entran ({len(positivos)} con aneurisma)")
     for i, g in enumerate(grupos):
-        print(f"  pliegue {i}: {len(g)} de validación, {sum(c in positivos for c in g)} con aneurisma")
+        por = collections.Counter(origen[c] for c in g)
+        print(f"  pliegue {i}: {len(g)} de validación, {sum(c in positivos for c in g)} con aneurisma · "
+              + ", ".join(f"{k} {v}" for k, v in sorted(por.items())))
     return 0
 
 

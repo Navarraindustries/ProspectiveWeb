@@ -24,8 +24,8 @@ from pathlib import Path
 AQUI = Path(__file__).resolve().parent
 IMAGEN = "763104351884.dkr.ecr.us-east-1.amazonaws.com/pytorch-training:2.10.0-gpu-py313-cu130-ubuntu22.04-sagemaker-v2.8"
 # USD por hora de entrenamiento bajo demanda en us-east-1 (lista de precios de AWS del 11-11-2026).
-TARIFAS = {"ml.g4dn.4xlarge": 1.505, "ml.g6.4xlarge": 1.654, "ml.g5.4xlarge": 2.03,
-           "ml.g6e.2xlarge": 2.80, "ml.g6e.4xlarge": 3.76}
+TARIFAS = {"ml.g4dn.2xlarge": 0.94, "ml.g4dn.4xlarge": 1.505, "ml.g5.2xlarge": 1.515, "ml.g6.4xlarge": 1.654,
+           "ml.g5.4xlarge": 2.03, "ml.g6e.2xlarge": 2.80, "ml.g6e.4xlarge": 3.76}
 DISCO_USD_GB_MES = 0.14
 
 ARRANQUE = """

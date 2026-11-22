@@ -278,6 +278,22 @@ def _maybe_downsample(
     return _downsample_by(volume, spacing, factor)
 
 
+#: Vóxel de la pasada gruesa en angio-RM (P9: Vach 2024 y Dalmer 2026 umbralizan
+#: a 1 mm). Solo localiza: la malla sale de la banda a resolución nativa.
+MR_COARSE_MM = 1.0
+
+
+def mr_coarse_factor(spacing: tuple[float, float, float]) -> int:
+    """Factor entero que lleva el vóxel de una angio-RM a `MR_COARSE_MM` como mucho.
+
+    Se mide con el vóxel del plano (el menor), que en una TOF es la resolución
+    real; el eje de corte, más grueso, queda a lo que dé. Con un vóxel de más de
+    medio milímetro el factor es 1: localizar a resolución nativa ya es eso.
+    """
+    fino = min(float(s) for s in spacing)
+    return max(1, int(MR_COARSE_MM / fino + 1e-9))
+
+
 def _half_factor(shape: tuple[int, ...]) -> int:
     """Factor de «media resolución»: al menos 2, y el eje mayor a ≤ 256.
 
@@ -458,9 +474,17 @@ def segment_tubular(
     if not half_resolution:
         fallback_note = _tubular_guard(n_voxels, memory=memory_guard)
         half_resolution = bool(fallback_note)
-    if half_resolution:
-        seg_volume, seg_spacing, factor = _downsample_by(
-            volume, dcm.spacing, _half_factor(volume.shape))
+    # Angio-RM (P9): los vasos se localizan a 1 mm como mucho y la banda nativa
+    # da la malla. Si además hacía falta media resolución, gana el factor mayor.
+    mr_factor = mr_coarse_factor(dcm.spacing) if (dcm.modality or "").upper() in ("MR", "MRA") else 1
+    if half_resolution or mr_factor > 1:
+        f = max(mr_factor, _half_factor(volume.shape) if half_resolution else 1)
+        if mr_factor > 1:
+            fallback_note = (fallback_note + " " if fallback_note else "") + (
+                f"Angio-RM: los vasos se localizan con vóxel de "
+                f"{cifra(min(float(s) for s in dcm.spacing) * f, 2)} mm (1 mm como mucho, como en "
+                f"los artículos de detección en angio-RM) y la malla sale a resolución nativa.")
+        seg_volume, seg_spacing, factor = _downsample_by(volume, dcm.spacing, f)
     else:
         seg_volume = np.ascontiguousarray(volume, dtype=np.float32)
         seg_spacing, factor = tuple(dcm.spacing), 1

@@ -9160,6 +9160,12 @@ export interface components {
              */
             clip_hu: boolean;
             /**
+             * N4
+             * @description Corrección N4 del campo de sesgo (P9), solo en angio-RM: quita la variación de intensidad de la antena antes del umbral. Va primero y a resolución nativa; en otras modalidades se omite.
+             * @default false
+             */
+            n4: boolean;
+            /**
              * Resample Isotropic
              * @description Resample to cubic voxels
              * @default false

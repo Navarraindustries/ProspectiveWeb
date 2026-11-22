@@ -116,6 +116,7 @@ Al 20 de noviembre de 2026.
 | Línea central | Curvatura y torsión medias del vaso portador sobre la línea suavizada; un fantoma sintético de tubos vigila la extracción como prueba de regresión |
 | Informe | Dice el tamaño de vóxel con el que se tomó cada medida; ningún índice sin validar se presenta como predicción |
 | Detector | Máscara de cerebro opcional que quita los candidatos lejos del cerebro; curva FROC y especificidad por paciente sobre el banco de estudios |
+| Angio-RM | Corrección N4 del campo de la antena en el Preprocesado (marcada por defecto en una RM); al segmentar, los vasos se localizan a 1 mm y la malla sale a resolución nativa. Probado con volúmenes sintéticos; falta la prueba con angio-RM reales |
 
 ### En desarrollo
 
@@ -124,7 +125,6 @@ Al 20 de noviembre de 2026.
 | Detector de aneurismas con IA (angio-TC primero, después angio-RM TOF) | Datos de entrenamiento convertidos y repartidos; código de entrenamiento escrito |
 | Modelo de vasos (arterias y venas) | En evaluación de modelos publicados |
 | Verificador de candidatos | Entrenado con validación cruzada; falta integrarlo en la aplicación |
-| Preprocesado de angio-RM (N4 y remuestreo a 1 mm) | Pendiente |
 | Comparación de dispositivos lado a lado y kit de impresión 3D automático | Pendiente |
 
 ---

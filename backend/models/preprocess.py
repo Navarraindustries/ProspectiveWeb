@@ -13,6 +13,14 @@ class PreprocessRequest(BaseModel):
             "flatten the contrast column instead of removing outliers."
         ),
     )
+    n4: bool = Field(
+        False,
+        description=(
+            "Corrección N4 del campo de sesgo (P9), solo en angio-RM: quita la "
+            "variación de intensidad de la antena antes del umbral. Va primero y "
+            "a resolución nativa; en otras modalidades se omite."
+        ),
+    )
     resample_isotropic: bool = Field(False, description="Resample to cubic voxels")
     target_spacing_mm: float = Field(0.5, ge=0.2, le=2.0, description="Isotropic voxel size (mm)")
     smooth: bool = Field(False, description="Mild Gaussian denoising")

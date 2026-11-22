@@ -97,7 +97,7 @@ class TestEndpoint:
         assert read_state(sid, "preprocess.ops") == "recorte HU; suavizado σ=1,5"
         assert "recorte HU; suavizado σ=1,5" in r.json()["note"]
         assert json.loads(read_state(sid, "preprocess.params")) == {
-            "hu_clip": True, "target_spacing_mm": None, "smooth_sigma": 1.5}
+            "n4": False, "hu_clip": True, "target_spacing_mm": None, "smooth_sigma": 1.5}
         assert client.get(f"/api/preprocess/{sid}").json()["ops"] == "recorte HU; suavizado σ=1,5"
 
     def test_noop_selection_422(self):

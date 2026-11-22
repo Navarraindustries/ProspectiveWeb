@@ -1,6 +1,7 @@
-/* Preprocesamiento del volumen (avanzado, Feature 10) — recorte HU, remuestreo
-   isotrópico y suavizado gaussiano (port de dicom/preprocessor.py). Se aplica
-   antes de segmentar; reescribe el volumen de la sesión y limpia lo posterior. */
+/* Preprocesamiento del volumen (avanzado, Feature 10) — corrección N4 (solo
+   angio-RM, P9), recorte HU, remuestreo isotrópico y suavizado gaussiano (port de
+   dicom/preprocessor.py). Se aplica antes de segmentar; reescribe el volumen de
+   la sesión y limpia lo posterior. */
 
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
@@ -30,6 +31,12 @@ export function PreprocessSection() {
   // «Restaurar volumen original» borra lo mismo y no preguntaba.
   const [askingRevert, setAskingRevert] = useState(false);
   const isHu = isHuModality(series?.modality);
+  // P9: la corrección N4 es de resonancia (el campo de la antena); en una RM
+  // viene marcada, porque sin ella un umbral global deja fuera los vasos del
+  // lado oscuro de la cabeza.
+  const isMr = ["MR", "MRA"].includes((series?.modality ?? "").trim().toUpperCase());
+  const [n4, setN4] = useState(isMr);
+  const n4On = n4 && isMr;
   const [open, setOpen] = useState(false);
   // Only offered pre-ticked where it means something: on a 3DRA/XA volume the
   // HU clamp flattens everything above 3000, which is where the contrast is.
@@ -69,7 +76,7 @@ export function PreprocessSection() {
     setError(null);
     try {
       const r = await api.preprocess(sessionId, {
-        clip_hu: clip, resample_isotropic: isoOn, target_spacing_mm: target,
+        n4: n4On, clip_hu: clip, resample_isotropic: isoOn, target_spacing_mm: target,
         smooth, smooth_sigma: sigma,
       });
       setRes(r);
@@ -121,6 +128,18 @@ export function PreprocessSection() {
           <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 10 }}>
             Ajusta el volumen antes de segmentar. Al aplicar se reinicia la segmentación.
           </div>
+          {isMr && (
+            <>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", marginBottom: 4 }}>
+                <input type="checkbox" checked={n4} onChange={(e) => setN4(e.target.checked)} /> Corrección de campo (N4)
+              </label>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8, lineHeight: 1.45 }}>
+                Quita la variación de intensidad de la antena, para que el umbral valga en toda la
+                cabeza. Al segmentar una angio-RM, los vasos se localizan a 1 mm y la malla sale a
+                resolución nativa.
+              </div>
+            </>
+          )}
           <label
             title={isHu ? undefined : "Solo aplicable a volúmenes en unidades Hounsfield (TAC)"}
             style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: isHu ? "pointer" : "not-allowed", marginBottom: isHu ? 8 : 4, opacity: isHu ? 1 : 0.55 }}
@@ -195,7 +214,7 @@ export function PreprocessSection() {
             Se reinicia la segmentación, con la detección y las medidas hechas sobre ella, y se
             borran las anotaciones.
           </ConfirmDialog>
-          <Button variant="outline" style={{ width: "100%" }} disabled={busy || reverting || !sessionId || (!clip && !isoOn && !smooth)}
+          <Button variant="outline" style={{ width: "100%" }} disabled={busy || reverting || !sessionId || (!n4On && !clip && !isoOn && !smooth)}
                   onClick={() => (hasWork ? setAsking(true) : void apply())}>
             {busy ? "Procesando…" : "Aplicar preprocesamiento"}
           </Button>

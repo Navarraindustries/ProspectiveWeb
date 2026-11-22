@@ -34,10 +34,10 @@ def _run(session_id: str, req: PreprocessRequest) -> PreprocessResult:
 
     from services.preprocess import preprocess_volume
 
-    if not (req.clip_hu or req.resample_isotropic or req.smooth):
+    if not (req.n4 or req.clip_hu or req.resample_isotropic or req.smooth):
         raise ValueError("Selecciona al menos una operación de preprocesamiento.")
 
-    from services.preprocess import is_hounsfield
+    from services.preprocess import is_hounsfield, is_mr
 
     meta = ensure_volume_cached(session_id)
     # Copy the volume into RAM so we can release the memmap that keeps the .npy
@@ -51,14 +51,25 @@ def _run(session_id: str, req: PreprocessRequest) -> PreprocessResult:
     modality = str(meta.get("modality", "") or "")
     clip_hu = req.clip_hu and is_hounsfield(modality)
     clip_skipped = req.clip_hu and not clip_hu
-    if clip_skipped and not (req.resample_isotropic or req.smooth):
+    # La N4 corrige el campo de la antena de resonancia: en TC o 3DRA no lo hay
+    # y solo deformaría las intensidades.
+    n4 = req.n4 and is_mr(modality)
+    n4_skipped = req.n4 and not n4
+    others = n4 or req.resample_isotropic or req.smooth
+    if clip_skipped and not others:
         raise ValueError(
             f"El recorte de HU no aplica a un volumen {modality or 'no-TAC'}: sus "
             "intensidades no son unidades Hounsfield. Selecciona otra operación."
         )
+    if n4_skipped and not (clip_hu or req.resample_isotropic or req.smooth):
+        raise ValueError(
+            f"La corrección N4 es solo para angio-RM y este volumen es {modality or 'de otra modalidad'}: "
+            "no tiene campo de antena que corregir. Selecciona otra operación."
+        )
 
     new_vol, new_spacing = preprocess_volume(
         volume, spacing,
+        n4=n4,
         clip_hu=clip_hu,
         resample_isotropic=req.resample_isotropic,
         target_spacing_mm=req.target_spacing_mm,
@@ -98,7 +109,7 @@ def _run(session_id: str, req: PreprocessRequest) -> PreprocessResult:
     meta_path.write_text(json.dumps(new_meta))
 
     params = ops_params(clip_hu, req.resample_isotropic, req.target_spacing_mm,
-                        req.smooth, req.smooth_sigma)
+                        req.smooth, req.smooth_sigma, n4=n4)
     shown = ops_text(params, persona=True)
     write_state(session_id, _OPS_KEY, shown)
     write_state(session_id, _PARAMS_KEY, json.dumps(params))
@@ -107,6 +118,11 @@ def _run(session_id: str, req: PreprocessRequest) -> PreprocessResult:
         note = (
             f"Recorte de HU omitido: un volumen {modality or 'no-TAC'} no está en "
             f"unidades Hounsfield. {note}"
+        )
+    if n4_skipped:
+        note = (
+            f"Corrección N4 omitida: es solo para angio-RM y este volumen es "
+            f"{modality or 'de otra modalidad'}. {note}"
         )
     return PreprocessResult(
         shape_before=[int(x) for x in volume.shape],

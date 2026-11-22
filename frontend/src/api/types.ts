@@ -861,6 +861,8 @@ export interface TrajectoryResult {
 
 /* ── DICOM volume preprocessing ────────────────────────────────────────── */
 export interface PreprocessRequest {
+  /** Corrección N4 del campo de sesgo (P9): solo angio-RM; el servidor la omite en otras. */
+  n4?: boolean;
   clip_hu?: boolean;
   resample_isotropic?: boolean;
   target_spacing_mm?: number;

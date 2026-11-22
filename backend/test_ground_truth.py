@@ -168,7 +168,7 @@ class TestResumenYExport:
         fila = next(x for x in client.get("/api/ground-truth/export").json()
                     if x["imaging_study_id"] == img)
         seg = fila["seg_params"]
-        assert seg["preprocess"] == {"hu_clip": True, "target_spacing_mm": 0.5, "smooth_sigma": 1.5}
+        assert seg["preprocess"] == {"n4": False, "hu_clip": True, "target_spacing_mm": 0.5, "smooth_sigma": 1.5}
         assert seg["preprocess_ops"] == "recorte HU; remuestreo isotrópico 0.5 mm; suavizado σ=1.5"
         assert not re.search(r"\d,\d", json.dumps(seg, ensure_ascii=False))
 

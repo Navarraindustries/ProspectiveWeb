@@ -9401,6 +9401,12 @@
       "title": "Clip Hu",
       "type": "boolean"
      },
+     "n4": {
+      "default": false,
+      "description": "Corrección N4 del campo de sesgo (P9), solo en angio-RM: quita la variación de intensidad de la antena antes del umbral. Va primero y a resolución nativa; en otras modalidades se omite.",
+      "title": "N4",
+      "type": "boolean"
+     },
      "resample_isotropic": {
       "default": false,
       "description": "Resample to cubic voxels",

@@ -25,12 +25,12 @@ const resultado = {
   shape_before: [1, 1, 1], spacing_before: [1, 1, 1], shape_after: [1, 1, 1], spacing_after: [1, 1, 1], note: "ok",
 };
 
-function montar(conMalla: boolean, spacing?: { x: number; y: number; z: number }) {
+function montar(conMalla: boolean, spacing?: { x: number; y: number; z: number }, modality = "CT") {
   function Semilla({ children }: { children: ReactNode }) {
     const p = usePlanning();
     useEffect(() => {
       p.setSession("s1");
-      p.setSeries({ series_id: "1", modality: "CT", spacing } as never);
+      p.setSeries({ series_id: "1", modality, spacing } as never);
       if (conMalla) p.setSegmentation(malla);
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
     return p.sessionId ? <>{children}</> : null;
@@ -86,6 +86,39 @@ describe("«Aplicar preprocesamiento»", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Aplicar preprocesamiento" }));
     await waitFor(() => expect(preprocess).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+});
+
+/* P9: en angio-RM el campo de la antena hace que un umbral global deje fuera
+   los vasos del lado oscuro. La corrección N4 es una operación más, solo de RM,
+   y viene marcada en una RM. */
+describe("«Corrección de campo (N4)»", () => {
+  const casilla = () => screen.queryByRole("checkbox", { name: /Corrección de campo \(N4\)/ }) as HTMLInputElement | null;
+
+  it("en una angio-RM viene marcada y se envía, sin el recorte de HU", async () => {
+    montar(false, { x: 0.4, y: 0.4, z: 0.8 }, "MR");
+    await screen.findByRole("button", { name: "Aplicar preprocesamiento" });
+    expect(casilla()?.checked).toBe(true);
+    expect(screen.getByText(/se localizan a 1 mm/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Aplicar preprocesamiento" }));
+    await waitFor(() => expect(preprocess).toHaveBeenCalledTimes(1));
+    expect(preprocess.mock.calls[0][1]).toMatchObject({ n4: true, clip_hu: false });
+  });
+
+  it("en una RM se puede quitar, y sin nada marcado no se aplica", async () => {
+    montar(false, { x: 0.4, y: 0.4, z: 0.8 }, "MR");
+    await screen.findByRole("button", { name: "Aplicar preprocesamiento" });
+    fireEvent.click(casilla()!);
+    expect(screen.getByRole("button", { name: "Aplicar preprocesamiento" })).toBeDisabled();
+  });
+
+  it("en una angio-TC no aparece y no se envía", async () => {
+    montar(false);
+    await screen.findByRole("button", { name: "Aplicar preprocesamiento" });
+    expect(casilla()).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Aplicar preprocesamiento" }));
+    await waitFor(() => expect(preprocess).toHaveBeenCalledTimes(1));
+    expect(preprocess.mock.calls[0][1]).toMatchObject({ n4: false });
   });
 });
 

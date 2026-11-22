@@ -1918,12 +1918,18 @@ export function ViewerWorkspace({ step }: { step: string }) {
       else if (pickMode === "erase_piece") { setErasePick(xyz); }
       else if (pickMode === "traj_entry") { setTrajEntry(xyz); setPickMode(null); }
       else if (pickMode === "traj_target") { setTrajTarget(xyz); setPickMode(null); }
-      // Also stays armed: the rim needs at least three points to define a plane.
-      else if (pickMode === "neck_rim") { setNeckRim([...neckRim, xyz]); }
-      else if (pickMode === "scissors") { setScissorsPoints([...scissorsPoints, xyz]); }
+      // Sigue armado: el borde necesita al menos tres puntos para un plano.
+      // Se suma sobre la lista actual (forma funcional): esta función queda
+      // memorizada y su copia de neckRim era la de cuando se armó el modo, así
+      // que cada clic sustituía al anterior y el borde nunca pasaba de 1.
+      else if (pickMode === "neck_rim") { setNeckRim((prev) => [...prev, xyz]); }
+      else if (pickMode === "scissors") { setScissorsPoints((prev) => [...prev, xyz]); }
       else if (kindOfMode(pickMode)) addAnnotationPoint(xyz, null);
     },
-    [morphometry, pickMode, addAnnotationPoint, setClSource, setClTarget, setStentSac, setNeckOrigin, setNeckDome, setCropCenter, setLesionMark, setErasePick, setTrajEntry, setTrajTarget, setPickMode, focusFromMm, syncViews, meta],
+    // Todo lo que lee va aquí: con una dependencia de menos, la función se
+    // queda con valores de un render anterior (así se perdían los puntos del
+    // borde y la elección de candidato veía la lista de antes de re-detectar).
+    [morphometry, pickMode, candidatePick, allCandidates, showRejectedIn3d, candidates.length, selectedCandidate, setSelectedCandidate, addAnnotationPoint, setClSource, setClTarget, setStentSac, setNeckOrigin, setNeckDome, setCropCenter, setLesionMark, setErasePick, setTrajEntry, setTrajTarget, setNeckRim, setScissorsPoints, setPickMode, focusFromMm, syncViews, meta],
   );
 
   // Un marcado se hace sobre la malla: si la escena es una vista lateral, sube

@@ -2,7 +2,7 @@
    session id, DICOM series, thresholds, segmentation, detection, morphometry… */
 
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
-import type { ReactNode, RefObject } from "react";
+import type { Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import type { PartsHandle } from "../vtk/MeshView";
 import type { FrameSource } from "../vtk/viewerRecorder";
 import type { SceneFramer } from "../vtk/captureRenderWindow";
@@ -425,8 +425,10 @@ interface PlanningState {
    *  aquello a lo que apuntan: otra malla, otro volumen u otro estudio. */
   clearAnnotations: () => void;
   setNoteFocusRequest: (id: string | null) => void;
-  setNeckRim: (s: Vec3[]) => void;
-  setScissorsPoints: (p: Vec3[]) => void;
+  /** Admite una función (`prev => [...prev, p]`): el visor suma cada clic
+   *  sobre la lista actual, no sobre la que vio al armar la herramienta. */
+  setNeckRim: Dispatch<SetStateAction<Vec3[]>>;
+  setScissorsPoints: Dispatch<SetStateAction<Vec3[]>>;
   setScissorsPreview: (url: string | null) => void;
   setScissorsKeepSide: (s: number) => void;
   setPerforators: (p: PerforatorCandidate[], zones?: [number, number, number] | null) => void;

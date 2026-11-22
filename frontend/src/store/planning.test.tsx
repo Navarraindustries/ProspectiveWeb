@@ -506,3 +506,25 @@ describe("la localización del aneurisma", () => {
     expect(result.current.aneurysmSite).toBeNull();
   });
 });
+
+/* El visor recibe los clics con una función memorizada: si suma el punto sobre
+   su copia de la lista, cada clic sustituye al anterior. Pasó con el borde del
+   cuello (nunca pasaba de «1 punto · faltan 2») y con la tijera. */
+describe("puntos que se suman clic a clic", () => {
+  it("el borde del cuello acumula los puntos aunque quien los añade tenga una copia vieja", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    // Como el visor: la función se fija al armar la herramienta, con la lista vacía.
+    const anadir = result.current.setNeckRim;
+    const p: Vec3[] = [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]];
+    for (const q of p) act(() => anadir((prev) => [...prev, q]));
+    expect(result.current.neckRim).toEqual(p);
+  });
+
+  it("la tijera también", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    const anadir = result.current.setScissorsPoints;
+    const p: Vec3[] = [[0, 0, 0], [2, 0, 0], [2, 2, 0]];
+    for (const q of p) act(() => anadir((prev) => [...prev, q]));
+    expect(result.current.scissorsPoints).toEqual(p);
+  });
+});

@@ -48,6 +48,74 @@ def _require_owner_or_admin(patient: Patient, user: User | None) -> None:
         raise HTTPException(status_code=403, detail="No autorizado sobre este paciente.")
 
 logger = logging.getLogger(__name__)
+
+
+def _quitar_estudios_y_capturas(db: Session, *, patient_id: int | None = None,
+                                case_id: int | None = None) -> tuple[list[str], int, int]:
+    """Prepara el borrado de un paciente o de un caso: lo que cuelga de sus estudios de imagen.
+
+    Los estudios de imagen se van con el caso (cascada del ORM), pero lo que
+    apunta a ellos no tiene cascada en la base: las capturas, las confirmaciones
+    de lesión y las sesiones guardadas. Borrar un paciente con capturas daba un
+    500 (FOREIGN KEY, paciente 241 el 23-11), y el DICOM archivado de sus
+    estudios se quedaba en disco sin nadie que lo apuntase (la carpeta huérfana
+    de 1,3 GB del estudio 1).
+
+    Primero los objetos del DICOM archivado, como `DELETE /studies/{id}`: si el
+    almacén falla, sale un 500 sin haber tocado la base y se puede reintentar.
+    Luego, en la sesión de la base (sin commit): fuera las capturas y las
+    confirmaciones, y las sesiones que apuntaban a esos estudios se desligan.
+    Devuelve (claves de las capturas, para borrar sus ficheros tras el commit;
+    nº de capturas; nº de estudios de imagen).
+    """
+    from services.storage import get_storage
+
+    q_img = db.query(ImagingStudy)
+    q_img = q_img.filter(ImagingStudy.patient_id == patient_id) if patient_id is not None \
+        else q_img.filter(ImagingStudy.case_id == case_id)
+    estudios = q_img.all()
+    ids = [i.id for i in estudios]
+
+    storage = get_storage()
+    try:
+        for img in estudios:
+            if img.storage_prefix:
+                storage.delete_prefix(img.storage_prefix)
+            if img.thumb_key:
+                storage.delete_key(img.thumb_key)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Delete archived study objects failed")
+        raise HTTPException(status_code=500,
+                            detail=f"No se pudo borrar el DICOM archivado: {exc}") from exc
+
+    cond = [CaseCapture.patient_id == patient_id] if patient_id is not None \
+        else [CaseCapture.case_id == case_id]
+    if ids:
+        cond.append(CaseCapture.imaging_study_id.in_(ids))
+    from sqlalchemy import or_
+    capturas = db.query(CaseCapture).filter(or_(*cond)).all()
+    claves = [c.storage_key for c in capturas if c.storage_key]
+    for c in capturas:
+        db.delete(c)
+    if ids:
+        db.query(LesionConfirmation).filter(LesionConfirmation.imaging_study_id.in_(ids)) \
+            .delete(synchronize_session=False)
+        db.query(PlanningSession).filter(PlanningSession.imaging_study_id.in_(ids)) \
+            .update({"imaging_study_id": None}, synchronize_session=False)
+    # Que las capturas salgan antes que los estudios que borra la cascada.
+    db.flush()
+    return claves, len(capturas), len(estudios)
+
+
+def _borrar_ficheros_de_capturas(claves: list[str]) -> None:
+    """Tras el commit: si un fichero no se deja borrar, queda huérfano pero nada se rompe."""
+    from services.storage import get_storage
+    storage = get_storage()
+    for k in claves:
+        try:
+            storage.delete_key(k)
+        except Exception:  # noqa: BLE001
+            logger.warning("Captura borrada pero su fichero %s sigue ahí", k)
 router = APIRouter(prefix="/api/patients", tags=["patients"])
 
 
@@ -500,6 +568,9 @@ async def delete_study(
 ) -> None:
     study = _get_owned_study(db, patient_id, study_id, current_user, owner_only=True)
     paciente = audit_patient(db.get(Patient, patient_id))
+    # Capturas, DICOM archivado y lo que apunta a sus estudios de imagen: sin
+    # esto, un caso con capturas daba un 500 (FOREIGN KEY) como el paciente 241.
+    claves, n_capturas, n_estudios = _quitar_estudios_y_capturas(db, case_id=study_id)
     # Its planning sessions have a study_id FK without cascade — detach them so
     # the saved planning work survives under the patient.
     db.query(PlanningSession).filter(PlanningSession.study_id == study_id).update({"study_id": None})
@@ -509,8 +580,10 @@ async def delete_study(
     db.query(LesionConfirmation).filter(LesionConfirmation.case_id == study_id).delete()
     db.delete(study)
     db.commit()
+    _borrar_ficheros_de_capturas(claves)
     logger.info("Study deleted — patient=%d study=%d", patient_id, study_id)
-    audit_append(ACT_CASE_DELETED, {"patient": patient_id, "case": study_id},
+    audit_append(ACT_CASE_DELETED, {"patient": patient_id, "case": study_id,
+                                    "captures": n_capturas, "imaging_studies": n_estudios},
                  username=current_user.username if current_user else "", **paciente)
 
 
@@ -582,7 +655,9 @@ async def update_patient(
     "/{patient_id}",
     status_code=204,
     summary="Delete a patient",
-    description="Deletes a patient and its studies and planning sessions (cascade).",
+    description=("Deletes a patient and everything under it: cases, archived imaging studies "
+                 "(and their DICOM), captures and saved planning sessions (rows and folders). "
+                 "409 if one of its saved sessions is open right now."),
 )
 async def delete_patient(
     patient_id:   int,
@@ -594,8 +669,21 @@ async def delete_patient(
         raise HTTPException(status_code=404, detail="Paciente no encontrado.")
     _require_owner_or_admin(patient, current_user)
 
+    from services.sessions import live_sessions_from, purge_saved_session
+
     paciente = audit_patient(patient)
     n_casos = len(patient.studies or [])
+    guardadas = [s.session_id for s in
+                 db.query(PlanningSession.session_id).filter(PlanningSession.patient_id == patient_id)]
+    # Como DELETE /sessions/saved: una sesión abierta reanudada de una de ellas
+    # se apoya en su fila y su paciente; borrarlas la dejaría huérfana.
+    if any(live_sessions_from(sid) for sid in guardadas):
+        raise HTTPException(
+            status_code=409,
+            detail="Una sesión guardada de este paciente está abierta ahora mismo. Ciérrala (o "
+                   "espera a que caduque) y vuelve a intentarlo.",
+        )
+    claves, n_capturas, n_estudios = _quitar_estudios_y_capturas(db, patient_id=patient_id)
     # Planning sessions carry a patient_id FK without cascade — remove them first
     # (studies are removed by the ORM cascade on Patient.studies).
     n_sesiones = db.query(PlanningSession).filter(PlanningSession.patient_id == patient_id).delete()
@@ -603,9 +691,16 @@ async def delete_patient(
     db.query(LesionConfirmation).filter(LesionConfirmation.patient_id == patient_id).delete()
     db.delete(patient)
     db.commit()
+    # Después del commit, lo que estaba en disco: los ficheros de las capturas y
+    # las carpetas de las sesiones guardadas. Antes se quedaban sin fila (de ahí
+    # buena parte de las carpetas huérfanas de session_saves).
+    _borrar_ficheros_de_capturas(claves)
+    for sid in guardadas:
+        purge_saved_session(sid)
     logger.info("Patient deleted — id=%d", patient_id)
     audit_append(ACT_PATIENT_DELETED,
-                 {"patient": patient_id, "cases": n_casos, "planning_sessions": n_sesiones},
+                 {"patient": patient_id, "cases": n_casos, "planning_sessions": n_sesiones,
+                  "captures": n_capturas, "imaging_studies": n_estudios},
                  username=current_user.username if current_user else "", **paciente)
 
 

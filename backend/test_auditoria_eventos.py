@@ -56,7 +56,9 @@ def test_borrar_un_caso_queda_registrado():
     pid, caso, _img = _estudio("CasoBorrable")
     assert client.delete(f"/api/patients/{pid}/studies/{caso}").status_code == 204
     b = _ultimo("CASE_DELETED")
-    assert b["payload"] == {"patient": pid, "case": caso} and b["patient_hash"]
+    # Con cuánto se fue: desde el 23-11 el caso se lleva sus capturas y su DICOM archivado.
+    assert b["payload"] == {"patient": pid, "case": caso, "captures": 0, "imaging_studies": 1}
+    assert b["patient_hash"]
 
 
 def test_guardar_y_borrar_capturas_y_grabaciones():

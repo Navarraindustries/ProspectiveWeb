@@ -9,7 +9,7 @@
    eliminado, que el servidor conserva desvinculadas), su propia entrada: la
    ficha antigua las listaba todas y aquí no deben perderse. */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import type { PatientSessionInfo, StudySummary } from "../../api/types";
 import { fechaDia } from "../../lib/fecha";
@@ -102,6 +102,18 @@ export function ColumnaCasos({
   const [delCaso, setDelCaso] = useState<StudySummary | null>(null);
   const [delBusy, setDelBusy] = useState(false);
   const [delError, setDelError] = useState<string | null>(null);
+  // Las capturas del caso se van con él (23-11: antes bloqueaban el borrado
+  // con un 500 y el diálogo no las nombraba).
+  const [delCapturas, setDelCapturas] = useState<number | null>(null);
+  useEffect(() => {
+    setDelCapturas(null);
+    if (!delCaso) return;
+    let vivo = true;
+    api.listCaptures({ caseId: delCaso.id })
+      .then((c) => { if (vivo) setDelCapturas(c.length); })
+      .catch(() => { /* sin cifra: el aviso general sigue siendo verdad */ });
+    return () => { vivo = false; };
+  }, [delCaso]);
 
   const lista = casos ?? [];
   // Arriba va el caso elegido o, sin elegir, el más reciente (el id más alto).
@@ -242,6 +254,9 @@ export function ColumnaCasos({
         onConfirm={eliminar}
       >
         ¿Seguro que quieres eliminar el caso <b style={{ color: "var(--foreground)" }}>{delCaso ? nombreCaso(delCaso) : ""}</b>?
+        {" "}Se borrarán su DICOM archivado
+        {delCapturas === null ? " y sus capturas" : delCapturas === 0 ? ""
+          : ` y ${delCapturas === 1 ? "su captura" : `sus ${delCapturas} capturas`}`}.
         {(delCaso?.session_count ?? 0) === 1 && <> Su sesión de planificación se conservará pero quedará desvinculada.</>}
         {(delCaso?.session_count ?? 0) > 1 && <> Sus {delCaso?.session_count} sesiones de planificación se conservarán pero quedarán desvinculadas.</>} Esta acción no se puede deshacer.
       </ConfirmDialog>

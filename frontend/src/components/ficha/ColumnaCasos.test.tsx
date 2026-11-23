@@ -11,11 +11,13 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 
 const deleteStudy = vi.fn();
 const studyThumbnailObjectUrl = vi.fn();
+const listCaptures = vi.fn();
 
 vi.mock("../../api/client", () => ({
   api: {
     deleteStudy: (patientId: number, studyId: number) => deleteStudy(patientId, studyId),
     studyThumbnailObjectUrl: (id: number) => studyThumbnailObjectUrl(id),
+    listCaptures: (by: unknown) => listCaptures(by),
   },
 }));
 vi.mock("../../pages/NuevoCaso", () => ({
@@ -70,8 +72,9 @@ function Arnes({ casos, sesiones = [], puedePlanificar = true, puedeEliminar = t
 }
 
 beforeEach(() => {
-  for (const f of [deleteStudy, studyThumbnailObjectUrl, onResume, onPlanificar, onCambio, onSeleccionar, onReintentar, onReintentarSesiones]) f.mockReset();
+  for (const f of [deleteStudy, studyThumbnailObjectUrl, listCaptures, onResume, onPlanificar, onCambio, onSeleccionar, onReintentar, onReintentarSesiones]) f.mockReset();
   studyThumbnailObjectUrl.mockResolvedValue("blob:miniatura");
+  listCaptures.mockResolvedValue([]);
 });
 
 describe("casos (F2-28, F2-T5, fusión nº 9)", () => {
@@ -116,6 +119,16 @@ describe("casos (F2-28, F2-T5, fusión nº 9)", () => {
     fireEvent.click(within(dialogo).getByRole("button", { name: "Eliminar" }));
     await waitFor(() => expect(deleteStudy).toHaveBeenCalledWith(2, 9));
     await waitFor(() => expect(onCambio).toHaveBeenCalledWith(9));
+  });
+
+  it("el aviso dice que se van el DICOM archivado y las capturas del caso", async () => {
+    // 23-11: un caso con capturas no se podía borrar (500) y el aviso no las nombraba.
+    listCaptures.mockResolvedValue([{ id: 1 }, { id: 2 }, { id: 3 }]);
+    render(<Arnes casos={[caso({ id: 9, dx_principal: "Aneurisma ACM" })]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar caso «Aneurisma ACM»" }));
+    const dialogo = screen.getByRole("alertdialog", { name: "Eliminar caso" });
+    await waitFor(() => expect(dialogo.textContent).toContain("Se borrarán su DICOM archivado y sus 3 capturas."));
+    expect(listCaptures).toHaveBeenCalledWith({ caseId: 9 });
   });
 
   it("si el servidor no deja eliminar el caso, dice por qué", async () => {

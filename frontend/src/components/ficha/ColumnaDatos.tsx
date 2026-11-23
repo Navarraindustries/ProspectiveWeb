@@ -260,17 +260,26 @@ export function DeleteConfirm({
   // F1-58: el diálogo no decía cuánto se borraba. Los casos vienen en la fila;
   // las sesiones se piden al abrirlo. Si la cuenta falla, se dice sin número.
   const [nSessions, setNSessions] = useState<number | null>(null);
+  // Las capturas también se van (23-11: antes bloqueaban el borrado con un 500
+  // y el diálogo no las nombraba). Sin cifra, se dicen igual.
+  const [nCapturas, setNCapturas] = useState<number | null>(null);
   useEffect(() => {
     let alive = true;
     api.patientSessions(patient.id)
       .then((s) => { if (alive) setNSessions(s.length); })
       .catch(() => { /* sin cifra: el texto general sigue siendo verdad */ });
+    api.listCaptures({ patientId: patient.id })
+      .then((c) => { if (alive) setNCapturas(c.length); })
+      .catch(() => { /* ídem */ });
     return () => { alive = false; };
   }, [patient.id]);
   const casos = `${patient.study_count} ${patient.study_count === 1 ? "caso" : "casos"}`;
   const sesiones = nSessions === null
     ? "sus sesiones de planificación"
     : `${nSessions} ${nSessions === 1 ? "sesión" : "sesiones"} de planificación`;
+  const capturas = nCapturas === null ? "sus capturas"
+    : nCapturas === 0 ? null
+    : `${nCapturas} ${nCapturas === 1 ? "captura" : "capturas"}`;
   return (
     <ConfirmDialog
       open
@@ -282,7 +291,8 @@ export function DeleteConfirm({
       onConfirm={async () => { setBusy(true); await onConfirm(); setBusy(false); }}
     >
       ¿Seguro que quieres eliminar a <b style={{ color: "var(--foreground)" }}>{patient.full_name}</b>? Se
-      borrarán también sus {casos} y {sesiones}. Esta acción no se puede deshacer.
+      borrarán también sus {casos} con el DICOM archivado, {capturas ? <>{sesiones} y {capturas}</> : sesiones}.
+      Esta acción no se puede deshacer.
     </ConfirmDialog>
   );
 }

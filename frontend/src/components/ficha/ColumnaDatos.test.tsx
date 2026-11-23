@@ -255,6 +255,9 @@ describe("eliminar el paciente desde la ficha", () => {
     expect(dialogo.textContent).toContain("2 casos");
     expect(dialogo.textContent).toContain("Segura, Juan");
     expect(patientSessions).toHaveBeenCalledWith(2);
+    // 23-11: las capturas y el DICOM archivado también se van, y se dice.
+    await waitFor(() => expect(dialogo.textContent).toContain("y 5 capturas"));
+    expect(dialogo.textContent).toContain("con el DICOM archivado");
 
     fireEvent.keyDown(document, { key: "Enter" });
     expect(deletePatient).not.toHaveBeenCalled();

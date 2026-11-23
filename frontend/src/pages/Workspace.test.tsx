@@ -48,6 +48,15 @@ vi.mock("../components/planning/ReportPanel", () => ({ ReportPanel: Nada }));
 vi.mock("../components/annotations/AnnotationsPanel", () => ({ AnnotationsPanel: Nada }));
 vi.mock("../components/AttachCaseSheet", () => ({ AttachCaseSheet: Nada }));
 vi.mock("../components/RecordButton", () => ({ RecordButton: () => <button type="button">Grabar</button> }));
+// La tarjeta se prueba aparte (MeshHistoryCard.test); aquí basta con saber
+// dónde sale, con qué aviso y qué hace la pantalla al restaurar.
+vi.mock("../components/segmentation/MeshHistoryCard", () => ({
+  MeshHistoryCard: ({ aviso, onRestored }: { aviso?: string; onRestored?: () => void }) => (
+    <div data-testid="historial-malla" data-aviso={aviso ?? ""}>
+      <button type="button" onClick={onRestored}>restaurar (simulado)</button>
+    </div>
+  ),
+}));
 
 import { Workspace } from "./Workspace";
 import { MATRIZ_ALTOS, MATRIZ_ANCHOS, simularPantalla } from "../test/pantalla";
@@ -604,5 +613,39 @@ describe("ficha del paciente y giro a móvil", () => {
     expect(hoja().style.height).toBe("50%");
     act(() => { pantalla.cambiar({ ancho: 390 }); });
     expect(hoja().style.height).toBe("96px");
+  });
+});
+
+/* El historial de la malla en los pasos posteriores a Segmentación: quitar un
+ * recorte hecho para medir no debe obligar a desandar dos pasos. */
+describe("historial de la malla fuera de Segmentación", () => {
+  beforeEach(() => {
+    for (const k of Object.keys(estado)) delete estado[k];
+    try { localStorage.clear(); sessionStorage.clear(); } catch { /* sin almacenamiento */ }
+  });
+  const montarEn = (paso: number) => render(
+    <Workspace patient={null} initialStep={paso} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,
+  );
+  const plegable = () => screen.queryByRole("button", { name: /Historial de la malla/ });
+
+  it("sale en Morfometría, pide confirmación y al restaurar lleva a Detección", () => {
+    estado.segmentation = { mesh_url: "/m.vtp?v=1" };
+    montarEn(3);
+    expect(screen.getByText("PASO 4 · MORFOMETRÍA")).toBeInTheDocument();
+    fireEvent.click(plegable()!);
+    const tarjeta = screen.getByTestId("historial-malla");
+    expect(tarjeta.dataset.aviso).toMatch(/borra los candidatos, la morfometría/);
+    fireEvent.click(screen.getByRole("button", { name: "restaurar (simulado)" }));
+    expect(screen.getByText("PASO 3 · DETECCIÓN")).toBeInTheDocument();
+  });
+
+  it("no sale en Segmentación (allí está dentro de las herramientas) ni sin malla", () => {
+    estado.segmentation = { mesh_url: "/m.vtp?v=1" };
+    const { unmount } = montarEn(1);
+    expect(plegable()).toBeNull();
+    unmount();
+    estado.segmentation = null;
+    montarEn(3);
+    expect(plegable()).toBeNull();
   });
 });

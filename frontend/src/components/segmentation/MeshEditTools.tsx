@@ -8,8 +8,9 @@ import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { SectionLabel, ErrorNote, Card } from "../PanelHead";
 import { Slider } from "../Slider";
-import type { MeshBounds, MeshHistoryResult } from "../../api/types";
+import type { MeshBounds } from "../../api/types";
 import { usePlanning } from "../../store/planning";
+import { MeshHistoryCard } from "./MeshHistoryCard";
 
 /** `sinCabecera`: dentro de un plegable que ya lleva el título. */
 export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean } = {}) {
@@ -47,34 +48,14 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
   const [comps, setComps] = useState<{ total: number; largestIsTree: boolean } | null>(null);
   // Corte por plano: una dirección y una altura, sin elegir centro.
   const [bounds, setBounds] = useState<MeshBounds | null>(null);
-  const [busy, setBusy] = useState<"crop" | "plane" | "undo" | "redo" | "original" | null>(null);
+  const [busy, setBusy] = useState<"crop" | "plane" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  // The edit history as the backend knows it. Asked for on mount so a resumed
-  // session — whose browser has no memory of the edits — still offers «Deshacer».
-  const [hist, setHist] = useState<MeshHistoryResult>({
-    undo_depth: 0, redo_depth: 0, has_original: false, steps: [],
-  });
-
-
-
-  // El historial se recarga SIEMPRE que cambia la malla, no solo al montar.
-  //
-  // Antes solo se pedía al montar el panel, que es justo cuando todavía no hay
-  // nada que deshacer. Re-segmentar guarda su instantánea, pero eso ocurre
-  // desde SegmentPanel y este componente no se enteraba: con doce pasos
-  // guardados en el backend, la tarjeta seguía diciendo «sin pasos que
-  // deshacer» y los tres botones aparecían apagados. Es decir, el usuario veía
-  // que su trabajo era irreversible cuando no lo era.
-  const meshUrl = segmentation?.mesh_url;
-  useEffect(() => {
-    if (!sessionId) return;
-    let alive = true;
-    api.meshHistory(sessionId)
-      .then((h) => { if (alive) setHist(h); })
-      .catch(() => { /* no history yet */ });
-    return () => { alive = false; };
-  }, [sessionId, meshUrl]);
+  // El historial lo pinta MeshHistoryCard y lo vuelve a pedir cuando cambia la
+  // malla; esto lo empuja además tras cada edición de aquí, por si la URL no
+  // cambiara.
+  const [histTick, setHistTick] = useState(0);
+  const refreshHistory = () => setHistTick((n) => n + 1);
 
   // Los extremos reales de la malla, para que el deslizador no tenga un
   // recorrido inventado. Se recargan cuando la malla cambia.
@@ -302,39 +283,6 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
     }
   };
 
-  const refreshHistory = async () => {
-    if (!sessionId) return;
-    try { setHist(await api.meshHistory(sessionId)); } catch { /* keep what we have */ }
-  };
-
-  const restore = async (scope: "undo" | "redo" | "original") => {
-    if (!sessionId) return;
-    setBusy(scope);
-    setError(null);
-    setNote(null);
-    setPickMode(null);
-    try {
-      const res = await api.meshRestore(sessionId, scope);
-      setSegmentation({ ...segmentation, mesh_url: res.mesh_url, vertices: res.vertices, faces: res.faces });
-      // The restored mesh is different geometry, so candidates, morphometry and
-      // the centreline measured on the edited one no longer describe it.
-      clearDownstream();
-      void refreshHistory();
-      setCropCenter(null);
-      setNote(
-        scope === "original"
-          ? `Malla original restaurada: ${res.vertices.toLocaleString("es")} vértices. Vuelve a detectar para medir sobre ella.`
-          : scope === "redo"
-            ? `Edición rehecha: ${res.vertices.toLocaleString("es")} vértices.`
-            : `Edición deshecha: ${res.vertices.toLocaleString("es")} vértices. Quedan ${res.undo_depth} por deshacer.`,
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo restaurar la malla");
-    } finally {
-      setBusy(null);
-    }
-  };
-
   // ── La tijera ──────────────────────────────────────────────────────── #
   //
   // Marcar un anillo alrededor del vaso y seccionarlo ahí. Nunca corta a la
@@ -392,7 +340,7 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
       clearDownstream();
       limpiarTijera();
       setNote(`Cortado: ${r.removed_vertices.toLocaleString("es")} vértices fuera, ${r.kept_vertices.toLocaleString("es")} en la malla.`);
-      await refreshHistory();
+      refreshHistory();
     } catch (e) {
       setTijeraAviso(e instanceof Error ? e.message : "No se pudo cortar");
     } finally {
@@ -709,64 +657,7 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
           Antes, volver atrás de un recorte exigía re-segmentar, y re-segmentar
           borraba todo el refinamiento sin aviso. Ahora las tres son un paso más
           del historial, con nombre. */}
-      <Card style={{ marginTop: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>
-          Historial de la malla
-        </div>
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
-          {hist.undo_depth > 0
-            ? "Volver atrás no re-segmenta: se recupera la malla guardada antes del paso. Deshacer también es reversible."
-            : "Sin pasos que deshacer. En cuanto borres, recortes o vuelvas a segmentar, podrás volver atrás desde aquí."}
-        </div>
-
-        {hist.steps.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 10 }}>
-            {hist.steps.map((st, i) => (
-              <div
-                key={`${st.at}-${i}`}
-                style={{
-                  display: "flex", alignItems: "baseline", gap: 8, padding: "4px 8px",
-                  borderRadius: "var(--radius-sm)", background: "var(--glass-hover)",
-                  fontSize: 11, color: "var(--muted-foreground)",
-                }}
-              >
-                <span style={{ fontFamily: "var(--font-mono)", opacity: 0.7 }}>{i + 1}</span>
-                <span style={{ flex: 1, color: "var(--foreground)", fontWeight: 600 }}>{st.title}</span>
-                <span style={{ fontFamily: "var(--font-mono)" }}>
-                  {st.vertices.toLocaleString("es")} v
-                </span>
-              </div>
-            ))}
-            <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
-              Estados guardados, del más antiguo al más reciente. Deshacer vuelve al último de la lista.
-            </div>
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={() => void restore("undo")}
-            disabled={busy !== null || hist.undo_depth === 0}
-            style={{ ...toolBtn(false), opacity: hist.undo_depth === 0 || busy !== null ? 0.5 : 1 }}
-          >
-            {busy === "undo" ? "Deshaciendo…" : "↺ Deshacer"}
-          </button>
-          <button
-            onClick={() => void restore("redo")}
-            disabled={busy !== null || hist.redo_depth === 0}
-            style={{ ...toolBtn(false), opacity: hist.redo_depth === 0 || busy !== null ? 0.5 : 1 }}
-          >
-            {busy === "redo" ? "Rehaciendo…" : "↻ Rehacer"}
-          </button>
-          <button
-            onClick={() => void restore("original")}
-            disabled={busy !== null || hist.undo_depth === 0}
-            style={{ ...toolBtn(false), opacity: hist.undo_depth === 0 || busy !== null ? 0.5 : 1 }}
-          >
-            {busy === "original" ? "Restaurando…" : "⊘ Al inicio"}
-          </button>
-        </div>
-      </Card>
+      <MeshHistoryCard version={histTick} />
 
       {note && (
         <div style={{ marginTop: 12, fontSize: 12, color: "var(--brand-subtle-foreground, #2f7d5b)", background: "var(--brand-subtle, rgba(54,214,168,0.1))", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "8px 12px" }}>

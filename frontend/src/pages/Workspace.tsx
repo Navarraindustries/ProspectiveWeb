@@ -23,6 +23,7 @@ import { ToastStack, type ToastItem } from "../components/ToastStack";
 import { Collapsible } from "../components/PanelHead";
 import { UploadPanel } from "../components/upload/UploadPanel";
 import { SegmentPanel } from "../components/segmentation/SegmentPanel";
+import { MeshHistoryCard } from "../components/segmentation/MeshHistoryCard";
 import { DetectPanel } from "../components/planning/DetectPanel";
 import { MorphometryPanel } from "../components/morphometry/MorphometryPanel";
 import { PerforatorsPanel } from "../components/perforators/PerforatorsPanel";
@@ -86,6 +87,10 @@ export function Workspace({
     return () => { annotationsFlushRef.current = null; };
   }, [flushAnnotations, annotationsFlushRef]);
   const [stepIdx, setStepIdx] = useState(initialStep);
+  // Cuántas veces se restauró la malla desde un paso posterior. Es la clave del
+  // panel de Detección: al cambiar, se vuelve a montar y detecta solo sobre la
+  // malla restaurada, también si ya se estaba en Detección.
+  const [restauraciones, setRestauraciones] = useState(0);
   // P pliega el panel del paso a una tira y el visor gana su ancho; se
   // recuerda en este navegador, como el nivel del HUD.
   const [panelCollapsed, setPanelCollapsed] = useStoredFlag(PREF_PANEL_COLLAPSED);
@@ -359,7 +364,7 @@ export function Workspace({
   const panel = {
     upload: <UploadPanel onNext={next} />,
     segment: <SegmentPanel onNext={next} />,
-    detect: <DetectPanel onNext={next} />,
+    detect: <DetectPanel key={restauraciones} onNext={next} />,
     morpho: (
       // Morfometría queda siempre a la vista; las tres herramientas auxiliares
       // se pliegan y recuerdan su estado, para que la columna no pase de mil
@@ -586,6 +591,28 @@ export function Workspace({
                 badge={annotations.length > 0 ? <Badge variant="subtle">{annotations.length}</Badge> : undefined}
               >
                 <AnnotationsPanel />
+              </Collapsible>
+            </div>
+          )}
+          {/* Después de Segmentación: deshacer un recorte o volver a la malla
+              completa sin desandar dos pasos («esa opción de devolverse debería
+              estar presente en todos los pasos»). Restaurar tira lo medido, así
+              que pregunta antes y lleva a Detección, que vuelve a detectar. */}
+          {sessionId && planning.segmentation && stepIdx > stepIndex("segment") && (
+            <div style={{ marginBottom: 16 }}>
+              <Collapsible
+                title="Historial de la malla"
+                subtitle="Deshacer un recorte o volver a la malla completa"
+                storageKey="ws.meshhistory"
+              >
+                <MeshHistoryCard
+                  sinTitulo
+                  aviso="Volver a otra malla borra los candidatos, la morfometría, la línea central y la decisión medidos sobre esta. Después se vuelve a Detección y se detecta de nuevo."
+                  onRestored={() => {
+                    setRestauraciones((n) => n + 1);
+                    go(stepIndex("detect"));
+                  }}
+                />
               </Collapsible>
             </div>
           )}

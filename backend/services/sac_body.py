@@ -44,6 +44,29 @@ def _max_distance(points: np.ndarray) -> float:
     return MorphometricAnalyzer._feret_diameter(points)
 
 
+def _open_ball(mask: np.ndarray, k: int) -> np.ndarray:
+    """Apertura con la bola discreta de radio `k` (x²+y²+z² ≤ k²), por distancias.
+
+    Igual que `binary_opening` con esa bola y fondo fuera del volumen, pero con
+    dos transformadas de distancia en lugar de recorrer 515 vecinos por vóxel:
+    erosionar es quedarse con los vóxeles a más de `k` del fondo y dilatar, con
+    los que quedan a `k` o menos de lo erosionado. Era lo más lento de medir el
+    saco (10⁷ vóxeles a 0,1 mm).
+    """
+    pad = k + 1
+    m = np.pad(mask, pad)
+    eroded = ndi.distance_transform_edt(m) > k
+    if not eroded.any():
+        return np.zeros_like(mask)
+    opened = ndi.distance_transform_edt(~eroded) <= k
+    return opened[pad:-pad, pad:-pad, pad:-pad]
+
+
+def _edge(mask: np.ndarray) -> np.ndarray:
+    """Los vóxeles del borde: la envolvente convexa es la misma que la de todos."""
+    return mask & ~ndi.binary_erosion(mask)
+
+
 def sac_body(poly) -> SacBody | None:
     """None si el saco no se puede rasterizar (vacío o sin interior)."""
     from services.branch_origins import _rasterise
@@ -53,16 +76,14 @@ def sac_body(poly) -> SacBody | None:
     if not mask.any():
         return None
     k = max(1, int(round(OPEN_RADIUS_MM / VOXEL_MM)))
-    zz, yy, xx = np.ogrid[-k:k + 1, -k:k + 1, -k:k + 1]
-    ball = zz * zz + yy * yy + xx * xx <= k * k
-    opened = ndi.binary_opening(mask, structure=ball)
+    opened = _open_ball(mask, k)
     lab, n = ndi.label(opened)
     if n == 0:
         return None
     sizes = ndi.sum(opened, lab, range(1, n + 1))
     body = lab == (int(np.argmax(sizes)) + 1)
-    full_pts = origin + np.argwhere(mask) * VOXEL_MM
-    body_pts = origin + np.argwhere(body) * VOXEL_MM
+    full_pts = origin + np.argwhere(_edge(mask)) * VOXEL_MM
+    body_pts = origin + np.argwhere(_edge(body)) * VOXEL_MM
     full, core = _max_distance(full_pts), _max_distance(body_pts)
     return SacBody(
         full_max_mm=round(full, 2), body_max_mm=round(core, 2),

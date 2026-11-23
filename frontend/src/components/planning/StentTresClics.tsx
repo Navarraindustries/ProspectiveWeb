@@ -116,7 +116,9 @@ export function StentTresClics({ onDone }: { onDone: (r: StentTresClicsResult) =
           {res.message}
           {res.stent && (
             <div style={{ color: "var(--muted-foreground)", marginTop: 2 }}>
-              Cuello {res.neck_source === "morfometria" ? "medido en Morfometría" : "localizado donde la línea toca el saco"}.
+              Cuello {res.neck_source !== "morfometria" ? "localizado donde la línea toca el saco"
+                : res.neck_marked ? "medido en Morfometría"
+                : "estimado en Morfometría: márcalo allí para que el despliegue se centre en el cuello real"}.
             </div>
           )}
         </div>

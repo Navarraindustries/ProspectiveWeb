@@ -38,10 +38,13 @@
 
 /* El selector flotante (src/tipografia/SelectorTipografia.tsx). Su propia letra
    no cambia con la variante, para que no distraiga de lo que se compara. */
+/* Arriba al centro: abajo a la izquierda tapaba la barra de pasos de la
+   sesión, y arriba a los lados están la miga y los botones de la cabecera. */
 .selector-tipografia {
   position: fixed;
-  left: 16px;
-  bottom: 16px;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 2000;
   display: flex;
   align-items: center;

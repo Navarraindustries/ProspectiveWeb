@@ -68,6 +68,15 @@ describe("cómo se nombra lo que se ha encontrado", () => {
     expect(await screen.findByText("⌀1,1")).toBeInTheDocument();
     expect(screen.getByText("⌀1,8")).toBeInTheDocument();
   });
+
+  it("por debajo del límite de la imagen no da cifra, da «menos de»", async () => {
+    // Case 3: una rama «⌀0,5» junto al texto «por debajo de 1,0 mm la imagen
+    // no resuelve un vaso» se contradecía.
+    perforators.mockResolvedValue({ ...result, calibre_floor_mm: 1.5 });
+    withSession({});
+    expect(await screen.findByText("⌀<1,5")).toBeInTheDocument();     // 1,1 mm
+    expect(screen.getByText("⌀1,8")).toBeInTheDocument();
+  });
 });
 
 describe("handing the perforators to the 3D scene", () => {

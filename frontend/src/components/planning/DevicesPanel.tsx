@@ -1559,6 +1559,11 @@ export function AppositionSummary({ a }: { a: ClStentApposition }) {
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 6 }}>
         Geometría del tubo nominal contra la malla, no una simulación de la trenza.
         {a.neck_excluded ? " Sobre el cuello no hay pared: se deja en gris y no cuenta." : ""}
+        {/* Mismo dato que el IVUS, resumido distinto: sin decirlo, las cifras
+            de los dos paneles parecían contradecirse. */}
+        {" "}La separación máxima es el percentil 99 de toda la pared y la de cada extremo, el
+        percentil 90 de sus 3 mm, para no contar picos sueltos de la malla. El IVUS virtual da el
+        máximo de cada corte, por eso allí salen algo mayores.
         {a.notes.map((n) => ` ${n}`)}
       </div>
     </div>
@@ -1588,9 +1593,13 @@ export function CoverageSummary({ c }: { c: ClStentCoverage }) {
         <Metric label="Densidad de poros delante del cuello" value={`≈ ${cifra(c.neck_pore_density, 0)}`} unit=" poros/mm²" />
       )}
       <Metric label="A lo largo del vaso" value={`${c.min_coverage_pct.toFixed(0)}–${c.max_coverage_pct.toFixed(0)}`} unit=" %" />
-      <Metric label="Longitud de catálogo" value={c.labelled_length_mm.toFixed(0)} unit=" mm" />
+      {/* No es la longitud del dispositivo elegido: es la etiqueta que, ya
+          alargada en este vaso, cubriría el tramo dibujado. Con el rótulo
+          «Longitud de catálogo» parecía contradecir al nombre del dispositivo. */}
+      <Metric label="Etiqueta que cubre el tramo" value={`≈ ${c.labelled_length_mm.toFixed(0)}`} unit=" mm" />
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 6 }}>
-        El tramo dibujado mide {c.deployed_length_mm.toFixed(0)} mm: donde el vaso es más estrecho que el
+        El tramo dibujado mide {c.deployed_length_mm.toFixed(0)} mm; alargándose en este vaso, lo
+        cubrirían unos {c.labelled_length_mm.toFixed(0)} mm de catálogo. Donde el vaso es más estrecho que el
         dispositivo, la trenza se alarga y sus poros se abren.
         {c.notes.map((n) => ` ${n}`)}
       </div>

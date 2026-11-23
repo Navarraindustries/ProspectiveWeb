@@ -330,7 +330,9 @@ function BloqueStent({ datos, i, onIrA }: { datos: IvusResult; i: number; onIrA(
     <div className="hud-ivus-dispositivo">
       <span className="hud-ivus-titulo">STENT DESPLEGADO</span>
       <span>{aqui}</span>
-      <span>{`Separado en ${mm1(st.gap_length_mm)} mm (máx. ${mm2d(st.max_gap_mm)} mm) · comprimido en ${mm1(st.compressed_length_mm)} mm`}</span>
+      {/* «en un corte»: Dispositivos resume el mismo dato con percentiles de
+          toda la pared y da cifras algo menores; así se ve por qué. */}
+      <span>{`Separado en ${mm1(st.gap_length_mm)} mm (máx. en un corte ${mm2d(st.max_gap_mm)} mm) · comprimido en ${mm1(st.compressed_length_mm)} mm`}</span>
       <span>{`Anclajes: prox. ${mm2d(st.proximal_gap_mm)} · dist. ${mm2d(st.distal_gap_mm)} mm de separación`}</span>
       {st.neck_length_mm > 0 && <span>{`Sin pared (cuello o saco): ${mm1(st.neck_length_mm)} mm; no es mala aposición`}</span>}
       <AvisoRamas ramas={ramasBajo(datos.branches, st.from_arc_mm, st.to_arc_mm)} sueloMm={datos.branch_floor_mm} onIrA={onIrA} />

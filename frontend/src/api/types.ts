@@ -2651,6 +2651,9 @@ export interface StentTresClicsResult {
   sizing: FdSizingResult;
   /** "morfometria" (el cuello medido de ese saco) o "saco" (donde la línea toca su malla). */
   neck_source: string;
+  /** Con "morfometria": true si la persona marcó el cuello (punto o borde);
+   *  false si es la estimación automática a partir del saco. */
+  neck_marked?: boolean;
   lesion_mesh: string;
   device_id: string | null;
   device_name: string | null;

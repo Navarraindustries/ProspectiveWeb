@@ -50,7 +50,9 @@ export function PerforatorsPanel() {
       if (segmentation) {
         setSegmentation({ ...segmentation, mesh_url: r.mesh_url, vertices: r.vertices, faces: r.faces });
       }
-      const donde = r.neck_source === "morfometria" ? "del cuello medido" : "del candidato elegido";
+      // «de Morfometría» y no «medido»: ese cuello puede ser la estimación
+      // automática del saco, sin que nadie lo haya marcado.
+      const donde = r.neck_source === "morfometria" ? "del cuello de Morfometría" : "del candidato elegido";
       const signo = r.added_vertices >= 0 ? "+" : "−";
       setAviso(
         `Rehecha con todo el detalle la esfera de ${cifra(r.radius_mm, 0)} mm alrededor ${donde} ` +
@@ -214,12 +216,23 @@ export function PerforatorsPanel() {
               {/* El calibre, ahora que se mide. Antes todas las filas llevaban
                   0.4 mm: una constante que el API declaraba como «estimated
                   vessel radius» porque el detector de valencia no lo calculaba. */}
-              <span
-                style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}
-                title="Calibre del vaso, medido sobre la malla"
-              >
-                ⌀{cifra(p.radius_mm * 2, 1)}
-              </span>
+              {/* Por debajo del límite de la imagen la cifra no es una medida:
+                  la rama se ve, pero su calibre solo se sabe menor que ese
+                  límite. Enseñar «⌀0,5» contradecía el texto de arriba. */}
+              {(() => {
+                const suelo = result?.calibre_floor_mm ?? 0;
+                const bajo = suelo > 0 && p.radius_mm * 2 < suelo;
+                return (
+                  <span
+                    style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}
+                    title={bajo
+                      ? `Más fina de lo que la imagen resuelve (${cifra(suelo, 1)} mm): calibre no medible`
+                      : "Calibre del vaso, medido sobre la malla"}
+                  >
+                    ⌀{bajo ? `<${cifra(suelo, 1)}` : cifra(p.radius_mm * 2, 1)}
+                  </span>
+                );
+              })()}
               <span
                 style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }}
                 title="Distancia al cuello del aneurisma"

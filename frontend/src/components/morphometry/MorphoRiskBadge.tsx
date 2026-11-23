@@ -14,6 +14,19 @@ export const MORPHO_RISK_CRITERIA =
   "ondulación ≥ 0,25 o cociente de tamaño ≥ 3,0; Moderado si AR ≥ 1,2, DNR ≥ 1,6, " +
   "elipticidad ≥ 0,35, ondulación ≥ 0,10 o cociente de tamaño ≥ 2,0; si no, Bajo.";
 
+/** La etiqueta solo si hay algún índice de forma medido (volumen o cuello
+ *  válidos; las medidas antiguas solo traen `reliable`). Sin ninguno el backend
+ *  manda «Bajo» con los índices a cero, y la cabecera decía «Forma: bajo»
+ *  mientras el panel decía «Sin medir» (F1-151, Case 3 22-11). */
+export function etiquetaFormaMedida(m: {
+  rupture_risk_label?: string | null; reliable?: boolean;
+  volume_valid?: boolean | null; neck_valid?: boolean | null;
+} | null | undefined): string | null {
+  if (!m) return null;
+  const medido = (m.volume_valid ?? m.reliable) || (m.neck_valid ?? m.reliable);
+  return medido ? (m.rupture_risk_label ?? null) : null;
+}
+
 /** `corto`: «Forma: alto», para la barra superior y las miniaturas (P16: allí
  *  salía «Alto» o «Riesgo alto» a secas, sin decir de qué). */
 export function MorphoRiskBadge({ label, measured = true, corto = false }: {

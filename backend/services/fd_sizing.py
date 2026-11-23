@@ -340,8 +340,8 @@ def size_flow_diverter(
             opt.neck_note = metal_coverage_note(d, neck_vessel)[1]
             if narrow > 0 and narrow < target:
                 opt.narrow_end_note = metal_coverage_note(d, narrow)[1]
-            a = max(0.0, mid - L / 2)
-            b = min(total, a + L)
+            from services.braid_coverage import ventana_en_linea
+            a, b = ventana_en_linea(mid, L, total)
             opt.deploy_arc_mm = (round(a, 1), round(b, 1))
             opt.elongated_length_mm = round(L * (1 + MEAN_ELONGATION), 1)
             _con_trenza(opt, item, d, L, neck_vessel, mid, total, perfil)

@@ -1670,6 +1670,7 @@ class _SacInputs:
         self.upper = float(read_state(session_id, "seg.threshold_upper", "") or 0.0)
         self.vessel_path = vtp_path.parent / "vessel_tree.vtp"
         self._tree: "vtk.vtkPolyData | None" = None
+        self.session_id = session_id
         if self.lower or self.upper:
             try:
                 from services.mpr import ensure_volume_cached, _get_volume
@@ -1688,6 +1689,25 @@ class _SacInputs:
                 )
             self._tree = read_vtp(self.vessel_path)
         return self._tree
+
+    def edited_tree(self) -> "vtk.vtkPolyData | None":
+        """La malla de trabajo si el usuario la ha editado; si no, None.
+
+        El historial guarda, por paso, la operación que sustituyó a la malla:
+        si la última es «segment», la malla actual es la que salió de segmentar
+        (con o sin deshacer hasta ahí); cualquier otra (recorte, borrado,
+        cuello, rehacer) la ha cambiado. Sin historial, no hay edición.
+        """
+        if not hasattr(self, "_edited"):
+            self._edited = None
+            try:
+                from services import mesh_backup
+                pasos = mesh_backup.history(self.session_id)
+                if pasos and pasos[-1].label != "segment" and self.vessel_path.exists():
+                    self._edited = self.tree()
+            except Exception as exc:  # noqa: BLE001 — sin esto se mide como antes
+                logger.warning("No se pudo saber si la malla está editada: %s", exc)
+        return self._edited
 
 
 def _isolate_sac(
@@ -1715,6 +1735,7 @@ def _isolate_sac(
             sac_mesh, neck_diam = isolate_sac_volumetric(
                 inputs.volume, inputs.spacing, origin, normal, seed,
                 inputs.lower, inputs.upper, bound_r, half_extent_mm=crop_half,
+                keep_mesh=inputs.edited_tree(),
             )
             logger.info("Volumetric sac isolation: %d pts, neck %.2f mm",
                         sac_mesh.GetNumberOfPoints(), neck_diam)

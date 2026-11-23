@@ -179,7 +179,11 @@ export function SliceView(p: SliceViewProps) {
     let fitted = false;
     const fit = () => {
       const [w, h] = size(); if (w <= 0 || h <= 0) return;
-      cam.setParallelScale(Math.max(ext(down) / 2, ext(right) / 2 / (w / h)) * 1.02);
+      const escala = Math.max(ext(down) / 2, ext(right) / 2 / (w / h)) * 1.02;
+      // Con el corte aún sin límites (volumen cargando) la escala sale 0 o NaN:
+      // dejarla así hacía mm/px = 0 y llevaba Infinity a los estilos del marco.
+      if (!(escala > 0) || !Number.isFinite(escala)) return;
+      cam.setParallelScale(escala);
       fitted = true;
     };
 
@@ -192,8 +196,10 @@ export function SliceView(p: SliceViewProps) {
       const bs = mapper.getBoundsForSlice();
       const f = cam.getFocalPoint();
       const d = [(bs[0] + bs[1]) / 2 - f[0], (bs[2] + bs[3]) / 2 - f[1], (bs[4] + bs[5]) / 2 - f[2]];
+      if (!(mmPerPx > 0) || !Number.isFinite(mmPerPx)) return;
       const wPx = ext(right) / mmPerPx, hPx = ext(down) / mmPerPx;
       const cx = w / 2 + dot(d, right) / mmPerPx, cy = h / 2 + dot(d, down) / mmPerPx;
+      if (![wPx, hPx, cx, cy].every(Number.isFinite)) return;
       setBox({ left: cx - wPx / 2, top: cy - hPx / 2, w: wPx, h: hPx, mmPerPx });
     };
 

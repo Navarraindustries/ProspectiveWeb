@@ -367,9 +367,9 @@ def estimar_en_vaso(braid: Braid, nominal_mm: float, etiqueta_mm: float, cuello_
     # del largo. Tres vueltas bastan (cambia décimas de mm).
     largo = etiqueta_mm
     for _ in range(3):
-        a = max(0.0, centro_mm - largo / 2)
+        a = ventana_en_linea(centro_mm, largo, total_mm)[0]
         largo = longitud_desplegada(braid, nominal_mm, etiqueta_mm, arcos, diametros, a)
-    a = max(0.0, centro_mm - largo / 2)
+    a, b = ventana_en_linea(centro_mm, largo, total_mm)
     return EstimacionTrenza(
         braid=braid, wires=braid.wires_for(nominal_mm), neck_diameter_mm=round(D_cuello, 2),
         neck_coverage_pct=round(cov * 100.0, 0),
@@ -377,5 +377,23 @@ def estimar_en_vaso(braid: Braid, nominal_mm: float, etiqueta_mm: float, cuello_
         nominal_pore_density=None if rho0 is None else round(float(rho0[0]), 1),
         deployed_length_mm=round(largo, 1),
         elongation_pct=round((largo / etiqueta_mm - 1.0) * 100.0, 0),
-        deploy_arc_mm=(round(a, 1), round(min(total_mm, a + largo), 1)),
+        deploy_arc_mm=(round(a, 1), round(b, 1)),
     )
+
+
+def ventana_en_linea(centro_mm: float, largo_mm: float, total_mm: float) -> tuple[float, float]:
+    """El tramo de `largo_mm` centrado en `centro_mm`, metido dentro de la línea.
+
+    Antes solo se recortaba por los extremos: con el punto distal cerca del
+    cuello, un dispositivo de 16 mm se dibujaba de 15,8 (y la cobertura
+    calculaba una «etiqueta» de 13 mm para ese tramo). Un dispositivo no se
+    acorta: si cabe en la línea, se corre hacia dentro; solo si la línea es más
+    corta que él queda cortado, y eso lo avisa el dimensionado (anclaje
+    truncado).
+    """
+    a = centro_mm - largo_mm / 2
+    if total_mm > 0:
+        a = min(a, total_mm - largo_mm)
+    a = max(0.0, a)
+    b = min(total_mm, a + largo_mm) if total_mm > 0 else a + largo_mm
+    return a, b

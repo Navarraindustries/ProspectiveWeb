@@ -669,10 +669,15 @@ async def stent_tres_clics(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    from services.neck_provenance import neck_is_marked
     url = f"{mesh_url(session_id, 'centerline.vtp')}?v={int(time.time() * 1000)}"
+    # El cuello de Morfometría puede ser la estimación automática del saco
+    # («auto»): llamarlo «medido» daba por marcado lo que nadie marcó.
+    marcado = cuello.fuente == "morfometria" and \
+        neck_is_marked(read_state(session_id, "morpho.neck_source", "") or "")
     out = StentTresClicsResult(
         centerline=_to_out(linea, url), sizing=_sizing_out(sizing),
-        neck_source=cuello.fuente, lesion_mesh=nombre, message="")
+        neck_source=cuello.fuente, neck_marked=marcado, lesion_mesh=nombre, message="")
     if opcion is None:
         out.message = ("Ninguna opción del catálogo encaja en este vaso: no se ha desplegado nada. "
                        "El dimensionado dice por qué.")
@@ -685,7 +690,8 @@ async def stent_tres_clics(
     out.device_id, out.device_name = opcion.device_id, opcion.name
     out.diameter_mm, out.labelled_length_mm = opcion.diameter_mm, opcion.length_mm
     out.deploy_arc_mm, out.stent = [a, b], stent
-    cuello_txt = ("el cuello medido en Morfometría" if cuello.fuente == "morfometria"
+    cuello_txt = ("el cuello medido en Morfometría" if marcado
+                  else "el cuello estimado en Morfometría" if cuello.fuente == "morfometria"
                   else "el tramo donde la línea toca el saco")
     out.message = (f"{opcion.name} Ø{cifra(opcion.diameter_mm, 2)} × {opcion.length_mm:.0f} mm "
                    f"desplegado de {cifra(a)} a {cifra(b)} mm, centrado en {cuello_txt}.")

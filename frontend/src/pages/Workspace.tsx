@@ -26,6 +26,7 @@ import { SegmentPanel } from "../components/segmentation/SegmentPanel";
 import { MeshHistoryCard } from "../components/segmentation/MeshHistoryCard";
 import { DetectPanel } from "../components/planning/DetectPanel";
 import { MorphometryPanel } from "../components/morphometry/MorphometryPanel";
+import { etiquetaFormaMedida } from "../components/morphometry/MorphoRiskBadge";
 import { PerforatorsPanel } from "../components/perforators/PerforatorsPanel";
 import { CenterlinePanel } from "../components/vessels/CenterlinePanel";
 import { TreatmentPanel } from "../components/planning/TreatmentPanel";
@@ -447,7 +448,7 @@ export function Workspace({
       <QuirofanoBar
         modo={modoBarra}
         onBack={onBack}
-        riskLabel={morphometry?.rupture_risk_label ?? null}
+        riskLabel={etiquetaFormaMedida(morphometry)}
         crumbs={[
           { label: "Pacientes", onClick: onBack },
           // The patient and the case both lead back to the patient sheet, which

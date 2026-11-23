@@ -421,6 +421,40 @@ def resegment_local_mesh(
     return tpf.GetOutput()
 
 
+def _mesh_mask_on_grid(poly, origin, spacing, shape_zyx):
+    """Interior de `poly` sobre una rejilla (z, y, x) con ese origen y paso.
+
+    `vtkPolyDataToImageStencil` calcula solo dentro de la extensión pedida, así
+    que rasterizar el árbol entero sobre el cubo del saco cuesta lo que el cubo.
+    """
+    from vtkmodules.util.numpy_support import vtk_to_numpy
+
+    zdim, ydim, xdim = shape_zyx
+    sx, sy, sz = spacing
+    img = vtk.vtkImageData()
+    img.SetDimensions(xdim, ydim, zdim)
+    img.SetOrigin(*origin)
+    img.SetSpacing(sx, sy, sz)
+    img.AllocateScalars(vtk.VTK_UNSIGNED_CHAR, 1)
+    img.GetPointData().GetScalars().Fill(1)
+
+    stencil = vtk.vtkPolyDataToImageStencil()
+    stencil.SetInputData(poly)
+    stencil.SetOutputOrigin(img.GetOrigin())
+    stencil.SetOutputSpacing(img.GetSpacing())
+    stencil.SetOutputWholeExtent(img.GetExtent())
+    stencil.Update()
+
+    cut = vtk.vtkImageStencil()
+    cut.SetInputData(img)
+    cut.SetStencilData(stencil.GetOutput())
+    cut.ReverseStencilOff()
+    cut.SetBackgroundValue(0)
+    cut.Update()
+    flat = vtk_to_numpy(cut.GetOutput().GetPointData().GetScalars())
+    return flat.reshape(zdim, ydim, xdim).astype(bool)
+
+
 def isolate_sac_volumetric(
     volume,
     spacing,
@@ -431,6 +465,8 @@ def isolate_sac_volumetric(
     upper: float,
     max_radius: float,
     half_extent_mm: float = 16.0,
+    keep_mesh: "vtk.vtkPolyData | None" = None,
+    keep_margin_mm: float = 1.0,
 ) -> tuple[vtk.vtkPolyData, float]:
     """Isolate a *watertight* aneurysm sac in the VOLUME domain (robust).
 
@@ -445,6 +481,13 @@ def isolate_sac_volumetric(
     that bounded mask.  Marching cubes on a bounded interior region always yields
     a **closed** surface, so the sac is watertight by construction; the flat neck
     cap forms automatically where the mask meets the neck-plane half-space.
+
+    Con `keep_mesh` (la malla de trabajo cuando el usuario la ha recortado o
+    borrado), la máscara se limita además a su interior engordado
+    `keep_margin_mm`: el umbral sobre el volumen no sabe de esas ediciones y
+    devolvía al saco las venas o ramas que se habían quitado de la malla. Si el
+    ápice no cae dentro de esa malla, se ignora la restricción (mejor el saco
+    sin restringir que ninguno) y se avisa en el log.
 
     Returns ``(sac_mesh_world, neck_diameter_mm)``.
     """
@@ -480,14 +523,27 @@ def isolate_sac_volumetric(
     if upper > lower:
         thr &= sub <= upper
     mask = thr & (dot > 0.0) & (dist2 <= max_radius * max_radius)
+    aiz = int(round(a[2] / sz)) - z0
+    aiy = int(round(a[1] / sy)) - y0
+    aix = int(round(a[0] / sx)) - x0
+    if keep_mesh is not None and keep_mesh.GetNumberOfPoints() > 0:
+        keep = _mesh_mask_on_grid(keep_mesh, (x0 * sx, y0 * sy, z0 * sz),
+                                  (sx, sy, sz), sub.shape)
+        if keep_margin_mm > 0 and keep.any():
+            r = max(1, int(math.ceil(keep_margin_mm / min(sx, sy, sz))))
+            keep = ndimage.binary_dilation(keep, iterations=r)
+        ai = (min(max(aiz, 0), keep.shape[0] - 1), min(max(aiy, 0), keep.shape[1] - 1),
+              min(max(aix, 0), keep.shape[2] - 1))
+        if keep[ai]:
+            mask &= keep
+        else:
+            logger.warning("El ápice queda fuera de la malla editada: el saco "
+                           "se aísla sin limitarlo a ella")
     if not mask.any():
         return vtk.vtkPolyData(), 0.0
 
     # Keep the connected component containing (or nearest to) the apex.
     lab, _ = ndimage.label(mask)
-    aiz = int(round(a[2] / sz)) - z0
-    aiy = int(round(a[1] / sy)) - y0
-    aix = int(round(a[0] / sx)) - x0
     comp_id = 0
     if 0 <= aiz < lab.shape[0] and 0 <= aiy < lab.shape[1] and 0 <= aix < lab.shape[2]:
         comp_id = int(lab[aiz, aiy, aix])

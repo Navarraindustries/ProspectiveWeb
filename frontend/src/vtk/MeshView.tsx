@@ -48,7 +48,7 @@ import type { CenterlineTrack } from "./centerlineWalk";
 import { frenteBarrido, superiorEnMalla, tramoBarrido } from "./meshSweep";
 import { urlSuave } from "./mallaSuave";
 import {
-  ANGULO_ENDOSCOPIO, ARRANQUE_TECLAS_S, GIRO_MS, MIRADA_AL_FRENTE, MM_POR_RUEDA, PAUSA_REBOBINADO_MS, SIN_TECLAS, ZAMBULLIDA_MS,
+  ANGULO_ENDOSCOPIO, ARRANQUE_TECLAS_S, GIRO_MS, MIRADA_AL_FRENTE, MM_POR_RUEDA, PAUSA_REBOBINADO_MS, RAPIDO_X, SIN_TECLAS, ZAMBULLIDA_MS,
   finDeLinea, girarMirada, giroFinal, pasoPaseo, poseConMirada, velocidadObjetivo, walkPose,
   type Mirada, type ModoPaseo, type Teclas, type WalkPose,
 } from "./vesselWalk";
@@ -1343,7 +1343,18 @@ export function MeshView({
         p.sucio = true;
       },
       teclasRecorrido: (t: Teclas) => {
-        const p = recorridoRef.current; if (p) p.teclas = t;
+        const p = recorridoRef.current; if (!p) return;
+        const antes = p.teclas;
+        p.teclas = t;
+        // Cada pulsación nueva mueve al menos lo que un clic de rueda: con solo
+        // la velocidad, un toque corto apenas desplazaba la cámara (22-11).
+        // Mantenerla pulsada sigue avanzando a velocidad de crucero.
+        const sentido = t.adelante && !antes.adelante ? 1 : t.atras && !antes.atras ? -1 : 0;
+        if (sentido !== 0 && t.adelante !== t.atras) {
+          p.modo = "quieto"; p.giroMs = null; p.esperaMs = 0;
+          p.s = Math.min(p.L, Math.max(0, p.s + sentido * MM_POR_RUEDA * (t.rapido ? RAPIDO_X : 1)));
+          p.sucio = true;
+        }
       },
       mirarAlFrente: () => {
         const p = recorridoRef.current; if (!p) return;

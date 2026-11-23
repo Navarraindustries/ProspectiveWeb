@@ -58,6 +58,18 @@ describe("el stent en tres clics", () => {
     expect(screen.getByRole("status").textContent).toMatch(/donde la línea toca el saco/);
   });
 
+  it.each([
+    [true, /Cuello medido en Morfometría\./],
+    [false, /Cuello estimado en Morfometría: márcalo allí/],
+  ])("el cuello de Morfometría dice si se marcó (marcado: %s)", async (marcado, texto) => {
+    stentTresClics.mockResolvedValue(respuesta({ neck_source: "morfometria", neck_marked: marcado }));
+    const { rerender } = render(<StentTresClics onDone={vi.fn()} />);
+    empezar();
+    Object.assign(planning, { clSource: [0, 0, 5], clTarget: [0, 0, 55], stentSac: [7, 0, 30] });
+    rerender(<StentTresClics onDone={vi.fn()} />);
+    await waitFor(() => expect(screen.getByRole("status").textContent).toMatch(texto));
+  });
+
   it("con el saco medido, el tercer clic se puede saltar", async () => {
     Object.assign(planning, { morphometry: { sac_mesh_url: "/sac.vtp" }, pickMode: "stent_saco",
                               clSource: [0, 0, 5], clTarget: [0, 0, 55] });

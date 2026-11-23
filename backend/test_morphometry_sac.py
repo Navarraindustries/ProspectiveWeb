@@ -170,6 +170,34 @@ def test_volumetric_isolation_is_watertight_with_valid_neck():
     assert mr.max_diameter_mm > 6.0                    # ≈ sphere Ø 8 mm
 
 
+def test_volumetric_isolation_respects_the_edited_mesh():
+    """Una vena pegada al saco que se borró de la malla no vuelve desde el umbral.
+
+    El umbral sobre el volumen no sabe de recortes ni borrados: antes la vena
+    volvía al saco y el Ø máximo se medía hasta ella (Caso 130, angio-TC).
+    """
+    vol = _sac_volume()
+    zz, yy, xx = np.mgrid[0:60, 0:60, 0:60]
+    vena = ((yy - 30) ** 2 + (zz - 42) ** 2 <= 2) & (xx >= 30) & (xx <= 55)
+    vol[vena] = 1000.0
+    args = dict(spacing=(1.0, 1.0, 1.0), neck_origin=(30.0, 30.0, 35.0),
+                neck_normal=(0.0, 0.0, 1.0), apex=(30.0, 30.0, 43.0),
+                lower=500.0, upper=2000.0, max_radius=9.0, half_extent_mm=14.0)
+
+    con_vena, _ = isolate_sac_volumetric(vol, **args)
+    assert con_vena.GetBounds()[1] > 37.5               # llega hasta la vena
+
+    malla_editada = _sphere(4.2, center=(30.0, 30.0, 40.0))   # sin la vena
+    sin_vena, neck = isolate_sac_volumetric(vol, **args, keep_mesh=malla_editada)
+    assert sin_vena.GetBounds()[1] < 36.5               # solo el saco (+1 mm de margen)
+    assert 2.0 < neck < 6.0
+
+    # Con el ápice fuera de la malla, no se restringe (mejor eso que ningún saco).
+    lejos = _sphere(2.0, center=(10.0, 10.0, 10.0))
+    igual, _ = isolate_sac_volumetric(vol, **args, keep_mesh=lejos)
+    assert igual.GetNumberOfPoints() == con_vena.GetNumberOfPoints()
+
+
 # ── Tier 2 persistence: the manual plane must survive re-measure + restore ── #
 
 def _session_with_synthetic_tree():

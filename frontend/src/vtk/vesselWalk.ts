@@ -4,8 +4,10 @@
 import type { CenterlineTrack } from "./centerlineWalk";
 import type { Vec3 } from "./geometry";
 
-/** Velocidad de crucero por el vaso (mm/s): un segmento de 40 mm dura ~5 s. */
-export const RECORRIDO_MM_S = 8;
+/** Velocidad de crucero por el vaso (mm/s): un segmento de 40 mm dura ~8 s.
+ *  A 8 mm/s (22-11) la pared pasaba demasiado rápido para leerla al
+ *  enseñarlo; las teclas con Mayús siguen yendo al triple. */
+export const RECORRIDO_MM_S = 5;
 /** Lo que tarda en ganar la velocidad de crucero y en frenar al llegar (s). */
 export const ARRANQUE_S = 0.6;
 /** Cuánto por delante mira la cámara (mm): la cuerda hasta allí suaviza el

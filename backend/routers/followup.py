@@ -108,7 +108,9 @@ def _lesion(db: Session, session_id: str, d: Path, st: dict) -> tuple[np.ndarray
             return None
     v = _vec("morpho.neck_origin")
     if v is not None:
-        return v, "cuello medido"
+        from services.neck_provenance import neck_is_marked
+        marcado = neck_is_marked(st.get("morpho.neck_source"))
+        return v, "cuello medido" if marcado else "cuello estimado en Morfometría"
     v = _vec("detect.cand_001.centroid")
     if v is not None:
         return v, "primer candidato de la detección"

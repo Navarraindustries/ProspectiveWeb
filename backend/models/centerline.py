@@ -377,6 +377,9 @@ class StentTresClicsResult(BaseModel):
     sizing: FdSizingResult
     neck_source: str = Field(..., description="'morfometria' (the measured neck of this sac) or 'saco' "
                                               "(where the centreline's inscribed sphere touches the sac mesh)")
+    neck_marked: bool = Field(False, description="With neck_source='morfometria': the person marked the "
+                                                 "neck (point or rim). False = Morfometría's automatic "
+                                                 "estimate from the sac")
     lesion_mesh: str = Field(..., description="Lesion mesh the neck was located against")
     device_id: str | None = Field(None, description="Deployed device; null when no option fits")
     device_name: str | None = None

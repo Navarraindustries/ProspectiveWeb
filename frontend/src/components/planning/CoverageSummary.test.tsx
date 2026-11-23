@@ -17,13 +17,16 @@ const base: ClStentCoverage = {
 };
 
 describe("cobertura metálica", () => {
-  it("da la del cuello, el rango y la longitud de catálogo", () => {
+  it("da la del cuello, el rango y la etiqueta que cubre el tramo", () => {
     render(<CoverageSummary c={base} />);
     expect(screen.getByText(/Cobertura metálica · Pipeline/)).toBeInTheDocument();
     expect(screen.getByText("≈ 31")).toBeInTheDocument();
     expect(screen.getByText("Como el catálogo")).toBeInTheDocument();
     expect(screen.getByText("24–33")).toBeInTheDocument();
-    expect(screen.getByText("17")).toBeInTheDocument();
+    // No «Longitud de catálogo»: no es la del dispositivo elegido (Case 3:
+    // Pipeline × 16 mm junto a un «13 mm» parecía una contradicción).
+    expect(screen.getByText("Etiqueta que cubre el tramo")).toBeInTheDocument();
+    expect(screen.getByText("≈ 17")).toBeInTheDocument();
     expect(screen.getByText(/Estimación geométrica\./)).toBeInTheDocument();
   });
 

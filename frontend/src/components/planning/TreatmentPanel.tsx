@@ -83,8 +83,14 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
   const [askingClear, setAskingClear] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // La edad viene rellena de la ficha: escribir detrás la convertía en «2655»
+  // y el servidor contestaba con un 422 en crudo (23-11). Se valida aquí, con
+  // el mismo rango que el servidor, antes de pedir nada.
+  const edadNum = age.trim() === "" ? null : Number(age);
+  const edadInvalida = edadNum !== null && (!Number.isInteger(edadNum) || edadNum < 0 || edadNum > 120);
+
   const run = async () => {
-    if (!sessionId) return;
+    if (!sessionId || edadInvalida) return;
     setBusy(true);
     setError(null);
     try {
@@ -156,7 +162,11 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
       </div>
       <SectionLabel style={{ marginTop: 14 }}>Contexto clínico</SectionLabel>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "end" }}>
-        <Input label="Edad del paciente" type="number" min={0} max={120} placeholder="—" value={age} onChange={(e) => setAge(e.target.value)} />
+        <Input label="Edad del paciente" type="number" min={0} max={120} step={1} placeholder="—" value={age}
+               onChange={(e) => setAge(e.target.value)}
+               // Al entrar se selecciona: lo que se teclee sustituye a la edad de la ficha.
+               onFocus={(e) => e.currentTarget.select()}
+               invalid={edadInvalida} hint={edadInvalida ? "Una edad entre 0 y 120 años, sin decimales." : undefined} />
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--foreground)", height: "var(--control-md)", cursor: "pointer" }}>
           <input type="checkbox" checked={comorbid} onChange={(e) => setComorbid(e.target.checked)} />
           Comorbilidad quirúrgica
@@ -223,7 +233,7 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
         </>
       )}
 
-      <Button style={{ marginTop: 14, width: "100%" }} variant={t ? "outline" : "default"} onClick={() => void run()} disabled={busy || clearing || !sessionId}>
+      <Button style={{ marginTop: 14, width: "100%" }} variant={t ? "outline" : "default"} onClick={() => void run()} disabled={busy || clearing || !sessionId || edadInvalida}>
         {busy ? "Evaluando…" : t ? "Re-evaluar" : "Evaluar CLIP vs ENDOVASCULAR"}
       </Button>
       {/* F1-175: sin WFNS el JSDB salía con «Rellenado el N % del modelo» en

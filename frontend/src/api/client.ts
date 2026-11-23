@@ -330,6 +330,40 @@ function defaultTimeout(method: string): number {
   return method === "GET" || method === "HEAD" ? GET_TIMEOUT_MS : LONG_TIMEOUT_MS;
 }
 
+/** Nombres legibles de los campos que más se validan; el resto sale tal cual. */
+const CAMPOS: Record<string, string> = {
+  patient_age: "la edad del paciente",
+  wfns_grade: "el grado WFNS",
+  fisher_grade: "el grado de Fisher",
+  prior_stroke: "el ictus previo",
+};
+
+/** Un 422 de validación (FastAPI/pydantic: una lista de errores) dicho en
+ *  castellano. Antes salía el JSON crudo en pantalla: con la edad «2655» el
+ *  panel de Decisión enseñaba `[{"type":"less_than_equal","loc":[…]…}]`
+ *  (23-11). Null si `detail` no tiene esa forma. */
+export function validationMessage(detail: unknown): string | null {
+  if (!Array.isArray(detail) || detail.length === 0) return null;
+  const partes = detail.map((e) => {
+    const err = (e ?? {}) as { type?: string; loc?: unknown[]; msg?: string; ctx?: Record<string, unknown> };
+    const loc = Array.isArray(err.loc) ? err.loc.filter((x) => x !== "body" && x !== "query" && x !== "path") : [];
+    const clave = String(loc.at(-1) ?? "");
+    const campo = CAMPOS[clave] ?? (clave ? `«${clave}»` : "un dato");
+    const c = err.ctx ?? {};
+    switch (err.type) {
+      case "less_than_equal": return `${campo} debe ser como mucho ${c.le}`;
+      case "less_than": return `${campo} debe ser menor que ${c.lt}`;
+      case "greater_than_equal": return `${campo} debe ser al menos ${c.ge}`;
+      case "greater_than": return `${campo} debe ser mayor que ${c.gt}`;
+      case "missing": return `falta ${campo}`;
+      case "int_parsing": case "int_from_float": case "float_parsing": return `${campo} debe ser un número`;
+      default: return `${campo}: ${err.msg ?? "valor no válido"}`;
+    }
+  });
+  const texto = partes.join("; ");
+  return `Revisa los datos: ${texto.charAt(0).toLowerCase()}${texto.slice(1)}.`;
+}
+
 async function request<T>(path: string, init: RequestInit = {}, timeoutMs?: number): Promise<T> {
   const method = (init.method ?? "GET").toUpperCase();
   const limit = timeoutMs ?? defaultTimeout(method);
@@ -354,6 +388,7 @@ async function request<T>(path: string, init: RequestInit = {}, timeoutMs?: numb
         // en `ApiError.data`. Sin esto saldría el JSON crudo en pantalla.
         detail = body.detail.message; data = body.detail; fromServer = true;
       }
+      else if (validationMessage(body.detail)) { detail = validationMessage(body.detail)!; data = body.detail; fromServer = true; }
       else if (body.detail) { detail = JSON.stringify(body.detail); fromServer = true; }
     } catch {
       /* non-JSON error body */
@@ -432,7 +467,7 @@ function postConProgreso<T>(path: string, form: FormData, timeoutMs: number,
       const d = (body as { detail?: unknown } | null)?.detail;
       const detail = typeof d === "string" ? d
         : d && typeof d === "object" && typeof (d as { message?: unknown }).message === "string" ? (d as { message: string }).message
-        : `Error ${xhr.status}`;
+        : validationMessage(d) ?? `Error ${xhr.status}`;
       const answered = d !== undefined || xhr.status < 500;
       if (answered) noteServerAnswered();
       reject(new ApiError(xhr.status, detail, answered, typeof d === "object" ? d : undefined));

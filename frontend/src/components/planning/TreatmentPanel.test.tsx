@@ -297,6 +297,35 @@ describe("la localización de Decisión", () => {
   });
 });
 
+/* 23-11: la edad venía de la ficha y escribir detrás daba «2655»; el servidor
+   contestaba con un 422 que salía en crudo. */
+describe("la edad del paciente", () => {
+  it("al entrar se selecciona, para que lo tecleado la sustituya", () => {
+    stored = null;
+    render(<TreatmentPanel onNext={() => {}} />);
+    const campo = screen.getByLabelText("Edad del paciente") as HTMLInputElement;
+    fireEvent.change(campo, { target: { value: "26" } });
+    const sel = vi.spyOn(campo, "select");
+    fireEvent.focus(campo);
+    expect(sel).toHaveBeenCalled();
+  });
+
+  it("fuera de 0–120 lo dice y no pide la evaluación", () => {
+    stored = null;
+    render(<TreatmentPanel onNext={() => {}} />);
+    const campo = screen.getByLabelText("Edad del paciente");
+    fireEvent.change(campo, { target: { value: "2655" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("Una edad entre 0 y 120 años");
+    const boton = screen.getByRole("button", { name: "Evaluar CLIP vs ENDOVASCULAR" });
+    expect(boton).toBeDisabled();
+    fireEvent.click(boton);
+    expect(treatmentDecision).not.toHaveBeenCalled();
+    fireEvent.change(campo, { target: { value: "55" } });
+    expect(screen.queryByText(/Una edad entre 0 y 120 años/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Evaluar CLIP vs ENDOVASCULAR" })).toBeEnabled();
+  });
+});
+
 /* F1-18: «Limpiar decisión y PHASES» borraba la recomendación al primer clic. */
 describe("«Limpiar decisión y PHASES»", () => {
   it("abre la confirmación y no borra hasta confirmar", async () => {

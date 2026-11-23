@@ -5,8 +5,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError, GET_TIMEOUT_MS, LONG_TIMEOUT_MS, RESTORE_TIMEOUT_MS, api, hasSession, markSession,
   onServerDown, resetServerHealth,
-  retryLastFailed, setUnauthorizedHandler,
+  retryLastFailed, setUnauthorizedHandler, validationMessage,
 } from "./client";
+
+/* 23-11: con la edad «2655», Decisión enseñaba el 422 de FastAPI en crudo. */
+describe("los 422 de validación se dicen en castellano", () => {
+  it("traduce el rango, lo que falta y lo que no es un número", () => {
+    expect(validationMessage([{ type: "less_than_equal", loc: ["body", "patient_age"], msg: "x", ctx: { le: 120 } }]))
+      .toBe("Revisa los datos: la edad del paciente debe ser como mucho 120.");
+    expect(validationMessage([
+      { type: "missing", loc: ["body", "session_id"], msg: "Field required" },
+      { type: "int_parsing", loc: ["body", "wfns_grade"], msg: "x" },
+    ])).toBe("Revisa los datos: falta «session_id»; el grado WFNS debe ser un número.");
+    expect(validationMessage("texto")).toBeNull();
+    expect(validationMessage([])).toBeNull();
+  });
+
+  it("y es lo que lleva el error que ve la pantalla, no el JSON", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(
+      JSON.stringify({ detail: [{ type: "less_than_equal", loc: ["body", "patient_age"], msg: "x", input: 2655, ctx: { le: 120 } }] }),
+      { status: 422, headers: { "Content-Type": "application/json" } }));
+    const err = await api.treatmentDecision({ session_id: "s", location: "", is_ruptured: false, patient_age: 2655 } as never)
+      .catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.message).toBe("Revisa los datos: la edad del paciente debe ser como mucho 120.");
+    expect(err.message).not.toContain("less_than_equal");
+    spy.mockRestore();
+  });
+});
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

@@ -30,6 +30,15 @@ describe("cobertura metálica", () => {
     expect(screen.getByText(/Estimación geométrica\./)).toBeInTheDocument();
   });
 
+  it("con el dispositivo elegido por el dimensionado da su etiqueta, no la estimada", () => {
+    // Case 3: «≈ 18 mm» para un Pipeline de 20 (otros diámetros, otra cifra).
+    render(<CoverageSummary c={{ ...base, catalogue_length_mm: 20 }} />);
+    expect(screen.getByText("Longitud de catálogo")).toBeInTheDocument();
+    expect(screen.getByText("20")).toBeInTheDocument();
+    expect(screen.queryByText("≈ 17")).not.toBeInTheDocument();
+    expect(screen.getByText(/Sus 20 mm de catálogo se alargan a 24 mm/)).toBeInTheDocument();
+  });
+
   it("avisa cuando delante del cuello queda bastante menos que en el catálogo", () => {
     render(<CoverageSummary c={{ ...base, neck_coverage_pct: 24 }} />);
     expect(screen.getByText("Baja")).toBeInTheDocument();

@@ -15,6 +15,7 @@ import math
 
 import numpy as np
 import vtk
+from vtkmodules.util.numpy_support import vtk_to_numpy
 
 from services.distancia_malla import DistanciaFirmada
 
@@ -245,6 +246,64 @@ def check_collision(vessel: vtk.vtkPolyData, device_world: vtk.vtkPolyData) -> t
         logger.warning("Collision check failed: %s", exc)
         return False, 0
     return n > 0, n
+
+
+#: Cuánto puede hundirse un dispositivo en la pared antes de contar como
+#: choque: algo más que un vóxel de la angiografía (0,32 mm). Una hoja bien
+#: puesta va paralela y a ras de la arteria madre, y su superficie roza la
+#: pared sin entrar en el vaso.
+PENETRATION_TOL_MM = 0.35
+#: Tamaño del vóxel del solape. Medido en Case 3 (23-11): con 0,2 mm la hoja a
+#: ras da 0, hundida 1 mm 25 y cruzando una rama de Ø 1 mm 12–15; con 0,25 la
+#: hoja a ras ya daba 8 y quedaba demasiado cerca de la rama.
+OVERLAP_VOXEL_MM = 0.2
+
+
+def _bola(radio_vox: float) -> np.ndarray:
+    k = int(math.floor(radio_vox))
+    zz, yy, xx = np.ogrid[-k:k + 1, -k:k + 1, -k:k + 1]
+    return (zz * zz + yy * yy + xx * xx) <= radio_vox * radio_vox
+
+
+def vessel_overlap(vessel: vtk.vtkPolyData, device_world: vtk.vtkPolyData,
+                   exclude_center: Vec3 | None = None, exclude_radius_mm: float = 0.0,
+                   tol_mm: float = PENETRATION_TOL_MM,
+                   voxel_mm: float = OVERLAP_VOXEL_MM) -> int:
+    """Vóxeles del dispositivo metidos en el vaso más de `tol_mm`, fuera de la esfera excluida.
+
+    `check_collision` cuenta cualquier cruce de superficies, también un roce: con
+    las palas del clip paralelas a la basilar (la orientación correcta en un
+    aneurisma lateral) daba 233 «contactos con vasos vecinos» sin que ningún
+    vértice entrase en la arteria, y el panel decía «Choca» (Case 3, 23-11).
+    Aquí se rasterizan vaso y dispositivo en la misma rejilla y se cuenta el
+    solape con lo que está a más de `tol_mm` dentro del vaso: lo que roza no
+    cuenta; lo que se hunde en la arteria madre o cruza una rama, sí.
+    """
+    if vessel is None or device_world is None or device_world.GetNumberOfPoints() == 0 \
+            or vessel.GetNumberOfPoints() == 0:
+        return 0
+    from scipy import ndimage as ndi
+    from services.sac_isolation import _mesh_mask_on_grid
+
+    P = vtk_to_numpy(device_world.GetPoints().GetData()).astype(float)
+    lo, hi = P.min(axis=0) - 1.0, P.max(axis=0) + 1.0
+    n = np.ceil((hi - lo) / voxel_mm).astype(int) + 1               # x, y, z
+    shape = (int(n[2]), int(n[1]), int(n[0]))
+    m_vaso = _mesh_mask_on_grid(vessel, tuple(lo), (voxel_mm,) * 3, shape)
+    # Quedarse con lo que está a más de `tol_mm` de la pared: erosionar con una
+    # bola de ese radio es lo mismo que la transformada de distancia > tol, y
+    # más barato. Por capas de vóxel (redondeando) o se borraba entera una rama
+    # de Ø 1 mm o la hoja a ras volvía a contar.
+    if tol_mm > 0 and m_vaso.any() and tol_mm / voxel_mm >= 1.0:
+        m_vaso = ndi.binary_erosion(m_vaso, structure=_bola(tol_mm / voxel_mm))
+    solape = m_vaso & _mesh_mask_on_grid(device_world, tuple(lo), (voxel_mm,) * 3, shape)
+    if exclude_center is not None and exclude_radius_mm > 0:
+        c = np.asarray(exclude_center, dtype=float)
+        zz, yy, xx = np.ogrid[0:shape[0], 0:shape[1], 0:shape[2]]
+        d2 = ((lo[0] + xx * voxel_mm - c[0]) ** 2 + (lo[1] + yy * voxel_mm - c[1]) ** 2
+              + (lo[2] + zz * voxel_mm - c[2]) ** 2)
+        solape &= d2 > exclude_radius_mm ** 2
+    return int(solape.sum())
 
 
 # ── Neck-plane coverage ─────────────────────────────────────────────────────── #

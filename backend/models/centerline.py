@@ -106,6 +106,10 @@ class ClStentRequest(BaseModel):
     braid_count: int = Field(6, ge=0, le=16, description="Braid wires per wind direction")
     device_id: str | None = Field(
         None, description="Catalogue device whose braid gives the coverage map (default: the Pipeline family)")
+    catalogue_length_mm: float | None = Field(
+        None, gt=0.0, description="Labelled length of the catalogue device being deployed, when known "
+                                  "(the sizing chose it). The coverage summary then reports it instead "
+                                  "of back-computing one from the drawn segment")
 
 
 class ClStentApposition(BaseModel):
@@ -133,6 +137,9 @@ class ClStentCoverage(BaseModel):
     min_local_diameter_mm: float = Field(..., description="Diámetro más estrecho al que queda abierto")
     deployed_length_mm: float = Field(..., description="Longitud del tramo dibujado")
     labelled_length_mm: float = Field(..., description="Longitud de catálogo que, alargada, lo cubre")
+    catalogue_length_mm: float | None = Field(
+        None, description="Longitud etiquetada del dispositivo desplegado, si se sabe (la eligió el "
+                          "dimensionado). Con ella, el resumen da esa y no la estimada del tramo")
     notes: list[str] = Field(default_factory=list)
     sources: list[str] = Field(default_factory=list)
     neck_pore_density: float | None = Field(None, description="Poros por mm² delante del cuello (null sin cuello o sin número de hilos)")

@@ -196,3 +196,65 @@ def _section_shape(pts: np.ndarray, normal) -> tuple[float, float]:
     x, y = x[order], y[order]
     area = float(0.5 * abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))))
     return 2.0 * math.sqrt(area / math.pi), float(ev[1] / ev[0])
+
+
+#: Cuánto más largo que ancho debe ser lo que queda bajo el cuello para dar una
+#: dirección: por debajo, el vaso no tiene un eje claro en el plano (el tronco
+#: llega de frente al cuello) y es mejor no orientar nada que orientarlo mal.
+_MIN_ELONGATION = 1.3
+
+
+#: Radio de búsqueda: dos calibres de la arteria madre, entre estos topes. Con
+#: el radio atado al cuello, un cuello de 1,35 mm miraba solo 4 mm alrededor:
+#: apenas entraba la basilar, mandaban las ramas finas y la dirección salía a
+#: 59° de la línea central (Case 3, 23-11). De 6 a 15 mm quedaba a 2–8°.
+_RADIO_MIN_MM = 8.0
+_RADIO_MAX_MM = 15.0
+
+
+def search_radius(neck_mm: float, parent_mm: float = 0.0) -> float:
+    """Cuánto alrededor del cuello se mira para dar con la arteria madre."""
+    r = max(_RADIO_MIN_MM, 2.0 * float(parent_mm or 0.0), 1.5 * float(neck_mm or 0.0) + 2.0)
+    return min(_RADIO_MAX_MM, r)
+
+
+def parent_direction_in_plane(vessel_poly: vtk.vtkPolyData, neck_point, axis,
+                              neck_mm: float, radius_mm: float | None = None,
+                              parent_mm: float = 0.0) -> "np.ndarray | None":
+    """La dirección de la arteria madre en el plano del cuello, o None.
+
+    Es la dirección en la que deben quedar las palas de un clip: paralelas al
+    vaso, para cerrar el cuello a ras sin pinzar la arteria. Antes el clip se
+    añadía con giro 0, que solo significa «la rotación mínima que lleva su
+    eje al del cuello»: las palas quedaban en una dirección cualquiera del
+    plano (Case 3, 22-11).
+
+    Se toman los vértices del vaso cercanos al cuello y por debajo de su plano
+    (el lado de la arteria) y se busca su eje largo proyectado en el plano. En
+    un aneurisma lateral es el tronco que pasa por debajo; en uno de
+    bifurcación, la línea de las dos ramas, que es también por donde van las
+    palas. Sin un eje claro (menos de `_MIN_ELONGATION`), None.
+    """
+    if vessel_poly is None or vessel_poly.GetNumberOfPoints() == 0:
+        return None
+    n = np.asarray(axis, dtype=float)
+    ln = float(np.linalg.norm(n))
+    if ln < 1e-9:
+        return None
+    n /= ln
+    o = np.asarray(neck_point, dtype=float)
+    r = float(radius_mm) if radius_mm else search_radius(neck_mm, parent_mm)
+
+    rel = vtk_to_numpy(vessel_poly.GetPoints().GetData()).astype(float) - o
+    h = rel @ n
+    sel = (np.einsum("ij,ij->i", rel, rel) <= r * r) & (h < -0.5)
+    if int(sel.sum()) < 30:
+        return None
+    q = rel[sel] - np.outer(h[sel], n)          # proyectados en el plano
+    q -= q.mean(axis=0)
+    _, s, vt = np.linalg.svd(q, full_matrices=False)
+    if s[1] <= 1e-9 or s[0] / s[1] < _MIN_ELONGATION:
+        return None
+    d = vt[0] - float(vt[0] @ n) * n
+    ld = float(np.linalg.norm(d))
+    return d / ld if ld > 1e-9 else None

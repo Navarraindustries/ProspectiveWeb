@@ -457,16 +457,20 @@ def plan_clips(
     # `clip_fit` had always done this; only this path never learnt it, so the
     # panel that judges a candidate and the panel that places it disagreed about
     # the same clip on the same mesh.
+    # Y se cuenta lo que ENTRA en otro vaso, no lo que roza (devices.vessel_overlap):
+    # una hoja paralela y a ras de la arteria madre —la orientación correcta—
+    # roza su pared, y el cruce de superficies la daba por «Choca».
     collision, n_contacts, neck_excluded = False, 0, False
     if vessel_path.exists():
         try:
             vessel = read_vtp(vessel_path)
-            obstacles = vessel
+            radio = 0.0
             if neck_mm > 0.1:
-                from services.clip_fit import vessel_beyond_neck
-                obstacles = vessel_beyond_neck(vessel, neck_origin, neck_mm)
+                from services.clip_fit import exclusion_radius
+                radio = exclusion_radius(neck_mm)
                 neck_excluded = True
-            collision, n_contacts = devices.check_collision(obstacles, clips_world)
+            n_contacts = devices.vessel_overlap(vessel, clips_world, neck_origin, radio)
+            collision = n_contacts > 0
         except Exception as exc:
             logger.warning("Clip collision check skipped: %s", exc)
 

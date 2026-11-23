@@ -283,6 +283,7 @@ _MORPHO_STATE_KEYS = (
     "morpho.compactness", "morpho.rupture_risk", "morpho.rupture_risk_reasons",
     "morpho.neck_source", "morpho.neck_tilt_deg", "morpho.parent_artery_mm",
     "morpho.parent_artery_method",
+    "morpho.parent_dir_x", "morpho.parent_dir_y", "morpho.parent_dir_z",
     # El saco aislado y los puntos del borde. Sin esto, «Limpiar candidatos y
     # morfometría» dejaba el saco verde pintado en el visor y los puntos del
     # cuello listos para reaparecer al reanudar: una medida borrada que seguía
@@ -2031,6 +2032,20 @@ def _run_morphometry_sync(
     # aneurisma cuando el PCA no dio eje (el panel ya dice «eje vertical»).
     write_state(session_id, "morpho.axis_measured", "1" if mr.principal_axis else "0")
 
+    # Dirección de la arteria madre en el plano del cuello: el giro con que se
+    # añade un clip, para que sus palas queden paralelas al vaso.
+    parent_dir = None
+    if vessel_path.exists() and mr.principal_axis:
+        try:
+            from services.parent_artery import parent_direction_in_plane
+            parent_dir = parent_direction_in_plane(
+                read_vtp(vessel_path), neck_origin, axis, mr.neck_diameter_mm,
+                parent_mm=float(read_state(session_id, "morpho.parent_artery_mm", "") or 0.0))
+        except Exception as exc:  # noqa: BLE001 — sin dirección, el clip sale como antes
+            logger.warning("Parent-artery direction skipped: %s", exc)
+    for k, v in zip("xyz", parent_dir if parent_dir is not None else ("", "", "")):
+        write_state(session_id, f"morpho.parent_dir_{k}", str(v))
+
     # ── Persist key morphometry ───────────────────────────────────────── #
     # Consumed by the longitudinal comparison, the treatment engine and the
     # report/DICOM-SR builders — every field those read must be written here,
@@ -2192,6 +2207,9 @@ def _run_morphometry_sync(
         principal_axis    = list(mr.principal_axis),
         neck_origin       = Position3D(
             x=neck_origin[0], y=neck_origin[1], z=neck_origin[2]
+        ),
+        parent_direction  = None if parent_dir is None else Position3D(
+            x=float(parent_dir[0]), y=float(parent_dir[1]), z=float(parent_dir[2])
         ),
         rim_points        = _read_rim_points(session_id),
         dome_seed         = _read_dome_seed(session_id),

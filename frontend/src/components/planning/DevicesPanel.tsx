@@ -49,7 +49,7 @@ import { Tabs } from "../Tabs";
 import { TILT_MAX_DEG } from "../../vtk/clipPose";
 import { angleReferenceLabel } from "../../vtk/approachView";
 import { usePlanning, type PlacedClip } from "../../store/planning";
-import { neckPlacement, toPlacement, toStoredClip, poseKey, isStale, fieldColoursOnScreen } from "./placedClips";
+import { neckPlacement, neckRoll, toPlacement, toStoredClip, poseKey, isStale, fieldColoursOnScreen } from "./placedClips";
 import { cifra, cifraCorta } from "../../lib/numero";
 
 // Se mudó a placedClips.ts; se reexporta para quien la importaba de aquí.
@@ -417,7 +417,7 @@ function ClipsTab() {
     const key = Math.max(nextKey.current, ...placed.map((c) => c.key + 1));
     nextKey.current = key + 1;
     setPlaced((p) => [...p, {
-      key, clip_id: sel, name: nameFor(sel), position, rotation_deg: 0, azimuthDeg: 0, elevationDeg: 0,
+      key, clip_id: sel, name: nameFor(sel), position, rotation_deg: neckRoll(morphometry), azimuthDeg: 0, elevationDeg: 0,
       ...(caida > 0 ? { bladeDropMm: caida } : {}),
     }]);
     setSelectedClipKey(key);
@@ -1593,14 +1593,22 @@ export function CoverageSummary({ c }: { c: ClStentCoverage }) {
         <Metric label="Densidad de poros delante del cuello" value={`≈ ${cifra(c.neck_pore_density, 0)}`} unit=" poros/mm²" />
       )}
       <Metric label="A lo largo del vaso" value={`${c.min_coverage_pct.toFixed(0)}–${c.max_coverage_pct.toFixed(0)}`} unit=" %" />
-      {/* No es la longitud del dispositivo elegido: es la etiqueta que, ya
-          alargada en este vaso, cubriría el tramo dibujado. Con el rótulo
-          «Longitud de catálogo» parecía contradecir al nombre del dispositivo. */}
-      <Metric label="Etiqueta que cubre el tramo" value={`≈ ${c.labelled_length_mm.toFixed(0)}`} unit=" mm" />
+      {/* Con el dispositivo elegido por el dimensionado se da SU etiqueta: la
+          estimada aquí sale de otros diámetros (los de la aposición) y daba
+          «≈ 18» para un Pipeline de 20 (Case 3, 22-11). Sin él, la estimada,
+          que no es la longitud de ningún dispositivo concreto. */}
+      {c.catalogue_length_mm ? (
+        <Metric label="Longitud de catálogo" value={c.catalogue_length_mm.toFixed(0)} unit=" mm" />
+      ) : (
+        <Metric label="Etiqueta que cubre el tramo" value={`≈ ${c.labelled_length_mm.toFixed(0)}`} unit=" mm" />
+      )}
       <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 6 }}>
-        El tramo dibujado mide {c.deployed_length_mm.toFixed(0)} mm; alargándose en este vaso, lo
-        cubrirían unos {c.labelled_length_mm.toFixed(0)} mm de catálogo. Donde el vaso es más estrecho que el
-        dispositivo, la trenza se alarga y sus poros se abren.
+        {c.catalogue_length_mm
+          ? <>Sus {c.catalogue_length_mm.toFixed(0)} mm de catálogo se alargan a {c.deployed_length_mm.toFixed(0)} mm en
+              este vaso.</>
+          : <>El tramo dibujado mide {c.deployed_length_mm.toFixed(0)} mm; alargándose en este vaso, lo
+              cubrirían unos {c.labelled_length_mm.toFixed(0)} mm de catálogo.</>}
+        {" "}Donde el vaso es más estrecho que el dispositivo, la trenza se alarga y sus poros se abren.
         {c.notes.map((n) => ` ${n}`)}
       </div>
     </div>

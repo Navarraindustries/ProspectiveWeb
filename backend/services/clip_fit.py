@@ -42,11 +42,11 @@ from services.clip_selection import (
 )
 from services.devices import (
     apply_transform,
-    check_collision,
     clip_neck_coverage,
     make_clip_shaped,
     plane_span,
     pose_transform,
+    vessel_overlap,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,6 +63,11 @@ _EXCLUSION_RATIO: float = 1.2
 _EXCLUSION_MIN_MM: float = 3.0
 
 
+def exclusion_radius(neck_mm: float) -> float:
+    """Radio de la esfera del cuello que no cuenta como choque."""
+    return max(_EXCLUSION_MIN_MM, float(neck_mm) * _EXCLUSION_RATIO)
+
+
 def vessel_beyond_neck(
     vessel: vtk.vtkPolyData,
     neck_origin: tuple[float, float, float],
@@ -72,7 +77,7 @@ def vessel_beyond_neck(
 
     What is left is everything a clip blade has no business touching.
     """
-    radius = max(_EXCLUSION_MIN_MM, float(neck_mm) * _EXCLUSION_RATIO)
+    radius = exclusion_radius(neck_mm)
     sphere = vtk.vtkSphere()
     sphere.SetCenter(float(neck_origin[0]), float(neck_origin[1]), float(neck_origin[2]))
     sphere.SetRadius(radius)
@@ -136,9 +141,8 @@ def verify_candidate(
     `obstacles` is the vessel minus the neck region; pass it in when checking
     several candidates so the cut runs once instead of once per clip.
     """
-    if obstacles is None:
-        obstacles = vessel_beyond_neck(vessel, neck_origin, case.neck_mm)
-
+    # `obstacles` ya no se usa aquí (el choque se mide contra el vaso entero
+    # menos la esfera del cuello); se acepta para no romper a quien lo pasa.
     local = build_candidate_mesh(cand)
     best: GeometryCheck | None = None
     clean = 0
@@ -147,7 +151,10 @@ def verify_candidate(
         t = pose_transform(neck_origin, neck_normal, roll)
         world = apply_transform(local, t)
         try:
-            hit, contacts = check_collision(obstacles, world)
+            # Lo que entra en otro vaso, no lo que roza (devices.vessel_overlap):
+            # una hoja a ras de la arteria madre no es un choque.
+            contacts = vessel_overlap(vessel, world, neck_origin, exclusion_radius(case.neck_mm))
+            hit = contacts > 0
         except Exception as exc:  # noqa: BLE001 — a degenerate mesh must not sink the run
             logger.warning("Collision test failed for %s: %s", cand.clip.name, exc)
             hit, contacts = False, 0
@@ -176,7 +183,7 @@ def verify_candidate(
     if clean == 0:
         best.note = (
             f"Toca estructuras vecinas en las {best.n_rolls} orientaciones probadas "
-            f"({best.n_contacts} triángulos en la mejor); {cover}"
+            f"({best.n_contacts} vóxeles dentro de otro vaso en la mejor); {cover}"
         )
     elif best.tight:
         best.note = (

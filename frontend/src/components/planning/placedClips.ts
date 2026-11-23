@@ -5,7 +5,7 @@
 import type { ClipPlacement, MorphometryResult, PlacedClipState } from "../../api/types";
 import type { PlacedClip } from "../../store/planning";
 import type { Vec3 } from "../../vtk/geometry";
-import { neckFrameNormal } from "../../vtk/clipPose";
+import { neckFrameNormal, rollAlong } from "../../vtk/clipPose";
 
 /** El eje principal del cuello, o null si la morfometría no lo trae. */
 export function neckAxis(m: MorphometryResult | null): Vec3 | null {
@@ -48,6 +48,18 @@ export function neckPlacement(m: MorphometryResult | null, caidaHojaMm = 0): { p
     return { position: subir([c.x - (ax[0] * dh) / 2, c.y - (ax[1] * dh) / 2, c.z - (ax[2] * dh) / 2]), normal };
   }
   return { position: [0, 0, 0], normal };
+}
+
+/** El giro de partida de un clip: palas paralelas a la arteria madre. Con giro
+ *  0 quedaban en una dirección cualquiera del plano del cuello —la de la
+ *  rotación mínima de +z a su eje— y en Case 3 cruzaban la basilar en vez de
+ *  seguirla (22-11). Sin dirección medida (medidas anteriores, o un vaso sin
+ *  eje claro bajo el cuello), 0 como antes. */
+export function neckRoll(m: MorphometryResult | null): number {
+  const d = m?.parent_direction;
+  const ax = neckAxis(m);
+  if (!d || !ax) return 0;
+  return rollAlong(ax, [d.x, d.y, d.z]) ?? 0;
 }
 
 const snap = (v: number) => (Math.abs(v) < 1e-12 ? 0 : v);

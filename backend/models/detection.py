@@ -433,6 +433,14 @@ class MorphometryResult(BaseModel):
             "centroid and the dome height, which lands off the neck."
         ),
     )
+    parent_direction: Position3D | None = Field(
+        None,
+        description=(
+            "Unit direction of the parent artery in the neck plane (patient space). "
+            "A clip's blades go parallel to it. Null when the vessel under the neck "
+            "has no clear axis in that plane."
+        ),
+    )
 
 
 class NeckPlaneRequest(BaseModel):

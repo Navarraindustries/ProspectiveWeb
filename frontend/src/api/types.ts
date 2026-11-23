@@ -948,6 +948,9 @@ export interface ClStentCoverage {
   deployed_length_mm: number;
   /** Longitud de catálogo que, ya alargada por el vaso, cubre el tramo. */
   labelled_length_mm: number;
+  /** La etiqueta del dispositivo desplegado, si la eligió el dimensionado
+   *  (flow diverter en tres clics). Con ella no se enseña la estimada. */
+  catalogue_length_mm?: number | null;
   notes: string[];
   sources: string[];
   /** Poros por mm² delante del cuello (P5); null sin cuello o sin número de hilos. */
@@ -1118,6 +1121,10 @@ export interface MorphometryResult {
    *  the one that measured the neck. */
   plane_normal: Position3D | null;
   neck_origin: Position3D | null;
+  /** Dirección de la arteria madre en el plano del cuello (unitaria): las
+   *  palas de un clip van paralelas a ella. Null si el vaso no tiene ahí un
+   *  eje claro, y ausente en medidas anteriores. */
+  parent_direction?: Position3D | null;
 }
 
 /** User-defined neck plane for semi-automatic closed-sac morphometry. */

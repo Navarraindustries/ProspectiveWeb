@@ -62,7 +62,7 @@ export function MeshHistoryCard({
   const {
     sessionId, segmentation, setSegmentation, setPickMode, setCropCenter,
     setCandidates, setRejectedCandidates, setSelectedCandidate,
-    setMorphometry, setTreatment, setCenterlineMesh,
+    setMorphometry, setTreatment, setCenterlineMesh, setCenterlineArcMm, clearDeviceMeshes,
   } = usePlanning();
 
   // Lo que el backend sabe del historial. Se pide al montar —una sesión
@@ -99,10 +99,14 @@ export function MeshHistoryCard({
     try {
       const res = await api.meshRestore(sessionId, scope);
       setSegmentation({ ...segmentation, mesh_url: res.mesh_url, vertices: res.vertices, faces: res.faces });
-      // La malla restaurada es otra geometría: los candidatos, la morfometría
-      // y la línea central medidos sobre la editada ya no la describen.
+      // La malla restaurada es otra geometría: los candidatos, la morfometría,
+      // la línea central y los dispositivos medidos sobre la editada ya no la
+      // describen. Sin quitar los dispositivos, el campo del clip seguía vivo
+      // (CALOR ● en la barra) y stent y clip reaparecían en Dispositivos
+      // colocados sobre la malla de antes (Case 3, 22-11).
       setCandidates([]); setRejectedCandidates([]); setSelectedCandidate(0);
-      setMorphometry(null); setTreatment(null); setCenterlineMesh(null);
+      setMorphometry(null); setTreatment(null); setCenterlineMesh(null); setCenterlineArcMm(null);
+      clearDeviceMeshes();
       setCropCenter(null);
       try { setHist(await api.meshHistory(sessionId)); } catch { /* queda el de antes */ }
       setNote(

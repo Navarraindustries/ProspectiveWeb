@@ -75,6 +75,20 @@ export function neckFrameAngles(axis: Vec3 | null, normal: Vec3): { azimuthDeg: 
   const a = Math.hypot(l[0], l[1]) < 1e-9 ? 0 : Math.atan2(l[0], l[1]);
   return { azimuthDeg: (a * 180) / Math.PI, elevationDeg: (e * 180) / Math.PI };
 }
+/** El giro (grados, en (−90, 90]) que deja las palas de un clip — su +x local,
+ *  `devices.make_clip` y los NAVARRO — paralelas a `dir` una vez alineado su +z
+ *  con `normal`. Null si `dir` cae casi a lo largo de la normal: en el plano no
+ *  queda dirección. Las palas son simétricas, así que d y −d dan lo mismo. */
+export function rollAlong(normal: Vec3, dir: Vec3): number | null {
+  const R = axisRotation(normal);
+  const ex: Vec3 = [R[0], R[4], R[8]], ey: Vec3 = [R[1], R[5], R[9]];
+  const x = dot(dir, ex), y = dot(dir, ey);
+  if (Math.hypot(x, y) < 0.2 * Math.hypot(dir[0], dir[1], dir[2])) return null;
+  let g = (Math.atan2(y, x) * 180) / Math.PI;
+  if (g > 90) g -= 180;
+  if (g <= -90) g += 180;
+  return Math.round(g);
+}
 export function clampTilt(t: { azimuthDeg: number; elevationDeg: number }) {
   return { azimuthDeg: Math.max(-180, Math.min(180, t.azimuthDeg)), elevationDeg: Math.max(0, Math.min(TILT_MAX_DEG, t.elevationDeg)) };
 }

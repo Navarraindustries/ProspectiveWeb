@@ -35,7 +35,7 @@ const CON_RECORTE = {
 
 /** Sesión, malla y un candidato ya detectado, como en Morfometría. */
 function Seed({ children }: { children: ReactNode }) {
-  const { setSession, setSegmentation, setCandidates } = usePlanning();
+  const { setSession, setSegmentation, setCandidates, setDeviceMesh } = usePlanning();
   // Una sola vez: los setters del store cambian de identidad en cada render
   // (los envuelve `touch`), y ponerlos de dependencia sembraba sin fin.
   const sembrado = useRef(false);
@@ -45,14 +45,20 @@ function Seed({ children }: { children: ReactNode }) {
     setSession("s1");
     setSegmentation(SEG);
     setCandidates([{ id: "c1" } as never]);
+    setDeviceMesh("stent", "/data/cl_stent.vtp");
   });
   return <>{children}</>;
 }
 
 /** Enseña lo que el test necesita leer del store. */
 function Sonda() {
-  const { candidates, segmentation } = usePlanning();
-  return <output data-testid="sonda">{`${candidates.length}|${segmentation?.mesh_url ?? ""}`}</output>;
+  const { candidates, segmentation, deviceMeshes } = usePlanning();
+  return (
+    <>
+      <output data-testid="sonda">{`${candidates.length}|${segmentation?.mesh_url ?? ""}`}</output>
+      <output data-testid="stent">{deviceMeshes.stent ?? "sin stent"}</output>
+    </>
+  );
 }
 
 function mount(props: Parameters<typeof MeshHistoryCard>[0] = {}) {
@@ -104,6 +110,9 @@ describe("historial de la malla", () => {
     await waitFor(() => expect(onRestored).toHaveBeenCalledTimes(1));
     // La malla nueva queda puesta y el candidato de la vieja, fuera.
     expect(screen.getByTestId("sonda")).toHaveTextContent("0|/data/v.vtp?v=2");
+    // Y los dispositivos colocados sobre la vieja también: si no, el campo del
+    // clip (CALOR) y el stent seguían vivos (Case 3, 22-11).
+    expect(screen.getByTestId("stent")).toHaveTextContent("sin stent");
     expect(await screen.findByText(/Malla original restaurada: 297\.045 vértices/)).toBeInTheDocument();
   });
 
@@ -126,5 +135,6 @@ describe("historial de la malla", () => {
     expect(await screen.findByText("No hay instantánea")).toBeInTheDocument();
     expect(onRestored).not.toHaveBeenCalled();
     expect(screen.getByTestId("sonda")).toHaveTextContent("1|/data/v.vtp?v=1");
+    expect(screen.getByTestId("stent")).toHaveTextContent("/data/cl_stent.vtp");
   });
 });

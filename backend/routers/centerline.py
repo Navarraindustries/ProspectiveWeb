@@ -338,7 +338,11 @@ def _coverage(result, req: ClStentRequest, out_path):
         c = annotate(result.stent_poly_data, result.centerline_segment, req.stent_diameter_mm,
                      braid_for(req.device_id) or PIPELINE)
         write_vtp(result.stent_poly_data, out_path)
-        return asdict(c)
+        # La etiqueta estimada sobre la malla (diámetros de la aposición) no
+        # coincide con la del dispositivo que eligió el dimensionado (diámetros
+        # de los cortes): en Case 3, «≈ 18 mm» para un Pipeline de 20. Si se
+        # sabe cuál es, se da esa.
+        return {**asdict(c), "catalogue_length_mm": req.catalogue_length_mm}
     except ValueError as exc:            # fuera de las medidas de la familia
         logger.info("Coverage map not applicable: %s", exc)
         return None
@@ -686,7 +690,8 @@ async def stent_tres_clics(
     a, b = opcion.deploy_arc_mm
     stent = await deploy_cl_stent(session_id, ClStentRequest(
         session_id=session_id, stent_diameter_mm=opcion.diameter_mm,
-        start_arc_mm=a, end_arc_mm=b, braid=True, device_id=opcion.device_id), current_user)
+        start_arc_mm=a, end_arc_mm=b, braid=True, device_id=opcion.device_id,
+        catalogue_length_mm=opcion.length_mm or None), current_user)
     out.device_id, out.device_name = opcion.device_id, opcion.name
     out.diameter_mm, out.labelled_length_mm = opcion.diameter_mm, opcion.length_mm
     out.deploy_arc_mm, out.stent = [a, b], stent

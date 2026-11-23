@@ -133,6 +133,10 @@ def test_tres_clics_extrae_dimensiona_y_despliega_cubriendo_el_cuello(malla):
     assert a < s0 - 5 and b > s1 + 5, "el dispositivo tiene que anclar a los dos lados del cuello"
     assert 2.5 <= d["diameter_mm"] <= 4.0   # vaso de Ø 3 mm
     assert d["device_name"] in d["message"]
+    # La cobertura da la etiqueta del dispositivo elegido, no una estimada del
+    # tramo (en Case 3 salía «≈ 18 mm» para un Pipeline de 20).
+    assert d["stent"]["coverage"] is not None
+    assert d["stent"]["coverage"]["catalogue_length_mm"] == d["labelled_length_mm"]
     # La línea nueva sustituye a la anterior y el stent queda guardado.
     assert client.get(f"/api/centerline/{sid}").json()["arc_length_mm"] == d["centerline"]["arc_length_mm"]
     from services.device_state import read_stent

@@ -11,6 +11,7 @@ const ACCIONES: Record<string, string> = {
   SEGMENTATION_COMPLETE: "Segmentación completada",
   TREATMENT_DECISION: "Decisión de tratamiento",
   DEVICE_PLACED: "Dispositivo colocado",
+  DEVICE_CLEARED: "Dispositivos quitados del plan",
   REPORT_GENERATED: "Informe generado",
   DICOM_SR_GENERATED: "Informe DICOM SR generado",
   DICOM_SEG_GENERATED: "Segmentación DICOM generada",

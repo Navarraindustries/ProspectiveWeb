@@ -68,6 +68,19 @@ def _place_clip(sid: str) -> None:
     assert r.status_code == 200, r.text
 
 
+def _bloques_limpiar(sid: str) -> list[dict]:
+    """Los bloques DEVICE_CLEARED de esa sesión, con su payload ya leído."""
+    import json
+    from services.audit import SkullChain
+    out = []
+    for b in SkullChain.instance().get_all_blocks():
+        if b["action"] == "DEVICE_CLEARED":
+            p = json.loads(b["payload_json"])
+            if p.get("session_id") == sid:
+                out.append(p)
+    return out
+
+
 # ── Devices ────────────────────────────────────────────────────────────────── #
 
 class TestClearDevices:
@@ -123,6 +136,26 @@ class TestClearDevices:
         r = client.delete(f"/api/devices/{sid}")
         assert r.status_code == 200
         assert r.json()["meshes_removed"] == 0
+
+    def test_clearing_leaves_a_block_in_the_audit_chain(self):
+        # UNI-177: el clip desapareció del plan y la cadena no decía nada,
+        # porque colocar dejaba bloque y limpiar no.
+        from services.audit import SkullChain
+        sid = _session_with_mesh()
+        _place_clip(sid)
+        save_stent(sid, {"name": "X", "diameter_mm": 4.0, "kind": "centerline"})
+
+        client.delete(f"/api/devices/{sid}?kind=clips")
+        client.delete(f"/api/devices/{sid}")
+        bloques = _bloques_limpiar(sid)
+        assert [b["kinds"] for b in bloques] == [["clips"], ["clips", "coils", "stent"]]
+        assert bloques[0]["had"] == ["clips"]
+        assert bloques[1]["had"] == ["stent"]
+
+    def test_clearing_nothing_leaves_no_block(self):
+        sid = _session_with_mesh()
+        client.delete(f"/api/devices/{sid}")
+        assert _bloques_limpiar(sid) == []
 
     def test_unknown_kind_is_rejected(self):
         sid = _session_with_mesh()

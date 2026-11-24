@@ -24,6 +24,9 @@ ACT_LOGIN              = "LOGIN"
 ACT_SEGMENTATION       = "SEGMENTATION_COMPLETE"
 ACT_TREATMENT_DECISION = "TREATMENT_DECISION"
 ACT_DEVICE_PLACED      = "DEVICE_PLACED"
+# Quitar dispositivos del plan también deja bloque: sin él, un clip que
+# desaparecía del plan no dejaba rastro de quién ni cuándo (UNI-177).
+ACT_DEVICE_CLEARED     = "DEVICE_CLEARED"
 ACT_REPORT_GENERATED   = "REPORT_GENERATED"
 ACT_SR_GENERATED       = "DICOM_SR_GENERATED"
 ACT_INTEGRITY_CHECK    = "INTEGRITY_CHECK"

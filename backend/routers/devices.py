@@ -219,6 +219,7 @@ async def put_device_strategy(
 )
 async def clear_devices_endpoint(
     session_id: str,
+    current_user: Annotated[User | None, Depends(get_current_user)],
     kind: str | None = Query(
         None,
         description="Device family to clear: 'clips', 'coils' or 'stent'. Omit for all.",
@@ -234,6 +235,7 @@ async def clear_devices_endpoint(
         )
 
     kinds = [kind] if kind else list(DEVICE_KINDS)
+    had = [k for k in _placed(session_id) if k in kinds]
     meshes_dir = session_subdir(session_id, "meshes")
     removed = 0
 
@@ -249,6 +251,14 @@ async def clear_devices_endpoint(
                     logger.warning("Could not delete %s for %s: %s", name, session_id, exc)
 
     logger.info("Cleared devices %s for session=%s (%d mesh file(s))", kinds, session_id, removed)
+    # Colocar deja bloque y quitar también (UNI-177): un clip desaparecido del
+    # plan se buscó en la cadena y no había nada. Limpiar lo que no estaba no
+    # cambia el plan y no deja bloque.
+    if had:
+        from services.audit import ACT_DEVICE_CLEARED, audit_append
+        audit_append(ACT_DEVICE_CLEARED, {"session_id": session_id, "kinds": kinds, "had": had,
+                                          "meshes_removed": removed},
+                     username=getattr(current_user, "username", "") or "")
     remaining = _placed(session_id)
     return DeviceClearResult(
         cleared=kinds, remaining=remaining, meshes_removed=removed,

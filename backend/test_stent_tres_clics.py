@@ -218,6 +218,31 @@ def test_la_linea_nueva_se_lleva_el_ivus_y_el_stent_de_la_vieja(malla):
     assert client.get(f"/api/centerline/{sid}").json()["arc_length_mm"] == d["centerline"]["arc_length_mm"]
 
 
+def test_repetir_los_tres_clics_no_toca_el_clip_colocado(malla):
+    """UNI-177: el stent nuevo sustituye al de antes; el clip del plan se queda,
+    con su malla, su lista editable y lo evaluado con él."""
+    from services.device_state import (read_clip_evaluation, read_clips, read_placed_clips,
+                                       save_clip_evaluation, save_clips, save_placed_clips)
+    sid = _sesion(malla)
+    m = session_subdir(sid, "meshes")
+    clip = {"index": 0, "clip_id": "navarro:t3:30:10.0", "name": "T3", "position": [6.9, 0.0, 30.0],
+            "orientation": [0.0, 0.0, -80.0], "normal": [1.0, 0.0, 0.0], "is_custom": False}
+    save_clips(sid, [clip])
+    save_placed_clips(sid, {"clips": [{"key": 1, "clip_id": clip["clip_id"], "name": "T3",
+                                        "position": clip["position"], "normal": clip["normal"],
+                                        "rotation_deg": -80.0}]})
+    save_clip_evaluation(sid, "occlusion", {"occluded_pct": 100.0})
+    (m / "clips_placed.vtp").write_bytes(b"clip")
+    for _ in range(2):                                   # en el ensayo se repitió dos veces
+        r = client.post(f"/api/stent-tres-clics/{sid}", json=_clics())
+        assert r.status_code == 200, r.text
+        assert r.json()["stent"] is not None
+    assert read_clips(sid) == [clip]
+    assert read_placed_clips(sid)["clips"][0]["clip_id"] == clip["clip_id"]
+    assert read_clip_evaluation(sid, "occlusion") is not None
+    assert (m / "clips_placed.vtp").read_bytes() == b"clip"
+
+
 def test_sin_malla_409():
     sid = create_session()
     assert client.post(f"/api/stent-tres-clics/{sid}", json=_clics()).status_code == 409

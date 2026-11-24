@@ -64,6 +64,10 @@ class SessionIdentity(BaseModel):
     modality: str = ""
     matches: list[PatientMatch] = Field(default_factory=list)
     attached: bool = Field(False, description="La sesión ya está ligada a un estudio")
+    session_patient: Optional[PatientMatch] = Field(
+        None, description="El paciente al que ya pertenece la sesión (reason='session'), si lo tiene: "
+                          "se propone ese y no las coincidencias de la cabecera (UNI-178)")
+    session_case_id: Optional[int] = Field(None, description="El caso al que ya pertenece la sesión")
 
 
 class NewPatient(BaseModel):
@@ -179,8 +183,89 @@ async def session_identity(
             matches.append(PatientMatch(id=p.id, full_name=p.full_name, hospital_id=p.hospital_id or "",
                                         dob=p.dob or "", reason="name"))
     ps = _session_row(db, session_id)
+    # UNI-178: una sesión guardada en la ficha de un paciente ya es suya. La
+    # cabecera podía casar con otro (uno antiguo creado con el mismo DICOM) y el
+    # diálogo lo daba por elegido.
+    propio, caso_propio = None, None
+    if ps is not None and ps.patient_id is not None:
+        p = q.filter(Patient.id == ps.patient_id).first()
+        if p is not None:
+            propio = PatientMatch(id=p.id, full_name=p.full_name, hospital_id=p.hospital_id or "",
+                                  dob=p.dob or "", reason="session")
+            caso_propio = ps.study_id
+            matches = [m for m in matches if m.id != p.id]
     return SessionIdentity(suggestion=sug, study_date=study_date, modality=modality,
-                           matches=matches, attached=bool(ps and ps.imaging_study_id))
+                           matches=matches, attached=bool(ps and ps.imaging_study_id),
+                           session_patient=propio, session_case_id=caso_propio)
+
+
+# ── Paciente y caso elegidos ───────────────────────────────────────────────── #
+
+def _exigir_uno_de_cada(req: AttachRequest) -> None:
+    if (req.patient_id is None) == (req.new_patient is None):
+        raise HTTPException(status_code=422, detail="Elige un paciente o crea uno nuevo (uno de los dos).")
+    if (req.case_id is None) == (req.new_case is None):
+        raise HTTPException(status_code=422, detail="Elige un caso o crea uno nuevo (uno de los dos).")
+
+
+def _paciente_y_caso(db: Session, req: AttachRequest, current_user, session_id: str,
+                     created: list) -> tuple[Patient, Study]:
+    """El paciente y el caso pedidos: existentes (visibles para quien pide) o
+    nuevos. Lo que se crea va a `created`, para deshacerlo si algo falla después."""
+    # ── Paciente ───────────────────────────────────────────────────────── #
+    if req.patient_id is not None:
+        patient = _visible(db, current_user).filter(Patient.id == req.patient_id).first()
+        if patient is None:
+            raise HTTPException(status_code=404, detail=f"Paciente {req.patient_id} no encontrado.")
+    else:
+        np_ = req.new_patient
+        if not (np_.surname.strip() or np_.given_name.strip()):
+            raise HTTPException(status_code=422, detail="El nombre del paciente es obligatorio.")
+        hc = np_.hospital_id.strip()
+        if hc:
+            dup = db.query(Patient).filter(Patient.hospital_id == hc).first()
+            if dup is not None:
+                # El nombre solo a quien ya ve a ese paciente: si no, bastaba
+                # probar números de historia para leer pacientes ajenos.
+                if can_access_patient(db, current_user, dup.id):
+                    detail = (f"Ya existe un paciente con la historia clínica '{hc}' "
+                              f"({dup.full_name}). Elígelo en lugar de crear otro.")
+                else:
+                    detail = ("Ya existe un paciente con ese número de historia que no está "
+                              "entre los tuyos: pide a su responsable que lo comparta contigo.")
+                raise HTTPException(status_code=409, detail=detail)
+        patient = Patient(surname=np_.surname.strip(), given_name=np_.given_name.strip(),
+                          hospital_id=hc, dob=np_.dob, sex=np_.sex,
+                          created_by=current_user.id if current_user else None)
+        db.add(patient)
+        db.commit()
+        db.refresh(patient)
+        created.append(patient)
+
+    # ── Caso ───────────────────────────────────────────────────────────── #
+    if req.case_id is not None:
+        case = db.query(Study).filter(Study.id == req.case_id,
+                                      Study.patient_id == patient.id).first()
+        if case is None:
+            raise HTTPException(status_code=404, detail="Ese caso no es de este paciente.")
+    else:
+        nc = req.new_case
+        if not nc.dx_principal.strip():
+            raise HTTPException(status_code=422, detail="Escribe el motivo del caso.")
+        case = Study(patient_id=patient.id, description=nc.dx_principal.strip(),
+                     dx_principal=nc.dx_principal.strip(), acquired_at=nc.study_date or "",
+                     modality=read_state(session_id, "dicom.modality", "") or "")
+        db.add(case)
+        db.commit()
+        db.refresh(case)
+        created.append(case)
+    return patient, case
+
+
+def _deshacer(db: Session, created: list) -> None:
+    for row in reversed(created):
+        db.delete(row)
+    db.commit()
 
 
 # ── Adjuntar ───────────────────────────────────────────────────────────────── #
@@ -215,63 +300,14 @@ async def attach_session(
         # Se va a escribir sobre esa fila: tiene que ser de un paciente que
         # esta persona ve, como al guardar sobre el origen.
         require_patient(db, current_user, ps.patient_id)
-    if (req.patient_id is None) == (req.new_patient is None):
-        raise HTTPException(status_code=422, detail="Elige un paciente o crea uno nuevo (uno de los dos).")
-    if (req.case_id is None) == (req.new_case is None):
-        raise HTTPException(status_code=422, detail="Elige un caso o crea uno nuevo (uno de los dos).")
+    _exigir_uno_de_cada(req)
     dicom_dir = session_subdir(session_id, "dicom")
     if not any(p.is_file() for p in dicom_dir.rglob("*")):
         raise HTTPException(status_code=422, detail="La sesión no tiene DICOM que archivar.")
 
     created: list = []          # lo creado aquí, para deshacerlo si algo falla
     try:
-        # ── Paciente ───────────────────────────────────────────────────── #
-        if req.patient_id is not None:
-            patient = _visible(db, current_user).filter(Patient.id == req.patient_id).first()
-            if patient is None:
-                raise HTTPException(status_code=404, detail=f"Paciente {req.patient_id} no encontrado.")
-        else:
-            np_ = req.new_patient
-            if not (np_.surname.strip() or np_.given_name.strip()):
-                raise HTTPException(status_code=422, detail="El nombre del paciente es obligatorio.")
-            hc = np_.hospital_id.strip()
-            if hc:
-                dup = db.query(Patient).filter(Patient.hospital_id == hc).first()
-                if dup is not None:
-                    # El nombre solo a quien ya ve a ese paciente: si no, bastaba
-                    # probar números de historia para leer pacientes ajenos.
-                    if can_access_patient(db, current_user, dup.id):
-                        detail = (f"Ya existe un paciente con la historia clínica '{hc}' "
-                                  f"({dup.full_name}). Elígelo en lugar de crear otro.")
-                    else:
-                        detail = ("Ya existe un paciente con ese número de historia que no está "
-                                  "entre los tuyos: pide a su responsable que lo comparta contigo.")
-                    raise HTTPException(status_code=409, detail=detail)
-            patient = Patient(surname=np_.surname.strip(), given_name=np_.given_name.strip(),
-                              hospital_id=hc, dob=np_.dob, sex=np_.sex,
-                              created_by=current_user.id if current_user else None)
-            db.add(patient)
-            db.commit()
-            db.refresh(patient)
-            created.append(patient)
-
-        # ── Caso ───────────────────────────────────────────────────────── #
-        if req.case_id is not None:
-            case = db.query(Study).filter(Study.id == req.case_id,
-                                          Study.patient_id == patient.id).first()
-            if case is None:
-                raise HTTPException(status_code=404, detail="Ese caso no es de este paciente.")
-        else:
-            nc = req.new_case
-            if not nc.dx_principal.strip():
-                raise HTTPException(status_code=422, detail="Escribe el motivo del caso.")
-            case = Study(patient_id=patient.id, description=nc.dx_principal.strip(),
-                         dx_principal=nc.dx_principal.strip(), acquired_at=nc.study_date or "",
-                         modality=read_state(session_id, "dicom.modality", "") or "")
-            db.add(case)
-            db.commit()
-            db.refresh(case)
-            created.append(case)
+        patient, case = _paciente_y_caso(db, req, current_user, session_id, created)
 
         # ── Archivar y ligar ───────────────────────────────────────────── #
         try:
@@ -279,9 +315,7 @@ async def attach_session(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     except BaseException:
-        for row in reversed(created):
-            db.delete(row)
-        db.commit()
+        _deshacer(db, created)
         raise
 
     if ps is None:
@@ -311,6 +345,77 @@ async def attach_session(
     }, username=current_user.username if current_user else "", **audit_patient(patient))
     logger.info("Session %s attached to patient %d case %d study %d", session_id, patient.id, case.id, img.id)
     # Si llegó hasta aquí sin crearlo ni ser administrador, lo ve porque se lo compartieron.
+    compartido = (current_user is not None and current_user.role != "admin"
+                  and patient.created_by != current_user.id)
+    return AttachResult(patient=_patient_to_summary(patient, is_shared_with_me=compartido), case_id=case.id,
+                        case_label=case.dx_principal or case.description or "Caso",
+                        imaging_study_id=img.id, relinked_confirmations=n)
+
+
+# ── Mover una sesión ya adjunta ────────────────────────────────────────────── #
+
+@router.post(
+    "/{session_id}/move",
+    response_model=AttachResult,
+    summary="Mover una sesión adjunta a otro paciente o caso, con su estudio de imagen",
+    description=(
+        "Para corregir un adjuntado al paciente o caso equivocado (UNI-178). Mismo cuerpo que "
+        "`attach`. No vuelve a archivar el DICOM: el estudio de imagen que ya se archivó pasa al "
+        "caso elegido, y con él las sesiones, confirmaciones de lesión y capturas que cuelgan de "
+        "él. 409 si la sesión aún no está adjunta (eso es «adjuntar») o si ya está en ese caso."
+    ),
+)
+async def move_session(
+    session_id: str,
+    req: AttachRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> AttachResult:
+    from routers.patients import _patient_to_summary
+    from services.audit import ACT_SESSION_MOVED
+    from services.db_models import CaseCapture
+
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
+    ps = _session_row(db, session_id)
+    if ps is None or not ps.imaging_study_id:
+        raise HTTPException(status_code=409, detail="Esta sesión aún no está adjunta a un caso: usa «Adjuntar a un caso».")
+    # Se saca de un paciente: tiene que ser uno que esta persona ve.
+    require_patient(db, current_user, ps.patient_id)
+    _exigir_uno_de_cada(req)
+    img = db.get(ImagingStudy, ps.imaging_study_id)
+    if img is None:
+        raise HTTPException(status_code=409, detail="El estudio de imagen de esta sesión ya no existe.")
+    if req.case_id is not None and req.case_id == img.case_id:
+        raise HTTPException(status_code=409, detail="La sesión ya está en ese caso.")
+
+    created: list = []
+    try:
+        patient, case = _paciente_y_caso(db, req, current_user, session_id, created)
+    except BaseException:
+        _deshacer(db, created)
+        raise
+
+    antes = {"from_patient": img.patient_id, "from_case": img.case_id}
+    mover = {"case_id": case.id, "patient_id": patient.id}
+    img.case_id, img.patient_id = case.id, patient.id
+    # Todo lo que cuelga de ese estudio va con él: otras sesiones guardadas del
+    # mismo estudio, lo confirmado y las capturas.
+    (db.query(PlanningSession).filter(PlanningSession.imaging_study_id == img.id)
+       .update({"study_id": case.id, "patient_id": patient.id}, synchronize_session=False))
+    n = (db.query(LesionConfirmation).filter(LesionConfirmation.imaging_study_id == img.id)
+           .update(mover, synchronize_session=False))
+    capturas = (db.query(CaseCapture).filter(CaseCapture.imaging_study_id == img.id)
+                  .update(mover, synchronize_session=False))
+    db.commit()
+    db.refresh(patient)
+
+    audit_append(ACT_SESSION_MOVED, {
+        "session_id": session_id, **antes, "patient": patient.id, "case": case.id,
+        "imaging_study": img.id, "new_patient": req.new_patient is not None,
+        "new_case": req.new_case is not None, "confirmations": n, "captures": capturas,
+    }, username=current_user.username if current_user else "", **audit_patient(patient))
+    logger.info("Session %s moved from case %s to case %d (study %d)", session_id, antes["from_case"], case.id, img.id)
     compartido = (current_user is not None and current_user.role != "admin"
                   and patient.created_by != current_user.id)
     return AttachResult(patient=_patient_to_summary(patient, is_shared_with_me=compartido), case_id=case.id,

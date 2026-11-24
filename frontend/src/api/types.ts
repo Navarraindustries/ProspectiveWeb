@@ -2516,8 +2516,20 @@ export interface SessionIdentity {
   suggestion: PatientSuggestion;
   study_date: string;
   modality: string;
-  matches: { id: number; full_name: string; hospital_id: string; dob: string; reason: "hospital_id" | "name" }[];
+  matches: PatientMatch[];
   attached: boolean;
+  /** UNI-178: el paciente al que ya pertenece la sesión (guardada en su ficha).
+   *  Se propone ese, no las coincidencias de la cabecera. */
+  session_patient: PatientMatch | null;
+  session_case_id: number | null;
+}
+
+export interface PatientMatch {
+  id: number;
+  full_name: string;
+  hospital_id: string;
+  dob: string;
+  reason: "hospital_id" | "name" | "session";
 }
 
 export interface AttachRequest {

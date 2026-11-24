@@ -222,6 +222,113 @@ class TestAdjuntarUnaSesionReanudada:
             "new_patient": {"surname": "Segunda"}, "new_case": {"dx_principal": "Y"}}).status_code == 409
 
 
+def _paciente_con_caso(apellido: str, hc: str = "", motivo="Aneurisma basilar") -> tuple[int, int]:
+    db = SessionLocal()
+    p = Patient(surname=apellido, hospital_id=hc or f"HC-{uuid.uuid4().hex[:8]}")
+    db.add(p); db.commit()
+    c = Study(patient_id=p.id, description=motivo, dx_principal=motivo)
+    db.add(c); db.commit(); pid, cid = p.id, c.id; db.close()
+    return pid, cid
+
+
+class TestElPacienteDeLaSesion:
+    """UNI-178: la sesión ya era de un paciente (guardada en su ficha, sin estudio
+    archivado) y el diálogo propuso otro, uno antiguo creado con el mismo DICOM,
+    que además tenía un caso con el mismo nombre. Se adjuntó al equivocado."""
+
+    def test_propone_el_paciente_y_el_caso_de_la_sesion(self):
+        sid, hc = _sesion()
+        de_la_sesion, caso = _paciente_con_caso("Sesión")
+        antiguo, _ = _paciente_con_caso("Antiguo", hc=hc)       # el que casa con la cabecera
+        assert client.post("/api/sessions/save", json={
+            "session_id": sid, "current_step": 3, "patient_id": de_la_sesion,
+            "study_id": caso}).status_code == 200
+        j = client.get(f"/api/sessions/{sid}/identity").json()
+        assert j["session_patient"]["id"] == de_la_sesion and j["session_patient"]["reason"] == "session"
+        assert j["session_case_id"] == caso
+        # La coincidencia de la cabecera sigue saliendo: el diálogo avisa de ella.
+        assert [m["id"] for m in j["matches"]] == [antiguo]
+
+    def test_una_sesion_sin_paciente_no_propone_ninguno(self):
+        sid, _ = _sesion()
+        j = client.get(f"/api/sessions/{sid}/identity").json()
+        assert j["session_patient"] is None and j["session_case_id"] is None
+
+
+class TestMoverUnaSesionAdjunta:
+    """UNI-178: adjunta al paciente equivocado, no había forma de corregirlo."""
+
+    def _adjunta(self) -> tuple[str, int, int, dict]:
+        sid, _ = _sesion()
+        pa, ca = _paciente_con_caso("Equivocado")
+        r = client.post(f"/api/sessions/{sid}/attach", json={"patient_id": pa, "case_id": ca})
+        assert r.status_code == 200, r.text
+        return sid, pa, ca, r.json()
+
+    def test_mueve_el_estudio_la_sesion_y_la_confirmacion(self):
+        from services.db_models import PlanningSession
+        sid, pa, ca, adj = self._adjunta()
+        write_states(sid, {"detect.n_candidates": "1", "detect.cand_001.centroid_x": "1",
+                           "detect.cand_001.centroid_y": "2", "detect.cand_001.centroid_z": "3",
+                           "detect.cand_001.diameter_mm": "5"})
+        assert client.post("/api/ground-truth", json={
+            "session_id": sid, "source": "candidate", "candidate_id": "cand-001",
+            "imaging_study_id": adj["imaging_study_id"]}).status_code == 201
+        pb, cb = _paciente_con_caso("Correcto")
+
+        r = client.post(f"/api/sessions/{sid}/move", json={"patient_id": pb, "case_id": cb})
+        assert r.status_code == 200, r.text
+        j = r.json()
+        assert j["patient"]["id"] == pb and j["case_id"] == cb
+        assert j["imaging_study_id"] == adj["imaging_study_id"]        # el mismo, no otra copia
+        db = SessionLocal()
+        try:
+            img = db.get(ImagingStudy, adj["imaging_study_id"])
+            assert (img.patient_id, img.case_id) == (pb, cb)
+            fila = db.query(PlanningSession).filter_by(imaging_study_id=img.id).one()
+            assert (fila.patient_id, fila.study_id) == (pb, cb)
+            conf = db.query(LesionConfirmation).filter_by(session_id=sid).one()
+            assert (conf.patient_id, conf.case_id) == (pb, cb)
+            assert db.query(ImagingStudy).filter_by(case_id=ca).count() == 0
+        finally:
+            db.close()
+        bloque = [b for b in SkullChain.instance().get_all_blocks() if b["action"] == "SESSION_MOVED"][-1]
+        p = json.loads(bloque["payload_json"])
+        assert p["session_id"] == sid and (p["from_patient"], p["from_case"]) == (pa, ca)
+        assert (p["patient"], p["case"]) == (pb, cb)
+        assert "Correcto" not in bloque["payload_json"]
+
+    def test_a_un_caso_nuevo_del_mismo_paciente(self):
+        sid, pa, ca, adj = self._adjunta()
+        r = client.post(f"/api/sessions/{sid}/move", json={
+            "patient_id": pa, "new_case": {"dx_principal": "Control"}})
+        assert r.status_code == 200, r.text
+        assert r.json()["case_id"] != ca and r.json()["case_label"] == "Control"
+
+    def test_al_mismo_caso_no_hace_nada(self):
+        sid, pa, ca, _ = self._adjunta()
+        r = client.post(f"/api/sessions/{sid}/move", json={"patient_id": pa, "case_id": ca})
+        assert r.status_code == 409 and "ya está" in r.json()["detail"]
+
+    def test_una_sesion_sin_adjuntar_se_adjunta_no_se_mueve(self):
+        sid, _ = _sesion()
+        pb, cb = _paciente_con_caso("X")
+        r = client.post(f"/api/sessions/{sid}/move", json={"patient_id": pb, "case_id": cb})
+        assert r.status_code == 409 and "Adjuntar" in r.json()["detail"]
+
+    def test_un_caso_de_otro_paciente_se_rechaza_y_no_mueve_nada(self):
+        sid, pa, ca, adj = self._adjunta()
+        pb, _ = _paciente_con_caso("B")
+        _, cc = _paciente_con_caso("C")
+        r = client.post(f"/api/sessions/{sid}/move", json={"patient_id": pb, "case_id": cc})
+        assert r.status_code == 404
+        db = SessionLocal()
+        try:
+            assert db.get(ImagingStudy, adj["imaging_study_id"]).case_id == ca
+        finally:
+            db.close()
+
+
 class TestHistoriaDeOtroProfesional:
     """Revisión T7: el 409 por historia repetida no nombra a un paciente que
     quien adjunta no ve; al compartido sí, y puede adjuntar con caso nuevo."""

@@ -565,6 +565,9 @@ export const api = {
   /** Liga la sesión a un paciente y un caso (nuevos o existentes) y archiva su DICOM. */
   attachSession: (sessionId: string, req: AttachRequest) =>
     post<AttachResult>(`/api/sessions/${sessionId}/attach`, req),
+  /** UNI-178: pasa una sesión ya adjunta (con su estudio archivado) a otro paciente o caso. */
+  moveSession: (sessionId: string, req: AttachRequest) =>
+    post<AttachResult>(`/api/sessions/${sessionId}/move`, req),
   createPatient: (p: PatientCreate) => post<PatientSummary>("/api/patients", p),
   patientStudies: (id: number) => get<StudySummary[]>(`/api/patients/${id}/studies`),
   createStudy: (patientId: number, s: StudyCreate) =>

@@ -2142,7 +2142,7 @@ export interface paths {
         post?: never;
         /**
          * Delete a patient
-         * @description Deletes a patient and its studies and planning sessions (cascade).
+         * @description Deletes a patient and everything under it: cases, archived imaging studies (and their DICOM), captures and saved planning sessions (rows and folders). 409 if one of its saved sessions is open right now.
          */
         delete: operations["delete_patient_api_patients__patient_id__delete"];
         options?: never;
@@ -2635,6 +2635,26 @@ export interface paths {
         get: operations["session_identity_api_sessions__session_id__identity_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions/{session_id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mover una sesión adjunta a otro paciente o caso, con su estudio de imagen
+         * @description Para corregir un adjuntado al paciente o caso equivocado (UNI-178). Mismo cuerpo que `attach`. No vuelve a archivar el DICOM: el estudio de imagen que ya se archivó pasa al caso elegido, y con él las sesiones, confirmaciones de lesión y capturas que cuelgan de él. 409 si la sesión aún no está adjunta (eso es «adjuntar») o si ya está en ese caso.
+         */
+        post: operations["move_session_api_sessions__session_id__move_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4351,6 +4371,11 @@ export interface components {
          */
         ClStentCoverage: {
             /**
+             * Catalogue Length Mm
+             * @description Longitud etiquetada del dispositivo desplegado, si se sabe (la eligió el dimensionado). Con ella, el resumen da esa y no la estimada del tramo
+             */
+            catalogue_length_mm?: number | null;
+            /**
              * Deployed Length Mm
              * @description Longitud del tramo dibujado
              */
@@ -4427,6 +4452,11 @@ export interface components {
              * @default 6
              */
             braid_count: number;
+            /**
+             * Catalogue Length Mm
+             * @description Labelled length of the catalogue device being deployed, when known (the sizing chose it). The coverage summary then reports it instead of back-computing one from the drawn segment
+             */
+            catalogue_length_mm?: number | null;
             /**
              * Device Id
              * @description Catalogue device whose braid gives the coverage map (default: the Pipeline family)
@@ -7422,6 +7452,8 @@ export interface components {
              * @description Parent-artery diameter estimated at the neck from the vessel tree (`morpho.parent_artery_mm`, services/parent_artery.py) — the same figure the straight-stent planner sizes against. None when it could not be measured. The device panel seeds the stent's nominal diameter from it (F1-205).
              */
             parent_artery_mm?: number | null;
+            /** @description Unit direction of the parent artery in the neck plane (patient space). A clip's blades go parallel to it. Null when the vessel under the neck has no clear axis in that plane. */
+            parent_direction?: components["schemas"]["Position3D"] | null;
             /** @description Unit normal of that same plane, pointing at the dome. Sent because the 3D annotation used to rebuild a neck ring from the PCA axis instead, so on an oblique neck — the case the rim fit exists for — the ring drawn was NOT the plane that measured the neck, and the user had no way to see where their plane had landed. */
             plane_normal?: components["schemas"]["Position3D"] | null;
             /** @description Origin of the neck plane ACTUALLY used to isolate the sac, when one was placed by hand. Null for the automatic path. */
@@ -9997,6 +10029,13 @@ export interface components {
              */
             modality: string;
             /**
+             * Session Case Id
+             * @description El caso al que ya pertenece la sesión
+             */
+            session_case_id?: number | null;
+            /** @description El paciente al que ya pertenece la sesión (reason='session'), si lo tiene: se propone ese y no las coincidencias de la cabecera (UNI-178) */
+            session_patient?: components["schemas"]["PatientMatch"] | null;
+            /**
              * Study Date
              * @description Fecha del estudio YYYY-MM-DD
              * @default
@@ -10419,6 +10458,12 @@ export interface components {
              * @description What was done, in one sentence, or why nothing was deployed
              */
             message: string;
+            /**
+             * Neck Marked
+             * @description With neck_source='morfometria': the person marked the neck (point or rim). False = Morfometría's automatic estimate from the sac
+             * @default false
+             */
+            neck_marked: boolean;
             /**
              * Neck Source
              * @description 'morfometria' (the measured neck of this sac) or 'saco' (where the centreline's inscribed sphere touches the sac mesh)
@@ -16337,6 +16382,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SessionIdentity"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_session_api_sessions__session_id__move_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachResult"];
                 };
             };
             /** @description Validation Error */

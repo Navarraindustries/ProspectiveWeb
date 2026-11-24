@@ -183,6 +183,9 @@ export function Workspace({
   const [saveError, setSaveError] = useState<string | null>(null);
   // «Adjuntar a un caso»: la sesión puede empezar sin paciente y ligarse después.
   const [attachOpen, setAttachOpen] = useState(false);
+  // UNI-178: la misma hoja pasa una sesión ya adjunta a otro paciente o caso.
+  const [attachMode, setAttachMode] = useState<"adjuntar" | "mover">("adjuntar");
+  const abrirAdjuntar = (modo: "adjuntar" | "mover") => { setAttachMode(modo); setAttachOpen(true); };
   const [attachNote, setAttachNote] = useState<string | null>(null);
   const onAttached = async (r: AttachResult) => {
     planning.setPatient(r.patient);
@@ -201,8 +204,10 @@ export function Workspace({
         setSavedAt(new Date());
       } catch { /* adjunto igualmente; «Guardar progreso» lo reintenta */ }
     }
-    setAttachNote(`Adjunto a ${r.patient.full_name} · ${r.case_label}. El estudio está archivado`
-      + (r.relinked_confirmations ? " y la confirmación de lesión pasó al caso." : "."));
+    setAttachNote(attachMode === "mover"
+      ? `Sesión movida a ${r.patient.full_name} · ${r.case_label}, con su estudio archivado.`
+      : `Adjunto a ${r.patient.full_name} · ${r.case_label}. El estudio está archivado`
+        + (r.relinked_confirmations ? " y la confirmación de lesión pasó al caso." : "."));
     setTimeout(() => setAttachNote(null), 6000);
   };
   const step = STEPS[stepIdx].key;
@@ -294,7 +299,13 @@ export function Workspace({
     ...(sessionId && !imagingStudyId ? [{
       id: "archivar", group: "acciones" as const,
       label: patient ? ARCHIVAR_EN_CASO : "Adjuntar a un caso",
-      run: () => setAttachOpen(true),
+      run: () => abrirAdjuntar("adjuntar"),
+    }] : []),
+    ...(sessionId && imagingStudyId ? [{
+      id: "mover-sesion", group: "acciones" as const,
+      label: "Cambiar de paciente o caso",
+      hint: "Pasa esta sesión y su estudio archivado a otro paciente o caso",
+      run: () => abrirAdjuntar("mover"),
     }] : []),
     ...(patient ? [{
       id: "ficha-paciente", group: "acciones" as const,
@@ -491,7 +502,7 @@ export function Workspace({
           <Button
             size={tamAccion}
             style={estiloBoton}
-            onClick={() => setAttachOpen(true)}
+            onClick={() => abrirAdjuntar("adjuntar")}
             leadingIcon={<Icon name="SAVE" />}
             {...rotuloAccion(soloIcono, patient ? ARCHIVAR_EN_CASO : "Adjuntar a un caso", patient
               ? "Crea o elige un caso de este paciente y guarda en él el DICOM, las capturas y los vídeos"
@@ -511,7 +522,7 @@ export function Workspace({
       />
 
       {sessionId && (
-        <AttachCaseSheet open={attachOpen} onClose={() => setAttachOpen(false)}
+        <AttachCaseSheet open={attachOpen} onClose={() => setAttachOpen(false)} mode={attachMode}
                          sessionId={sessionId} onAttached={(r) => void onAttached(r)} />
       )}
       {/* Los avisos del pipeline (y el global de App) son un solo apilado de cristal. */}

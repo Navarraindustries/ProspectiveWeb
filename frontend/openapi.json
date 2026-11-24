@@ -1864,6 +1864,18 @@
    "ClStentCoverage": {
     "description": "Cobertura metálica de la trenza, punto a punto (services/braid_coverage.py).",
     "properties": {
+     "catalogue_length_mm": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Longitud etiquetada del dispositivo desplegado, si se sabe (la eligió el dimensionado). Con ella, el resumen da esa y no la estimada del tramo",
+      "title": "Catalogue Length Mm"
+     },
      "deployed_length_mm": {
       "description": "Longitud del tramo dibujado",
       "title": "Deployed Length Mm",
@@ -1984,6 +1996,19 @@
       "minimum": 0.0,
       "title": "Braid Count",
       "type": "integer"
+     },
+     "catalogue_length_mm": {
+      "anyOf": [
+       {
+        "exclusiveMinimum": 0.0,
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Labelled length of the catalogue device being deployed, when known (the sizing chose it). The coverage summary then reports it instead of back-computing one from the drawn segment",
+      "title": "Catalogue Length Mm"
      },
      "device_id": {
       "anyOf": [
@@ -6982,6 +7007,17 @@
       "description": "Parent-artery diameter estimated at the neck from the vessel tree (`morpho.parent_artery_mm`, services/parent_artery.py) — the same figure the straight-stent planner sizes against. None when it could not be measured. The device panel seeds the stent's nominal diameter from it (F1-205).",
       "title": "Parent Artery Mm"
      },
+     "parent_direction": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Position3D"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Unit direction of the parent artery in the neck plane (patient space). A clip's blades go parallel to it. Null when the vessel under the neck has no clear axis in that plane."
+     },
      "plane_normal": {
       "anyOf": [
        {
@@ -10600,6 +10636,29 @@
       "title": "Modality",
       "type": "string"
      },
+     "session_case_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "El caso al que ya pertenece la sesión",
+      "title": "Session Case Id"
+     },
+     "session_patient": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/PatientMatch"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "El paciente al que ya pertenece la sesión (reason='session'), si lo tiene: se propone ese y no las coincidencias de la cabecera (UNI-178)"
+     },
      "study_date": {
       "default": "",
       "description": "Fecha del estudio YYYY-MM-DD",
@@ -11357,6 +11416,12 @@
       "description": "What was done, in one sentence, or why nothing was deployed",
       "title": "Message",
       "type": "string"
+     },
+     "neck_marked": {
+      "default": false,
+      "description": "With neck_source='morfometria': the person marked the neck (point or rim). False = Morfometría's automatic estimate from the sac",
+      "title": "Neck Marked",
+      "type": "boolean"
      },
      "neck_source": {
       "description": "'morfometria' (the measured neck of this sac) or 'saco' (where the centreline's inscribed sphere touches the sac mesh)",
@@ -19412,7 +19477,7 @@
   },
   "/api/patients/{patient_id}": {
    "delete": {
-    "description": "Deletes a patient and its studies and planning sessions (cascade).",
+    "description": "Deletes a patient and everything under it: cases, archived imaging studies (and their DICOM), captures and saved planning sessions (rows and folders). 409 if one of its saved sessions is open right now.",
     "operationId": "delete_patient_api_patients__patient_id__delete",
     "parameters": [
      {
@@ -21005,6 +21070,64 @@
      }
     ],
     "summary": "Datos del paciente que propone la cabecera DICOM, y posibles coincidencias",
+    "tags": [
+     "sessions"
+    ]
+   }
+  },
+  "/api/sessions/{session_id}/move": {
+   "post": {
+    "description": "Para corregir un adjuntado al paciente o caso equivocado (UNI-178). Mismo cuerpo que `attach`. No vuelve a archivar el DICOM: el estudio de imagen que ya se archivó pasa al caso elegido, y con él las sesiones, confirmaciones de lesión y capturas que cuelgan de él. 409 si la sesión aún no está adjunta (eso es «adjuntar») o si ya está en ese caso.",
+    "operationId": "move_session_api_sessions__session_id__move_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AttachRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AttachResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Mover una sesión adjunta a otro paciente o caso, con su estudio de imagen",
     "tags": [
      "sessions"
     ]

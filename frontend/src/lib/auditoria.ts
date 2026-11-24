@@ -28,6 +28,7 @@ const ACCIONES: Record<string, string> = {
   USER_DEACTIVATED: "Cuenta desactivada",
   USER_REACTIVATED: "Cuenta reactivada",
   SESSION_ATTACHED: "Sesión asociada al caso",
+  SESSION_MOVED: "Sesión movida a otro paciente o caso",
   SESSION_SAVED: "Sesión guardada",
   SAVED_SESSION_DELETED: "Sesión guardada eliminada",
   SAVED_SESSION_RENAMED: "Sesión guardada renombrada",

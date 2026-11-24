@@ -10,6 +10,7 @@ vi.mock("../api/client", () => ({
     listPatients: vi.fn(),
     patientStudies: vi.fn(),
     attachSession: vi.fn(),
+    moveSession: vi.fn(),
   },
 }));
 
@@ -18,8 +19,12 @@ import { AttachCaseSheet } from "./AttachCaseSheet";
 
 const identidad = (over: Partial<SessionIdentity> = {}): SessionIdentity => ({
   suggestion: { surname: "Perez", given_name: "Ana", hospital_id: "HC-9", dob: "1970-01-31", sex: "F" },
-  study_date: "2026-09-15", modality: "CT", matches: [], attached: false, ...over,
+  study_date: "2026-09-15", modality: "CT", matches: [], attached: false,
+  session_patient: null, session_case_id: null, ...over,
 });
+
+const casoBasilar = (id: number) => ({ id, patient_id: 0, description: "Aneurisma basilar", dx_principal: "Aneurisma basilar",
+  acquired_at: "", modality: "XA" }) as never;
 
 const resultado = {
   patient: { id: 7, full_name: "Perez, Ana", hospital_id: "HC-9", dob: "", sex: "", institution: "", study_count: 1, created_at: "",
@@ -84,6 +89,57 @@ describe("adjuntar a un caso", () => {
     fireEvent.change(screen.getByLabelText("Motivo / diagnóstico"), { target: { value: "X" } });
     fireEvent.click(screen.getByText("Adjuntar y archivar el estudio"));
     expect(await screen.findByText(/Ya existe un paciente/)).toBeInTheDocument();
+  });
+});
+
+describe("UNI-178: la sesión ya es de un paciente", () => {
+  const deLaSesion = { id: 251, full_name: "3DRA, Case 3", hospital_id: "", dob: "", reason: "session" as const };
+  const antiguo = { id: 246, full_name: "Segura, Prueba", hospital_id: "HC-9", dob: "", reason: "hospital_id" as const };
+
+  it("elige el paciente y el caso de la sesión, no el que casa con la cabecera, y avisa del otro", async () => {
+    vi.mocked(api.sessionIdentity).mockResolvedValue(identidad({
+      session_patient: deLaSesion, session_case_id: 15, matches: [antiguo],
+    }));
+    vi.mocked(api.patientStudies).mockImplementation(async (pid: number) => [casoBasilar(pid === 251 ? 15 : 10)]);
+    render(<AttachCaseSheet open onClose={() => {}} sessionId="s1" onAttached={() => {}} />);
+    expect(await screen.findByText(/La cabecera DICOM coincide con otro paciente: Segura, Prueba/)).toBeInTheDocument();
+    expect(screen.queryByText(/Crear otro lo duplicaría/)).toBeNull();
+    await waitFor(() => expect(screen.getByRole("radio", { name: /3DRA, Case 3/ })).toBeChecked());
+    await waitFor(() => expect(screen.getByRole("radio", { name: /Aneurisma basilar/ })).toBeChecked());
+    fireEvent.click(screen.getByText("Adjuntar y archivar el estudio"));
+    await waitFor(() => expect(api.attachSession).toHaveBeenCalledWith("s1", { patient_id: 251, case_id: 15 }));
+  });
+});
+
+describe("UNI-178: mover una sesión adjunta", () => {
+  const actual = { id: 246, full_name: "Segura, Prueba", hospital_id: "HC-9", dob: "", reason: "session" as const };
+
+  it("parte del caso actual, no deja mover al mismo y mueve al elegido", async () => {
+    vi.mocked(api.sessionIdentity).mockResolvedValue(identidad({
+      attached: true, session_patient: actual, session_case_id: 10,
+    }));
+    vi.mocked(api.patientStudies).mockImplementation(async (pid: number) =>
+      pid === 246 ? [casoBasilar(10)] : [casoBasilar(15)]);
+    vi.mocked(api.listPatients).mockResolvedValue([
+      { ...resultado.patient, id: 251, full_name: "3DRA, Case 3", hospital_id: "" },
+    ]);
+    vi.mocked(api.moveSession).mockReset().mockResolvedValue({ ...resultado, case_id: 15 });
+    const onAttached = vi.fn();
+    render(<AttachCaseSheet open mode="mover" onClose={() => {}} sessionId="s1" onAttached={onAttached} />);
+    expect(screen.getByText("Cambiar de paciente o caso")).toBeInTheDocument();
+    const boton = () => screen.getByText("Mover al caso elegido").closest("button")!;
+    await waitFor(() => expect(screen.getByRole("radio", { name: /Aneurisma basilar/ })).toBeChecked());
+    expect(boton()).toBeDisabled();
+    expect(screen.getByText(/Para mover: elige otro caso/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Buscar otro paciente existente"), { target: { value: "3DRA" } });
+    fireEvent.click(screen.getByRole("radio", { name: /3DRA, Case 3/ }));
+    fireEvent.click(await screen.findByRole("radio", { name: /Aneurisma basilar/ }));
+    expect(boton()).toBeEnabled();
+    fireEvent.click(boton());
+    await waitFor(() => expect(api.moveSession).toHaveBeenCalledWith("s1", { patient_id: 251, case_id: 15 }));
+    expect(api.attachSession).not.toHaveBeenCalled();
+    expect(onAttached).toHaveBeenCalled();
   });
 });
 

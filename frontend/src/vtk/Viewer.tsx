@@ -85,6 +85,7 @@ import { HudFrame } from "./hud/HudFrame";
 import { HudReadout, type HudLine } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
 import { ViewerHeader } from "./ViewerHeader";
+import { conCapa, estadoCapas, type Capa } from "./capas";
 import { legendLines } from "./clipFieldLegend";
 import { HudHeadingSlot } from "./hud/HudHeadingSlot";
 import { OrientationSheet } from "./OrientationSheet";
@@ -272,7 +273,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     cropCenter, setCropCenter, setErasePick, lesionMark, setLesionMark, followup,
     cropRadius, cropInvert, boxCut,
     trajEntry, trajTarget, setTrajEntry, setTrajTarget, sacFrame,
-    morphometry, morphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
+    morphometry, morphoOverlay, setMorphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
     clipRehearsal, registerClipParts, clipField, showClipField, setShowClipField,
     mprWl, mprVoxel, setMprWl, setMprVoxel, takeRestoredWl,
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
@@ -325,10 +326,22 @@ export function ViewerWorkspace({ step }: { step: string }) {
   const cineRef = useRef(cine);
   cineRef.current = cine;
 
+  // UNI-175: las capas escondidas con «Capas» (cabecera). Solo cambian lo que
+  // se ve: ni la medida, ni el plan, ni el informe. Viven aquí y no se guardan.
+  const [capasOcultas, setCapasOcultas] = useState<Set<Capa>>(() => new Set());
+  const ver = useCallback((c: Capa) => !capasOcultas.has(c), [capasOcultas]);
+  const onCapaChange = useCallback((c: Capa, visible: boolean) => {
+    // «Medidas» es la casilla de Morfometría: la misma, no otra.
+    if (c === "medidas") setMorphoOverlay(visible);
+    else setCapasOcultas((o) => conCapa(o, c, visible));
+  }, [setMorphoOverlay]);
+
   // 3D morphometric overlay: neck ring + dome-height & max-diameter spans + apex.
   const overlay = useMemo<{ markers: MeshMarker[]; lines: MeshLine[]; dial: { center: V3; axis: V3; radius: number } } | null>(() => {
-    // Solo en Morfometría: es donde se miden y donde está el interruptor.
-    if (!morphoOverlay || !morphometry || step !== "morpho") return null;
+    // La casilla de Morfometría (o «Medidas» en Capas). Con UNI-175 se puede
+    // encender en cualquier paso con morfometría: al presentar, las medidas se
+    // enseñan sobre la escena de Dispositivos, no solo en su paso.
+    if (!morphoOverlay || !morphometry) return null;
     const c = morphometry.centroid;
     const ax = morphometry.principal_axis;
     if (!c || !ax || ax.length !== 3) return null;
@@ -375,7 +388,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     }
     // Dial de medida: centrado en el centroide, radio del Ø máximo + 1 mm.
     return { markers, lines, dial: { center: centroid, axis, radius: maxR + 1 } };
-  }, [morphoOverlay, morphometry, step]);
+  }, [morphoOverlay, morphometry]);
   // mesh_url carries a generation token (?v=…) from the backend, so it changes
   // on every re-segmentation and vtk.js refetches instead of serving the cache.
   const meshUrl = segmentation?.mesh_url ?? null;
@@ -759,7 +772,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
   );
   // También en el informe: su visor se titula «Escena final» y enseñaba el
   // árbol sin el clip, los coils ni el stent que el plan lleva.
-  const showDevice = (step === "devices" || step === "report") && devices.length > 0;
+  const hayDispositivos = (step === "devices" || step === "report") && devices.length > 0;
+  const showDevice = hayDispositivos && ver("dispositivos");
   // El mapa de calor del clip ocupa el sitio del saco: es el mismo saco,
   // pintado según el clip colocado. Los dos a la vez se pisarían.
   // Durante el ensayo de cierre manda el saco que se deforma: el campo se
@@ -768,7 +782,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // los fotogramas del saco viven dentro de él, y `sacFrame` se queda con su
   // último valor al salir, así que mirarlo dejaría el campo apagado para siempre.
   // Solo en Dispositivos: en el informe la escena final enseña el saco tal cual.
-  const showField = step === "devices" && showDevice && !!clipField && showClipField && !clipRehearsal;
+  // El mapa de calor es el saco pintado: lo esconde «Saco aislado», no «Dispositivos».
+  const showField = step === "devices" && hayDispositivos && !!clipField && showClipField && !clipRehearsal && ver("saco");
 
   // ── El manipulador del clip ─────────────────────────────────────────── #
   //
@@ -800,7 +815,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
     shown: fieldShown, fieldUrl: clipField?.field_mesh_url ?? null, loadedUrl: fieldMeshOnScreen.url,
   });
   // Sin ensayo, y solo con la pestaña de clips montada (ver gizmoVisible).
-  const gizmoOn = gizmoVisible({
+  // Con los dispositivos escondidos, las asas del clip no tienen clip al que agarrarse.
+  const gizmoOn = ver("dispositivos") && gizmoVisible({
     sceneHasMesh, step, clipsTabActive, hasClips: !!selectedClip, rehearsing: !!clipRehearsal,
   });
   const clipGizmoHandles = useMemo(
@@ -857,7 +873,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
     setPlacedClips((p) => p.map((c) => (c.key === clip.key ? { ...c, position, azimuthDeg: 0, elevationDeg: 0 } : c)));
   }, [setPlacedClips]);
 
-  const showCenterline = !!centerlineMesh && centerlineMesh.startsWith("/data/");
+  const hayLinea = !!centerlineMesh && centerlineMesh.startsWith("/data/");
+  const showCenterline = hayLinea && ver("linea");
+  // El saco medido está en la escena (o su mapa de calor): lo que «Saco aislado» esconde.
+  const haySaco = !!morphometry?.sac_mesh_url && step !== "segment" && step !== "upload";
 
   const layers = useMemo<MeshLayer[]>(() => {
     if (!displayMeshUrl) return [];
@@ -903,7 +922,11 @@ export function ViewerWorkspace({ step }: { step: string }) {
       out.push({ url: clipField.field_mesh_url, color: SAC_COLOR, opacity: fieldStale ? 0.35 : 1, id: "clip-field", scalars: { array: "colors" }, silhouette: true });
     } else if (sacUrl && step !== "segment" && step !== "upload") {
       // Con contorno: translúcido sobre el árbol, su borde se perdía.
-      out.push({ url: sacUrl, color: SAC_COLOR, opacity: resalte, id: "sac", silhouette: true, frame: step === "morpho" });
+      // «Saco aislado» oculto (Capas) lo quita, salvo durante el ensayo de cierre:
+      // ahí el saco que se deforma ES lo que se está mirando.
+      if (ver("saco") || clipRehearsal) {
+        out.push({ url: sacUrl, color: SAC_COLOR, opacity: resalte, id: "sac", silhouette: true, frame: step === "morpho" });
+      }
     } else if (step === "detect" && candidateLayers.length > 0) {
       out.push(...candidateLayers);
     } else if (candidate?.dome_mesh_url && step !== "segment" && step !== "upload") {
@@ -947,7 +970,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (followup.ghostUrl) out.push({ url: followup.ghostUrl, color: FOLLOWUP_GHOST_COLOR, opacity: 0.3, id: "saco-anterior" });
     }
     return out;
-  }, [followup, stentMap, displayMeshUrl, meshUrl, candidate?.dome_mesh_url, candidates, rejectedCandidates, selectedCandidate, showRejectedIn3d, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, lineaSinPuntos, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible]);
+  }, [followup, stentMap, displayMeshUrl, meshUrl, candidate?.dome_mesh_url, candidates, rejectedCandidates, selectedCandidate, showRejectedIn3d, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, lineaSinPuntos, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible, ver]);
 
   // ── Recorrido por dentro del vaso (vesselWalk) ─────────────────────── #
   // Lo pide el panel de la línea central (o DENTRO en la cinta DESDE) por el
@@ -1383,8 +1406,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
     }
     // Cuello, ápice y borde: solo mientras se mide (Morfometría o marcándolos).
     // Fuera de ahí estorbaban en todos los pasos, también reanudando la sesión.
-    const midiendo = step === "morpho" || pickMode === "neck_origin" || pickMode === "neck_dome" || pickMode === "neck_rim";
-    if (midiendo) {
+    const marcandoCuello = pickMode === "neck_origin" || pickMode === "neck_dome" || pickMode === "neck_rim";
+    const midiendo = step === "morpho" || marcandoCuello;
+    // Escondidas con Capas no se ven, salvo mientras se marcan: marcar a ciegas no.
+    if (midiendo && (ver("cuello") || marcandoCuello)) {
       if (neckOrigin) out.push({ pos: neckOrigin, color: NECK_ORIGIN_COLOR, scale: NECK_MARK_SCALE });
       if (neckDome) out.push({ pos: neckDome, color: NECK_DOME_COLOR, scale: NECK_MARK_SCALE });
       for (const r of neckRim) out.push({ pos: r, color: NECK_RIM_COLOR, scale: NECK_MARK_SCALE });
@@ -1409,7 +1434,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       });
     }
     return out;
-  }, [clSource, clTarget, stentSac, centerlineMesh, pickMode, step, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators]);
+  }, [clSource, clTarget, stentSac, centerlineMesh, pickMode, step, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators, ver]);
 
   const trazoLinea = useMemo<MeshTrazo | null>(
     () => (showCenterline && centerline ? { points: centerline.points, color: CENTERLINE_COLOR, radiusMm: CENTERLINE_RADIUS_MM } : null),
@@ -2475,7 +2500,15 @@ export function ViewerWorkspace({ step }: { step: string }) {
         syncViews={syncViews} onSyncViewsChange={setSyncViews}
         hasClipField={!!clipField} showClipField={showClipField} clipRehearsal={!!clipRehearsal}
         onShowClipFieldChange={setShowClipField} onHelp={openSheet}
-        levelNote={levelNote} />
+        levelNote={levelNote}
+        capas={estadoCapas(capasOcultas, {
+          cuello: (step === "morpho" || pickMode === "neck_origin" || pickMode === "neck_dome" || pickMode === "neck_rim")
+            && (!!neckOrigin || !!neckDome || neckRim.length > 0),
+          medidas: !!morphometry?.centroid,
+          linea: hayLinea, saco: haySaco || (step === "devices" && hayDispositivos && !!clipField),
+          dispositivos: hayDispositivos,
+        }, morphoOverlay)}
+        onCapaChange={onCapaChange} />
       <ShortcutsSheet open={sheetOpen} onClose={closeSheet} />
       {annotationDeleteDialog}
       {/* Alt+1/2/3 cambian la distribución mientras el foco está en el visor;

@@ -15,6 +15,7 @@
 import type { CSSProperties } from "react";
 import { Icon } from "../components/Icon";
 import type { ViewerHeaderProps } from "./ViewerHeader";
+import { CapasControl } from "./hud/CapasControl";
 import { ViewerLayoutControls } from "./ViewerLayoutControls";
 import { REFERENCIAS_TITLE } from "./mainOptions";
 import { nextHudLevel } from "./viewerPrefs";
@@ -37,7 +38,7 @@ export function ViewerHeaderIconos({
   hudLevel, onHudLevelChange,
   syncViews, onSyncViewsChange,
   hasClipField, showClipField, clipRehearsal, onShowClipFieldChange, onHelp,
-  levelNote, movil, noteOpen, onToggleNote, noteId,
+  levelNote, movil, noteOpen, onToggleNote, noteId, capas, onCapaChange,
 }: ViewerHeaderIconosProps) {
   // Durante el ensayo manda el saco que se deforma y el campo no se pinta.
   const calorOn = showClipField && !clipRehearsal;
@@ -63,6 +64,7 @@ export function ViewerHeaderIconos({
                 onClick={() => onHudLevelChange(nextHudLevel(hudLevel))} style={OBJETIVO}>
           {`TXT ${hudLevel[0].toUpperCase()}`}
         </button>
+        {capas && onCapaChange && <CapasControl capas={capas} onChange={onCapaChange} corto />}
         <button type="button" aria-label="Vincular las vistas" title="Encendido: un clic en una vista centra las demás en ese punto"
                 aria-pressed={syncViews} onClick={() => onSyncViewsChange(!syncViews)} style={OBJETIVO}>
           <Icon name="LINK" size={iconSize} />

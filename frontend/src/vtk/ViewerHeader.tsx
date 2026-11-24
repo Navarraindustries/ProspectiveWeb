@@ -17,6 +17,8 @@ import { Icon } from "../components/Icon";
 import { useMediaQuery } from "../hooks/useEstrecho";
 import { MQ_MOVIL, MQ_TACTIL } from "../pipeline/puntosCorte";
 import type { ViewerLayout } from "./layout";
+import type { Capa, EstadoCapa } from "./capas";
+import { CapasControl } from "./hud/CapasControl";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
 import { REFERENCIAS_TITLE, bandTier } from "./mainOptions";
 import { ViewerHeaderIconos } from "./ViewerHeaderIconos";
@@ -55,6 +57,9 @@ export interface ViewerHeaderProps {
    *  aquí, en vez de repetido en cada celda. En el nivel ancho va en texto
    *  entero; por debajo, un ⚠ que despliega el texto en una línea debajo. */
   levelNote?: string | null;
+  /** UNI-175: «Capas», qué se ve en la escena 3D. Sin ellas no se pinta el control. */
+  capas?: EstadoCapa[];
+  onCapaChange?: (capa: Capa, visible: boolean) => void;
 }
 
 export function ViewerHeader(props: ViewerHeaderProps) {
@@ -64,7 +69,7 @@ export function ViewerHeader(props: ViewerHeaderProps) {
     hudLevel, onHudLevelChange,
     syncViews, onSyncViewsChange,
     hasClipField, showClipField, clipRehearsal, onShowClipFieldChange, onHelp,
-    levelNote,
+    levelNote, capas, onCapaChange,
   } = props;
   // Ancho de la banda para elegir el nivel y abreviar sus rótulos.
   const [bandWidth, setBandWidth] = useState(Number.POSITIVE_INFINITY);
@@ -129,6 +134,7 @@ export function ViewerHeader(props: ViewerHeaderProps) {
         <HudToggleGroup label="TEXTOS ▸" title="Nivel de textos (H)" style={{ gap: 6, alignItems: "center" }}
           options={HUD_LEVELS.map((l) => ({ key: l, label: compact ? l[0].toUpperCase() : l.toUpperCase(), title: LEVEL_TITLES[l] }))}
           value={hudLevel} onChange={(k) => onHudLevelChange(k as HudLevel)} />
+        {capas && onCapaChange && <CapasControl capas={capas} onChange={onCapaChange} corto={compact} />}
         {/* «VINCULAR» (F1-115): «SINCRO» no decía qué se sincroniza ni cuándo. */}
         <HudToggleGroup options={[{ key: "sync", label: syncViews ? "VINCULAR ●" : "VINCULAR ○", title: "Encendido: un clic en una vista centra las demás en ese punto" }]}
           value={syncViews ? "sync" : ""} onChange={() => onSyncViewsChange(!syncViews)} />

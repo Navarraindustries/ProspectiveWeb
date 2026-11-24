@@ -15,11 +15,12 @@ import { cifra } from "../../lib/numero";
 import { indexAtArc } from "../centerlineWalk";
 import type { GrabFn } from "../captureRenderWindow";
 import {
-  cambioArea, diferenciaDispositivo, estadoDeSeccion, graficoDe, METRICAS_GRAFICO, opcionesQueEncajan, ramasBajo, ramasCerca, zonaDelPlan,
+  cambioArea, diferenciaDispositivo, graficoDe, METRICAS_GRAFICO, opcionesQueEncajan, ramasBajo, ramasCerca, zonaDelPlan,
   type MarcaEnLinea, type MetricaGrafico,
 } from "../ivusVirtual";
-import { coloresDe, FONDO_GRABACION, pintarCorte, pintarGrafico, pintarL, seccionDe } from "./dibujoIvus";
+import { coloresDe, pintarCorte, pintarGrafico, pintarL, seccionDe } from "./dibujoIvus";
 import type { ProgresoRecorrido } from "./HudRecorrido";
+import { pintarPanel, textoStentAqui, textosDelPanel, type CtxPanel } from "./ivusVideo";
 
 interface Pullback { datos: IvusResult; pila: Uint8Array }
 
@@ -157,30 +158,24 @@ export function HudIvus({ sessionId, claveLinea, progreso, onIrA, onCerrar, ante
     if (grafico.current) pintarGrafico(grafico.current, pb.datos, i, graficoDe(pb.datos.sections, metrica, comp?.sections), col);
   }, [pb, i, angulo, sinStent, fd, opcion, comp, marcas, metrica]);
 
-  // Para la grabación: el corte arriba y la vista longitudinal debajo, con la
-  // posición y el área, en el rectángulo que le toque del vídeo.
-  const leerAhora = useRef({ pb, i });
-  leerAhora.current = { pb, i };
+  // Para la grabación (UNI-176): el panel entero —corte, cifras, longitudinal,
+  // gráfico, MLA, stent o plan, ramas y notas— en la columna del vídeo.
+  const leerAhora = useRef({ pb, i, comp, fd, opcion, plan, metrica, sinStent });
+  leerAhora.current = { pb, i, comp, fd, opcion, plan, metrica, sinStent };
   useEffect(() => {
     if (!registrarCopia) return;
     const copiar: GrabFn = (ctx, rect) => {
-      const a = corte.current, b = largo.current, { pb: actual, i: k } = leerAhora.current;
-      if (!a || !b || !actual) return false;
-      const col = caja.current ? coloresDe(caja.current) : null;
-      ctx.save();
-      ctx.fillStyle = FONDO_GRABACION; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-      const m = 10, lado = Math.min(rect.w - 2 * m, rect.h * 0.55);
-      ctx.drawImage(a, rect.x + (rect.w - lado) / 2, rect.y + m, lado, lado);
-      const altoL = Math.min(rect.h - lado - 3 * m - 30, (rect.w - 2 * m) * (b.height / Math.max(1, b.width)));
-      if (altoL > 10) ctx.drawImage(b, rect.x + m, rect.y + lado + 2 * m, rect.w - 2 * m, altoL);
-      const sec = actual.datos.sections[k];
-      if (col && sec) {
-        ctx.fillStyle = col.texto; ctx.font = `11px ${col.fuente}`;
-        const y = rect.y + lado + 3 * m + Math.max(0, altoL) + 4;
-        const area = sec.valid && sec.area_mm2 != null ? ` · ${cifra(sec.area_mm2, 2)} mm²` : "";
-        ctx.fillText(`IVUS VIRTUAL · ${cifra(sec.arc_mm, 1)} mm${area}`, rect.x + m, y);
-      }
-      ctx.restore();
+      const a = corte.current, b = largo.current, g = grafico.current;
+      const ahora = leerAhora.current;
+      if (!a || !b || !g || !ahora.pb || !caja.current) return false;
+      const textos = textosDelPanel({
+        datos: ahora.pb.datos, i: ahora.i, comp: ahora.comp, metrica: ahora.metrica,
+        fd: ahora.sinStent ? ahora.fd : null, opcion: ahora.sinStent ? ahora.opcion : null,
+        notaPlan: !ahora.sinStent ? null : !ahora.plan ? "Dimensionando el flow diverter…"
+          : "nota" in ahora.plan ? `Plan del flow diverter: ${ahora.plan.nota}` : null,
+      });
+      pintarPanel(ctx as unknown as CtxPanel, rect, { corte: a, largo: b, grafico: g, anchoLargo: b.width, altoLargo: b.height },
+        textos, coloresDe(caja.current));
       return true;
     };
     registrarCopia(copiar);
@@ -316,16 +311,8 @@ export function HudIvus({ sessionId, claveLinea, progreso, onIrA, onCerrar, ante
    recorrido y a lo largo de todo él. Mismos números que el mapa 3D. */
 function BloqueStent({ datos, i, onIrA }: { datos: IvusResult; i: number; onIrA(mm: number): void }) {
   const st = datos.stent!;
-  const s = datos.sections[i];
-  const aqui = (() => {
-    if (!s.stent) return `Aquí no hay stent: va de ${mm1(st.from_arc_mm)} a ${mm1(st.to_arc_mm)} mm.`;
-    switch (estadoDeSeccion(s, st.noise_mm)) {
-      case "separado": return `Aquí: separado ${mm2d(s.stent.max_gap_mm)} mm de la pared.`;
-      case "comprimido": return `Aquí: comprimido ${mm2d(s.stent.max_compression_mm)} mm (el nominal es mayor que el vaso).`;
-      case "cuello": return s.in_lesion ? "Aquí: dentro de la lesión (no hay pared)." : "Aquí: frente al cuello (no hay pared).";
-      default: return "Aquí: en contacto con la pared.";
-    }
-  })();
+  // La misma frase que el vídeo (ivusVideo): una sola fuente.
+  const aqui = textoStentAqui(datos.sections[i], st);
   return (
     <div className="hud-ivus-dispositivo">
       <span className="hud-ivus-titulo">STENT DESPLEGADO</span>

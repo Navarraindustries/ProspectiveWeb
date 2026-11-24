@@ -1024,7 +1024,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (!v || !pane || !cl) return null;
       const mm = progresoRecorrido.leer();
       const { w, h } = pane.rect;
-      const anchoIvus = ivusEnVideo.current ? Math.min(420, Math.max(260, Math.round(h * 0.42))) : 0;
+      // UNI-176: la columna lleva el panel entero (cifras, gráfico, MLA, stent,
+      // ramas y notas), no solo el corte: más ancha para que el texto se lea.
+      const anchoIvus = ivusEnVideo.current ? Math.min(520, Math.max(340, Math.round(h * 0.5))) : 0;
       return {
         width: w + anchoIvus, height: h, colors: v.colors, fontFamily: v.fontFamily, hudLevel: "completo",
         panes: [{

@@ -263,7 +263,7 @@ async def open_study(
             detail="Este estudio no tiene DICOM archivado. Cárgalo y pulsa «Guardar estudio».",
         )
 
-    sid = create_session()
+    sid = create_session(owner_id=_user.id if _user is not None else None)
     try:
         n = await asyncio.to_thread(restore_study_to_session, study_id, sid)
     except FileNotFoundError as exc:

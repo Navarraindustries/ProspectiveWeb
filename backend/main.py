@@ -26,6 +26,7 @@ from services.sessions import InvalidSessionId
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from services.access import require_session_params
 from services.auth_service import require_user, user_for_token
 
 from routers import (
@@ -248,16 +249,30 @@ async def guard_private_static(request: Request, call_next):
             # usuario (`/data/prospective.db`). Solo se sirve lo que cuelga de
             # `/data/sessions/<uuid>/`, y solo si esa sesión no es de un
             # paciente ajeno.
-            from services.access import can_access_patient, session_patient_id
+            from services.access import can_access_session
             from services.sessions import valid_session_id
             parts = path.split("/")          # ["", "data", "sessions", <uuid>, …]
-            if (len(parts) < 5 or parts[2] != "sessions" or ".." in parts
+            # La barra invertida no separa en la URL, pero sí en el disco de
+            # Windows: «sub\..\..\otra» pasaría el filtro de «..» por partes.
+            if (len(parts) < 5 or parts[2] != "sessions" or ".." in parts or "\\" in path
                     or not valid_session_id(parts[3])):
                 return JSONResponse({"detail": "Not found"}, status_code=404)
-            if not can_access_patient(db, user, session_patient_id(db, parts[3])):
-                return JSONResponse({"detail": "No autorizado sobre este paciente."}, status_code=403)
+            # La subida guarda los ficheros con su nombre: nada de `dicom/` se
+            # sirve. El volumen llega por /api/slice y /api/volume.
+            if parts[4].lower() == "dicom":
+                return JSONResponse({"detail": "Not found"}, status_code=404)
+            if not can_access_session(db, user, parts[3]):
+                return JSONResponse({"detail": "No autorizado sobre esta sesión."}, status_code=403)
         finally:
             db.close()
+        respuesta = await call_next(request)
+        # Lo servido de `/data` nunca se interpreta como otra cosa, ni una
+        # página se abre como página: se descarga.
+        respuesta.headers["X-Content-Type-Options"] = "nosniff"
+        tipo = respuesta.headers.get("content-type", "").lower()
+        if any(t in tipo for t in ("html", "xml", "javascript", "svg")):
+            respuesta.headers["Content-Disposition"] = "attachment"
+        return respuesta
     return await call_next(request)
 
 
@@ -303,7 +318,9 @@ app.mount(
 # `get_optional_user` and returns None when no token is present. Only
 # `require_user` / `require_admin` reject anonymous callers.
 
-_private = [Depends(require_user)]
+# Y toda sesión que nombre la petición tiene que ser de un paciente que este
+# usuario ve, o suya si no tiene paciente (services/access.py).
+_private = [Depends(require_user), Depends(require_session_params)]
 
 app.include_router(auth.router)
 app.include_router(patients.router,      dependencies=_private)

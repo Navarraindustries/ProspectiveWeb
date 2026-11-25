@@ -112,6 +112,31 @@ def plan_signature(session_id: str) -> str:
 _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="report-worker")
 
 
+def _exigir_capturas_del_paciente(db: Session, session_id: str, capture_ids: list[int] | None) -> None:
+    """Las capturas que van en el PDF son del paciente de la sesión.
+
+    El informe incrustaba las capturas cuyos números se le pidieran, y los
+    números son correlativos: se podían sacar las imágenes de otro paciente.
+    Las que no existen se siguen saltando al montar el informe.
+    """
+    if not capture_ids:
+        return
+    from services.access import session_patient_id
+    from services.db_models import CaseCapture, ImagingStudy
+
+    paciente = session_patient_id(db, session_id)
+    filas = (db.query(CaseCapture.id, CaseCapture.patient_id, ImagingStudy.patient_id)
+               .outerjoin(ImagingStudy, ImagingStudy.id == CaseCapture.imaging_study_id)
+               .filter(CaseCapture.id.in_(capture_ids)).all())
+    ajenas = [cid for cid, propio, del_estudio in filas
+              if paciente is None or (propio if propio is not None else del_estudio) != paciente]
+    if ajenas:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Las capturas {', '.join(map(str, sorted(ajenas)))} no son del paciente de esta sesión.",
+        )
+
+
 # ── POST /report ───────────────────────────────────────────────────────────── #
 
 @router.post(
@@ -138,6 +163,7 @@ async def generate_report(
             status_code=404,
             detail=f"Sesión '{req.session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio",
         )
+    _exigir_capturas_del_paciente(db, req.session_id, req.capture_ids)
 
     loop = asyncio.get_event_loop()
 

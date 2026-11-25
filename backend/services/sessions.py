@@ -90,15 +90,56 @@ def saved_session_dir(session_id: str) -> Path:
 
 # ── Session lifecycle ──────────────────────────────────────────────────────── #
 
-def create_session() -> str:
-    """Create a new session directory and return its UUID."""
+def create_session(owner_id: int | None = None) -> str:
+    """Create a new session directory and return its UUID.
+
+    `owner_id` es quien la abre. Mientras la sesión no esté ligada a un
+    paciente es lo único que dice de quién es (ver services/access.py)."""
     session_id = str(uuid.uuid4())
     session_dir = SESSIONS_ROOT / session_id
     for sub in _SUBDIRS:
         (session_dir / sub).mkdir(parents=True, exist_ok=True)
     # Write creation timestamp for TTL tracking
     (session_dir / ".created_at").write_text(str(time.time()))
+    if owner_id is not None:
+        set_session_owner(session_id, owner_id)
     return session_id
+
+
+#: Fichero con el id del usuario que abrió la sesión. Va en la carpeta, como
+#: `.created_at`, así que viaja solo al guardar y al reanudar (se copia todo).
+OWNER_FILE = ".owner"
+
+
+def _owner_paths(session_id: str) -> list[Path]:
+    return [_live(session_id) / OWNER_FILE, _saved(session_id) / OWNER_FILE]
+
+
+def session_owner(session_id: str) -> int | None:
+    """El usuario que abrió la sesión, viva o guardada; None si no consta.
+
+    Las sesiones de antes de guardar el dueño no lo tienen."""
+    if not valid_session_id(session_id):
+        return None
+    for f in _owner_paths(session_id):
+        try:
+            texto = f.read_text(encoding="utf-8").strip() if f.is_file() else ""
+        except OSError:
+            continue
+        if texto.isdigit():
+            return int(texto)
+    return None
+
+
+def set_session_owner(session_id: str, owner_id: int) -> None:
+    """Apunta el dueño en la carpeta viva y en la guardada, las que existan."""
+    escrito = False
+    for f in _owner_paths(session_id):
+        if f.parent.is_dir():
+            f.write_text(str(int(owner_id)), encoding="utf-8")
+            escrito = True
+    if not escrito:
+        raise FileNotFoundError(f"La sesión '{session_id}' no existe")
 
 
 def session_dir(session_id: str) -> Path:
@@ -253,12 +294,15 @@ def has_saved_session(session_id: str) -> bool:
     return valid_session_id(session_id) and (SAVES_ROOT / session_id).is_dir()
 
 
-def rehydrate_session(saved_session_id: str) -> str:
+def rehydrate_session(saved_session_id: str, owner_id: int | None = None) -> str:
     """Copy a durable saved session into a fresh live session; return its new id.
 
     The mesh/volume files and the full state.txt are copied verbatim, so the
     restored session is functionally identical to the saved one — segmentation,
     detection and morphometry re-read/re-derive from the same inputs.
+
+    La sesión viva es de quien la reanuda (`owner_id`). Sin él conserva el
+    dueño copiado del guardado.
     """
     src = _saved(saved_session_id)
     if not src.is_dir():
@@ -272,6 +316,8 @@ def rehydrate_session(saved_session_id: str) -> str:
     # under the user — mid-session, with no message. The live session was
     # created NOW, whatever the snapshot says.
     (SESSIONS_ROOT / new_sid / ".created_at").write_text(str(time.time()))
+    if owner_id is not None:
+        (SESSIONS_ROOT / new_sid / OWNER_FILE).write_text(str(int(owner_id)), encoding="utf-8")
     return new_sid
 
 

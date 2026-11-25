@@ -510,16 +510,25 @@ class TestUpload:
         assert resp.status_code == 422
 
     def test_non_dicom_file_accepted_session_created(self):
-        """Non-DICOM bytes still create a session (scan_series returns empty)."""
+        """Non-DICOM bytes under a DICOM-like name still create a session
+        (scan_series returns empty)."""
         resp = client.post(
             "/api/upload",
-            files={"files": ("dummy.txt", b"not a dicom file", "text/plain")},
+            files={"files": ("IM0001", b"not a dicom file", "application/octet-stream")},
         )
         assert resp.status_code == 200
         data = resp.json()
         assert "session_id" in data
         assert isinstance(data["series"], list)
         assert data["total_files"] == 1
+
+    def test_a_file_that_is_not_named_like_dicom_is_refused(self):
+        """Solo se guarda lo que tiene nombre de DICOM: un .txt suelto no crea sesión."""
+        resp = client.post(
+            "/api/upload",
+            files={"files": ("dummy.txt", b"not a dicom file", "text/plain")},
+        )
+        assert resp.status_code == 422
 
     def test_fake_dicom_creates_session(self):
         """Minimal DICOM-magic bytes go through without crashing."""

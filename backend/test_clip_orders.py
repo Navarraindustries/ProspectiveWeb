@@ -557,12 +557,25 @@ class TestTheRegister:
     def test_con_caso_se_ven_los_pedidos_del_caso(self, medico):
         # F1-219: con caso, «Pedidos de este caso» son los del caso aunque se
         # pidieran desde otra sesión; sin caso, solo los de la sesión.
+        # Dos casos de un paciente suyo: nombrar el caso de otro paciente ya no
+        # se puede (un número fijo como «7» chocaba con los casos que crean
+        # otros tests).
+        from services.db_models import Patient, Study
+        db = SessionLocal()
+        uid = db.query(User.id).filter(User.username == "cirujano").scalar()
+        p = Patient(surname="Pedidos", given_name="Caso", created_by=uid)
+        db.add(p); db.commit()
+        caso, otro_caso = Study(patient_id=p.id, dx_principal="a"), Study(patient_id=p.id, dx_principal="b")
+        db.add_all([caso, otro_caso]); db.commit()
+        caso_id, otro_id = caso.id, otro_caso.id
+        db.close()
+
         _sid, _pre, r = _place(medico)
         part_no = r.json()["part_no"]
         entradas = store._read(store._ORDERS_FILE)
         for e in entradas:
             if e.get("part_no") == part_no:
-                e["case_id"] = 7
+                e["case_id"] = caso_id
         store._write(store._ORDERS_FILE, entradas)
         otra = create_session()
 
@@ -572,8 +585,8 @@ class TestTheRegister:
                 params={"session_id": otra, **params}).json()]
 
         assert _lista() == []
-        assert _lista(case_id=7) == [part_no]
-        assert _lista(case_id=8) == []
+        assert _lista(case_id=caso_id) == [part_no]
+        assert _lista(case_id=otro_id) == []
 
     def test_a_workflow_jump_is_refused_with_the_states_that_work(self, medico):
         _sid, _pre, r = _place(medico)

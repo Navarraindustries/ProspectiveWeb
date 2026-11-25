@@ -26,10 +26,11 @@ from services.audit import (ACT_SAVED_SESSION_DELETED, ACT_SAVED_SESSION_RENAMED
                             ACT_SESSION_SAVED,
                             audit_append, audit_patient)
 from services.auth_service import get_current_user
-from services.db_models import LesionConfirmation, PlanningSession, Patient, User
+from services.db_models import ImagingStudy, LesionConfirmation, PlanningSession, Patient, Study, User
 from services.sessions import (
     session_exists, session_subdir, read_state, write_state, create_session,
     snapshot_session, rehydrate_session, has_saved_session, mesh_url as mesh_url_for,
+    set_session_owner,
     delete_saved_session, session_lineage, LINEAGE_KEY, record_repoint, session_ttl_hours,
     saved_session_size, size_of_row, live_sessions_from, purge_saved_session,
     live_session_expires_at,
@@ -161,6 +162,33 @@ def _restore_state(session_id: str, ps: PlanningSession) -> None:
 
 # ── POST /sessions/save ────────────────────────────────────────────────────── #
 
+def _exigir_mismo_paciente(db: Session, user: User | None, req: SessionSaveRequest,
+                           fila: PlanningSession | None) -> None:
+    """Lo que se guarda cuelga de UN paciente, que este usuario ve.
+
+    Se comprobaba solo el paciente que llegaba en la petición: con el caso o el
+    estudio de otro se escribía un plan en el estudio ajeno y se leía la
+    identidad de su caso; y cambiando el paciente se pasaba la fila a otro sin
+    el permiso que pide «Cambiar de paciente o caso».
+    """
+    actual = fila.patient_id if fila is not None else None
+    if req.patient_id is not None and actual is not None and req.patient_id != actual:
+        raise HTTPException(
+            status_code=409,
+            detail="Esta sesión es de otro paciente. Para pasarla a este, usa «Cambiar de paciente o caso».",
+        )
+    paciente = req.patient_id if req.patient_id is not None else actual
+    for modelo, valor, que in ((Study, req.study_id, "El caso"), (ImagingStudy, req.imaging_study_id, "El estudio")):
+        if valor is None:
+            continue
+        obj = db.get(modelo, int(valor))
+        if obj is None:
+            raise HTTPException(status_code=404, detail=f"{que} {valor} no existe.")
+        require_patient(db, user, obj.patient_id)
+        if paciente is not None and obj.patient_id != paciente:
+            raise HTTPException(status_code=409, detail=f"{que} {valor} es de otro paciente.")
+
+
 @router.post(
     "/save",
     response_model=SessionSaveResult,
@@ -207,6 +235,8 @@ async def save_session(
         # se apunta aquí para que viaje en el snapshot nuevo y los pedidos de
         # clip colgados de sesiones anteriores se sigan encontrando.
         write_state(req.session_id, LINEAGE_KEY, ",".join(sorted(session_lineage(origen_id))))
+
+    _exigir_mismo_paciente(db, current_user, req, ps or origen_ps)
 
     morpho      = _read_morpho(req.session_id)
     # Snapshot the whole session dir (volume + meshes + state) into the durable
@@ -492,6 +522,9 @@ async def restore_session(
     # La sesión viva recuerda de cuál salió: así sigue siendo del mismo
     # paciente antes de volver a guardarse (services/access.session_row).
     write_state(new_sid, ORIGIN_KEY, session_id)
+    # Y es de quien la reanuda (la copia trae el dueño del guardado).
+    if current_user is not None:
+        set_session_owner(new_sid, current_user.id)
 
     # Inspect the rehydrated dir to build a payload the frontend can hydrate from.
     meshes = session_subdir(new_sid, "meshes")

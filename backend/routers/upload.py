@@ -5,11 +5,15 @@ import asyncio
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.formparsers import MultiPartException
 
 from models import SeriesInfo, SpacingXYZ, UploadResult
+from services.auth_service import get_current_user
+from services.db_models import User
 from services.sessions     import create_session, session_exists, session_subdir, session_ttl_hours, write_state
 from services.dicom_loader import scan_series
 from services.numero import cifra
@@ -32,6 +36,18 @@ _MAX_FILES = 20_000
 # 20 000 × 500 MB de disco. 4 GB es lo que nginx deja pasar por petición
 # (frontend/nginx.conf, client_max_body_size) y cubre un estudio multiserie.
 _MAX_UPLOAD_TOTAL_BYTES = 4_000_000_000
+
+#: Extensiones con las que llega un DICOM. Un estudio exportado de un CD trae
+#: además el visor (html, exe, js), miniaturas y textos: no son imagen y no se
+#: guardan. Antes se guardaba cualquier fichero con su nombre.
+_DICOM_SUFFIXES = {"", ".dcm", ".dicom", ".dic", ".ima"}
+
+
+def es_nombre_dicom(nombre: str) -> bool:
+    """Sin extensión, una de las de DICOM, o la cola numérica de un UID
+    («1.2.840.113619.2.55.3»), que también es como se llaman a menudo."""
+    suf = Path(nombre).suffix.lower()
+    return suf in _DICOM_SUFFIXES or suf[1:].isdigit()
 
 
 @router.post(
@@ -63,7 +79,10 @@ _MAX_UPLOAD_TOTAL_BYTES = 4_000_000_000
         }
     },
 )
-async def upload_dicom(request: Request) -> UploadResult:
+async def upload_dicom(
+    request: Request,
+    current_user: Annotated[User | None, Depends(get_current_user)] = None,
+) -> UploadResult:
     # Parse the multipart form ourselves so we can raise the max-files cap above
     # Starlette's 1000 default (FastAPI's File(...) injection would parse with the
     # default *before* this function runs, rejecting large studies).
@@ -75,9 +94,19 @@ async def upload_dicom(request: Request) -> UploadResult:
     files = [v for v in form.getlist("files") if isinstance(v, StarletteUploadFile)]
     if not files:
         raise HTTPException(status_code=422, detail="No files provided")
+    todos = len(files)
+    files = [f for f in files if es_nombre_dicom(Path(f.filename or "unnamed.dcm").name)]
+    if not files:
+        raise HTTPException(
+            status_code=422,
+            detail="Ninguno de los archivos parece DICOM (sin extensión, .dcm, .dicom o .ima).",
+        )
+    if len(files) < todos:
+        logger.info("Upload: %d de %d archivos descartados (no son DICOM por su nombre)",
+                    todos - len(files), todos)
 
     # ── 1. Create isolated session directory ──────────────────────────────── #
-    session_id = create_session()
+    session_id = create_session(owner_id=current_user.id if current_user is not None else None)
     dicom_dir  = session_subdir(session_id, "dicom")
 
     logger.info("Upload started — session=%s  files=%d", session_id, len(files))

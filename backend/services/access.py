@@ -10,17 +10,18 @@ Aquí vive la regla una sola vez. Desde F2 (F2-75) un paciente lo ve quien lo
 creó, las cuentas con las que lo compartió (`patient_shares`) y el
 administrador; compartir solo lo puede quien lo creó o un administrador.
 
-Lo que NO tiene paciente (una sesión empezada «sin paciente» y aún sin
-adjuntar) no tiene dueño que comprobar: su identificador es un UUID
-aleatorio, que hace de llave.
+Una sesión empezada «sin paciente» y aún sin adjuntar es de quien la abrió
+(`.owner` en su carpeta, ver services/sessions.py). Toda petición privada que
+nombre una sesión pasa por `require_session_params` (main.py).
 """
 from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from services.auth_service import require_user
 from services.db_models import ImagingStudy, Patient, PatientShare, PlanningSession, User
 
 
@@ -123,6 +124,90 @@ def session_patient_id(db: Session, session_id: str) -> Optional[int]:
     return ps.patient_id if ps is not None else None
 
 
+def can_access_session(db: Session, user: Optional[User], session_id: str) -> bool:
+    """La regla de una sesión, viva o guardada.
+
+    - Ligada a un paciente: quien ve a ese paciente.
+    - Sin paciente: quien la abrió, o un administrador. Antes no tenía dueño y
+      bastaba conocer su identificador, que viaja en los nombres de los
+      ficheros descargados y en los registros.
+    - Sin paciente ni dueño (sesiones abiertas antes de guardar el dueño):
+      queda para el primero que la usa, para no cortar el trabajo en curso.
+    """
+    if is_admin(user):
+        return True
+    ps = session_row(db, session_id)
+    if ps is not None and ps.patient_id is not None:
+        return can_access_patient(db, user, ps.patient_id)
+    from services.sessions import has_saved_session, session_exists, session_owner, set_session_owner
+    dueno = session_owner(session_id)
+    if dueno is not None:
+        return dueno == user.id
+    if session_exists(session_id) or has_saved_session(session_id):
+        set_session_owner(session_id, user.id)
+    return True
+
+
 def require_session(db: Session, user: Optional[User], session_id: str) -> None:
-    """403 si la sesión está ligada a un paciente que este usuario no ve."""
-    require_patient(db, user, session_patient_id(db, session_id))
+    """403 si este usuario no puede usar la sesión (ver can_access_session).
+
+    Con paciente, el motivo es el paciente, y se dice igual que en el resto de
+    la aplicación."""
+    if can_access_session(db, user, session_id):
+        return
+    if session_patient_id(db, session_id) is not None:
+        raise HTTPException(status_code=403, detail="No autorizado sobre este paciente.")
+    raise HTTPException(status_code=403, detail="No autorizado sobre esta sesión.")
+
+
+#: Los nombres con los que una petición nombra una sesión, y un caso clínico
+#: (`Study`): en la ruta, en la consulta o en el cuerpo JSON.
+SESSION_PARAMS = ("session_id", "previous_session_id")
+CASE_PARAMS = ("case_id",)
+
+
+def _nombrados(request: Request, cuerpo: object, claves: tuple[str, ...]) -> set[str]:
+    vistos: set[str] = set()
+    for clave in claves:
+        valores = [request.path_params.get(clave), request.query_params.get(clave)]
+        if isinstance(cuerpo, dict):
+            valores.append(cuerpo.get(clave))
+        for v in valores:
+            if isinstance(v, (str, int)) and not isinstance(v, bool) and str(v):
+                vistos.add(str(v))
+    return vistos
+
+
+async def require_session_params(request: Request, user: User = Depends(require_user)) -> None:
+    """Una sola comprobación para todas las rutas privadas (main.py).
+
+    Cada endpoint tenía que acordarse de llamar a `require_session`, y unos 75
+    no lo hacían; varios aceptaban además el número de cualquier caso clínico y
+    devolvían el nombre de su paciente. Aquí se mira toda sesión y todo caso que
+    nombre la petición, en la ruta, en la consulta o en el cuerpo JSON, así que
+    un router nuevo queda cubierto sin hacer nada. Lo mal formado o inexistente
+    no se mira aquí: cada ruta ya responde 400, 404 o 422 por ello.
+    """
+    from services.database import SessionLocal
+    from services.db_models import Study
+    from services.sessions import valid_session_id
+
+    cuerpo = None
+    if "application/json" in request.headers.get("content-type", ""):
+        try:
+            cuerpo = await request.json()
+        except Exception:  # noqa: BLE001 — un cuerpo roto lo rechaza la validación de la ruta
+            cuerpo = None
+    sesiones = {i for i in _nombrados(request, cuerpo, SESSION_PARAMS) if valid_session_id(i)}
+    casos = {int(i) for i in _nombrados(request, cuerpo, CASE_PARAMS) if i.isdigit()}
+    if not sesiones and not casos:
+        return
+    db = SessionLocal()
+    try:
+        for sid in sorted(sesiones):
+            require_session(db, user, sid)
+        for cid in sorted(casos):
+            paciente = db.query(Study.patient_id).filter(Study.id == cid).scalar()
+            require_patient(db, user, paciente)
+    finally:
+        db.close()

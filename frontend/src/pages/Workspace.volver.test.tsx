@@ -65,7 +65,7 @@ ConPie.actual = ({ onNext, onSkipToReport }) => (
 );
 
 const montar = (paso: number) => render(
-  <Workspace patient={null} initialStep={paso} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,
+  <Workspace initialStep={paso} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,
 );
 const cabecera = (n: number) => `PASO ${n} · ${STEPS[n - 1].label.toLocaleUpperCase("es")}`;
 

@@ -19,6 +19,14 @@ ENV/
 
 # ── Backend runtime data (never commit) ──────────────────────────────────── #
 backend/data/
+# Las mismas carpetas cuando el servidor se arranca desde otra carpeta: la app
+# crea `data/`, `static/` y `user_files/` relativas a donde se lanza, y pueden
+# llevar sesiones con datos de pacientes.
+/data/
+/static/
+/user_files/
+frontend/data/
+frontend/*.log
 backend/static/sample-meshes/*.vtp
 backend/data/jwt_secret.txt
 backend/data/prospective.db

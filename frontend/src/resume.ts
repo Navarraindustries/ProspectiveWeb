@@ -33,6 +33,12 @@ export async function rehydrateSession(
   planning: Planning,
   r: SessionRestoreResult,
 ): Promise<{ step: number; invalidated: boolean }> {
+  // FE-5: si mientras se espera al servidor empieza otra sesión (otro
+  // «Reanudar», una prueba rápida, salir), lo que llegue después es de esta y no
+  // se escribe en aquella. Se mira después de cada espera.
+  const epoca = planning.epocaActual();
+  const sigue = () => planning.epocaActual() === epoca;
+  const abandonada = { step: 0, invalidated: false };
   // A resumed session keeps planning the same case and acquisition, so the
   // breadcrumb and the next "Guardar progreso" don't lose that link.
   planning.setCase(r.study_id, r.study_label);
@@ -58,6 +64,7 @@ export async function rehydrateSession(
   if (r.current_step >= 2) {
     try {
       const det = await detection(r.session_id);
+      if (!sigue()) return abandonada;
       planning.setCandidates(det.candidates);
       // Al reanudar puede no haber aceptados y sí descartados: el índice elegido los recorre.
       planning.setRejectedCandidates(det.rejected ?? []);
@@ -70,6 +77,7 @@ export async function rehydrateSession(
         planning.setMorphoInvalidatedNotice(true);
       }
     } catch { /* leave candidates empty */ }
+    if (!sigue()) return abandonada;
   }
   // Con la medida invalidada no se pide otra: sin elección guardada el
   // backend mediría cand-001 y la enseñaría como la de la sesión, aunque
@@ -82,6 +90,7 @@ export async function rehydrateSession(
       // candidato ANTES de poner la medida, porque cambiar de selección
       // vacía la morfometría (y la decisión) del store.
       const m = await api.morphometry(r.session_id);
+      if (!sigue()) return abandonada;
       const idx = m.candidate_id ? restoredIds.indexOf(m.candidate_id) : -1;
       if (idx > 0) planning.setSelectedCandidate(idx);
       planning.setMorphometry(m);
@@ -100,6 +109,7 @@ export async function rehydrateSession(
         planning.setNeckOrigin([m.plane_origin.x, m.plane_origin.y, m.plane_origin.z]);
       }
     } catch { /* leave morphometry empty */ }
+    if (!sigue()) return abandonada;
   }
   // La decisión, DESPUÉS de elegir el candidato: cambiar la selección la
   // vacía. Sin ella «Planificar dispositivos» quedaba apagado (F1-27). Con la
@@ -141,8 +151,10 @@ export async function rehydrateSession(
       const field = await api.clipField(r.session_id, {
         session_id: r.session_id, placements: clips.map((c) => toPlacement(morpho, c)),
       });
+      if (!sigue()) return abandonada;
       planning.setClipField(field, clips);
     } catch { /* sin mapa; el panel lo vuelve a pedir al mover el clip */ }
+    if (!sigue()) return abandonada;
   }
   // La ventana con que se dejaron los cortes (F1-248). El visor aún no ha
   // montado y sembrará la del DICOM al llegar la meta: esta la gana.
@@ -152,8 +164,11 @@ export async function rehydrateSession(
   // Las anotaciones vuelven por el setter «cargado»: no ensucian la sesión
   // ni disparan el guardado automático (ya están en disco).
   try {
-    planning.setAnnotationsLoaded(await api.getAnnotations(r.session_id));
+    const anotaciones = await api.getAnnotations(r.session_id);
+    if (!sigue()) return abandonada;
+    planning.setAnnotationsLoaded(anotaciones);
   } catch {
+    if (!sigue()) return abandonada;
     // WHY no «sin anotaciones»: un fallo pasajero dejaba [] y la primera
     // anotación nueva se guardaba ENCIMA de todas las del disco. Con
     // «error» el guardado automático no escribe y el panel lo dice.

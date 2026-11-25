@@ -164,6 +164,30 @@ describe("Reanudar rellena el store con lo guardado", () => {
     expect(result.current.deviceMeshes.coils).toBe("/c.vtp");
     expect(result.current.dirty).toBe(false);
   });
+  it("si mientras tanto empieza otra sesión, no escribe nada más en ella (FE-5)", async () => {
+    // Dos «Reanudar» seguidos se entrelazaban: lo que A tenía y B no (clips,
+    // trayectoria, decisión) quedaba en el store de B.
+    let soltar!: (v: unknown) => void;
+    api.detect.mockImplementationOnce(() => new Promise((r) => { soltar = r; }));
+    const { result } = montar();
+    let pendiente!: Promise<unknown>;
+    act(() => { pendiente = rehydrateSession(result.current, restored()); });
+    act(() => result.current.reset());              // empieza otra sesión
+    await act(async () => {
+      soltar({ found: true, candidates: [cand("cand-001")], rejected: [], diagnostics: {}, morphometry_invalidated: false });
+      await pendiente;
+    });
+    const p = result.current;
+    expect(p.candidates).toEqual([]);
+    expect(p.morphometry).toBeNull();
+    expect(p.treatment).toBeNull();
+    expect(p.trajSaved).toBeNull();
+    expect(p.placedClips).toEqual([]);
+    expect(p.reportUrls).toBeNull();
+    expect(api.morphometry).not.toHaveBeenCalled();
+    expect(api.getAnnotations).not.toHaveBeenCalled();
+  });
+
   it("otra malla después de reanudar deja la trayectoria guardada desfasada", async () => {
     const { result } = montar();
     await act(async () => { await rehydrateSession(result.current, restored()); });

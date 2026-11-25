@@ -5,14 +5,28 @@ import { act, render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Ver App.ficha.test.tsx: el `Request` de Node rechaza la señal de jsdom.
+const RequestNode = globalThis.Request;
+globalThis.Request = class extends RequestNode {
+  constructor(input: RequestInfo | URL, init?: RequestInit) {
+    super(input, init && { ...init, signal: undefined });
+  }
+} as typeof Request;
+
 const planning = {
-  dirty: false, reset: vi.fn(), patient: null, imagingStudyId: null, saveNow: vi.fn(),
-  setPatient: vi.fn(), setCase: vi.fn(),
+  dirty: false, patient: null, imagingStudyId: null, saveNow: vi.fn(),
+  setPatient: vi.fn(), setCase: vi.fn(), setAnnotationsLoadState: vi.fn(),
+  // Como el store real: cada reset abre otra época.
+  epoca: 0,
+  reset: vi.fn(() => { planning.epoca += 1; }),
+  epocaActual: () => planning.epoca,
 };
 let paletteProps: Record<string, unknown> = {};
 
-vi.mock("./api/client", () => ({ api: { restoreSession: () => new Promise(() => {}) }, ApiError: class extends Error {}, onServerDown: () => () => {}, retryLastFailed: vi.fn() }));
+const restoreSession = vi.hoisted(() => vi.fn());
+vi.mock("./api/client", () => ({ api: { restoreSession: (...a: unknown[]) => restoreSession(...a) }, ApiError: class extends Error {}, onServerDown: () => () => {}, retryLastFailed: vi.fn() }));
 vi.mock("./store/auth", () => ({
+  alCerrarSesion: () => () => {},
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
   useAuth: () => ({ user: { id: 1, username: "a", full_name: "A", role: "medico", institution: "" }, ready: true, expiredNotice: null }),
 }));
@@ -26,7 +40,9 @@ vi.mock("./pages/Workspace", async () => {
   // Lo que ve el menú de usuario del quirófano (QuirofanoBar → UserMenu) por useNav().
   const Bloqueo = () => <p data-testid="nav-bloqueo">{useNav().bloqueoPipeline ?? ""}</p>;
   return {
-    Workspace: ({ aviso }: { aviso?: { texto: string } | null }) => <><p>pipeline</p><p data-testid="aviso-pipeline">{aviso?.texto ?? ""}</p><Bloqueo /></>,
+    Workspace: ({ aviso, initialStep }: { aviso?: { texto: string } | null; initialStep?: number }) => (
+      <><p>pipeline</p><p data-testid="paso-inicial">{initialStep}</p><p data-testid="aviso-pipeline">{aviso?.texto ?? ""}</p><Bloqueo /></>
+    ),
   };
 });
 vi.mock("./pages/Patients", () => ({ Patients: () => <p>pacientes</p> }));
@@ -47,6 +63,7 @@ vi.mock("./components/CommandPalette", () => ({
 
 import App from "./App";
 import { getCommands } from "./lib/commands";
+import { rehydrateSession } from "./resume";
 
 const BLOQUEO = "Guarda o descarta los cambios del análisis antes";
 
@@ -57,7 +74,10 @@ function montar(path: string) {
 
 const pruebaRapida = () => getCommands().find((c) => c.id === "prueba-rapida");
 
-beforeEach(() => { planning.dirty = false; paletteProps = {}; });
+beforeEach(() => {
+  planning.dirty = false; paletteProps = {};
+  restoreSession.mockImplementation(() => new Promise(() => {}));
+});
 afterEach(() => vi.clearAllMocks());
 
 describe("App · paleta en el pipeline", () => {
@@ -86,6 +106,24 @@ describe("App · paleta en el pipeline", () => {
     expect(await screen.findByText("pacientes")).toBeTruthy();
     expect(pruebaRapida()?.disabled).toBeFalsy();
     expect(paletteProps.reanudarBloqueado).toBeUndefined();
+  });
+});
+
+describe("App · «Reanudar · B» desde el quirófano (FE-3)", () => {
+  it("abre en el paso de B, no en el de la sesión anterior", async () => {
+    // Lo vio la prueba en el navegador: con el informe de A abierto (paso 8),
+    // reanudar B (guardada en Detección) abría B en el paso 8.
+    let terminar!: (v: { step: number; invalidated: boolean }) => void;
+    vi.mocked(rehydrateSession).mockImplementationOnce(() => new Promise((r) => { terminar = r; }));
+    restoreSession.mockResolvedValueOnce({ session_id: "b" });
+    montar("/app/sesion");
+    expect(await screen.findByText("pipeline")).toBeTruthy();
+    await act(async () => { void (paletteProps.onResume as (s: string, p: unknown) => void)("b", { id: 2 }); });
+    // Mientras se rellena el store no hay quirófano a medias; el aviso lo pinta App.
+    expect(screen.queryByText("pipeline")).toBeNull();
+    expect(screen.getByText("Restaurando sesión…")).toBeTruthy();
+    await act(async () => { terminar({ step: 3, invalidated: false }); });
+    expect(screen.getByTestId("paso-inicial").textContent).toBe("3");
   });
 });
 

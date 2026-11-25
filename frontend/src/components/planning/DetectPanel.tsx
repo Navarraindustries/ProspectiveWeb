@@ -156,11 +156,14 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
   const run = async () => {
     if (!sessionId) return;
     const seq = ++detectSeq;
+    // FE-4: el contador de arriba es de módulo y no cambia con la sesión: si
+    // mientras tanto se abre otra, la respuesta es de esta y no se escribe.
+    const epoca = planning.epocaActual();
     setBusy(true);
     setError(null);
     try {
       const res = await api.detect(sessionId);
-      if (seq !== detectSeq) return;
+      if (seq !== detectSeq || planning.epocaActual() !== epoca) return;
       const rejected = res.rejected ?? [];
       planning.setCandidates(res.candidates);
       planning.setRejectedCandidates(rejected);
@@ -175,7 +178,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
         setError("No se encontraron candidatos aneurismáticos en la malla.");
       }
     } catch (err) {
-      if (seq !== detectSeq) return;
+      if (seq !== detectSeq || planning.epocaActual() !== epoca) return;
       setError(err instanceof Error ? err.message : "Error en la detección");
     } finally {
       if (seq === detectSeq) setBusy(false);

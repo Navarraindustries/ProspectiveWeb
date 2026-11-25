@@ -56,6 +56,16 @@ describe("switching to another study", () => {
     expect(result.current.caseLabel).toBe("");
     expect(result.current.imagingStudyId).toBeNull();
   });
+
+  it("forgets the patient too (FE-1)", () => {
+    // «Prueba rápida sin paciente» después de un caso de A dejaba a A en el
+    // store: la cabecera decía «Sesión», pero el PDF y el SR salían con su
+    // nombre y las escalas precargaban su edad.
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => result.current.setPatient({ id: 3, full_name: "Paciente A" } as never));
+    act(() => result.current.reset());
+    expect(result.current.patient).toBeNull();
+  });
 });
 
 describe("re-running a step", () => {

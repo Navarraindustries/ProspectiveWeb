@@ -75,6 +75,38 @@ describe("volver a cargar con trabajo hecho", () => {
   });
 });
 
+describe("subir otro estudio en la misma sesión (FE-7, FE-4)", () => {
+  function montarArchivado() {
+    function Semilla({ children }: { children: ReactNode }) {
+      const p = usePlanning();
+      useEffect(() => { p.setSession("s1"); p.setImagingStudyId(9); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+      useEffect(() => { visto = p; });
+      return p.sessionId ? <>{children}</> : null;
+    }
+    return render(<PlanningProvider><Semilla><UploadPanel onNext={() => {}} /></Semilla></PlanningProvider>);
+  }
+
+  it("el estudio nuevo ya no es el archivado de antes", async () => {
+    // Abrir el estudio X, soltar otra carpeta: el panel decía que ya estaba en
+    // el archivo y las capturas del volumen nuevo se guardaban en X.
+    montarArchivado();
+    await soltar();
+    await waitFor(() => expect(visto?.sessionId).toBe("s2"));
+    expect(visto?.imagingStudyId).toBeNull();
+  });
+
+  it("una subida que termina cuando ya se abrió otra sesión no la pisa", async () => {
+    let soltarSubida!: (v: unknown) => void;
+    upload.mockReset().mockImplementation(() => new Promise((r) => { soltarSubida = r; }));
+    montar(false);
+    await soltar();
+    await waitFor(() => expect(upload).toHaveBeenCalledTimes(1));
+    act(() => { visto!.reset(); visto!.setSession("otra"); });
+    await act(async () => { soltarSubida({ session_id: "s2", series: [] }); });
+    expect(visto?.sessionId).toBe("otra");
+  });
+});
+
 /* F1-130: «Continuar a segmentación» se encendía en cuanto había serie, antes
    de que el volumen estuviera en el visor, y apagado no decía por qué. */
 describe("«Continuar a segmentación»", () => {

@@ -20,6 +20,18 @@ interface AuthState {
   clearExpiredNotice: () => void;
 }
 
+/* FE-6: lo que se limpia al cerrar sesión desde fuera de este contexto (el
+   store de planificación vive dentro y no se puede tocar desde aquí). */
+const alSalir = new Set<() => void>();
+
+/** Ejecuta `fn` cada vez que se cierra sesión a propósito. Devuelve cómo dejar
+ *  de escucharlo. No salta cuando la sesión caduca sola: así el trabajo sin
+ *  guardar sigue en memoria para guardarlo al volver a entrar. */
+export function alCerrarSesion(fn: () => void): () => void {
+  alSalir.add(fn);
+  return () => { alSalir.delete(fn); };
+}
+
 const AuthContext = createContext<AuthState>({
   user: null,
   ready: false,
@@ -81,6 +93,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     markSession(false);
     // Los volúmenes del paciente no se quedan en el navegador tras salir.
     void clearVolumeCache();
+    // Ni lo que el resto de la aplicación guarda en memoria (FE-6).
+    for (const fn of alSalir) {
+      try { fn(); } catch { /* una limpieza que falla no impide salir */ }
+    }
     setUser(null);
     setExpiredNotice(null);
   }, []);

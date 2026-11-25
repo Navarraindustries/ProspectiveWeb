@@ -37,6 +37,7 @@ vi.mock("./api/client", () => ({
   retryLastFailed: vi.fn(),
 }));
 vi.mock("./store/auth", () => ({
+  alCerrarSesion: () => () => {},
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
   useAuth: () => ({ user: usuario, ready: true, expiredNotice: null, logout: vi.fn() }),
 }));

@@ -295,6 +295,8 @@ _MORPHO_STATE_KEYS = (
     # La marca de saco hasta el límite del recorte describe esa medida: sin
     # ella borrada, Decisión seguiría avisando de vaso padre sin medida detrás.
     "morpho.sac_hit_crop",
+    # De qué candidato es el plano marcado (BE-1).
+    "morpho.plane_candidate",
 )
 
 
@@ -1239,10 +1241,14 @@ async def get_morphometry(
         # guarda aquí como elegido; lo guarda la ruta del plano de cuello.
         if _is_manual(session_id, rank):
             return await _manual_morphometry(session_id, candidate_id)
+        # El elegido hasta ahora: en sesiones de antes de guardar el dueño del
+        # plano (`morpho.plane_candidate`), el plano es suyo (BE-1).
+        elegido_antes = read_state(session_id, "detect.selected_candidate", "")
         write_state(session_id, "detect.selected_candidate", candidate_id)
     else:
         # Una repetición (p. ej. «Reanudar») mide lo que se eligió la última vez.
         chosen = read_state(session_id, "detect.selected_candidate", "")
+        elegido_antes = chosen
         rank = _candidate_rank(chosen)
         if rank is not None and rank > n_candidates:
             rank = None
@@ -1279,6 +1285,17 @@ async def get_morphometry(
     # (e.g. after «Reanudar», which replays this endpoint) must reproduce the
     # manual closed-sac result, not fall back to the unreliable automatic one.
     saved_plane = _read_saved_neck_plane(session_id)
+    # BE-1: pero solo para el candidato en el que se marcó. Con otro, se
+    # reproducía el plano de aquel y salían sus cifras con el nombre de este.
+    # El plano, el saco, el borde y el perímetro de aquel ya no describen nada:
+    # se borran con la decisión que salió de ellos (marcar de nuevo los repone).
+    if saved_plane is not None:
+        dueno = read_state(session_id, "morpho.plane_candidate", "") or elegido_antes or measured_id
+        if dueno != measured_id:
+            logger.info("Neck plane of %s dropped: measuring %s (session %s)", dueno, measured_id, session_id)
+            _clear_morphometry_state(session_id, meshes_dir)
+            write_state(session_id, "detect.selected_candidate", measured_id)
+            saved_plane = None
 
     loop = asyncio.get_event_loop()
     try:
@@ -1922,6 +1939,10 @@ def _run_morphometry_sync(
         write_state(session_id, "morpho.plane_normal_x", str(normal[0]))
         write_state(session_id, "morpho.plane_normal_y", str(normal[1]))
         write_state(session_id, "morpho.plane_normal_z", str(normal[2]))
+        # De qué candidato es (BE-1): el elegido al medir. POST neck-plane lo
+        # guarda como elegido justo antes de esta medida.
+        write_state(session_id, "morpho.plane_candidate",
+                    read_state(session_id, "detect.selected_candidate", ""))
         used_plane = (tuple(float(v) for v in origin), tuple(float(v) for v in normal))  # type: ignore[assignment]
         # Did the sac stop because the anatomy ended, or because the crop sphere
         # cut it off? One that reaches the bound was still growing when it was

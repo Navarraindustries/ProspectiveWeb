@@ -471,6 +471,14 @@ interface PlanningState {
   saveNow: () => Promise<boolean>;
   reset: () => void;
   resetDownstream: () => void;
+  /** Cuántas veces se ha cambiado de sesión (sube en cada `reset`). Sirve de
+   *  `key` del quirófano: al cambiar de sesión se monta de cero, sin el informe,
+   *  las notas ni el «Guardado hh:mm» de la anterior (FE-3). */
+  epoca: number;
+  /** La época de ahora, leída al momento (estable entre renders). Una acción
+   *  larga la anota antes de esperar al servidor y, si al volver ya es otra, no
+   *  escribe: la respuesta es de la sesión anterior (FE-4, FE-5). */
+  epocaActual: () => number;
 }
 
 export type Vec3 = [number, number, number];
@@ -547,6 +555,11 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [stentMap, setStentMap] = useState<StentMap>("apposition");
   const [mprWl, setMprWl] = useState<{ wc: number; ww: number } | null>(null);
   const restoredWlRef = useRef<{ wc: number; ww: number } | null>(null);
+  // FE-3/4/5: la época de la sesión. El ref para leerla en cierres viejos; el
+  // estado para remontar el quirófano.
+  const epocaRef = useRef(0);
+  const [epoca, setEpoca] = useState(0);
+  const epocaActual = useCallback(() => epocaRef.current, []);
   const restoreWl = useCallback((w: { wc: number; ww: number } | null) => {
     restoredWlRef.current = w;
     if (w) setMprWl(w);
@@ -846,8 +859,13 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   };
 
   const reset = () => {
+    epocaRef.current += 1;
+    setEpoca(epocaRef.current);
     setDirty(false);
     restoredWlRef.current = null;
+    // FE-1: la sesión siguiente es de otro paciente, o de ninguno («Prueba
+    // rápida»). Quien abre un caso lo vuelve a poner justo después.
+    setPatient(null);
     setCase(null);
     setImagingStudyId(null);
     setSession(null);
@@ -908,7 +926,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setCaptureViewport, setCenterOnLesion, registerSceneFramer, markSaved, registerSaver, saveNow,
         setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,
         setFreePlane, setClipMode, setCutFaceVisible, setSlices3dMeshVisible, setVolumeWindow, setMipWindow, setMipLocal, setCine, setFocusedPane,
-        reset, resetDownstream,
+        reset, resetDownstream, epoca, epocaActual,
       }}
     >
       {children}

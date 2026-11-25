@@ -63,8 +63,11 @@ import { MATRIZ_ALTOS, MATRIZ_ANCHOS, simularPantalla } from "../test/pantalla";
 import { getCommands } from "../lib/commands";
 import type { PatientSummary } from "../api/types";
 
+// El paciente vive en el store (FE-2): cada prueba que lo necesita lo pone ahí.
+afterEach(() => { delete estado.patient; });
+
 const montar = () => render(
-  <Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,
+  <Workspace onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,
 );
 
 describe("«Guardar progreso»", () => {
@@ -79,6 +82,19 @@ describe("«Guardar progreso»", () => {
     await waitFor(() => expect(saveSession).toHaveBeenCalledTimes(1));
     expect(saveSession.mock.calls[0][0]).toMatchObject({ session_id: "vivo-1", overwrite_origin: true });
     await waitFor(() => expect(markSaved).toHaveBeenCalled());
+  });
+
+  it("guarda con el paciente del store, también después de moverla (FE-2)", async () => {
+    // Tras «Cambiar de paciente o caso» el store pasa a B; la barra guardaba con
+    // el paciente que le pasó App (A) y devolvía la sesión a la ficha de A.
+    estado.patient = { id: 3, full_name: "Paciente A" };
+    const { rerender } = render(<Workspace onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    estado.patient = { id: 8, full_name: "Paciente B" };
+    rerender(<Workspace onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    expect(screen.getByText("Paciente B")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Guardar progreso/ }));
+    await waitFor(() => expect(saveSession).toHaveBeenCalledTimes(1));
+    expect(saveSession.mock.calls[0][0]).toMatchObject({ patient_id: 8, label: expect.stringContaining("Paciente B") });
   });
 
   it("dice qué guarda", () => {
@@ -113,7 +129,7 @@ describe("botón del caso en la barra superior", () => {
 
   it("con paciente: «Archivar en un caso» y dice qué guarda", () => {
     estado.imagingStudyId = null;
-    render(<Workspace patient={PACIENTE} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    estado.patient = PACIENTE; render(<Workspace onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
     const b = screen.getByRole("button", { name: /Archivar en un caso/ });
     expect(b.getAttribute("title")).toBe("Crea o elige un caso de este paciente y guarda en él el DICOM, las capturas y los vídeos");
     expect(screen.queryByRole("button", { name: /Adjuntar a un caso/ })).toBeNull();
@@ -146,11 +162,11 @@ describe("estado del guardado en el botón", () => {
     await waitFor(() => expect(markSaved).toHaveBeenCalled());
     // El store limpia `dirty` en markSaved: aquí se hace a mano.
     estado.dirty = false;
-    rerender(<Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    rerender(<Workspace onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
     await waitFor(() => expect(screen.getByRole("status").textContent).toMatch(/^Guardado \d{2}:\d{2}$/));
     // Volver a tocar algo devuelve el aviso, sin esperar a ningún temporizador.
     estado.dirty = true;
-    rerender(<Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    rerender(<Workspace onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
     expect(screen.getByRole("status")).toHaveTextContent("Cambios sin guardar");
   });
 
@@ -219,7 +235,7 @@ describe("zona libre del visor", () => {
     try { localStorage.clear(); } catch { /* sin almacenamiento */ }
   });
   const render_ = (paso: number) => render(
-    <Workspace patient={null} initialStep={paso} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,
+    <Workspace initialStep={paso} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,
   );
 
   it("en Detección deja 428 px a la derecha; en Decisión, 568", () => {
@@ -247,7 +263,7 @@ describe("zona libre del visor", () => {
 describe("avisos del pipeline como toasts", () => {
   it("el aviso global de App entra en el apilado y se cierra al pulsarlo", () => {
     const onClose = vi.fn();
-    render(<Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}}
+    render(<Workspace onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}}
                       aviso={{ texto: "Restaurando sesión…", onClose }} />);
     fireEvent.click(screen.getByText("Restaurando sesión…"));
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -256,7 +272,7 @@ describe("avisos del pipeline como toasts", () => {
   it("«Reintentar» del aviso global llama a retry y no cierra el aviso", () => {
     const onClose = vi.fn();
     const retry = vi.fn();
-    render(<Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}}
+    render(<Workspace onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}}
                       aviso={{ texto: "No se pudo restaurar la sesión", retry, onClose }} />);
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
     expect(retry).toHaveBeenCalledTimes(1);
@@ -267,7 +283,7 @@ describe("avisos del pipeline como toasts", () => {
     estado.dirty = true;
     saveSession.mockRejectedValue(new Error("caído"));
     const onClose = vi.fn();
-    render(<Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}}
+    render(<Workspace onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}}
                       aviso={{ texto: "Restaurando sesión…", retry: () => {}, onClose }} />);
     fireEvent.click(screen.getByRole("button", { name: /Guardar progreso/ }));
     await screen.findByText(/No se pudo guardar el progreso: caído/);
@@ -439,7 +455,7 @@ describe("barra del quirófano por tamaño de pantalla", () => {
   });
   it("la paleta ofrece el tema y, sin estudio archivado, archivar", () => {
     estado.imagingStudyId = null;
-    const { unmount } = render(<Workspace patient={PACIENTE} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    estado.patient = PACIENTE; const { unmount } = render(<Workspace onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
     expect(getCommands().find((c) => c.label === "Cambiar a tema claro")?.group).toBe("acciones");
     expect(getCommands().find((c) => c.label === "Archivar en un caso")?.group).toBe("acciones");
     unmount();
@@ -465,7 +481,7 @@ describe("acciones de la píldora derecha a ≤ 1366 px", () => {
 
   it("solo el icono: «Guardar progreso» conserva su nombre accesible y su title, sin texto visible", () => {
     estado.imagingStudyId = null;
-    render(<Workspace patient={PACIENTE} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    estado.patient = PACIENTE; render(<Workspace onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
     // Nombre accesible = el texto del modo ancho; title = la explicación.
     for (const nombre of ["Guardar progreso", "Captura", "Archivar en un caso"]) {
       const b = screen.getByRole("button", { name: nombre });
@@ -490,7 +506,7 @@ describe("hoja inferior a ≤ 1280 px", () => {
   afterEach(() => { vi.unstubAllGlobals(); });
 
   const montar_ = () => render(
-    <Workspace patient={null} initialStep={2} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,
+    <Workspace initialStep={2} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,
   );
   const hoja = () => screen.getByRole("region", { name: "Panel del paso" });
   const dock = () => screen.getByRole("navigation", { name: "Flujo de planificación" });
@@ -571,7 +587,7 @@ describe("hoja inferior a ≤ 1280 px", () => {
     pulsarP();
     expect(hoja().style.height).toBe("96px");
     estado.noteFocusRequest = "marcador-1";
-    rerender(<Workspace patient={null} initialStep={2} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    rerender(<Workspace initialStep={2} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
     expect(hoja().style.height).toBe("50%");
     expect(localStorage.getItem("ws.panelCollapsed")).toBeNull();
   });
@@ -596,19 +612,20 @@ describe("ficha del paciente y giro a móvil", () => {
 
   it("con paciente, la paleta ofrece «Abrir la ficha del paciente»; sin él, no", () => {
     const abrir = vi.fn();
-    const { unmount } = render(<Workspace patient={PACIENTE} onBack={() => {}} onOpenPatient={abrir} onFinish={() => {}} />);
+    estado.patient = PACIENTE; const { unmount } = render(<Workspace onBack={() => {}} onOpenPatient={abrir} onFinish={() => {}} />);
     const c = getCommands().find((x) => x.label === "Abrir la ficha del paciente");
     expect(c).toBeTruthy();
     c!.run();
     expect(abrir).toHaveBeenCalled();
     unmount();
-    render(<Workspace patient={null} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    delete estado.patient;
+    render(<Workspace onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
     expect(getCommands().find((x) => x.label === "Abrir la ficha del paciente")).toBeUndefined();
   });
 
   it("al pasar de tableta apaisada a móvil vertical la hoja vuelve a asomar", () => {
     const pantalla = simularPantalla(1000);
-    render(<Workspace patient={null} initialStep={2} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
+    render(<Workspace initialStep={2} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
     const hoja = () => screen.getByRole("region", { name: "Panel del paso" });
     expect(hoja().style.height).toBe("50%");
     act(() => { pantalla.cambiar({ ancho: 390 }); });
@@ -624,7 +641,7 @@ describe("historial de la malla fuera de Segmentación", () => {
     try { localStorage.clear(); sessionStorage.clear(); } catch { /* sin almacenamiento */ }
   });
   const montarEn = (paso: number) => render(
-    <Workspace patient={null} initialStep={paso} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,
+    <Workspace initialStep={paso} onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />,
   );
   const plegable = () => screen.queryByRole("button", { name: /Historial de la malla/ });
 

@@ -392,3 +392,69 @@ def test_morphometry_measures_the_selected_candidate_and_replays_it():
         r = client.get(f"/api/morphometry/{sid}", params={"candidate_id": bad})
         assert r.status_code == 422, (bad, r.text)
     assert read_state(sid, "detect.selected_candidate") == "cand-002"
+
+
+def _plano_marcado(sid: str, *, de: str | None) -> None:
+    """Un plano de cuello marcado a mano, como lo deja POST neck-plane."""
+    from services.sessions import write_states
+    estado = {"morpho.plane_origin_x": "0", "morpho.plane_origin_y": "0", "morpho.plane_origin_z": "-2",
+              "morpho.plane_normal_x": "0", "morpho.plane_normal_y": "0", "morpho.plane_normal_z": "1",
+              "morpho.neck_source": "rim", "morpho.rim_points": "1,0,-2;0,1,-2;-1,0,-2",
+              "morpho.neck_perimeter_mm": "9.9", "detect.selected_candidate": "cand-001"}
+    if de is not None:
+        estado["morpho.plane_candidate"] = de
+    write_states(sid, estado)
+
+
+@pytest.mark.parametrize("dueno", ["cand-001", None])          # None: sesión de antes de guardar el dueño
+def test_el_plano_de_un_candidato_no_se_repite_en_otro(dueno):
+    """BE-1: se marcaba el cuello en cand-001, se elegía cand-002 y GET
+    /morphometry reproducía el plano de cand-001 con el nombre de cand-002: el
+    PDF describía una lesión con las medidas de otra."""
+    from fastapi.testclient import TestClient
+    from main import app
+    from routers.detect import _read_saved_neck_plane
+    from services.sessions import create_session, read_state, session_subdir, write_state
+    from services.segmentation import write_vtp
+
+    sid = create_session()
+    meshes = session_subdir(sid, "meshes")
+    write_vtp(_sphere(3.0), meshes / "aneurysm_cand_001.vtp")
+    write_vtp(_sphere(5.0, center=(40.0, 0.0, 0.0)), meshes / "aneurysm_cand_002.vtp")
+    write_state(sid, "detect.n_candidates", "2")
+    write_state(sid, "detect.best_vtp_name", "aneurysm_cand_001.vtp")
+    _plano_marcado(sid, de=dueno)
+    client = TestClient(app, raise_server_exceptions=True)
+
+    r = client.get(f"/api/morphometry/{sid}", params={"candidate_id": "cand-002"})
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["candidate_id"] == "cand-002"
+    assert j["max_diameter_mm"] == pytest.approx(10.0, abs=0.5)
+    # El plano, el borde y el perímetro eran de cand-001: no quedan colgados de cand-002.
+    assert _read_saved_neck_plane(sid) is None
+    assert read_state(sid, "morpho.rim_points", "") == ""
+    assert read_state(sid, "morpho.neck_source", "") not in ("manual", "rim")
+    assert read_state(sid, "detect.selected_candidate") == "cand-002"
+
+
+def test_el_plano_de_su_candidato_si_se_repite():
+    """La otra cara: «Reanudar» repite la medida marcada del candidato elegido."""
+    from fastapi.testclient import TestClient
+    from main import app
+    from routers.detect import _read_saved_neck_plane
+    from services.sessions import create_session, session_subdir, write_state
+    from services.segmentation import write_vtp
+
+    sid = create_session()
+    meshes = session_subdir(sid, "meshes")
+    write_vtp(_sphere(3.0), meshes / "aneurysm_cand_001.vtp")
+    write_state(sid, "detect.n_candidates", "1")
+    write_state(sid, "detect.best_vtp_name", "aneurysm_cand_001.vtp")
+    _plano_marcado(sid, de="cand-001")
+    client = TestClient(app, raise_server_exceptions=True)
+    assert client.get(f"/api/morphometry/{sid}").status_code == 200
+    assert client.get(f"/api/morphometry/{sid}", params={"candidate_id": "cand-001"}).status_code == 200
+    # Sin malla vascular el plano no aísla un saco y responde la automática,
+    # pero el plano se conserva para volver a marcar (como hasta ahora).
+    assert _read_saved_neck_plane(sid) is not None

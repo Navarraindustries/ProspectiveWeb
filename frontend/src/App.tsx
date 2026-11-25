@@ -21,7 +21,9 @@ import { UsersAdmin } from "./pages/UsersAdmin";
 import { AuditTrail } from "./pages/AuditTrail";
 import { UnsavedExitDialog } from "./components/UnsavedExitDialog";
 import { LoadingScreen } from "./components/LoadingScreen";
-import { AuthProvider, useAuth } from "./store/auth";
+import { AuthProvider, alCerrarSesion, useAuth } from "./store/auth";
+import { clearReportDrafts } from "./components/planning/reportDraft";
+import { olvidarIvus } from "./vtk/hud/HudIvus";
 import { PlanningProvider, usePlanning } from "./store/planning";
 import { NavProvider, SCREEN_PATH, patientIdFromPath, patientPath, screenFromPath } from "./store/nav";
 import { ClipOrdersPage } from "./pages/ClipOrders";
@@ -48,7 +50,28 @@ function Router() {
     (s: Screen) => navigate(SCREEN_PATH[s]),
     [navigate],
   );
-  const [patient, setPatient] = useState<PatientSummary | null>(null);
+  // FE-5: el «Reanudar» vigente (ver resumeSession).
+  const turnoReanudar = useRef(0);
+  // FE-3: la época que se está reanudando. Mientras dure, el quirófano no se
+  // monta: con la sesión a medio rellenar abría en el paso de la ANTERIOR (el
+  // paso solo se lee al montar) y sus paneles reaccionaban a un store a medias.
+  // Va atado a la época: otra sesión, una prueba rápida o salir lo anulan solos.
+  const [reanudandoEpoca, setReanudandoEpoca] = useState<number | null>(null);
+  const reanudando = reanudandoEpoca !== null && reanudandoEpoca === planning.epoca;
+  // FE-6: al salir, o si entra otra cuenta en la misma pestaña, no queda nada
+  // del paciente anterior: ni el store (nombre, medidas, decisión), ni los
+  // borradores del informe, ni los cortes del IVUS en memoria. Que la sesión
+  // caduque y vuelva a entrar la misma cuenta NO limpia: su trabajo sin guardar
+  // sigue ahí para guardarlo.
+  const limpiarRef = useRef<() => void>(() => undefined);
+  limpiarRef.current = () => { planning.reset(); clearReportDrafts(); olvidarIvus(); };
+  useEffect(() => alCerrarSesion(() => limpiarRef.current()), []);
+  const ultimoUsuario = useRef<number | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    if (ultimoUsuario.current !== null && ultimoUsuario.current !== user.id) limpiarRef.current();
+    ultimoUsuario.current = user.id;
+  }, [user]);
   // Paciente por el que se abre el registro de pedidos, cuando se llega desde su ficha.
   // El filtro vive en la URL (/app/pedidos?paciente=<id>): así una recarga, un
   // enlace o el «Atrás» conservan el filtro y la vuelta a la ficha. El estado
@@ -159,7 +182,6 @@ function Router() {
   // después si se guarda («Adjuntar a un caso», en la barra del pipeline).
   const startWithoutPatient = useCallback(() => {
     planning.reset();
-    setPatient(null);
     setResumeStep(0);
     setScreen("workspace");
   }, [planning, setScreen]);
@@ -189,7 +211,6 @@ function Router() {
     planning.reset();
     planning.setPatient(p);
     planning.setCase(study.id, study.dx_principal || study.description || `Caso ${study.id}`);
-    setPatient(p);
     setResumeStep(0);
     setScreen("workspace");
   };
@@ -206,7 +227,6 @@ function Router() {
       planning.setPatient(p);
       planning.setCase(study.case_id || null, study.dx_principal || study.description);
       planning.setImagingStudyId(study.id);
-      setPatient(p);
       planning.setSession(r.session_id);
       // The backend already activated the best series; mirror it so step 1 shows
       // the study (without this the panel looks empty and "Continuar" is off).
@@ -231,18 +251,27 @@ function Router() {
   ): Promise<unknown> => {
     setToastRetry(null);
     setToast("Restaurando sesión…");
+    // FE-5: cada «Reanudar» toma turno. Si se pulsa otro mientras este espera
+    // (la copia tarda hasta dos minutos), gana el último y este no toca nada.
+    const turno = ++turnoReanudar.current;
     try {
       const r = await api.restoreSession(sessionId);
+      if (turno !== turnoReanudar.current) return null;
       planning.reset();
+      const epoca = planning.epocaActual();
+      setReanudandoEpoca(epoca);
       // Hasta que llegue su lista, el [] del store no es el de la sesión.
       planning.setAnnotationsLoadState("pendiente");
       planning.setPatient(p);
-      setPatient(p);
       // Todo lo que vuelve con la sesión —también la decisión, el corredor, los
       // clips editables, la ventana y los enlaces del informe— y sin rehacer la
       // detección (familia S). Deja la sesión sin cambios pendientes.
       const { step, invalidated } = await rehydrateSession(planning, r);
+      // Otra sesión empezó mientras tanto: es ella la que manda en la pantalla.
+      if (planning.epocaActual() !== epoca) return null;
+      // En el mismo render: el quirófano se monta ya con el paso de ESTA sesión.
       setResumeStep(step);
+      setReanudandoEpoca(null);
       if (invalidated) {
         setToast(MORPHO_INVALIDATED);
         setTimeout(() => setToast(null), 5000);
@@ -255,6 +284,8 @@ function Router() {
       // Sin respuesta (pasado el límite del cliente) o con la copia caída en
       // el servidor, la guardada sigue en disco: se dice y se ofrece repetir.
       // «Abrir el caso» de Pedidos enseña el 404 junto a su botón: sin aviso doble.
+      if (turno !== turnoReanudar.current) return null;   // ya se pidió otra
+      setReanudandoEpoca(null);
       if (quiet && (e as { status?: number })?.status === 404) { setToast(null); return e; }
       const { text, retry } = restoreFailure(e);
       setToast(text);
@@ -299,7 +330,7 @@ function Router() {
   // Al terminar se vuelve a la ficha del paciente, donde queda la sesión recién
   // guardada; sin paciente (prueba rápida), a la lista, y sin decir «vinculada».
   const finish = () => {
-    const p = planning.patient ?? patient;
+    const p = planning.patient;
     setToast(p ? "✓ Sesión guardada en la ficha del paciente" : "✓ Sesión guardada, sin paciente");
     setTimeout(() => {
       setToast(null);
@@ -374,13 +405,17 @@ function Router() {
   else if (effective === "pending") view = <PendingRequests onBack={() => setScreen("patients")} />;
   else if (effective === "users") view = <UsersAdmin onBack={() => setScreen("patients")} />;
   else if (effective === "audit") view = <AuditTrail onBack={() => setScreen("patients")} />;
+  // Fondo del quirófano, vacío, con el aviso «Restaurando sesión…» encima.
+  else if (reanudando) view = <div className="h-screen w-screen bg-black" aria-busy="true" />;
   else
     view = (
       <Workspace
-        patient={patient}
+        // FE-3: otra sesión es otro quirófano. Sin esta clave, «Reanudar · B»
+        // desde la paleta dejaba montado el panel de A con su PDF y sus notas.
+        key={planning.epoca}
         initialStep={resumeStep}
         onBack={() => setScreen("patients")}
-        onOpenPatient={() => navigate(patient ? patientPath(patient.id) : SCREEN_PATH.patients)}
+        onOpenPatient={() => navigate(planning.patient ? patientPath(planning.patient.id) : SCREEN_PATH.patients)}
         onFinish={finish}
         aviso={toast ? {
           texto: toast,
@@ -429,14 +464,14 @@ function Router() {
       {showLoading && <LoadingScreen onFading={() => setLoadingIn(false)} onDone={() => setShowLoading(false)} />}
       <UnsavedExitDialog
         open={blocker.state === "blocked"}
-        hasPatient={!!(planning.patient ?? patient)}
+        hasPatient={!!planning.patient}
         attached={!!planning.imagingStudyId}
         onStay={() => { cierrePendiente.current = false; blocker.reset?.(); }}
         onLeave={() => blocker.proceed?.()}
         saveNow={planning.saveNow}
       />
       <ServerDownBanner />
-      {toast && effective !== "workspace" && (
+      {toast && (effective !== "workspace" || reanudando) && (
         // Contenedor fijo que centra (o alinea) el aviso: así el transform del glide no pelea con el centrado.
         // En el pipeline no se pinta aquí: va como un toast más del apilado de Workspace.
         <div

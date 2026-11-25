@@ -316,6 +316,33 @@ class TestMoverUnaSesionAdjunta:
         r = client.post(f"/api/sessions/{sid}/move", json={"patient_id": pb, "case_id": cb})
         assert r.status_code == 409 and "Adjuntar" in r.json()["detail"]
 
+    def test_con_el_paciente_solo_compartido_no_se_puede_mover(self):
+        """Ver no basta. Quien tiene el paciente compartido se lo
+        llevaba a un paciente suyo y el creador dejaba de verlo."""
+        a_id, a = TestHistoriaDeOtroProfesional._medico()
+        b_id, b = TestHistoriaDeOtroProfesional._medico()
+        sid, _ = _sesion()
+        db = SessionLocal()
+        p = Patient(surname="DeA", hospital_id=f"HC-{uuid.uuid4().hex[:8]}", created_by=a_id)
+        db.add(p); db.commit()
+        c = Study(patient_id=p.id, description="Caso", dx_principal="Caso")
+        db.add(c); db.commit(); pid, cid = p.id, c.id; db.close()
+        assert a.post(f"/api/sessions/{sid}/attach", json={"patient_id": pid, "case_id": cid}).status_code == 200
+        assert a.put(f"/api/patients/{pid}/shares", json={"user_ids": [b_id]}).status_code == 200
+
+        r = b.post(f"/api/sessions/{sid}/move", json={
+            "new_patient": {"surname": "DeB"}, "new_case": {"dx_principal": "X"}})
+        assert r.status_code == 403
+        db = SessionLocal()
+        try:
+            assert db.query(ImagingStudy).filter_by(case_id=cid).count() == 1
+            assert db.query(Patient).filter_by(surname="DeB").count() == 0
+        finally:
+            db.close()
+        # El creador sí puede.
+        r = a.post(f"/api/sessions/{sid}/move", json={"patient_id": pid, "new_case": {"dx_principal": "Otro"}})
+        assert r.status_code == 200, r.text
+
     def test_un_caso_de_otro_paciente_se_rechaza_y_no_mueve_nada(self):
         sid, pa, ca, adj = self._adjunta()
         pb, _ = _paciente_con_caso("B")

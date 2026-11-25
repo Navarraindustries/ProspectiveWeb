@@ -31,7 +31,8 @@ from services.auth_service import get_current_user
 from services.database import get_db
 from services.db_models import (ImagingStudy, LesionConfirmation, Patient,
                                 PlanningSession, Study, User)
-from services.access import can_access_patient, own_patient_ids, require_patient, session_row
+from services.access import (can_access_patient, can_share_patient, own_patient_ids, require_patient,
+                             session_row)
 from services.sessions import read_state, session_exists, session_lineage, session_subdir
 
 logger = logging.getLogger(__name__)
@@ -382,6 +383,12 @@ async def move_session(
         raise HTTPException(status_code=409, detail="Esta sesión aún no está adjunta a un caso: usa «Adjuntar a un caso».")
     # Se saca de un paciente: tiene que ser uno que esta persona ve.
     require_patient(db, current_user, ps.patient_id)
+    # Y ver no basta. Mover se lleva el estudio, sus sesiones, capturas
+    # y confirmaciones a otro paciente, y el creador deja de verlos: es tan
+    # definitivo como borrar, que el compartido tampoco puede.
+    if ps.patient_id is not None and not can_share_patient(db, current_user, ps.patient_id):
+        raise HTTPException(status_code=403, detail="Solo quien creó al paciente, o un administrador, "
+                                                    "puede mover sus estudios a otro paciente o caso.")
     _exigir_uno_de_cada(req)
     img = db.get(ImagingStudy, ps.imaging_study_id)
     if img is None:

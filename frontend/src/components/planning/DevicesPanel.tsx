@@ -228,7 +228,7 @@ function ClipsTab() {
     clipField, setClipField, showClipField, setShowClipField,
     placedClips: placed, setPlacedClips: setPlaced, plannedClips, setPlannedClips,
     fieldClips, fieldMeshOnScreen, selectedClipKey, setSelectedClipKey, setClipsTabActive,
-    clipPlan: plan, setClipPlan: setPlan, trajectorySavedAt,
+    clipPlan: plan, setClipPlan: setPlan, trajectorySavedAt, epocaActual,
   } = usePlanning();
   // El que maneja el asa del 3D: el elegido en la lista o, si no hay, el último.
   const activeKey = placed.some((c) => c.key === selectedClipKey) ? selectedClipKey : placed.at(-1)?.key ?? null;
@@ -503,7 +503,9 @@ function ClipsTab() {
     // Si se limpia mientras esta colocación vuela, su respuesta ya no es del
     // plan: no se pinta, no se pide su campo y no se encola nada detrás.
     const clearSeq = clipReplace.clearSeq;
-    const cleared = () => clearSeq !== clipReplace.clearSeq;
+    // FE-4: tampoco si mientras tanto se abrió otra sesión.
+    const epoca = epocaActual();
+    const cleared = () => clearSeq !== clipReplace.clearSeq || epocaActual() !== epoca;
     try {
       const request = api.planClips({ session_id: sessionId, placements });
       clipReplace.inflight.add(request);

@@ -5,7 +5,6 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { AttachCaseSheet } from "../components/AttachCaseSheet";
 import type { AttachResult } from "../api/types";
 import { api } from "../api/client";
-import type { PatientSummary } from "../api/types";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
@@ -55,14 +54,12 @@ const VIEWER_SHORTCUTS = new Set(["sync", "center-lesion", "hud-cycle", "center"
   "anot-regla", "anot-angulo", "anot-region", "anot-marcador", "anot-borrar", "anot-deshacer-punto"]);
 
 export function Workspace({
-  patient,
   initialStep = 0,
   onBack,
   onOpenPatient,
   onFinish,
   aviso = null,
 }: {
-  patient: PatientSummary | null;
   initialStep?: number;
   onBack: () => void;
   /** Open this patient's sheet — their cases and archived studies. */
@@ -78,6 +75,10 @@ export function Workspace({
     annotations, annotationsSync, setAnnotationsSync, annotationsLoadedRef, setAnnotationsLoaded, annotationsFlushRef,
     annotationsLoadState, noteFocusRequest, dirty, registerSaver,
   } = planning;
+  // FE-2: una sola fuente del paciente. App guardaba otra copia que nadie
+  // actualizaba al mover la sesión, y «Guardar progreso» la devolvía a la
+  // ficha del paciente anterior.
+  const patient = planning.patient;
   // Las anotaciones se guardan solas en la sesión viva; «Guardar progreso»
   // espera a que termine el PUT pendiente para no archivar una lista vieja.
   const { flush: flushAnnotations } = useAnnotationsSync(

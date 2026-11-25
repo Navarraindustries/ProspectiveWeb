@@ -131,8 +131,17 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
     // A new upload invalidates any previous segmentation/detection/morphometry.
     planning.resetDownstream();
     planning.setSegmentation(null);
+    // FE-7: y el estudio archivado de antes ya no es este. Sin esto el panel
+    // decía «ya está en el archivo permanente», y «Guardar progreso» y las
+    // capturas del volumen nuevo iban al estudio anterior.
+    planning.setImagingStudyId(null);
+    setArchived(false);
+    // FE-4: la subida tarda minutos. Si mientras tanto se abre otra sesión, su
+    // respuesta no se escribe en ella.
+    const epoca = planning.epocaActual();
     try {
       const res = await api.upload(files, (enviados, total) => setSubida({ enviados, total }));
+      if (planning.epocaActual() !== epoca) return;
       setResult(res);
       planning.setSession(res.session_id);
       // Volumen nuevo, sesión nueva y sin archivo: su lista es la vacía. Va

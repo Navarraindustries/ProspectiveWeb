@@ -255,6 +255,9 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
     // Solo resegmentar (ya había malla) cambia aquello a lo que apuntan las
     // anotaciones 3D; la primera segmentación conserva lo medido en los cortes.
     const hadMesh = planning.segmentation !== null;
+    // FE-4: segmentar tarda minutos. Si mientras tanto se abre otra sesión, la
+    // malla que llega es de esta: no borra lo de aquella ni se pinta en su visor.
+    const epoca = planning.epocaActual();
     try {
       const res = await api.segment({
         session_id: sessionId,
@@ -274,6 +277,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         ...(method === "tubular" || halfRes ? { half_resolution: halfRes } : {}),
         main_tree_only: mainTree,
       });
+      if (planning.epocaActual() !== epoca) return;
       // La malla es OTRA, así que los candidatos, la morfometría y la
       // recomendación medidos sobre la anterior ya no describen nada. Sin
       // esto, resegmentar dejaba en pantalla los candidatos de antes y parecía
@@ -291,10 +295,11 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       setPreviewBand(null);       // final mesh now shows
       setPreviewMeshUrl(null);
     } catch (err) {
+      if (planning.epocaActual() !== epoca) return;
       setError(err instanceof Error ? err.message : "Error en la segmentación");
     } finally {
       setBusy(false);
-      planning.setSegmentando(false);
+      if (planning.epocaActual() === epoca) planning.setSegmentando(false);
     }
   };
 

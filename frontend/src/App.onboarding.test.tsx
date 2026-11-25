@@ -9,6 +9,7 @@ const arranque = vi.fn();
 
 vi.mock("./api/client", () => ({ api: { restoreSession: () => new Promise(() => {}) }, ApiError: class extends Error {}, onServerDown: () => () => {}, retryLastFailed: vi.fn() }));
 vi.mock("./store/auth", () => ({
+  alCerrarSesion: () => () => {},
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
   useAuth: () => ({ user: { id: 1, username: "a", full_name: "A", role: "medico", institution: "", must_change_password: must }, ready: true, expiredNotice: null }),
 }));

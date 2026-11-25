@@ -382,6 +382,7 @@ function Router() {
         onLogin={() => { setLoadingIn(true); setShowLoading(true); }}
         onSignup={() => setScreen("signup")}
         notice={loginNotice ?? expiredNotice}
+        noticeTone={loginNotice === CADUCADA_CON_CAMBIOS || (!loginNotice && expiredNotice) ? "warning" : "success"}
       />
     );
   else if (effective === "signup")

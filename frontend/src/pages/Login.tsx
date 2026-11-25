@@ -46,7 +46,11 @@ export function loginErrorMessage(err: unknown): string {
   return serverErrorText(err);
 }
 
-export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSignup: () => void; notice?: string | null }) {
+export function Login({ onLogin, onSignup, notice, noticeTone = "success" }: {
+  onLogin: () => void; onSignup: () => void; notice?: string | null;
+  /** «warning» para la sesión caducada: en verde parecía una buena noticia. */
+  noticeTone?: "success" | "warning";
+}) {
   const { login } = useAuth();
   const tableta = useTableta();
   const navigate = useNavigate();
@@ -110,7 +114,7 @@ export function Login({ onLogin, onSignup, notice }: { onLogin: () => void; onSi
             <div className={shake ? "shake" : undefined} style={{ width: "100%", maxWidth: 440 }}>
               <AuthWindow titulo="Iniciar sesión" subtitulo="Accede con tu cuenta de Prospective.">
                 {notice && (
-                  <div style={{ marginBottom: 18, padding: "10px 14px", borderRadius: "var(--radius-md)", background: "var(--success-bg)", border: "1px solid color-mix(in srgb, var(--success) 40%, transparent)", color: "var(--success)", fontSize: 13 }}>
+                  <div role={noticeTone === "warning" ? "alert" : "status"} style={{ marginBottom: 18, padding: "10px 14px", borderRadius: "var(--radius-md)", background: `var(--${noticeTone}-bg)`, border: `1px solid color-mix(in srgb, var(--${noticeTone}) 40%, transparent)`, color: `var(--${noticeTone})`, fontSize: 13 }}>
                     {notice}
                   </div>
                 )}

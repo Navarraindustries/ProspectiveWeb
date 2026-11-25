@@ -323,13 +323,31 @@ def pacientes_por_hash(pacientes) -> dict:
     return por_hash
 
 
+#: El último fallo al escribir en la cadena, o None si la última escritura fue
+#: bien. Lo enseña /health: antes un fallo se perdía en un aviso de consola y
+#: /health seguía diciendo «ok» mientras las acciones quedaban sin rastro.
+_ultimo_fallo: dict | None = None
+
+
+def audit_health() -> dict | None:
+    """Qué falló en la última escritura de la auditoría, o None si fue bien."""
+    return _ultimo_fallo
+
+
 def audit_append(action: str, payload: dict, username: str = "",
                  patient_id: str = "", patient_dob: str = "") -> None:
-    """Fire-and-forget append that never raises into the caller's flow."""
+    """Fire-and-forget append that never raises into the caller's flow.
+
+    La acción clínica no se detiene por la auditoría, pero el fallo ya no es
+    silencioso: queda como error en el registro y en /health."""
+    global _ultimo_fallo
     try:
         SkullChain.instance().append(action, payload, username, patient_id, patient_dob)
+        _ultimo_fallo = None
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Audit append failed (%s): %s", action, exc)
+        logger.error("Audit append failed (%s): %s", action, exc)
+        _ultimo_fallo = {"action": action, "error": f"{type(exc).__name__}: {exc}",
+                         "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
 
 
 def audit_device(kind: str, session_id: str, user, detail: dict) -> None:

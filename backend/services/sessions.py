@@ -279,13 +279,32 @@ def snapshot_session(session_id: str) -> float:
     if not src.is_dir():
         raise FileNotFoundError(f"Session '{session_id}' has no live directory to save")
     dst = _saved(session_id)
+    # La copia nueva se hace al lado y solo sustituye a la anterior cuando está
+    # entera. Antes se borraba el guardado y luego se copiaba: con el disco
+    # lleno a mitad de copia se perdían los dos.
+    nuevo = SAVES_ROOT / f"{session_id}.nuevo"
+    viejo = SAVES_ROOT / f"{session_id}.viejo"
+    for resto in (nuevo, viejo):              # de un guardado anterior que se cortó
+        if resto.exists():
+            shutil.rmtree(resto, ignore_errors=True)
+    try:
+        _clone_tree(src, nuevo)
+        # The mesh edit history is a working convenience, not part of the saved
+        # state: carrying all twelve snapshots multiplied the size of every save.
+        from services.mesh_backup import prune_for_snapshot
+        prune_for_snapshot(nuevo / "meshes")
+    except BaseException:
+        shutil.rmtree(nuevo, ignore_errors=True)
+        raise
     if dst.exists():
-        shutil.rmtree(dst, ignore_errors=True)
-    _clone_tree(src, dst)
-    # The mesh edit history is a working convenience, not part of the saved
-    # state: carrying all twelve snapshots multiplied the size of every save.
-    from services.mesh_backup import prune_for_snapshot
-    prune_for_snapshot(dst / "meshes")
+        os.replace(dst, viejo)
+    try:
+        os.replace(nuevo, dst)
+    except BaseException:
+        if viejo.exists() and not dst.exists():
+            os.replace(viejo, dst)            # el anterior vuelve a su sitio
+        raise
+    shutil.rmtree(viejo, ignore_errors=True)
     total = sum(f.stat().st_size for f in dst.rglob("*") if f.is_file())
     return round(total / 1024, 1)
 
@@ -411,17 +430,43 @@ def live_sessions_from(saved_session_id: str) -> list[str]:
     return vivas
 
 
+#: Marca de último uso: su hora de modificación. La toca cada petición que nombra
+#: la sesión (services/access.py), así que «caduca por inactividad» es cierto.
+LAST_USED_FILE = ".last_used"
+
+
+def touch_session(session_id: str) -> None:
+    """Apunta que la sesión viva se acaba de usar (si existe)."""
+    if not session_exists(session_id):
+        return
+    marca = SESSIONS_ROOT / session_id / LAST_USED_FILE
+    try:
+        marca.touch()
+    except OSError:                           # sin poder apuntarlo, cuenta la creación
+        pass
+
+
+def _ultimo_uso(d: Path) -> float:
+    """La hora más reciente entre la creación y el último uso; 0 si no consta."""
+    try:
+        creada = float((d / ".created_at").read_text())
+    except (ValueError, OSError):
+        creada = 0.0
+    try:
+        usada = (d / LAST_USED_FILE).stat().st_mtime
+    except OSError:
+        usada = 0.0
+    return max(creada, usada)
+
+
 def live_session_expires_at(session_id: str) -> float:
     """Hora (epoch) a la que el barrido borrará la sesión viva `session_id`.
 
-    Es la misma cuenta que `purge_expired_sessions` (`.created_at` + TTL), para
+    Es la misma cuenta que `purge_expired_sessions` (último uso + TTL), para
     que lo que se le dice a la persona coincida con lo que hará el barrido. Sin
     marca legible devuelve ahora: el siguiente barrido ya la borra."""
-    try:
-        creada = float((SESSIONS_ROOT / session_id / ".created_at").read_text())
-    except (ValueError, OSError):
-        return time.time()
-    return creada + SESSION_TTL_SEC
+    ultimo = _ultimo_uso(SESSIONS_ROOT / session_id)
+    return ultimo + SESSION_TTL_SEC if ultimo else time.time()
 
 
 # ── State helpers ──────────────────────────────────────────────────────────── #
@@ -586,9 +631,11 @@ def export_url(session_id: str, filename: str) -> str:
 # ── Cleanup ────────────────────────────────────────────────────────────────── #
 
 def purge_expired_sessions() -> int:
-    """Delete all sessions older than SESSION_TTL_SEC. Returns count deleted.
+    """Delete the sessions unused for longer than SESSION_TTL_SEC. Returns count deleted.
 
-    A session with no readable `.created_at` timestamp is treated as expired so
+    Cuenta desde el último uso, no desde la creación: un estudio cargado el
+    lunes y retomado el martes se borraba mientras se trabajaba en él.
+    A session with no readable timestamp is treated as expired so
     stray/partial directories do not accumulate.
     """
     if not SESSIONS_ROOT.exists():
@@ -598,12 +645,7 @@ def purge_expired_sessions() -> int:
     for d in SESSIONS_ROOT.iterdir():
         if not d.is_dir():
             continue
-        ts_file = d / ".created_at"
-        try:
-            created = float(ts_file.read_text()) if ts_file.exists() else 0.0
-        except (ValueError, OSError):
-            created = 0.0
-        if now - created > SESSION_TTL_SEC:
+        if now - _ultimo_uso(d) > SESSION_TTL_SEC:
             shutil.rmtree(d, ignore_errors=True)
             deleted += 1
     if deleted:

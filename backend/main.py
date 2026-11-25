@@ -37,7 +37,11 @@ from routers import (
     clip_orders, progress, captures, ground_truth, attach, followup,
     annotations,
 )
+from services.registro import configurar_registro
 
+# Con fecha, a consola y a data/logs/backend.log (services/registro.py): sin
+# esto los mensajes informativos de la aplicación se perdían.
+configurar_registro()
 logger = logging.getLogger(__name__)
 
 
@@ -388,6 +392,12 @@ async def redoc_ui():
 
 @app.get("/health", tags=["system"], summary="Health check")
 async def health() -> dict:
+    # Sigue respondiendo 200 (el contenedor solo mira eso), pero dice si la
+    # auditoría dejó de escribir: las acciones seguirían sin dejar rastro.
+    from services.audit import audit_health
+    fallo = audit_health()
+    if fallo is not None:
+        return {"status": "degraded", "version": app.version, "audit": fallo}
     return {"status": "ok", "version": app.version}
 
 

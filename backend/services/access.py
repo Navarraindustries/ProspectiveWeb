@@ -202,10 +202,13 @@ async def require_session_params(request: Request, user: User = Depends(require_
     casos = {int(i) for i in _nombrados(request, cuerpo, CASE_PARAMS) if i.isdigit()}
     if not sesiones and not casos:
         return
+    from services.sessions import touch_session
     db = SessionLocal()
     try:
         for sid in sorted(sesiones):
             require_session(db, user, sid)
+            # Usarla la mantiene viva: el barrido borra por inactividad.
+            touch_session(sid)
         for cid in sorted(casos):
             paciente = db.query(Study.patient_id).filter(Study.id == cid).scalar()
             require_patient(db, user, paciente)

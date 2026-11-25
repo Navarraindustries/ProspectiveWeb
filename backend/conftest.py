@@ -70,6 +70,9 @@ if _TEST_CHAIN.exists():
         pass
 os.environ["AUDIT_DB_PATH"] = str(_TEST_CHAIN)
 
+# El registro del servidor (services/registro.py), igual: no al data/logs real.
+os.environ.setdefault("PROSPECTIVE_LOG_DIR", tempfile.mkdtemp(prefix="prospective_logs_"))
+
 # Create tables + seed the default admin (admin/admin123) on the fresh test DB,
 # mirroring the app's startup lifespan which TestClient does not run at import.
 from services.database import SessionLocal, init_db  # noqa: E402

@@ -25,26 +25,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/audit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Append an event to the audit chain
-         * @description Administrators only. The block is signed with the username of the authenticated administrator; the `username` field of the body is ignored.
-         */
-        post: operations["append_event_api_audit_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/audit/blocks": {
         parameters: {
             query?: never;
@@ -113,7 +93,7 @@ export interface paths {
         put?: never;
         /**
          * Change your own password
-         * @description Requires the current password, so a stolen session cannot lock the owner out. Passwords are never returned and the JWT keeps working: it is signed over the username, not the credential.
+         * @description Requires the current password, so a stolen session cannot lock the owner out. Every token issued before stops working; the response carries a new one (and sets the cookie) so this browser stays signed in.
          */
         post: operations["change_password_api_auth_change_password_post"];
         delete?: never;
@@ -138,7 +118,7 @@ export interface paths {
          *     Include the token in subsequent requests as:
          *     `Authorization: Bearer <token>`
          *
-         *     Default credentials on first run: **admin / admin123**.
+         *     On first run the `admin` account gets a random password written to `backend/secrets/admin_inicial.txt` (or ADMIN_INITIAL_PASSWORD); it must be changed at first login.
          */
         post: operations["login_api_auth_login_post"];
         delete?: never;
@@ -158,7 +138,7 @@ export interface paths {
         put?: never;
         /**
          * Clear the session cookie
-         * @description Drops the auth cookie. The bearer token stays valid until it expires.
+         * @description Drops the auth cookies and revokes every token issued to this user so far (all devices). Works with a missing or expired token.
          */
         post: operations["logout_api_auth_logout_post"];
         delete?: never;
@@ -3375,37 +3355,6 @@ export interface components {
             patient: components["schemas"]["PatientSummary"];
             /** Relinked Confirmations */
             relinked_confirmations: number;
-        };
-        /** AuditAppendRequest */
-        AuditAppendRequest: {
-            /**
-             * Action
-             * @description Action name, e.g. DEVICE_PLACED
-             */
-            action: string;
-            /**
-             * Patient Dob
-             * @default
-             */
-            patient_dob: string;
-            /**
-             * Patient Id
-             * @default
-             */
-            patient_id: string;
-            /**
-             * Payload
-             * @description Arbitrary JSON payload for the event
-             */
-            payload?: {
-                [key: string]: unknown;
-            };
-            /**
-             * Username
-             * @description Ignored: the event is signed with the authenticated administrator's username. Kept so older clients that still send it are not rejected.
-             * @default
-             */
-            username: string;
         };
         /** AuditBlock */
         AuditBlock: {
@@ -11663,41 +11612,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AnnotationsResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    append_event_api_audit_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AuditAppendRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
                 };
             };
             /** @description Validation Error */

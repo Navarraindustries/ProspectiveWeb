@@ -23,8 +23,6 @@ from models.mesh_edit import (
     MeshRestoreResult, RegionEraseRequest, RegionEraseResult,
     NeckDetailRequest, NeckDetailResult,
 )
-import threading
-from collections import defaultdict
 
 from services import mesh_backup
 from services.mesh_crop import clip_box, clip_sphere
@@ -32,7 +30,7 @@ from services.segmentation import (
     read_vtp, write_vtp,
     level_to_smooth_iters, level_to_cleanup_verts,
 )
-from services.sessions import mesh_url, session_exists, session_subdir, write_state
+from services.sessions import cerrojo_de_sesion, mesh_url, session_exists, session_subdir, write_state
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["mesh-edit"])
@@ -46,11 +44,9 @@ router = APIRouter(prefix="/api", tags=["mesh-edit"])
 # Pero sin cerrojo siguen siendo dos leer-modificar-escribir sobre el mismo
 # fichero: la segunda parte de la malla ANTERIOR a la primera, y al guardar
 # deshace su borrado sin decir nada. Aquí se serializan.
-_EDIT_LOCKS: dict[str, threading.Lock] = defaultdict(threading.Lock)
-
-
-def _edit_lock(session_id: str) -> threading.Lock:
-    return _EDIT_LOCKS[session_id]
+# El mismo cerrojo que la segmentación, que también reescribe la malla.
+def _edit_lock(session_id: str):
+    return cerrojo_de_sesion(session_id, "malla")
 
 
 def _versioned(session_id: str, name: str) -> str:
@@ -128,13 +124,15 @@ async def mesh_crop(session_id: str, req: MeshCropRequest) -> MeshCropResult:
         )
 
     # Snapshot first: the crop overwrites the mesh in place, and without a copy
-    # the only way back is a full re-segmentation.
-    await asyncio.to_thread(mesh_backup.snapshot, session_id, "crop")
+    # the only way back is a full re-segmentation. Instantánea y recorte bajo el
+    # cerrojo de la malla: dos ediciones a la vez se pisaban.
+    def _trabajo():
+        with _edit_lock(session_id):
+            mesh_backup.snapshot(session_id, "crop")
+            return _run_crop(vessel_path, req)
 
     try:
-        _out, n_before, n_after, n_faces = await asyncio.to_thread(
-            _run_crop, vessel_path, req
-        )
+        _out, n_before, n_after, n_faces = await asyncio.to_thread(_trabajo)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -249,11 +247,19 @@ async def mesh_component_delete(
     from services.mesh_components import (describe_components,
                                           remove_component_at)
 
-    mesh = read_vtp(path)
-    out, removed, warning = await asyncio.to_thread(
-        remove_component_at, mesh,
-        (req.point.x, req.point.y, req.point.z), req.max_distance_mm,
-    )
+    # Leer, quitar y escribir de una vez, bajo el cerrojo de la malla y fuera
+    # del bucle de eventos (leer la malla congelaba el servidor).
+    def _trabajo():
+        with _edit_lock(session_id):
+            malla = read_vtp(path)
+            salida, quitada, aviso = remove_component_at(
+                malla, (req.point.x, req.point.y, req.point.z), req.max_distance_mm)
+            if quitada is not None:
+                mesh_backup.snapshot(session_id, "edit")
+                write_vtp(salida, path)
+            return malla, salida, quitada, aviso
+
+    mesh, out, removed, warning = await asyncio.to_thread(_trabajo)
 
     if removed is None:
         # No se ha borrado nada: ni instantánea ni invalidación. Un clic fallido
@@ -265,9 +271,6 @@ async def mesh_component_delete(
             removed=None, components_left=len(comps), warning=warning,
             undo_depth=mesh_backup.depth(session_id),
         )
-
-    await asyncio.to_thread(mesh_backup.snapshot, session_id, "edit")
-    await asyncio.to_thread(write_vtp, out, path)
 
     write_state(session_id, "seg.n_vertices", str(out.GetNumberOfPoints()))
     write_state(session_id, "seg.n_faces", str(out.GetNumberOfPolys()))
@@ -334,14 +337,20 @@ async def mesh_restore(session_id: str, req: MeshRestoreRequest) -> MeshRestoreR
     vessel_path = session_subdir(session_id, "meshes") / "vessel_tree.vtp"
 
     if req.scope == "original":
-        ok = await asyncio.to_thread(mesh_backup.restore_baseline, session_id)
+        paso = mesh_backup.restore_baseline
         detail = "No hay una malla anterior guardada: aún no se ha editado esta malla."
     elif req.scope == "redo":
-        ok = await asyncio.to_thread(mesh_backup.redo, session_id)
+        paso = mesh_backup.redo
         detail = "No hay ninguna edición deshecha que rehacer."
     else:
-        ok = await asyncio.to_thread(mesh_backup.undo, session_id)
+        paso = mesh_backup.undo
         detail = "No hay ninguna edición de malla que deshacer."
+
+    def _trabajo():
+        with _edit_lock(session_id):    # deshacer mientras otra edición escribe la pisaba
+            return paso(session_id)
+
+    ok = await asyncio.to_thread(_trabajo)
     if not ok:
         raise HTTPException(status_code=409, detail=detail)
 

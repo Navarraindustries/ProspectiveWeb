@@ -102,8 +102,10 @@ def _clip_geometry_for(clip_id: str, meshes_dir):
     index = _catalogue_index()
     if clip_id.startswith("custom:"):
         idx = clip_id.split(":", 1)[1]
-        path = meshes_dir / f"custom_clip_{idx}.vtp"
-        if path.exists():
+        # Solo un número: con «../» el nombre salía de la carpeta de la sesión
+        # y podía cargar la malla de otra.
+        path = meshes_dir / f"custom_clip_{idx}.vtp" if idx.isdigit() else None
+        if path is not None and path.exists():
             return read_vtp(path)
         logger.warning("Custom clip %s not found; falling back to synthetic", clip_id)
 

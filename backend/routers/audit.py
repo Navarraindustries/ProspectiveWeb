@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from fastapi.responses import PlainTextResponse
 
-from models.audit import AuditAppendRequest, AuditBlock, AuditVerifyResult
+from models.audit import AuditBlock, AuditVerifyResult
 from services.audit import SkullChain, ACT_INTEGRITY_CHECK, hash_de_paciente, pacientes_por_hash
 from services.database import get_db
 from services.auth_service import require_admin
@@ -21,22 +21,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/audit", tags=["audit"], dependencies=[Depends(require_admin)])
 
 
-@router.post(
-    "",
-    summary="Append an event to the audit chain",
-    description=(
-        "Administrators only. The block is signed with the username of the "
-        "authenticated administrator; the `username` field of the body is ignored."
-    ),
-)
-async def append_event(req: AuditAppendRequest,
-                       admin: Annotated[User, Depends(require_admin)]) -> dict:
-    # Antes firmaba con el `username` que mandara el cuerpo: cualquiera podía
-    # dejar en la cadena un evento a nombre de otro. Ahora firma quien llama.
-    block_hash = SkullChain.instance().append(
-        req.action, req.payload, admin.username, req.patient_id, req.patient_dob,
-    )
-    return {"block_hash": block_hash}
+# No hay ruta para escribir en la cadena: la escribe el servidor al hacer cada
+# acción. La que había dejaba a un administrador añadir bloques con cualquier
+# acción, y el frontend no la usaba.
 
 
 @router.get(

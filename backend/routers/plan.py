@@ -91,7 +91,7 @@ async def get_stent_library() -> list[StentLibraryItem]:
         "does not compute."
     ),
 )
-async def compute_plan(
+def compute_plan(
     req: PlanRequest,
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> PlanResult:

@@ -6,9 +6,11 @@ tampering is detectable. Backed by a dedicated SQLite DB under the data dir.
 """
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import os
+import secrets
 import sqlite3
 import threading
 from datetime import datetime, timezone
@@ -18,6 +20,24 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 GENESIS_HASH = "0" * 64
+
+#: La clave que firma la cadena: AUDIT_HMAC_KEY, o un fichero junto al
+#: secreto de los tokens (fuera de data/, donde vive la base de la cadena). Se
+#: crea al primer uso. Perderla deja sin verificar los bloques firmados con ella.
+_AUDIT_KEY_FILE = Path(__file__).resolve().parents[1] / "secrets" / "audit_key.txt"
+_clave_cache: bytes | None = None
+
+
+def _clave_auditoria() -> bytes:
+    global _clave_cache
+    if env := os.environ.get("AUDIT_HMAC_KEY"):
+        return env.encode("utf-8")
+    if _clave_cache is None:
+        if not _AUDIT_KEY_FILE.exists():
+            _AUDIT_KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _AUDIT_KEY_FILE.write_text(secrets.token_hex(32), encoding="utf-8")
+        _clave_cache = _AUDIT_KEY_FILE.read_text(encoding="utf-8").strip().encode("utf-8")
+    return _clave_cache
 
 # Action constants
 ACT_LOGIN              = "LOGIN"
@@ -132,8 +152,16 @@ class SkullChain:
     # ── hashing ──────────────────────────────────────────────────────── #
 
     @staticmethod
-    def _compute_block_hash(iso_ts, username, patient_hash, action, payload_hash, prev_hash) -> str:
+    def _compute_block_hash(iso_ts, username, patient_hash, action, payload_hash, prev_hash,
+                            firmado: bool = False) -> str:
+        """El hash del bloque. Los bloques nuevos van firmados con una clave
+        (HMAC-SHA256, prefijo «h2:») que vive fuera de la base de la cadena: con
+        el SHA-256 sin clave, quien podía escribir en el fichero recalculaba la
+        cadena entera y la verificación daba «correcta». Los bloques de antes
+        siguen verificándose con el SHA-256 de siempre."""
         raw = "|".join([iso_ts, username, patient_hash, action, payload_hash, prev_hash])
+        if firmado:
+            return "h2:" + hmac.new(_clave_auditoria(), raw.encode("utf-8"), sha256).hexdigest()
         return sha256(raw.encode("utf-8")).hexdigest()
 
     def _last_hash(self) -> str:
@@ -172,7 +200,8 @@ class SkullChain:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 prev_hash = self._last_hash()
-                block_hash = self._compute_block_hash(iso_ts, username, patient_hash, action, payload_hash, prev_hash)
+                block_hash = self._compute_block_hash(iso_ts, username, patient_hash, action, payload_hash,
+                                                      prev_hash, firmado=True)
                 self._conn.execute(
                     "INSERT INTO blocks (iso_ts, username, patient_hash, action, payload_json, payload_hash, prev_hash, block_hash)"
                     " VALUES (?,?,?,?,?,?,?,?)",
@@ -192,6 +221,7 @@ class SkullChain:
         ).fetchall()
         broken: list[dict] = []
         prev_block_hash: str | None = None
+        ya_firma = False
         for row in rows:
             if prev_block_hash is None:
                 if row["prev_hash"] != GENESIS_HASH:
@@ -208,10 +238,18 @@ class SkullChain:
                 broken.append({"id": row["id"], "iso_ts": row["iso_ts"], "action": row["action"],
                                "reason": "payload_hash mismatch — payload tampered"})
 
+            firmado = str(row["block_hash"]).startswith("h2:")
+            # Una vez que la cadena firma, no vuelve atrás: un bloque sin firma
+            # después de uno firmado es uno reescrito sin la clave.
+            if ya_firma and not firmado:
+                broken.append({"id": row["id"], "iso_ts": row["iso_ts"], "action": row["action"],
+                               "reason": "bloque sin firma después de bloques firmados"})
+            ya_firma = ya_firma or firmado
             expected = self._compute_block_hash(
-                row["iso_ts"], row["username"], row["patient_hash"], row["action"], row["payload_hash"], row["prev_hash"]
+                row["iso_ts"], row["username"], row["patient_hash"], row["action"], row["payload_hash"],
+                row["prev_hash"], firmado=firmado,
             )
-            if expected != row["block_hash"]:
+            if not hmac.compare_digest(expected, str(row["block_hash"])):
                 broken.append({"id": row["id"], "iso_ts": row["iso_ts"], "action": row["action"],
                                "reason": f"block_hash corrupted: expected {expected[:12]}… stored {row['block_hash'][:12]}…"})
             prev_block_hash = row["block_hash"]

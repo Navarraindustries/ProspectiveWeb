@@ -141,7 +141,7 @@ def stored_placed_clips(session_id: str) -> PlacedClipsState | None:
         "back instead of bare meshes."
     ),
 )
-async def put_placed_clips(
+def put_placed_clips(
     session_id: str,
     req: PlacedClipsState,
     db: Annotated[Session, Depends(get_db)],
@@ -190,7 +190,7 @@ async def list_placed_devices(session_id: str) -> DeviceClearResult:
         "does not touch it."
     ),
 )
-async def put_device_strategy(
+def put_device_strategy(
     session_id: str,
     req: DeviceStrategyState,
     db: Annotated[Session, Depends(get_db)],
@@ -217,7 +217,7 @@ async def put_device_strategy(
         "nothing removed."
     ),
 )
-async def clear_devices_endpoint(
+def clear_devices_endpoint(
     session_id: str,
     current_user: Annotated[User | None, Depends(get_current_user)],
     kind: str | None = Query(

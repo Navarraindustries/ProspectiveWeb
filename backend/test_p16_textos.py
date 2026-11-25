@@ -12,7 +12,6 @@ import os
 import tempfile
 
 _tmp = tempfile.mkdtemp(prefix="prospective_p16_")
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 
 from services.dicom_sr import DicomSRGenerator

@@ -7,7 +7,6 @@ import tempfile
 # Isolate DB before importing the app (the centerline endpoint itself needs no
 # auth/DB, but importing main creates the engine).
 _tmp = tempfile.mkdtemp(prefix="prospective_cl_")
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 
 import numpy as np

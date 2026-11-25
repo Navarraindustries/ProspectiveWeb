@@ -565,7 +565,7 @@ async def export_dicom_seg(
         "without perforators."
     ),
 )
-async def set_trajectory(session_id: str, req: TrajectoryRequest) -> TrajectoryResult:
+def set_trajectory(session_id: str, req: TrajectoryRequest) -> TrajectoryResult:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     write_state(session_id, "trajectory.entry_x", str(req.entry.x))
@@ -684,7 +684,7 @@ def _corridor_out(a) -> CorridorAssessmentOut:
     status_code=204,
     summary="Clear the surgical approach trajectory",
 )
-async def clear_trajectory(session_id: str) -> None:
+def clear_trajectory(session_id: str) -> None:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     # El veredicto se borra con los puntos. Dejarlo dejaría en el informe un

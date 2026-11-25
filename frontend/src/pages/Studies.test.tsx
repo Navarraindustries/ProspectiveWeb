@@ -267,7 +267,7 @@ describe("«Estudios»: gestión (fase 9, A34–A36)", () => {
     expect(await screen.findByRole("textbox", { name: "Buscar por paciente, HC o diagnóstico" })).toBeInTheDocument();
     await abrirMenu();
     fireEvent.click(screen.getByRole("menuitem", { name: "Borrar estudio" }));
-    expect(screen.getByRole("alertdialog").textContent).toContain("30/10/26");
+    expect(screen.getByRole("alertdialog").textContent).toContain("30/10/2026");
   });
 
   it("a ≤ 640 una columna y menú táctil; a 1280 el menú es compacto", async () => {

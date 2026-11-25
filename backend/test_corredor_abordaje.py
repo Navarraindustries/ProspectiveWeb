@@ -28,7 +28,6 @@ import tempfile
 from pathlib import Path
 
 _tmp = tempfile.mkdtemp(prefix="prospective_corridor_")
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 
 import numpy as np

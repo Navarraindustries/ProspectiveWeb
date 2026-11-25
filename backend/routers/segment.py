@@ -904,6 +904,15 @@ async def segment(
         half_resolution= half,
     )
 
+    # Dos segmentaciones de la misma sesión, o una segmentación y un recorte,
+    # escribían la misma malla a la vez. La segunda espera a la primera.
+    from services.sessions import cerrojo_de_sesion
+    _sin_cerrojo = work
+
+    def work():  # noqa: F811
+        with cerrojo_de_sesion(req.session_id, "malla"):
+            return _sin_cerrojo()
+
     tubular = req.method == "tubular"
     # La plaza se pide ANTES de abrir el progreso: si la misma sesión reintenta
     # mientras su trabajo corre, el rechazo no debe pisar el progreso del que

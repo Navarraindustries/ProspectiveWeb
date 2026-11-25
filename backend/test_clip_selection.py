@@ -19,7 +19,6 @@ import pathlib
 import tempfile
 
 _tmp = tempfile.mkdtemp(prefix="prospective_clipsel_")
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 
 # The NAVARRO™ family IS the catalogue now — clips from other manufacturers are

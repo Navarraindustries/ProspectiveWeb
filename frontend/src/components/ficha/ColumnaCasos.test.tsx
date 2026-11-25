@@ -87,7 +87,7 @@ describe("casos (F2-28, F2-T5, fusión nº 9)", () => {
 
   it("cada caso dice su fecha, tipo, región y lateralidad", () => {
     render(<Arnes casos={[caso({ id: 9, dx_principal: "Aneurisma ACM", acquired_at: "2026-10-01", tipo_aneurisma: "Sacular", region_anatomica: "ACM", lateralidad: "Izquierda" })]} />);
-    expect(screen.getByText("Fecha: 1/10/26")).toBeTruthy();
+    expect(screen.getByText("Fecha: 1/10/2026")).toBeTruthy();
     expect(screen.getByText("Tipo: Sacular · ACM (Izquierda)")).toBeTruthy();
   });
 
@@ -142,11 +142,11 @@ describe("casos (F2-28, F2-T5, fusión nº 9)", () => {
 });
 
 describe("ficha del caso: miniatura, paso, riesgo y Reanudar (A37, A41)", () => {
-  it("cada caso: fecha dd/mm/aa sin desfase, paso, riesgo, miniatura y Reanudar", async () => {
+  it("cada caso: fecha dd/mm/aaaa sin desfase, paso, riesgo, miniatura y Reanudar", async () => {
     onResume.mockImplementation(() => Promise.resolve());
     render(<Arnes casos={[caso({ id: 7, acquired_at: "2026-10-30" })]}
                   sesiones={[ses({}), ses({ session_id: "s0", updated_at: "2026-10-01T10:00:00" })]} />);
-    expect(screen.getByText(/30\/10\/26/)).toBeInTheDocument();
+    expect(screen.getByText(/30\/10\/2026/)).toBeInTheDocument();
     expect(screen.getByText("Paso 3 · Detección")).toBeInTheDocument();
     expect(screen.getByText("Riesgo morfométrico alto")).toBeInTheDocument();   // P16
     await waitFor(() => expect(studyThumbnailObjectUrl).toHaveBeenCalledWith(40));

@@ -19,7 +19,6 @@ import tempfile
 from typing import Generator
 
 _tmp = tempfile.mkdtemp(prefix="prospective_restore_state_")
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 
 from fastapi.testclient import TestClient  # noqa: E402

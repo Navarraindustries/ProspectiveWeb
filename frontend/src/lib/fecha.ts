@@ -24,6 +24,11 @@ export function desdeServidor(iso: string): Date {
  *  fijar España; «es-419» cambiaría a 12 h y punto decimal. */
 export const LOCALE = "es";
 
+/** UX-28: el año con cuatro cifras («30/10/2026»): con dos, «30/10/26» se
+ *  confunde con un día o un mes. La hora, como antes («0:05»). */
+const DIA: Intl.DateTimeFormatOptions = { day: "numeric", month: "numeric", year: "numeric" };
+const HORA: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
+
 function formatear(iso: string | null | undefined, fmt: Intl.DateTimeFormatOptions, o?: OpcionesFecha): string {
   if (!iso) return SIN_DATO;
   const d = desdeServidor(iso);
@@ -31,14 +36,14 @@ function formatear(iso: string | null | undefined, fmt: Intl.DateTimeFormatOptio
   return d.toLocaleString(LOCALE, { ...fmt, ...(o?.timeZone ? { timeZone: o.timeZone } : {}) });
 }
 
-/** «11/10/26, 0:05» */
+/** «11/10/2026, 0:05» */
 export function fechaHora(iso: string | null | undefined, o?: OpcionesFecha): string {
-  return formatear(iso, { dateStyle: "short", timeStyle: "short" }, o);
+  return formatear(iso, { ...DIA, ...HORA }, o);
 }
 
-/** «11/10/26» */
+/** «11/10/2026» */
 export function fecha(iso: string | null | undefined, o?: OpcionesFecha): string {
-  return formatear(iso, { dateStyle: "short" }, o);
+  return formatear(iso, DIA, o);
 }
 
 /** «AAAA-MM-DD» del día local: `toISOString` da el de UTC, que a las 19:00 en UTC−5 ya es mañana. */
@@ -54,7 +59,7 @@ export function hora(d: Date = new Date(), o?: OpcionesFecha): string {
   return d.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", ...(o?.timeZone ? { timeZone: o.timeZone } : {}) });
 }
 
-/** Un día sin hora («2026-10-30» o el DICOM «20261030») → «30/10/26», SIN cambio de zona:
+/** Un día sin hora («2026-10-30» o el DICOM «20261030») → «30/10/2026», SIN cambio de zona:
  *  el día escrito es el día (`fecha("2026-10-30")` en UTC−5 daría el 29). Con hora (ISO con
  *  «T») delega en `fecha()`. Vacío → «—». Texto libre que no es fecha → tal cual. */
 export function fechaDia(valor: string | null | undefined, o?: OpcionesFecha): string {
@@ -63,20 +68,20 @@ export function fechaDia(valor: string | null | undefined, o?: OpcionesFecha): s
   const m = /^(\d{4})-?(\d{2})-?(\d{2})$/.exec(t);
   if (m) {
     const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
-    if (!Number.isNaN(d.getTime())) return d.toLocaleDateString(LOCALE, { dateStyle: "short", timeZone: "UTC" });
+    if (!Number.isNaN(d.getTime())) return d.toLocaleDateString(LOCALE, { ...DIA, timeZone: "UTC" });
   }
   const f = fecha(t, o);
   return f === SIN_DATO ? t : f;
 }
 
-/** Segundos Unix (talleres y pedidos) → «26/10/24» o, con `conHora`, «26/10/24, 22:33». 0/null → «—». */
+/** Segundos Unix (talleres y pedidos) → «26/10/2024» o, con `conHora`, «26/10/2024, 22:33». 0/null → «—». */
 export function fechaEpoch(seg: number | null | undefined, o?: OpcionesFecha & { conHora?: boolean }): string {
   if (!seg) return SIN_DATO;
   const d = new Date(seg * 1000);
   if (Number.isNaN(d.getTime())) return SIN_DATO;
   return d.toLocaleString(LOCALE, {
-    dateStyle: "short",
-    ...(o?.conHora ? { timeStyle: "short" as const } : {}),
+    ...DIA,
+    ...(o?.conHora ? HORA : {}),
     ...(o?.timeZone ? { timeZone: o.timeZone } : {}),
   });
 }

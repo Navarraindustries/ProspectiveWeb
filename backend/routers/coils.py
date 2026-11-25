@@ -121,7 +121,7 @@ async def get_coil_recommendations(
         "«Colocar el montaje»."
     ),
 )
-async def preview_coil_construct(
+def preview_coil_construct(
     session_id: str, req: CoilPreviewRequest,
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User | None, Depends(get_current_user)],
@@ -173,7 +173,7 @@ async def preview_coil_construct(
         f"{PACKING_AIM * 100:.0f}% (Sluzewski et al., AJNR 2004)."
     ),
 )
-async def plan_coils(
+def plan_coils(
     req: CoilPlanRequest,
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> CoilPlanResult:

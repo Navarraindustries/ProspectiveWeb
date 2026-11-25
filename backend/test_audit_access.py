@@ -1,7 +1,6 @@
 """La cadena de auditoría solo la lee y escribe el administrador (F1-5, F1-30, F1-31)."""
 import os, tempfile
 _tmp = tempfile.mkdtemp(prefix="prospective_aud_")
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 from conftest import anonymous_client
 from main import app
@@ -23,12 +22,14 @@ def test_medico_no_lee_ni_escribe_la_cadena():
     assert c.get("/api/audit/blocks").status_code == 403
     assert c.get("/api/audit/export").status_code == 403
     assert c.get("/api/audit/verify").status_code == 403
-    assert c.post("/api/audit", json={"action": "x", "payload": {}, "username": "admin"}).status_code == 403
+    assert c.post("/api/audit", json={"action": "x", "payload": {}, "username": "admin"}).status_code in (403, 404, 405)
 
 
-def test_admin_escribe_con_su_propio_nombre():
+def test_nadie_escribe_la_cadena_por_la_api():
+    """La escribe el servidor al hacer cada acción. La ruta que había dejaba a
+    un administrador añadir bloques con cualquier acción."""
     c = _client("admin", "adm_aud")
+    antes = len(c.get("/api/audit/blocks").json())
     r = c.post("/api/audit", json={"action": "prueba", "payload": {}, "username": "otro"})
-    assert r.status_code == 200
-    ultimo = c.get("/api/audit/blocks").json()[-1]
-    assert ultimo["username"] == "adm_aud"
+    assert r.status_code in (404, 405)
+    assert len(c.get("/api/audit/blocks").json()) == antes

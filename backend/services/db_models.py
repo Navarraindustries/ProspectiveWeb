@@ -42,6 +42,10 @@ class User(Base):
     # La cuenta se creó con una contraseña conocida (admin/admin123): hasta que
     # la cambie no puede hacer nada más. Ver auth_service.require_user.
     must_change_password = Column(Boolean, nullable=False, default=False)
+    # Versión de los tokens: cada token lleva la de su momento y deja de valer
+    # cuando sube (cerrar sesión, cambiar o restablecer la contraseña,
+    # desactivar la cuenta). Antes uno robado valía hasta caducar, 24 h.
+    token_version   = Column(Integer, nullable=False, default=0)
     created_at      = Column(DateTime, nullable=False, default=func.now())
     # Cuándo se rechazó la solicitud (F2-51): la pestaña «Rechazadas» la muestra.
     # Nulo si nunca se rechazó; una desactivación manual no lo rellena.

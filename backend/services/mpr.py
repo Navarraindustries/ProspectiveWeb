@@ -164,6 +164,14 @@ def _manual_orientation(session_id: str) -> dict | None:
 
 
 def ensure_volume_cached(session_id: str) -> dict:
+    """De uno en uno por sesión: dos peticiones a la vez cargaban el DICOM dos
+    veces y una reescribía la caché mientras la otra la leía."""
+    from services.sessions import cerrojo_de_sesion
+    with cerrojo_de_sesion(session_id, "volumen"):
+        return _asegurar_volumen(session_id)
+
+
+def _asegurar_volumen(session_id: str) -> dict:
     """Load the primary DICOM series volume (if not already cached) and return meta.
 
     Meta = {shape:[z,y,x], spacing:[sz,sy,sx], wc, ww, modality, direction,

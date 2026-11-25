@@ -769,7 +769,7 @@ describe("el detalle con el estilo D (A43, A44)", () => {
 
   it("la fecha necesaria va en sans con cifras tabulares (M2)", async () => {
     await abrir({ needed_by: "2026-11-20" });
-    const f = await screen.findByText("20/11/26");
+    const f = await screen.findByText("20/11/2026");
     expect(f).toHaveStyle({ fontFamily: "var(--font-sans)", fontVariantNumeric: "tabular-nums" });
   });
 
@@ -807,7 +807,7 @@ describe("el detalle con el estilo D (A43, A44)", () => {
       needed_by: "2026-11-20", status: "recibida", status_label: "Recibida", next_states: [],
       reception: { measured_jaw_mm: 10, measured_force_g: 150.4, jaw_within_tolerance: true, force_within_band: true },
     });
-    expect(await screen.findByText("20/11/26")).toBeInTheDocument();
+    expect(await screen.findByText("20/11/2026")).toBeInTheDocument();
     expect(screen.getByTestId("po-medido")).toHaveTextContent(/fuerza 150 g/);
   });
 

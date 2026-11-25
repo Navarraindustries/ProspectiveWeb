@@ -145,7 +145,7 @@ function CandidateCard({
           <b style={{ color: fit.clean_rolls === 0 ? "var(--destructive)" : "var(--foreground)" }}>
             {fit.clean_rolls}/{fit.n_rolls}
           </b>{" "}
-          orientaciones sin tocar vasos vecinos · cubre {fit.neck_coverage_pct.toFixed(0)}% del cuello
+          orientaciones sin tocar vasos vecinos · cubre {fit.neck_coverage_pct.toFixed(0)} % del cuello
         </div>
       )}
       {/* La comprobación sobre la malla cuesta varias pruebas de colisión por

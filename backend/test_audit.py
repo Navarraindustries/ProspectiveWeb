@@ -7,7 +7,6 @@ import tempfile
 from pathlib import Path
 
 _tmp = tempfile.mkdtemp(prefix="prospective_audit_")
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 
 from fastapi.testclient import TestClient
@@ -30,7 +29,7 @@ class TestSkullChainUnit:
         blocks = c.get_all_blocks()
         assert len(blocks) == 1 and blocks[0]["action"] == "GENESIS"
         h = c.append("LOGIN", {"role": "admin"}, username="admin")
-        assert len(h) == 64
+        assert h.startswith("h2:") and len(h) == 3 + 64
         assert len(c.get_all_blocks()) == 2
 
     def test_verify_ok(self):
@@ -57,9 +56,10 @@ class TestSkullChainUnit:
 
 class TestAuditEndpoints:
     def test_append_and_list(self):
-        r = client.post("/api/audit", json={"action": "DEVICE_PLACED", "payload": {"clip": "Yasargil"}, "username": "admin"})
-        assert r.status_code == 200
-        assert len(r.json()["block_hash"]) == 64
+        # La cadena la escribe el servidor: no hay ruta para escribir en ella.
+        block_hash = SkullChain.instance().append("DEVICE_PLACED", {"clip": "Yasargil"}, "admin")
+        assert block_hash.startswith("h2:") and len(block_hash) == 3 + 64
+        assert client.post("/api/audit", json={"action": "X", "payload": {}}).status_code in (404, 405)
         blocks = client.get("/api/audit/blocks").json()
         assert len(blocks) >= 2
         assert any(b["action"] == "DEVICE_PLACED" for b in blocks)

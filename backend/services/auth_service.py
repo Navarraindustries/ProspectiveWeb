@@ -150,6 +150,13 @@ def create_pending_user(
     password = str(fields.get("password", ""))
     if len(username) < 3:
         return None, "El nombre de usuario debe tener al menos 3 caracteres."
+    # Solo lo que se puede escribir y leer sin ambigüedad. El registro es
+    # público y antes aceptaba cualquier texto (espacios, saltos de línea,
+    # caracteres de control) de cualquier longitud.
+    import re
+    if not re.fullmatch(r"[A-Za-z0-9._@-]{3,64}", username):
+        return None, ("El nombre de usuario solo puede llevar letras sin tilde, números y . _ - @ "
+                      "(de 3 a 64 caracteres).")
     if len(password) < 8:
         return None, "La contraseña debe tener al menos 8 caracteres."
     if db.query(User).filter(User.username == username).first() is not None:
@@ -222,13 +229,20 @@ def reject_user(db: Session, user_id: int) -> tuple[bool, str]:
 def create_access_token(
     subject: str,
     expires_delta: timedelta | None = None,
+    version: int = 0,
 ) -> str:
-    """Create a signed JWT with sub=subject and exp claim."""
+    """Create a signed JWT with sub=subject, exp and the user's token version."""
     expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MIN)
     )
-    payload = {"sub": subject, "exp": expire}
+    payload = {"sub": subject, "exp": expire, "ver": int(version or 0)}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def revocar_tokens(user: User) -> None:
+    """Deja sin valor todos los tokens emitidos hasta ahora para `user` (hay
+    que hacer commit). Los nuevos se firman con la versión siguiente."""
+    user.token_version = int(user.token_version or 0) + 1
 
 
 def decode_token(token: str) -> dict:
@@ -269,7 +283,11 @@ def user_for_token(db: Session, token: str | None) -> User | None:
     username: str = payload.get("sub", "")
     if not username:
         return None
-    return get_user_by_username(db, username)
+    user = get_user_by_username(db, username)
+    # Un token de antes de cerrar sesión o de cambiar la contraseña ya no vale.
+    if user is not None and int(payload.get("ver", 0) or 0) != int(user.token_version or 0):
+        return None
+    return user
 
 
 def get_optional_user(
@@ -332,17 +350,31 @@ def require_admin(
 # ── DB seeding ─────────────────────────────────────────────────────────────── #
 
 def seed_default_user(db: Session) -> None:
-    """Create default admin account on first run (only if no users exist).
+    """Crea la cuenta `admin` en el primer arranque (solo si no hay usuarios).
 
-    Credentials: admin / admin123
-    Change via POST /api/auth/change-password after first login.
+    La contraseña inicial ya no es una fija escrita en el código: con una
+    conocida, en una instalación nueva el primero que llegaba se quedaba con la
+    cuenta. Ahora es ADMIN_INITIAL_PASSWORD si viene, o una al azar que se
+    escribe en `secrets/admin_inicial.txt` (fuera de git y de la imagen). Hay que
+    cambiarla al entrar. `admin123` solo con PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD=1
+    (tests y desarrollo local).
     """
     if db.query(User).count() > 0:
         flag_default_password(db)
         return
+    if _default_password_allowed():
+        inicial, donde = "admin123", "admin123 (solo desarrollo)"
+    elif os.environ.get("ADMIN_INITIAL_PASSWORD"):
+        inicial, donde = os.environ["ADMIN_INITIAL_PASSWORD"], "la de ADMIN_INITIAL_PASSWORD"
+    else:
+        import secrets as _secrets
+        inicial = _secrets.token_urlsafe(12)
+        _ADMIN_INICIAL_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _ADMIN_INICIAL_FILE.write_text(inicial + chr(10), encoding="utf-8")
+        donde = f"la escrita en {_ADMIN_INICIAL_FILE}"
     admin = User(
         username        = "admin",
-        hashed_password = get_password_hash("admin123"),
+        hashed_password = get_password_hash(inicial),
         full_name       = "Administrador",
         role            = "admin",
         institution     = "SkullApp",
@@ -350,10 +382,10 @@ def seed_default_user(db: Session) -> None:
     )
     db.add(admin)
     db.commit()
-    logger.warning(
-        "Default admin account created (username=admin password=admin123). "
-        "It must be changed at first login."
-    )
+    logger.warning("Cuenta admin creada; contraseña inicial: %s. Hay que cambiarla al entrar.", donde)
+
+
+_ADMIN_INICIAL_FILE = Path(__file__).resolve().parents[1] / "secrets" / "admin_inicial.txt"
 
 
 def _default_password_allowed() -> bool:

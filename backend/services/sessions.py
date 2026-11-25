@@ -6,6 +6,7 @@ Sessions are cleaned up automatically after SESSION_TTL_HOURS hours.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -492,13 +493,56 @@ _STATE_ENCODING = "utf-8"
 # fichero pase de una versión completa a la siguiente sin estados intermedios.
 _STATE_LOCK = threading.RLock()
 
+#: Cerrojos por sesión y por recurso («malla», «volumen», «morfometria»): dos
+#: peticiones que leen, cambian y reescriben lo mismo de una sesión no se
+#: pisan. Reentrantes: quien ya lo tiene puede volver a pedirlo. Un solo
+#: proceso (services/single_process.py), así que basta con hilos.
+_CERROJOS: dict[tuple[str, str], threading.RLock] = {}
+_CERROJOS_GUARDA = threading.Lock()
+
+
+def cerrojo_de_sesion(session_id: str, recurso: str) -> threading.RLock:
+    with _CERROJOS_GUARDA:
+        return _CERROJOS.setdefault((session_id, recurso), threading.RLock())
+
+
+#: El fichero es «clave=valor», una por línea. Un texto libre con un salto de
+#: línea escribía claves falsas (una medida que el informe imprimía como
+#: calculada, o el nombre de una malla de otra sesión). Un valor con algo que
+#: parta la línea se guarda como JSON detrás de esta marca; los demás siguen
+#: tal cual, así que los estados ya guardados se leen igual.
+_MARCA_JSON = "⟦json⟧"
+_PARTEN_LINEA = "\n\r\v\f\x1c\x1d\x1e\x85  "
+
+
+def _codificar(valor: str) -> str:
+    if any(c in valor for c in _PARTEN_LINEA) or valor.startswith(_MARCA_JSON):
+        return _MARCA_JSON + json.dumps(valor, ensure_ascii=True)
+    return valor
+
+
+def _decodificar(valor: str) -> str:
+    if valor.startswith(_MARCA_JSON):
+        try:
+            return json.loads(valor[len(_MARCA_JSON):])
+        except ValueError:
+            return ""
+    return valor
+
+
+def _clave_valida(clave: str) -> bool:
+    return bool(clave) and "=" not in clave and not any(c in clave for c in _PARTEN_LINEA)
+
 
 def _write_state_file(state_file: Path, lines: dict[str, str]) -> None:
     """Reemplaza el fichero de estado de forma atómica."""
+    malas = [k for k in lines if not _clave_valida(k)]
+    if malas:
+        raise ValueError(f"Claves de estado no válidas: {malas!r}")
     state_file.parent.mkdir(parents=True, exist_ok=True)
     tmp = state_file.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text(
-        "\n".join(f"{k}={v}" for k, v in lines.items()) + "\n",
+        "\n".join(f"{k}={_codificar(str(v))}" for k, v in lines.items()) + "\n",
         encoding=_STATE_ENCODING,
     )
     from services import atomic
@@ -511,7 +555,7 @@ def _read_state_map(state_file: Path) -> dict[str, str]:
         for line in _read_state_text(state_file).splitlines():
             if "=" in line:
                 k, v = line.split("=", 1)
-                lines[k.strip()] = v.strip()
+                lines[k.strip()] = _decodificar(v.strip())
     return lines
 
 
@@ -553,7 +597,7 @@ def read_state(session_id: str, key: str, default: str = "") -> str:
         if "=" in line:
             k, v = line.split("=", 1)
             if k.strip() == key:
-                return v.strip()
+                return _decodificar(v.strip())
     return default
 
 

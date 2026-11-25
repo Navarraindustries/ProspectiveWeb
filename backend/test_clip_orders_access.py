@@ -12,7 +12,6 @@ import tempfile
 import uuid
 
 _tmp = tempfile.mkdtemp(prefix="prospective_pedidos_acceso_")
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 os.environ["CLIP_ORDERS_ROOT"] = f"{_tmp}/clip_orders"
 

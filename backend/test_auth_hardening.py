@@ -49,8 +49,12 @@ class TestContrasenaInicial:
         me = c.get("/api/auth/me")
         assert me.status_code == 200 and me.json()["must_change_password"] is True
 
-        assert c.post("/api/auth/change-password", json={
-            "current_password": "inicial-123", "new_password": "otra-distinta-456"}).status_code == 200
+        r = c.post("/api/auth/change-password", json={
+            "current_password": "inicial-123", "new_password": "otra-distinta-456"})
+        assert r.status_code == 200
+        # El token de antes deja de valer; la respuesta trae uno nuevo.
+        assert c.get("/api/patients").status_code == 401
+        c.headers["Authorization"] = f"Bearer {r.json()['access_token']}"
         assert c.get("/api/patients").status_code == 200
         assert c.get("/api/auth/me").json()["must_change_password"] is False
 
@@ -58,19 +62,27 @@ class TestContrasenaInicial:
         _nombre, c = _usuario(must_change=False)
         assert c.get("/api/patients").status_code == 200
 
-    def test_el_admin_nuevo_nace_obligado_y_el_antiguo_se_marca(self, monkeypatch):
+    def test_el_admin_nuevo_nace_obligado_y_el_antiguo_se_marca(self, monkeypatch, tmp_path):
         # Sobre una base en memoria: marcar al admin de la base compartida de
         # los tests dejaría a todos los demás con un 403.
+        import services.auth_service as auth_service
         monkeypatch.delenv("PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD", raising=False)
+        monkeypatch.delenv("ADMIN_INITIAL_PASSWORD", raising=False)
+        monkeypatch.setattr(auth_service, "_ADMIN_INICIAL_FILE", tmp_path / "admin_inicial.txt")
         engine = create_engine("sqlite://")
         Base.metadata.create_all(bind=engine)
         db = sessionmaker(bind=engine)()
 
+        # Una instalación nueva: contraseña al azar, escrita en secrets/, no admin123.
         seed_default_user(db)
         admin = db.query(User).filter_by(username="admin").one()
-        assert admin.must_change_password is True and verify_password("admin123", admin.hashed_password)
+        inicial = (tmp_path / "admin_inicial.txt").read_text(encoding="utf-8").strip()
+        assert admin.must_change_password is True and len(inicial) >= 12
+        assert verify_password(inicial, admin.hashed_password)
+        assert not verify_password("admin123", admin.hashed_password)
 
         # Una instalación anterior: la columna nació a False y sigue con admin123.
+        admin.hashed_password = get_password_hash("admin123")
         admin.must_change_password = False; db.commit()
         flag_default_password(db)
         assert db.query(User).filter_by(username="admin").one().must_change_password is True

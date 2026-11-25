@@ -1771,7 +1771,15 @@ def _isolate_sac(
     return sac_mesh, neck_diam
 
 
-def _run_morphometry_sync(
+def _run_morphometry_sync(session_id: str, *args, **kwargs):
+    """La morfometría, de una en una por sesión: dos a la vez (de dos
+    candidatos, o el automático y el marcado) mezclaban sus claves morpho.*."""
+    from services.sessions import cerrojo_de_sesion
+    with cerrojo_de_sesion(session_id, "morfometria"):
+        return _morfometria_sin_cerrojo(session_id, *args, **kwargs)
+
+
+def _morfometria_sin_cerrojo(
     session_id: str,
     vtp_path:   Path,
     neck_plane: NeckPlaneRequest | None = None,

@@ -120,8 +120,23 @@ class TestCookieAuth:
         assert c.get("/api/patients").status_code == 200
 
     def test_logout_clears_the_cookie(self):
+        # Con una cuenta propia: cerrar sesión revoca todos los tokens del
+        # usuario, y el token compartido de los tests es del admin.
+        from services.auth_service import get_password_hash
+        from services.database import SessionLocal
+        from services.db_models import User
+        db = SessionLocal()
+        db.query(User).filter(User.username == "sale_logout").delete()
+        db.add(User(username="sale_logout", hashed_password=get_password_hash("clave-123"),
+                    full_name="Sale", role="medico", status="active", is_active=True))
+        db.commit(); db.close()
         c = anonymous_client(app)
-        c.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+        c.post("/api/auth/login", json={"username": "sale_logout", "password": "clave-123"})
+        robado = c.cookies.get("prospective_token")
         assert c.post("/api/auth/logout").status_code == 200
         c.cookies.clear()
         assert c.get("/api/patients").status_code == 401
+        # El token copiado antes de cerrar sesión ya no vale.
+        otro = anonymous_client(app)
+        otro.headers["Authorization"] = f"Bearer {robado}"
+        assert otro.get("/api/auth/me").status_code == 401

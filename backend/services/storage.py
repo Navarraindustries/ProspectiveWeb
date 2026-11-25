@@ -215,7 +215,11 @@ class S3Backend:
     def _objects(self, prefix: str) -> list[dict]:
         paginator = self._s3.get_paginator("list_objects_v2")
         out: list[dict] = []
-        for page in paginator.paginate(Bucket=self.bucket, Prefix=self._key(prefix)):
+        # Un prefijo es una carpeta: sin la barra final, «studies/4» también
+        # casaba con «studies/40…» y «studies/400…», y borrar el estudio 4 se
+        # llevaba esos. El almacén local va por carpetas y no tenía el fallo.
+        carpeta = self._key(prefix.rstrip("/") + "/")
+        for page in paginator.paginate(Bucket=self.bucket, Prefix=carpeta):
             out.extend(page.get("Contents", []))
         return out
 

@@ -402,9 +402,13 @@ cd frontend && npm run dev
 | `http://127.0.0.1:8000/redoc` | ReDoc |
 | `http://127.0.0.1:8000/health` | Health check |
 
-Default account seeded on first run: **`admin` / `admin123`**. Change it from the
-user menu ("Cambiar contraseña") before using the app with real data — an admin
-can also reset another user's password from the Usuarios page.
+On first run an `admin` account is created with a random password, written to
+`backend/secrets/admin_inicial.txt` (outside git and the Docker image; in Docker,
+`docker compose exec backend cat secrets/admin_inicial.txt`). Set
+`ADMIN_INITIAL_PASSWORD` to choose it instead. The app asks for a new password at
+the first login; an admin can also reset another user's password from the
+Usuarios page. With `PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD=1` (tests and local
+development only) the account is `admin` / `admin123`.
 
 > **Note on `--reload`**: uvicorn's reloader does not reliably pick up *new*
 > modules, and a stale process on :8000 will silently serve old code. Restart the
@@ -618,8 +622,11 @@ The server runs out of the box with sensible defaults.
 | `STORAGE_BACKEND` | `local` | `local` (filesystem) or `s3` |
 | `STORAGE_S3_BUCKET` | — | Required when `STORAGE_BACKEND=s3`; bucket must be private |
 | `STORAGE_S3_PREFIX` | — | Optional key prefix inside the bucket |
-| `COOKIE_SECURE` | off | Mark the auth cookie `Secure` (set it when serving over HTTPS) |
-| `PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD` | off | `1` skips the forced change of `admin123` (tests, local dev only) |
+| `COOKIE_SECURE` | off | Force the `Secure` mark on the cookies. Requests that arrive over HTTPS (or with `X-Forwarded-Proto: https` from nginx) get it anyway |
+| `ADMIN_INITIAL_PASSWORD` | random | Initial password of the seeded `admin` on a new database. Unset, a random one is written to `backend/secrets/admin_inicial.txt` |
+| `AUDIT_HMAC_KEY` | file | Key that signs the audit chain. Unset, one is created in `backend/secrets/audit_key.txt`: back it up, blocks signed with a lost key no longer verify |
+| `PROSPECTIVE_SIGNUP_PER_HOUR` | `5` | Account requests per address and hour on the public signup |
+| `PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD` | off | `1` seeds `admin` / `admin123` and skips the forced change (tests, local dev only) |
 | `CORS_ORIGINS` | Vite dev server | Comma-separated origins allowed to call the API with credentials. `*` is refused |
 | `PROSPECTIVE_PLAN_VIEWS` | probed | `0` / `1` forces the report's server-rendered plan views off / on. Unset, a child process probes once whether offscreen OpenGL works: on a machine without it VTK does not raise, it kills the process |
 | `BACKEND_URL` | `http://127.0.0.1:8000` | Where the Vite dev server proxies `/api`, `/data`, `/static` |
@@ -2820,8 +2827,8 @@ folder, so `/data/prospective.db` was the entire database for any account. Only
 `/data/sessions/<uuid>/…` is served now, and only when that session does not
 belong to someone else's patient; everything else is a 404, for admins too.
 
-**First login and failed logins.** The default `admin` / `admin123` account must
-change its password before doing anything else (403 on every other endpoint;
+**First login and failed logins.** The seeded `admin` account (random initial
+password, see Installation) must change its password before doing anything else (403 on every other endpoint;
 the app shows a single screen for it), and an existing installation still on
 `admin123` is flagged at startup. `PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD=1`
 turns this off for tests and local development — never with patient data.

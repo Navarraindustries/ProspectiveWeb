@@ -378,42 +378,6 @@
     "title": "AttachResult",
     "type": "object"
    },
-   "AuditAppendRequest": {
-    "properties": {
-     "action": {
-      "description": "Action name, e.g. DEVICE_PLACED",
-      "title": "Action",
-      "type": "string"
-     },
-     "patient_dob": {
-      "default": "",
-      "title": "Patient Dob",
-      "type": "string"
-     },
-     "patient_id": {
-      "default": "",
-      "title": "Patient Id",
-      "type": "string"
-     },
-     "payload": {
-      "additionalProperties": true,
-      "description": "Arbitrary JSON payload for the event",
-      "title": "Payload",
-      "type": "object"
-     },
-     "username": {
-      "default": "",
-      "description": "Ignored: the event is signed with the authenticated administrator's username. Kept so older clients that still send it are not rejected.",
-      "title": "Username",
-      "type": "string"
-     }
-    },
-    "required": [
-     "action"
-    ],
-    "title": "AuditAppendRequest",
-    "type": "object"
-   },
    "AuditBlock": {
     "properties": {
      "action": {
@@ -13500,55 +13464,6 @@
     ]
    }
   },
-  "/api/audit": {
-   "post": {
-    "description": "Administrators only. The block is signed with the username of the authenticated administrator; the `username` field of the body is ignored.",
-    "operationId": "append_event_api_audit_post",
-    "requestBody": {
-     "content": {
-      "application/json": {
-       "schema": {
-        "$ref": "#/components/schemas/AuditAppendRequest"
-       }
-      }
-     },
-     "required": true
-    },
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "additionalProperties": true,
-         "title": "Response Append Event Api Audit Post",
-         "type": "object"
-        }
-       }
-      },
-      "description": "Successful Response"
-     },
-     "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      },
-      "description": "Validation Error"
-     }
-    },
-    "security": [
-     {
-      "HTTPBearer": []
-     }
-    ],
-    "summary": "Append an event to the audit chain",
-    "tags": [
-     "audit"
-    ]
-   }
-  },
   "/api/audit/blocks": {
    "get": {
     "description": "Returns the blocks of the tamper-evident audit trail, oldest first. With `patient_id`, only the blocks of that patient (the server derives the patient hash itself; the chain never stores the id).",
@@ -13663,7 +13578,7 @@
   },
   "/api/auth/change-password": {
    "post": {
-    "description": "Requires the current password, so a stolen session cannot lock the owner out. Passwords are never returned and the JWT keeps working: it is signed over the username, not the credential.",
+    "description": "Requires the current password, so a stolen session cannot lock the owner out. Every token issued before stops working; the response carries a new one (and sets the cookie) so this browser stays signed in.",
     "operationId": "change_password_api_auth_change_password_post",
     "requestBody": {
      "content": {
@@ -13712,7 +13627,7 @@
   },
   "/api/auth/login": {
    "post": {
-    "description": "Authenticates with username + password and returns a signed JWT.\n\nInclude the token in subsequent requests as:\n`Authorization: Bearer <token>`\n\nDefault credentials on first run: **admin / admin123**.",
+    "description": "Authenticates with username + password and returns a signed JWT.\n\nInclude the token in subsequent requests as:\n`Authorization: Bearer <token>`\n\nOn first run the `admin` account gets a random password written to `backend/secrets/admin_inicial.txt` (or ADMIN_INITIAL_PASSWORD); it must be changed at first login.",
     "operationId": "login_api_auth_login_post",
     "requestBody": {
      "content": {
@@ -13754,7 +13669,7 @@
   },
   "/api/auth/logout": {
    "post": {
-    "description": "Drops the auth cookie. The bearer token stays valid until it expires.",
+    "description": "Drops the auth cookies and revokes every token issued to this user so far (all devices). Works with a missing or expired token.",
     "operationId": "logout_api_auth_logout_post",
     "responses": {
      "200": {
@@ -13770,6 +13685,11 @@
       "description": "Successful Response"
      }
     },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
     "summary": "Clear the session cookie",
     "tags": [
      "auth"

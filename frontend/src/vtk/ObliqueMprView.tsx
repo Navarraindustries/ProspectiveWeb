@@ -30,7 +30,7 @@ export function ObliqueMprView({ sessionId, wc, ww }: { sessionId: string; wc?: 
         <Control label={`Inclinación ${tilt}°`}>
           <input type="range" min={-80} max={80} value={tilt} onChange={(e) => setTilt(Number(e.target.value))} style={{ flex: 1, accentColor: "var(--brand-mist)" }} />
         </Control>
-        <Control label={`Posición ${(pos * 100).toFixed(0)}%`}>
+        <Control label={`Posición ${(pos * 100).toFixed(0)} %`}>
           <input type="range" min={0} max={1} step={0.01} value={pos} onChange={(e) => setPos(Number(e.target.value))} style={{ flex: 1, accentColor: "var(--brand-mist)" }} />
         </Control>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

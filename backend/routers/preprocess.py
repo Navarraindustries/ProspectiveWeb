@@ -27,6 +27,14 @@ _OPS_KEY = "preprocess.ops"
 _PARAMS_KEY = "preprocess.params"
 
 
+def _con_volumen(fn, session_id: str, *args):
+    """Reescribir la caché del volumen bajo su cerrojo (services/mpr.py): sin
+    él, otra petición podía estar cargándola o leyéndola a la vez."""
+    from services.sessions import cerrojo_de_sesion
+    with cerrojo_de_sesion(session_id, "volumen"):
+        return fn(session_id, *args)
+
+
 def _run(session_id: str, req: PreprocessRequest) -> PreprocessResult:
     import gc
     import os
@@ -58,7 +66,7 @@ def _run(session_id: str, req: PreprocessRequest) -> PreprocessResult:
     others = n4 or req.resample_isotropic or req.smooth
     if clip_skipped and not others:
         raise ValueError(
-            f"El recorte de HU no aplica a un volumen {modality or 'no-TAC'}: sus "
+            f"El recorte de HU no aplica a un volumen {modality or 'no-TC'}: sus "
             "intensidades no son unidades Hounsfield. Selecciona otra operación."
         )
     if n4_skipped and not (clip_hu or req.resample_isotropic or req.smooth):
@@ -66,6 +74,17 @@ def _run(session_id: str, req: PreprocessRequest) -> PreprocessResult:
             f"La corrección N4 es solo para angio-RM y este volumen es {modality or 'de otra modalidad'}: "
             "no tiene campo de antena que corregir. Selecciona otra operación."
         )
+
+    if req.resample_isotropic:
+        from services.preprocess import MAX_VOXELES_REMUESTREO, espaciado_minimo, voxeles_tras_remuestreo
+        n = voxeles_tras_remuestreo(volume.shape, spacing, req.target_spacing_mm)
+        if n > MAX_VOXELES_REMUESTREO:
+            minimo = espaciado_minimo(volume.shape, spacing)
+            raise ValueError(  # → 422
+                f"Con vóxel de {req.target_spacing_mm:g} mm el volumen tendría "
+                f"{n / 1e6:.0f} millones de vóxeles y no cabe en memoria. "
+                f"Usa {minimo:g} mm o más."
+            )
 
     new_vol, new_spacing = preprocess_volume(
         volume, spacing,
@@ -119,7 +138,7 @@ def _run(session_id: str, req: PreprocessRequest) -> PreprocessResult:
     note = f"Aplicado: {shown}. Vuelve a segmentar para usar el volumen preprocesado."
     if clip_skipped:
         note = (
-            f"Recorte de HU omitido: un volumen {modality or 'no-TAC'} no está en "
+            f"Recorte de HU omitido: un volumen {modality or 'no-TC'} no está en "
             f"unidades Hounsfield. {note}"
         )
     if n4_skipped:
@@ -150,7 +169,7 @@ async def preprocess(session_id: str, req: PreprocessRequest) -> PreprocessResul
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     try:
-        return await asyncio.to_thread(_run, session_id, req)
+        return await asyncio.to_thread(_con_volumen, _run, session_id, req)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     except FileNotFoundError:
@@ -258,7 +277,7 @@ async def revert_preprocess(session_id: str) -> PreprocessResult:
     if not session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
     try:
-        return await asyncio.to_thread(_revert, session_id)
+        return await asyncio.to_thread(_con_volumen, _revert, session_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except RuntimeError as exc:

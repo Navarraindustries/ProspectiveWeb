@@ -79,8 +79,8 @@ describe("tiempoRelativo", () => {
     expect(tiempoRelativo(hace(9 * DIA), AHORA)).toBe("hace 1 semana");
     expect(tiempoRelativo(hace(14 * DIA), AHORA)).toBe("hace 2 semanas");
     expect(tiempoRelativo(hace(28 * DIA), AHORA)).toBe("hace 4 semanas");
-    // 45 días antes de 31/10/26 es 16/09/26.
-    expect(tiempoRelativo(hace(45 * DIA), AHORA)).toBe("16/09/26");
+    // 45 días antes de 31/10/2026 es 16/09/2026.
+    expect(tiempoRelativo(hace(45 * DIA), AHORA)).toBe("16/09/2026");
   });
 
   it("una marca en el futuro cuenta como «hace un momento»", () => {

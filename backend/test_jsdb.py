@@ -21,7 +21,6 @@ import os
 import tempfile
 
 _tmp = tempfile.mkdtemp(prefix="prospective_jsdb_")
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 
 from services.jsdb import (AGE_CLIP, AGE_COIL, MAX_CLIP, MAX_COIL,

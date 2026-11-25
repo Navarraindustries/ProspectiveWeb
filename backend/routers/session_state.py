@@ -201,7 +201,7 @@ def _exigir_mismo_paciente(db: Session, user: User | None, req: SessionSaveReque
         "Optionally links the session to a patient and/or study record."
     ),
 )
-async def save_session(
+def save_session(
     req:          SessionSaveRequest,
     db:           Annotated[Session,    Depends(get_db)],
     current_user: Annotated[User | None, Depends(get_current_user)],

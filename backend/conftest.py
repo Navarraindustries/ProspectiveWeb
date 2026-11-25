@@ -9,19 +9,22 @@ seed the default admin the tests rely on.
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
 from pathlib import Path
 
+# Todo lo de una ejecución vive en UNA carpeta propia, que se borra al acabar.
+# Antes la base y la cadena iban a rutas fijas del temporal: dos baterías a la
+# vez (dos worktrees, o la del CI y la local) compartían base y se pisaban, y
+# cada ejecución dejaba decenas de carpetas `prospective_*` en el temporal.
+# `tempfile.tempdir` hace que también los `mkdtemp()` de cada módulo de tests
+# (y el `tmp_path` de pytest) caigan dentro.
+_RAIZ = Path(tempfile.mkdtemp(prefix="prospective_tests_"))
+tempfile.tempdir = str(_RAIZ)
+
 # Must be set before anything imports services.database (it reads the env at
 # import time to build the engine). conftest.py is imported by pytest first.
-_TEST_DB = Path(tempfile.gettempdir()) / "prospective_test.db"
-for _suffix in ("", "-wal", "-shm"):
-    _p = Path(str(_TEST_DB) + _suffix)
-    if _p.exists():
-        try:
-            _p.unlink()
-        except OSError:
-            pass
+_TEST_DB = _RAIZ / "prospective_test.db"
 os.environ["PROSPECTIVE_DB_URL"] = f"sqlite:///{_TEST_DB}"
 # Los tests arrancan la app muchas veces, a veces en procesos paralelos: el
 # cerrojo de un solo proceso (services/single_process.py) no va con ellos.
@@ -62,13 +65,14 @@ os.environ.setdefault("PROSPECTIVE_SAVES_ROOT", tempfile.mkdtemp(prefix="prospec
 # the developer's real chain, and the endpoint test then asserted a property of
 # that file rather than of the code: one break anywhere in it — a crash, two
 # processes appending at once — turned the suite red for reasons no test caused.
-_TEST_CHAIN = Path(tempfile.gettempdir()) / "prospective_test_chain.db"
-if _TEST_CHAIN.exists():
-    try:
-        _TEST_CHAIN.unlink()
-    except OSError:
-        pass
+_TEST_CHAIN = _RAIZ / "prospective_test_chain.db"
 os.environ["AUDIT_DB_PATH"] = str(_TEST_CHAIN)
+# La clave que firma la cadena: fija en los tests, sin escribir en secrets/.
+os.environ.setdefault("AUDIT_HMAC_KEY", "clave-de-pruebas-de-la-cadena")
+
+# Los tests registran muchas cuentas desde la misma dirección: el tope de
+# solicitudes por hora se prueba aparte (test_seguridad_media.py).
+os.environ.setdefault("PROSPECTIVE_SIGNUP_PER_HOUR", "100000")
 
 # El registro del servidor (services/registro.py), igual: no al data/logs real.
 os.environ.setdefault("PROSPECTIVE_LOG_DIR", tempfile.mkdtemp(prefix="prospective_logs_"))
@@ -117,6 +121,25 @@ def anonymous_client(app):
     c.headers.pop("Authorization", None)
     c.cookies.clear()
     return c
+
+
+def pytest_unconfigure(config):
+    # La carpeta de la ejecución, fuera. Con algo aún abierto (Windows no deja
+    # borrar un SQLite abierto) se queda lo que no se pudo: ignore_errors.
+    import gc
+    import logging
+    from services.database import engine
+    engine.dispose()
+    # El registro del servidor y la cadena de auditoría siguen abiertos.
+    logging.shutdown()
+    try:
+        from services.audit import SkullChain
+        if SkullChain._instance is not None:
+            SkullChain._instance._conn.close()
+    except Exception:  # noqa: BLE001
+        pass
+    gc.collect()   # memmaps de volúmenes que aún sujetan ficheros
+    shutil.rmtree(_RAIZ, ignore_errors=True)
 
 
 def pytest_configure(config):

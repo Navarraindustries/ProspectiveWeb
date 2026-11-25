@@ -14,7 +14,6 @@ import os
 import tempfile
 
 _tmp = tempfile.mkdtemp(prefix="prospective_followup_")
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 os.environ["STORAGE_BACKEND"] = "local"
 os.environ["STUDY_FILES_ROOT"] = f"{_tmp}/study_files"

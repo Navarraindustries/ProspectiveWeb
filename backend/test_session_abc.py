@@ -26,7 +26,6 @@ from fastapi.testclient import TestClient
 
 # ── Isolated test environment ────────────────────────────────────────────── #
 _tmp_data = tempfile.mkdtemp(prefix="prospective_test_abc_")
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp_data}/test_abc.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 
 from main import app  # noqa: E402

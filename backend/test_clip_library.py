@@ -19,7 +19,6 @@ import tempfile
 
 _tmp = tempfile.mkdtemp(prefix="prospective_cliplib_")
 os.environ["CLIP_LIBRARY_ROOT"] = os.path.join(_tmp, "clip_library")
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 
 # The NAVARRO™ family IS the catalogue now — clips from other manufacturers are

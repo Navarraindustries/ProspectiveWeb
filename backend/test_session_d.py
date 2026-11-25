@@ -27,7 +27,6 @@ _tmp_data = tempfile.mkdtemp(prefix="prospective_test_")
 os.environ["SESSIONS_ROOT_OVERRIDE"] = _tmp_data   # picked up by sessions.py if supported
 
 # Point database to in-memory SQLite for this test run
-os.environ["DATABASE_URL"] = f"sqlite:///{_tmp_data}/test.db"
 
 # Stable JWT secret for tests (avoids reading/writing data/jwt_secret.txt)
 os.environ["JWT_SECRET"] = "test-secret-key-do-not-use-in-production"

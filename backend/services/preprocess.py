@@ -175,6 +175,28 @@ def preprocess_volume(
     return out, (float(osz), float(osy), float(osx))
 
 
+#: Tope de vóxeles del volumen remuestreado: unos 1,2 GB en float32. Un TC
+#: normal a 0,2 mm pedía unos 6 GB y agotaba la memoria del servidor.
+MAX_VOXELES_REMUESTREO = 300_000_000
+
+
+def voxeles_tras_remuestreo(shape, spacing, target_mm: float) -> int:
+    """Vóxeles del volumen tras remuestrearlo a `target_mm` (shape y spacing en z, y, x)."""
+    n = 1
+    for tam, esp in zip(shape, spacing):
+        n *= max(1, int(round(tam * float(esp) / float(target_mm))))
+    return n
+
+
+def espaciado_minimo(shape, spacing, maximo: int = MAX_VOXELES_REMUESTREO) -> float:
+    """El vóxel más fino (mm, redondeado arriba a 0,05) que cabe en `maximo`."""
+    import math
+    extension = 1.0
+    for tam, esp in zip(shape, spacing):
+        extension *= tam * float(esp)
+    return math.ceil((extension / maximo) ** (1 / 3) * 20) / 20
+
+
 def _resample(image, target_mm: float):
     import SimpleITK as sitk
 

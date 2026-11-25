@@ -12,6 +12,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.responses import FileResponse
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from models import (
@@ -23,6 +24,7 @@ from models import (
 )
 from services.database import get_db
 from services.auth_service import (
+    _bearer,
     ACCESS_TOKEN_EXPIRE_MIN,
     CONTACTO_ADMIN,
     COOKIE_NAME,
@@ -49,6 +51,38 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 # endpoints below. `PROSPECTIVE_USER_FILES` lo cambia (los tests lo apuntan a un
 # temporal: escribían en el user_files real y podían pisar fotos de cuentas reales).
 _USER_FILES = Path(os.environ.get("PROSPECTIVE_USER_FILES") or "user_files")
+
+
+def _cookie_segura(request: Request) -> bool:
+    """La marca Secure de las cookies: siempre que la petición llega por HTTPS
+    (nginx lo dice en X-Forwarded-Proto) o si COOKIE_SECURE la fuerza. Antes
+    dependía solo de COOKIE_SECURE, que viene apagada, y detrás de HTTPS la
+    cookie de sesión salía sin ella."""
+    forzada = os.environ.get("COOKIE_SECURE", "").lower() in ("1", "true", "yes")
+    return forzada or request.url.scheme == "https"
+
+
+def _poner_cookies(response: Response, request: Request, token: str) -> None:
+    """La cookie de sesión y la de CSRF. Also as a cookie: an <img src> or a
+    vtk.js mesh request cannot carry an Authorization header, and those URLs
+    serve patient imaging."""
+    response.set_cookie(
+        COOKIE_NAME, token,
+        max_age=ACCESS_TOKEN_EXPIRE_MIN * 60,
+        httponly=True, samesite="lax",
+        secure=_cookie_segura(request),
+        path="/",
+    )
+    # La pareja del doble envío (services/csrf.py): legible por el JavaScript
+    # del propio origen, que la devuelve en X-CSRF-Token.
+    from services.csrf import CSRF_COOKIE, new_token
+    response.set_cookie(
+        CSRF_COOKIE, new_token(),
+        max_age=ACCESS_TOKEN_EXPIRE_MIN * 60,
+        httponly=False, samesite="lax",
+        secure=_cookie_segura(request),
+        path="/",
+    )
 
 
 def _utc_iso(dt: datetime | None) -> str:
@@ -115,7 +149,8 @@ def _user_to_info(user: User) -> UserInfo:
         "Authenticates with username + password and returns a signed JWT.\n\n"
         "Include the token in subsequent requests as:\n"
         "`Authorization: Bearer <token>`\n\n"
-        "Default credentials on first run: **admin / admin123**."
+        "On first run the `admin` account gets a random password written to "
+        "`backend/secrets/admin_inicial.txt` (or ADMIN_INITIAL_PASSWORD); it must be changed at first login."
     ),
 )
 async def login(
@@ -158,32 +193,14 @@ async def login(
         )
     login_throttle.clear(clave)
 
-    token = create_access_token(subject=user.username)
+    token = create_access_token(subject=user.username, version=user.token_version or 0)
 
     logger.info("Login OK — user=%s role=%s", user.username, user.role)
 
     from services.audit import audit_append, ACT_LOGIN
     audit_append(ACT_LOGIN, {"role": user.role}, username=user.username)
 
-    # Also as a cookie: an <img src> or a vtk.js mesh request cannot carry an
-    # Authorization header, and those URLs serve patient imaging.
-    response.set_cookie(
-        COOKIE_NAME, token,
-        max_age=ACCESS_TOKEN_EXPIRE_MIN * 60,
-        httponly=True, samesite="lax",
-        secure=os.environ.get("COOKIE_SECURE", "").lower() in ("1", "true", "yes"),
-        path="/",
-    )
-    # La pareja del doble envío (services/csrf.py): legible por el JavaScript
-    # del propio origen, que la devuelve en X-CSRF-Token.
-    from services.csrf import CSRF_COOKIE, new_token
-    response.set_cookie(
-        CSRF_COOKIE, new_token(),
-        max_age=ACCESS_TOKEN_EXPIRE_MIN * 60,
-        httponly=False, samesite="lax",
-        secure=os.environ.get("COOKIE_SECURE", "").lower() in ("1", "true", "yes"),
-        path="/",
-    )
+    _poner_cookies(response, request, token)
 
     return LoginResponse(
         access_token=token,
@@ -196,10 +213,24 @@ async def login(
 @router.post(
     "/logout",
     summary="Clear the session cookie",
-    description="Drops the auth cookie. The bearer token stays valid until it expires.",
+    description=(
+        "Drops the auth cookies and revokes every token issued to this user so far "
+        "(all devices). Works with a missing or expired token."
+    ),
 )
-async def logout(response: Response) -> dict:
+async def logout(
+    request: Request,
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)] = None,
+) -> dict:
+    from services.auth_service import revocar_tokens, token_from_request, user_for_token
     from services.csrf import CSRF_COOKIE
+    # Antes solo borraba la cookie: un token copiado seguía valiendo 24 h.
+    user = user_for_token(db, token_from_request(request, credentials))
+    if user is not None:
+        revocar_tokens(user)
+        db.commit()
     response.delete_cookie(COOKIE_NAME, path="/")
     response.delete_cookie(CSRF_COOKIE, path="/")
     return {"status": "ok"}
@@ -304,11 +335,29 @@ def _store_profile_image(data: bytes, user_id: int) -> str:
     return _guardar_imagen(data, _validar_imagen(data), "profile_photos", user_id)
 
 
+async def leer_acotado(archivo: UploadFile, maximo: int = _MAX_UPLOAD_BYTES) -> bytes:
+    """Lee un archivo subido por trozos y corta en cuanto pasa de `maximo`
+    (413). Antes se leía entero en memoria y luego se miraba el tamaño: en el
+    registro, que es público, cualquiera podía mandar gigas."""
+    trozos: list[bytes] = []
+    total = 0
+    while True:
+        trozo = await archivo.read(256 * 1024)
+        if not trozo:
+            break
+        total += len(trozo)
+        if total > maximo:
+            raise HTTPException(status_code=413,
+                                detail=f"El archivo supera el máximo de {maximo // (1024 * 1024)} MB.")
+        trozos.append(trozo)
+    return b"".join(trozos)
+
+
 async def _leer_foto_registro(photo: UploadFile | None) -> tuple[bytes, str] | None:
     """Lee y valida la foto del registro ANTES de crear o tocar la cuenta (413/415 si no vale)."""
     if photo is None or not photo.filename:
         return None
-    data = await photo.read()
+    data = await leer_acotado(photo)
     return data, _validar_imagen(data)
 
 
@@ -449,6 +498,24 @@ async def get_user_profile_photo(
 
 # ── Self-registration (public) ─────────────────────────────────────────────── #
 
+#: Solicitudes de cuenta por dirección y hora (PROSPECTIVE_SIGNUP_PER_HOUR, 5
+#: por defecto). El registro es público y no tenía límite: se podían crear
+#: cuentas pendientes sin fin.
+_registros: dict[str, list[float]] = {}
+
+
+def _limitar_registros(direccion: str) -> None:
+    import time as _time
+    tope = int(os.environ.get("PROSPECTIVE_SIGNUP_PER_HOUR", "5") or 5)
+    ahora = _time.time()
+    recientes = [t for t in _registros.get(direccion, []) if ahora - t < 3600]
+    if len(recientes) >= tope:
+        raise HTTPException(status_code=429,
+                            detail="Demasiadas solicitudes de cuenta desde esta conexión. Inténtalo dentro de una hora.")
+    recientes.append(ahora)
+    _registros[direccion] = recientes
+
+
 @router.post(
     "/signup",
     response_model=SignupResponse,
@@ -460,6 +527,7 @@ async def get_user_profile_photo(
     ),
 )
 async def signup(
+    request: Request,
     db: Annotated[Session, Depends(get_db)],
     username: str = Form(...),
     password: str = Form(...),
@@ -474,6 +542,7 @@ async def signup(
     photo: UploadFile | None = File(None),
     cv: UploadFile | None = File(None),
 ) -> SignupResponse:
+    _limitar_registros(request.client.host if request.client else "")
     foto = await _leer_foto_registro(photo)  # 413/415 antes de crear nada
     curriculum = await _leer_cv_registro(cv)  # ídem: solo PDF, DOC o DOCX
     user, err = create_pending_user(
@@ -799,6 +868,9 @@ async def update_user(
         user.status = User.STATUS_ACTIVE if req.is_active else User.STATUS_REJECTED
         if req.is_active:
             user.rejected_at = None
+        elif active_before:
+            from services.auth_service import revocar_tokens
+            revocar_tokens(user)
     db.commit()
     db.refresh(user)
     # Solo lo que cambia de verdad: corregir el nombre no deja bloque (F1-102).
@@ -875,7 +947,7 @@ async def _leer_cv_registro(cv: UploadFile | None) -> tuple[bytes, str] | None:
     """Lee y valida el CV del alta ANTES de crear la cuenta (413/415 si no vale), como la foto."""
     if cv is None or not cv.filename:
         return None
-    data = await cv.read()
+    data = await leer_acotado(cv)
     return data, _validar_cv(data)
 
 
@@ -966,11 +1038,13 @@ async def delete_user(
     summary="Change your own password",
     description=(
         "Requires the current password, so a stolen session cannot lock the owner "
-        "out. Passwords are never returned and the JWT keeps working: it is signed "
-        "over the username, not the credential."
+        "out. Every token issued before stops working; the response carries a new "
+        "one (and sets the cookie) so this browser stays signed in."
     ),
 )
 async def change_password(
+    request: Request,
+    response: Response,
     req: ChangePasswordRequest,
     current_user: Annotated[User, Depends(require_user)],
     db: Annotated[Session, Depends(get_db)],
@@ -987,12 +1061,18 @@ async def change_password(
         )
     current_user.hashed_password = get_password_hash(req.new_password)
     current_user.must_change_password = False
+    # Los tokens de antes dejan de valer (uno robado incluido); este
+    # navegador sigue dentro con uno nuevo.
+    from services.auth_service import revocar_tokens
+    revocar_tokens(current_user)
     db.commit()
     logger.info("Password changed — user=%s", current_user.username)
 
     from services.audit import audit_append
     audit_append("password_change", {}, username=current_user.username)
-    return {"status": "ok"}
+    token = create_access_token(subject=current_user.username, version=current_user.token_version)
+    _poner_cookies(response, request, token)
+    return {"status": "ok", "access_token": token}
 
 
 # ── POST /auth/users/{user_id}/reset-password ──────────────────────────────── #
@@ -1018,6 +1098,8 @@ async def reset_password(
     # F1-85: el administrador conoce esta contraseña; la persona elige la suya
     # en el primer acceso.
     user.must_change_password = True
+    from services.auth_service import revocar_tokens
+    revocar_tokens(user)
     db.commit()
     logger.info("Password reset by admin — target=%s by=%s", user.username, admin.username)
 

@@ -65,7 +65,7 @@ describe("estudios de imagen del caso", () => {
     abrir({ sesiones: [guardada({ session_id: "a", imaging_study_id: 7 }), guardada({ session_id: "b", imaging_study_id: 7 }), guardada({ session_id: "c", imaging_study_id: 8 })] });
     expect(await screen.findByText("Angio 3D")).toBeTruthy();
     expect(listStudies).toHaveBeenCalledWith("", undefined, 9);
-    expect(screen.getByText("XA · 1/10/26 · 120 cortes")).toBeTruthy();
+    expect(screen.getByText("XA · 1/10/2026 · 120 cortes")).toBeTruthy();
     expect(screen.getByText("2 sesiones guardadas")).toBeTruthy();
   });
 
@@ -95,10 +95,10 @@ describe("estudios de imagen del caso", () => {
     expect(onOpenStudy).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
   });
 
-  it("fecha dd/mm/aa, «1 sesión guardada ›» y Reanudar directo (A38, A39)", async () => {
+  it("fecha dd/mm/aaaa, «1 sesión guardada ›» y Reanudar directo (A38, A39)", async () => {
     listStudies.mockResolvedValue([estudio({ id: 40, acquired_at: "20261030", resumable_session_id: "s1" })]);
     abrir({ sesiones: [guardada({ session_id: "s1", imaging_study_id: 40 })] });
-    expect(await screen.findByText(/30\/10\/26/)).toBeInTheDocument();
+    expect(await screen.findByText(/30\/10\/2026/)).toBeInTheDocument();
     expect(screen.getByText(/1 sesión guardada/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Reanudar" }));
     expect(onResume).toHaveBeenCalledWith("s1");

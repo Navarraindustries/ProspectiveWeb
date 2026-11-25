@@ -10,7 +10,6 @@ import os
 import tempfile
 
 _tmp = tempfile.mkdtemp(prefix="prospective_gallery_")
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-do-not-use-in-production")
 os.environ["STORAGE_BACKEND"] = "local"
 # Isolate the archive: without this the tests write studies 1, 2, 3… into the

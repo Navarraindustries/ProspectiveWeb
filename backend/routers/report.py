@@ -271,7 +271,8 @@ async def generate_dicom_sr(
             institution  = req.institution,
             db           = db,
         )
-        if not any(float(v or 0) for v in data.morphometrics.values()):
+        from services.report_generator import hay_morfometria
+        if not hay_morfometria(data.morphometrics):
             raise ValueError(
                 "No hay datos de morfometría en la sesión. Ejecuta la morfometría primero."
             )

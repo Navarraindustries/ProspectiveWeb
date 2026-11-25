@@ -10,6 +10,7 @@ import { SectionLabel, ErrorNote, Card } from "../PanelHead";
 import { Slider } from "../Slider";
 import type { MeshBounds } from "../../api/types";
 import { usePlanning } from "../../store/planning";
+import { olvidarIvus } from "../../vtk/hud/HudIvus";
 import { MeshHistoryCard } from "./MeshHistoryCard";
 
 /** `sinCabecera`: dentro de un plegable que ya lleva el título. */
@@ -24,8 +25,7 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
     scissorsPoints, setScissorsPoints,
     scissorsPreview, setScissorsPreview,
     scissorsKeepSide, setScissorsKeepSide,
-    setSegmentation, setCandidates, setRejectedCandidates, setSelectedCandidate,
-    setMorphometry, setTreatment, setCenterlineMesh,
+    setSegmentation, olvidarLoDeLaMalla,
   } = usePlanning();
 
   // Resultado del último clic del borrador. Se enseña siempre: cuando borra,
@@ -118,8 +118,7 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
           setSegmentation(segmentation
             ? { ...segmentation, mesh_url: res.mesh_url, vertices: res.vertices, faces: res.faces }
             : segmentation);
-          setCandidates([]); setRejectedCandidates([]); setSelectedCandidate(0);
-          setMorphometry(null); setTreatment(null); setCenterlineMesh(null);
+          olvidarLoDeLaMalla(); olvidarIvus();
           setEraseMsg(`Borrados ${res.removed_vertices.toLocaleString("es")} vértices.`);
           setEraseLeft(null);
           // El backend guarda la instantánea, pero el panel no se enteraba: la
@@ -140,8 +139,7 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
           : segmentation);
         // La pieza que se acaba de borrar puede ser la que sostenía un
         // candidato o una medida: se tiran, igual que tras un recorte.
-        setCandidates([]); setRejectedCandidates([]); setSelectedCandidate(0);
-        setMorphometry(null); setTreatment(null); setCenterlineMesh(null);
+        olvidarLoDeLaMalla(); olvidarIvus();
         setEraseMsg(
           `Borrada una pieza de ${res.removed.volume_mm3.toFixed(0)} mm³ ` +
           `(${res.removed.extent_mm.toFixed(0)} mm).`,
@@ -171,13 +169,8 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
   if (!segmentation) return null;
 
   // Anything derived from the old mesh is invalid once it changes.
-  const clearDownstream = () => {
-    setCandidates([]); setRejectedCandidates([]);
-    setSelectedCandidate(0);
-    setMorphometry(null);
-    setTreatment(null);
-    setCenterlineMesh(null);
-  };
+  // FE-11: una sola acción, la misma regla que el servidor (store/planning.tsx).
+  const clearDownstream = () => { olvidarLoDeLaMalla(); olvidarIvus(); };
 
 
   const runCrop = async () => {

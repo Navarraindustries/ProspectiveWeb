@@ -306,7 +306,14 @@ async def set_active_series(session_id: str, series_id: str) -> SeriesInfo:
             detail=f"La serie '{series_id}' no existe en esta sesión.",
         )
 
+    from services.sessions import read_state
+    otra_serie = (read_state(session_id, "dicom.series_id", "") or "") != chosen.series_id
     _activate_series(session_id, chosen)
+    if otra_serie:
+        # La malla, el saco y todo lo medido eran del volumen anterior: se
+        # quedaban, y el DICOM SEG y el seguimiento mezclaban dos series.
+        from services.invalidacion import olvidar_lo_hecho_sobre_el_volumen
+        olvidar_lo_hecho_sobre_el_volumen(session_id)
 
     # Drop the cached volume (it belongs to the previous series). The memmap
     # keeps the file open on Windows, so clear the caches and collect first.

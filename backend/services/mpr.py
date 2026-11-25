@@ -174,21 +174,38 @@ def ensure_volume_cached(session_id: str) -> dict:
     The volume is saved as float32 .npy for fast per-slice memmap access.
     """
     npy_path, meta_path = _cache_paths(session_id)
-    if npy_path.exists() and meta_path.exists():
-        meta, changed = _complete_meta(json.loads(meta_path.read_text()), npy_path, session_id)
-        if changed:
-            meta_path.write_text(json.dumps(meta))
-        meta["cache_key"] = _cache_key(meta, npy_path)
-        meta["orientation_manual"] = _manual_orientation(session_id)
-        return meta
-
     series_id = read_state(session_id, "dicom.series_id") or ""
+    if npy_path.exists() and meta_path.exists():
+        guardada = json.loads(meta_path.read_text())
+        # La caché dice de qué serie es. Cambiar de serie la borra, pero en
+        # Windows el borrado puede fallar con el fichero abierto, y entonces
+        # el visor y la segmentación seguían con el volumen de la serie
+        # anterior. Las cachés de antes de guardar la serie se dan por buenas.
+        de_otra = bool(guardada.get("series_id")) and guardada.get("series_id") != series_id
+        if not de_otra:
+            meta, changed = _complete_meta(guardada, npy_path, session_id)
+            if changed:
+                meta_path.write_text(json.dumps(meta))
+            meta["cache_key"] = _cache_key(meta, npy_path)
+            meta["orientation_manual"] = _manual_orientation(session_id)
+            return meta
+        logger.warning("MPR: la caché de %s es de otra serie (%s); se rehace con %s",
+                       session_id, guardada.get("series_id"), series_id)
+        import gc
+        _load_memmap.cache_clear()
+        _downsampled_volume.cache_clear()
+        gc.collect()
+
     dicom_dir = session_dir(session_id) / "dicom"
     logger.info("MPR: loading volume for session %s (series %s)", session_id, series_id)
     dcm = load_series(series_id, dicom_dir)
 
     vol = np.ascontiguousarray(dcm.volume, dtype=np.float32)
-    np.save(npy_path, vol)
+    # Por un fichero aparte y un reemplazo: la caché vieja puede estar abierta.
+    tmp_npy = npy_path.with_name("_volume_new.npy")
+    np.save(tmp_npy, vol)
+    from services import atomic
+    atomic.replace(tmp_npy, npy_path)
 
     wc, ww = _display_window(vol, dcm.window_center, dcm.window_width)
     meta = {
@@ -204,6 +221,7 @@ def ensure_volume_cached(session_id: str) -> dict:
         "intensity_range": _intensity_range(vol),
         "full_stride": _full_stride([int(x) for x in vol.shape]),
         "volume_id": new_volume_id(),
+        "series_id": series_id,
     }
     meta_path.write_text(json.dumps(meta))
     meta["cache_key"] = _cache_key(meta, npy_path)

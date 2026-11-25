@@ -360,11 +360,22 @@ def build_report_data_from_session(
         "neck_marked":        neck_is_marked(_rs("morpho.neck_source")),
         "neck_source":        _rs("morpho.neck_source"),
     }
+    # Lo que la medida automática no llegó a medir sale «No medido», no 0,00
+    # (services/validez_morfometria.py); el DICOM SR, que recibe este mismo
+    # diccionario, lo omite.
+    from services.validez_morfometria import DEL_CUELLO, DEL_VOLUMEN, validez
+    val = validez(session_id)
+    for campo in (DEL_VOLUMEN if not val.volumen else ()) + (DEL_CUELLO if not val.cuello else ()):
+        morpho[campo] = None
+    morpho["max_from_patch"] = val.diametro_del_parche and bool(morpho["max_diameter_mm"])
+    morpho["reliable"] = val.fiable
     try:
         risk_reasons = [str(x) for x in json.loads(_rs("morpho.rupture_risk_reasons") or "[]")]
     except ValueError:
         risk_reasons = []
-    risk_label = _rs("morpho.rupture_risk", "")
+    # Una etiqueta de forma sacada de índices sin medir no se imprime: el
+    # apartado de riesgo dice por qué no la hay.
+    risk_label = _rs("morpho.rupture_risk", "") if val.fiable else ""
 
     # ── 2. Treatment decision from session state ───────────────────────── #
     treatment: dict[str, Any] = {}
@@ -758,6 +769,13 @@ def _render_plan_views(session_id: str) -> dict[str, bytes]:
     except Exception as exc:  # noqa: BLE001 — pictures are not worth failing a report
         logger.warning("Plan views failed to render for %s: %s", session_id, exc)
         return {}
+
+
+def hay_morfometria(m: dict) -> bool:
+    """¿Hay alguna cifra medida? Solo cuentan los números: el diccionario lleva
+    también marcas (cuello marcado, fiable, Ø del parche) que no son medida."""
+    return any(isinstance(v, (int, float)) and not isinstance(v, bool) and v
+               for v in m.values())
 
 
 def _load_captures(capture_ids, db) -> list[ReportCapture]:
@@ -1290,11 +1308,19 @@ class ReportGenerator:
 
     def _section_morphometrics(self) -> list:
         m = self._data.morphometrics
-        if not any(v for v in m.values() if v):
+        if not hay_morfometria(m):
             return []
 
         elems = [Paragraph("Morfometría del aneurisma", self._style_h2)]
         site = self._data.clinical.get("site")
+
+        def _num(clave: str, decimales: int, unidad: str = "") -> str:
+            """La cifra, o «No medido» si la medida automática no la midió."""
+            v = m.get(clave, 0)
+            if v is None:
+                return "No medido"
+            return f"{cifra(v, decimales)} {unidad}".strip()
+
         rows = [
             ["Parámetro", "Valor", "Referencia clínica"],
             # La localización va con la morfometría porque es donde se elige; la
@@ -1302,40 +1328,35 @@ class ReportGenerator:
             ["Localización",
              site if site and not site.startswith("Desconocida") else "Sin especificar",
              "Elegida en Morfometría"],
-            ["Volumen",
-             f"{cifra(m.get('volume_mm3', 0), 2)} mm³", "—"],
-            ["Área superficial",
-             f"{cifra(m.get('surface_area_mm2', 0), 2)} mm²", "—"],
-            ["Diámetro máximo",
-             f"{cifra(m.get('max_diameter_mm', 0), 2)} mm",
-             "Corte de 7 mm de PHASES (Greving 2014)"],
+            ["Volumen", _num("volume_mm3", 2, "mm³"), "—"],
+            ["Área superficial", _num("surface_area_mm2", 2, "mm²"), "—"],
+            # Sin saco cerrado, el Ø es el del trozo de malla que marcó el
+            # detector: se dice, porque es el que entra en PHASES y en Decisión.
+            ["Diámetro máximo (del parche detectado)" if m.get("max_from_patch") else "Diámetro máximo",
+             _num("max_diameter_mm", 2, "mm"),
+             Paragraph("Corte de 7 mm de PHASES (Greving 2014)"
+                       + ("; sin saco aislado, marca el cuello para medirlo" if m.get("max_from_patch") else ""),
+                       self._style_cell)],
             # La procedencia con la misma frase que el pedido de clip (F1-215).
             ["Diámetro del cuello (marcado)" if m.get("neck_marked") else "Diámetro del cuello (estimado)",
-             f"{cifra(m.get('neck_diameter_mm', 0), 2)} mm",
+             _num("neck_diameter_mm", 2, "mm"),
              Paragraph(f"Cuello {neck_provenance_label(m.get('neck_source'))}; "
                        "guía de selección del clip", self._style_cell)],
-            ["Altura del domo",
-             f"{cifra(m.get('dome_height_mm', 0), 2)} mm", "—"],
+            ["Altura del domo", _num("dome_height_mm", 2, "mm"), "—"],
             # Los cortes de la etiqueta de riesgo y de la pantalla (F1-160/161):
             # aquí el AR decía 1,3 mientras la insignia cortaba en 1,2.
             # Rótulos en castellano y con BF y UI (F1-225): la pantalla de
             # Morfometría los enseña y el informe los omitía. Los cortes son los
             # de index_thresholds, los mismos que la insignia.
-            ["Relación domo/cuello (DNR)",
-             f"{cifra(m.get('dome_to_neck_ratio', 0), 2)}",
+            ["Relación domo/cuello (DNR)", _num("dome_to_neck_ratio", 2),
              f"Moderado ≥ {cifra_corta(IT.DNR_MOD)} · alto ≥ {cifra(IT.DNR_HIGH)}"],
-            ["Relación de aspecto (AR)",
-             f"{cifra(m.get('aspect_ratio', 0), 2)}",
+            ["Relación de aspecto (AR)", _num("aspect_ratio", 2),
              f"Moderado ≥ {cifra_corta(IT.AR_MOD)} · alto ≥ {cifra_corta(IT.AR_HIGH)}"],
-            ["Factor de abultamiento (BF)",
-             f"{cifra(m.get('bottleneck_factor', 0), 2)}",
+            ["Factor de abultamiento (BF)", _num("bottleneck_factor", 2),
              f"> {cifra_corta(IT.BF_WIDE)}: cuello estrecho respecto al domo"],
-            ["Índice de ondulación (UI)",
-             f"{cifra(m.get('undulation_index', 0), 3)}",
+            ["Índice de ondulación (UI)", _num("undulation_index", 3),
              f"Moderado ≥ {cifra_corta(IT.UI_MOD)} · irregular ≥ {cifra_corta(IT.UI_HIGH)}"],
-            ["Compacidad",
-             f"{cifra(m.get('compactness', 0), 3)}",
-             "1,0 = esfera perfecta"],
+            ["Compacidad", _num("compactness", 3), "1,0 = esfera perfecta"],
         ]
         col_w = [5.5*cm, 4.0*cm, 8.4*cm]
         tbl   = Table(rows, colWidths=col_w)
@@ -1354,8 +1375,9 @@ class ReportGenerator:
             bg = colors.white if i % 2 else self._GREY_LIGHT
             ts.add("BACKGROUND", (0, i), (-1, i), bg)
 
-        dnr    = m.get("dome_to_neck_ratio", 0)
-        ar     = m.get("aspect_ratio", 0)
+        # «No medido» no se colorea: llega como None.
+        dnr    = m.get("dome_to_neck_ratio") or 0
+        ar     = m.get("aspect_ratio") or 0
         dnr_row, ar_row = 7, 8
         if dnr >= IT.DNR_HIGH:
             ts.add("TEXTCOLOR", (1, dnr_row), (1, dnr_row), self._RED)
@@ -2339,6 +2361,13 @@ class ReportGenerator:
 
     def _section_risk(self) -> list:
         risk = self._data.risk_label
+        m = self._data.morphometrics
+        if not risk and hay_morfometria(m) and m.get("reliable") is False:
+            # Antes salía «Riesgo morfométrico bajo» de índices sin medir.
+            return [Paragraph("Riesgo morfométrico (forma)", self._style_h2),
+                    Paragraph("Sin etiqueta: la medida automática no aisló el saco y los índices "
+                              "de forma no se midieron. Marca el cuello en Morfometría para obtenerla.",
+                              self._style_body)]
         if not risk:
             return []
 

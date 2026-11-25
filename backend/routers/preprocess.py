@@ -113,6 +113,9 @@ def _run(session_id: str, req: PreprocessRequest) -> PreprocessResult:
     shown = ops_text(params, persona=True)
     write_state(session_id, _OPS_KEY, shown)
     write_state(session_id, _PARAMS_KEY, json.dumps(params))
+    # Volumen nuevo: la malla y lo medido eran del de antes (services/invalidacion.py).
+    from services.invalidacion import olvidar_lo_hecho_sobre_el_volumen
+    olvidar_lo_hecho_sobre_el_volumen(session_id)
     note = f"Aplicado: {shown}. Vuelve a segmentar para usar el volumen preprocesado."
     if clip_skipped:
         note = (
@@ -211,6 +214,9 @@ def _revert(session_id: str) -> PreprocessResult:
     bak_meta.unlink(missing_ok=True)
     write_state(session_id, _OPS_KEY, "")
     write_state(session_id, _PARAMS_KEY, "")
+    # Deshacer también cambia el volumen: lo segmentado sobre el preprocesado se va.
+    from services.invalidacion import olvidar_lo_hecho_sobre_el_volumen
+    olvidar_lo_hecho_sobre_el_volumen(session_id)
 
     return PreprocessResult(
         shape_before=[int(x) for x in before.get("shape", after["shape"])],

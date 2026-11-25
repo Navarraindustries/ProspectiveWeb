@@ -63,12 +63,13 @@ def _invalidate_derived(session_id: str) -> None:
     The panel cleared its own screen state, but the session kept the candidate
     domes, the morphometry and the recommendation — so a report generated after a
     crop described an aneurysm from the mesh as it was before the crop.
+
+    Y también los dispositivos con su oclusión y
+    su cobertura, la línea central, el IVUS y el seguimiento: la
+    regla vive en services/invalidacion.py.
     """
-    from routers.detect import _clear_detection_state
-    from routers.report import clear_corridor_analysis
-    _clear_detection_state(session_id, session_subdir(session_id, "meshes"), morphometry=True)
-    # Y el corredor: su veredicto se midió contra la malla de antes.
-    clear_corridor_analysis(session_id)
+    from services.invalidacion import olvidar_lo_medido_en_la_malla
+    olvidar_lo_medido_en_la_malla(session_id)
 
 
 # ── POST /mesh-crop/{session_id} ────────────────────────────────────────────── #

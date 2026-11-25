@@ -189,6 +189,15 @@ async def compute_treatment_decision(
     max_diameter_mm   = _load_float(req.session_id, "morpho.max_diameter_mm",  0.0)
     bottleneck_factor = _load_float(req.session_id, "morpho.bf",               0.0)
     undulation_index  = _load_float(req.session_id, "morpho.ui",               0.0)
+    # Lo que la medida automática no midió no entra: 0,0 es «no disponible»
+    # para compute_decision, y antes recibía las cifras de un cuello no
+    # detectado o de un saco abierto como si valieran.
+    from services.validez_morfometria import validez
+    val = validez(req.session_id)
+    if not val.cuello:
+        neck_mm = aspect_ratio = dnr = bottleneck_factor = 0.0
+    if not val.volumen:
+        undulation_index = 0.0
 
     # El PHASES que ya calculó el paso de morfometría. No entra en la aritmética
     # clip-vs-endo —responde otra pregunta— pero decide si el atajo del aneurisma
@@ -222,6 +231,11 @@ async def compute_treatment_decision(
         fisher_grade=req.fisher_grade,
         prior_stroke=req.prior_stroke,
     )
+
+    if val.diametro_del_parche and max_diameter_mm > 0:
+        result.setdefault("notes", []).append(
+            "El diámetro máximo es el del parche que marcó el detector, no el del saco aislado: "
+            "marca el cuello en Morfometría para que la decisión use la medida del aneurisma.")
 
     # Persist treatment result to session state for report generation (Session E).
     write_state(req.session_id, "treatment.recommendation",     result["recommendation"])
@@ -405,8 +419,10 @@ TREATMENT_STATE_KEYS = (
 )
 
 #: The PHASES score is a rupture risk built on the same morphometry, so it goes
-#: whenever the decision does.
-PHASES_STATE_KEYS = ("phases.json",)
+#: whenever the decision does. ELAPSS y UIATS también llevan el tamaño medido:
+#: se quedaban, y tras resegmentar o volver a marcar el cuello el PDF las
+#: imprimía con el tamaño de antes.
+PHASES_STATE_KEYS = ("phases.json", "elapss.json", "uiats.json")
 
 #: Las entradas que una puntuación aparta cuando la localización elegida no
 #: tiene categoría en su escala (PUT /morphometry/{sid}/site). Si se quedaban al
@@ -426,7 +442,8 @@ def clear_decision_only(session_id: str) -> None:
 
 
 def clear_treatment_state(session_id: str) -> None:
-    """Forget the recommendation, its clinical context and the PHASES score.
+    """Forget the recommendation, its clinical context and the risk scores
+    (PHASES, ELAPSS, UIATS).
 
     Never the team's decision (TEAM_KEYS): it is typed by hand, and losing it
     without anyone asking is what the F1 audit blocks. It goes only when the

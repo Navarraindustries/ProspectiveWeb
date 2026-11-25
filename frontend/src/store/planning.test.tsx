@@ -86,6 +86,28 @@ describe("re-running a step", () => {
     expect(result.current.centerlineMesh).toBeNull();
   });
 
+  it("un recorte olvida el clip, su verificación y los perforantes, pero no la malla (FE-11)", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    const malla = { mesh_url: "/m/vessel_tree.vtp", vertices: 10, faces: 20 } as unknown as SegmentResult;
+    act(() => {
+      result.current.setSegmentation(malla);
+      result.current.setMorphometry(fakeMorpho);
+      result.current.setPlacedClips([{ key: "c1" } as never]);
+      result.current.setPerforators([{ id: "p1" } as never]);
+      result.current.setDeviceMesh("clips", "/m/clips_placed.vtp");
+      result.current.setTrajEntry([1, 2, 3]);
+    });
+
+    act(() => result.current.olvidarLoDeLaMalla());
+
+    expect(result.current.morphometry).toBeNull();
+    expect(result.current.placedClips).toEqual([]);
+    expect(result.current.perforators).toEqual([]);
+    expect(result.current.deviceMeshes.clips ?? null).toBeNull();
+    expect(result.current.segmentation?.mesh_url).toBe("/m/vessel_tree.vtp");
+    expect(result.current.trajEntry).toEqual([1, 2, 3]);      // lo eligió el cirujano
+  });
+
   it("keeps the patient and the session across a downstream reset", () => {
     const { result } = renderHook(() => usePlanning(), { wrapper });
     act(() => {

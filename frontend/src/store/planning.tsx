@@ -471,6 +471,11 @@ interface PlanningState {
   saveNow: () => Promise<boolean>;
   reset: () => void;
   resetDownstream: () => void;
+  /** La malla cambió y sigue habiendo malla: olvida lo medido sobre la
+   *  anterior (candidatos, medida, decisión, dispositivos, línea, perforantes,
+   *  seguimiento, informe), como el servidor. Se quedan la malla, los puntos
+   *  del cirujano y las anotaciones. */
+  olvidarLoDeLaMalla: () => void;
   /** Cuántas veces se ha cambiado de sesión (sube en cada `reset`). Sirve de
    *  `key` del quirófano: al cambiar de sesión se monta de cero, sin el informe,
    *  las notas ni el «Guardado hh:mm» de la anterior (FE-3). */
@@ -858,6 +863,42 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     // reset() y el visor la resiembra al cambiar de sesión.
   };
 
+  // FE-11: la malla cambió (recorte, borrado, deshacer) pero sigue habiendo
+  // malla. Lo medido sobre la anterior se va, como en el servidor
+  // (services/invalidacion.py): antes el recorte dejaba el clip, su
+  // verificación y los perforantes, y el informe los llevaba. Se quedan la
+  // malla, los puntos del cirujano (abordaje, extremos de la línea) y las
+  // anotaciones.
+  const olvidarLoDeLaMalla = () => {
+    _setCandidates([]);
+    _setRejectedCandidates([]);
+    selectedRef.current = 0;
+    _setSelectedCandidate(0);
+    _setMorphometry(null);
+    _setTreatment(null);
+    setTreatmentInputs(null);
+    _setDeviceMeshes({ clips: null, coils: null, stent: null });
+    _setCenterlineMesh(null);
+    setCenterline(null);
+    setCenterlineArcMm(null);
+    setStentSac(null);
+    setNeckOrigin(null);
+    setNeckDome(null);
+    setNeckRim([]);
+    setClipRehearsal(null);
+    setClipField(null);
+    _setPlacedClips([]);
+    setPlannedClips(null);
+    setClipPlan(null);
+    setSelectedClipKey(null);
+    _setPerforators([]);
+    setPerforatorZones(null);
+    setVisiblePerforators([]);
+    setFollowup(null);
+    setReportUrls(null);
+    setMorphoOverlay(false);
+  };
+
   const reset = () => {
     epocaRef.current += 1;
     setEpoca(epocaRef.current);
@@ -926,7 +967,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setCaptureViewport, setCenterOnLesion, registerSceneFramer, markSaved, registerSaver, saveNow,
         setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,
         setFreePlane, setClipMode, setCutFaceVisible, setSlices3dMeshVisible, setVolumeWindow, setMipWindow, setMipLocal, setCine, setFocusedPane,
-        reset, resetDownstream, epoca, epocaActual,
+        reset, resetDownstream, olvidarLoDeLaMalla, epoca, epocaActual,
       }}
     >
       {children}

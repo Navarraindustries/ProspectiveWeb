@@ -12,6 +12,7 @@ import { api } from "../../api/client";
 import { Card, ErrorNote } from "../PanelHead";
 import type { MeshHistoryResult } from "../../api/types";
 import { usePlanning } from "../../store/planning";
+import { olvidarIvus } from "../../vtk/hud/HudIvus";
 
 type Scope = "undo" | "redo" | "original";
 
@@ -60,9 +61,7 @@ export function MeshHistoryCard({
   sinTitulo?: boolean;
 }) {
   const {
-    sessionId, segmentation, setSegmentation, setPickMode, setCropCenter,
-    setCandidates, setRejectedCandidates, setSelectedCandidate,
-    setMorphometry, setTreatment, setCenterlineMesh, setCenterlineArcMm, clearDeviceMeshes,
+    sessionId, segmentation, setSegmentation, setPickMode, setCropCenter, olvidarLoDeLaMalla,
   } = usePlanning();
 
   // Lo que el backend sabe del historial. Se pide al montar —una sesión
@@ -104,9 +103,10 @@ export function MeshHistoryCard({
       // describen. Sin quitar los dispositivos, el campo del clip seguía vivo
       // (CALOR ● en la barra) y stent y clip reaparecían en Dispositivos
       // colocados sobre la malla de antes (Case 3, 22-11).
-      setCandidates([]); setRejectedCandidates([]); setSelectedCandidate(0);
-      setMorphometry(null); setTreatment(null); setCenterlineMesh(null); setCenterlineArcMm(null);
-      clearDeviceMeshes();
+      // FE-11: con la misma acción que el recorte y el servidor; antes aquí
+      // se quedaban el clip editable, su campo y los perforantes.
+      olvidarLoDeLaMalla();
+      olvidarIvus();
       setCropCenter(null);
       try { setHist(await api.meshHistory(sessionId)); } catch { /* queda el de antes */ }
       setNote(

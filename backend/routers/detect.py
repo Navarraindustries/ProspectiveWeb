@@ -297,6 +297,8 @@ _MORPHO_STATE_KEYS = (
     "morpho.sac_hit_crop",
     # De qué candidato es el plano marcado (BE-1).
     "morpho.plane_candidate",
+    # Qué grupos de la medida valen: van con ella.
+    "morpho.volume_valid", "morpho.neck_valid", "morpho.reliable",
 )
 
 
@@ -2184,6 +2186,15 @@ def _run_morphometry_sync(
             "compacidad/EI/UI acotados a [0, 1]; interpretar con cautela."
         )
         warning = f"{warning} {note}" if warning else note
+
+    # La validez viaja con la medida: el informe, el DICOM SR y Decisión la
+    # leían del estado sin ella, e imprimían «Volumen 0,00 mm³» o un «Riesgo
+    # bajo» de índices que no se habían medido (services/validez_morfometria.py).
+    write_states(session_id, {
+        "morpho.volume_valid": "1" if volume_valid else "0",
+        "morpho.neck_valid": "1" if neck_valid else "0",
+        "morpho.reliable": "1" if mr.reliable else "0",
+    })
 
     # ── Map desktop dataclass → Pydantic model ────────────────────────── #
     # La URL del saco cerrado, si el plano de cuello llegó a aislarlo. Se lee

@@ -122,7 +122,7 @@ export function CaptureGallery({
       setUrls((u) => ({ ...u, [c.id]: url }));
       return url;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cargar el vídeo");
+      setError(e instanceof Error ? e.message : "No se pudo cargar el video");
       return null;
     } finally {
       setCargandoVideo(null);
@@ -168,8 +168,8 @@ export function CaptureGallery({
     <div style={{ marginTop: 14 }}>
       <ConfirmDialog
         open={aBorrar !== null}
-        title="¿Borrar la captura?"
-        confirmLabel="Borrar captura"
+        title="¿Eliminar la captura?"
+        confirmLabel="Eliminar captura"
         destructive
         onCancel={() => setABorrar(null)}
         onConfirm={() => { const c = aBorrar; setABorrar(null); if (c) void borrar(c); }}
@@ -241,7 +241,7 @@ export function CaptureGallery({
 
               <div style={{ fontSize: 13, color: "var(--muted-foreground)",
                             display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                {isRecording(c) && <Badge variant="outline">vídeo · {formatDuration(c.duration_s ?? 0)}</Badge>}
+                {isRecording(c) && <Badge variant="outline">video · {formatDuration(c.duration_s ?? 0)}</Badge>}
                 {c.step && <Badge variant="outline">{etiquetaPaso(c.step)}</Badge>}
                 <span>{fechaHora(c.created_at)}</span>
                 {c.width > 0 && <span style={{ fontSize: 12, fontFamily: "var(--font-mono)" }}>{c.width}×{c.height}</span>}
@@ -255,7 +255,7 @@ export function CaptureGallery({
                   Descargar
                 </Button>
                 <Button size="icon" variant="destructive-ghost"
-                  aria-label={`Borrar la captura «${c.label}»`} title="Borrar la captura"
+                  aria-label={`Eliminar la captura «${c.label}»`} title="Eliminar la captura"
                   onClick={() => setABorrar(c)}>
                   <Icon name="DELETE" size={16} />
                 </Button>

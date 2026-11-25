@@ -12,11 +12,18 @@
    acción se repite desde su panel. */
 import { useEffect, useState } from "react";
 import { onServerDown, retryLastFailed } from "../api/client";
+import { NO_RESPONDE } from "../api/connectionText";
 import { Button } from "./Button";
 
+// UX-11: el mismo texto de base que el resto de la aplicación, y lo que puede
+// hacer quien lo lee. Antes pedía al médico que reiniciara el servidor.
 export const SERVER_DOWN_TEXT =
-  "El servidor no responde. Tu sesión sigue en disco: reinícialo y pulsa «Reintentar»";
+  `${NO_RESPONDE}. Tu sesión sigue guardada; si no vuelve en unos minutos, avisa al responsable de la instalación`;
 export const SERVER_BACK_TEXT = "El servidor responde de nuevo; repite la acción que falló";
+
+// UX-1: el botón de contorno toma el color del tema, que en la banda es el
+// mismo del fondo («Entendido» no se veía). Dentro de la banda, su color.
+const botonDeBanda = { color: "inherit", borderColor: "currentColor", background: "transparent" } as const;
 
 const bandStyle = (bg: string) => ({
   position: "fixed" as const, top: 0, left: 0, right: 0, zIndex: 300,
@@ -47,7 +54,7 @@ export function ServerDownBanner() {
     return (
       <div role="alert" style={bandStyle("var(--destructive)")}>
         <span>{SERVER_DOWN_TEXT}</span>
-        <Button size="sm" variant="outline" disabled={retrying} onClick={() => void reintentar()}>
+        <Button size="sm" variant="outline" disabled={retrying} onClick={() => void reintentar()} style={botonDeBanda}>
           Reintentar
         </Button>
       </div>
@@ -57,7 +64,7 @@ export function ServerDownBanner() {
     return (
       <div role="status" style={bandStyle("var(--foreground)")}>
         <span>{SERVER_BACK_TEXT}</span>
-        <Button size="sm" variant="outline" onClick={() => setBack(false)}>
+        <Button size="sm" variant="outline" onClick={() => setBack(false)} style={botonDeBanda}>
           Entendido
         </Button>
       </div>

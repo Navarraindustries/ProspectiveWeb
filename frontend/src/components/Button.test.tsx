@@ -84,9 +84,9 @@ describe("Button", () => {
     expect(screen.getByRole("button", { name: "Enlace" }).style.borderRadius).not.toContain("--radius-full");
   });
 
-  it("outline deshabilitado baja a opacity 0.4", () => {
+  it("outline deshabilitado baja a opacity 0.6 (UX-13)", () => {
     render(<ThemeProvider><Button variant="outline" disabled>Off</Button></ThemeProvider>);
-    expect(screen.getByRole("button", { name: "Off" }).style.opacity).toBe("0.4");
+    expect(screen.getByRole("button", { name: "Off" }).style.opacity).toBe("0.6");
   });
 
   it.each(["outline", "secondary"] as const)("%s usa los tokens de contorno (transparente en claro)", (variant) => {

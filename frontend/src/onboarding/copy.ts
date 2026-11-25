@@ -36,7 +36,7 @@ export const PARADAS_PACIENTES: Record<ParadaPacientes, Explicacion> = {
   },
   avisos: {
     titulo: "Avisos clínicos",
-    como: "Pulsa «Ver» y vas directo al caso.",
+    como: "Presiona «Ver» y vas directo al caso.",
     cuando: "Cuando aparezca un chip aquí arriba.",
     porque: "Lo urgente no se pierde entre pacientes.",
   },
@@ -99,7 +99,7 @@ export const ZONAS_QUIROFANO: Explicacion[] = [
   },
   {
     titulo: "Los pasos",
-    como: "Toca un número del dock o pulsa 1–8.",
+    como: "Toca un número de la barra de pasos o presiona 1–8.",
     cuando: "Para avanzar por el flujo o volver atrás.",
     porque: "8 pasos en 5 tramos: preparar, detectar, medir, dispositivo, informe.",
   },
@@ -117,7 +117,7 @@ export const ZONAS_QUIROFANO: Explicacion[] = [
   },
   {
     titulo: "Guardar y atajos",
-    como: "«Guardar progreso» crea una sesión; «Captura» y «Grabar» guardan imagen o vídeo.",
+    como: "«Guardar progreso» crea una sesión; «Captura» y «Grabar» guardan imagen o video.",
     cuando: "Antes de salir o al terminar algo importante.",
     porque: "Lo retomas luego con «Reanudar» desde la ficha.",
   },

@@ -141,7 +141,7 @@ export function PreprocessSection() {
             </>
           )}
           <label
-            title={isHu ? undefined : "Solo aplicable a volúmenes en unidades Hounsfield (TAC)"}
+            title={isHu ? undefined : "Solo aplicable a volúmenes en unidades Hounsfield (TC)"}
             style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: isHu ? "pointer" : "not-allowed", marginBottom: isHu ? 8 : 4, opacity: isHu ? 1 : 0.55 }}
           >
             <input type="checkbox" checked={clip} disabled={!isHu} onChange={(e) => setClip(e.target.checked)} /> Recorte de HU (−1000…3000)

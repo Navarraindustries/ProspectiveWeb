@@ -60,7 +60,7 @@ export function Select({ label, options, invalid, style, ...rest }: SelectProps)
             fontFamily: "var(--font-sans)",
             fontSize: 14,
             cursor: "pointer",
-            opacity: rest.disabled ? 0.4 : 1,
+            opacity: rest.disabled ? 0.6 : 1,
             ...style,
           }}
         >

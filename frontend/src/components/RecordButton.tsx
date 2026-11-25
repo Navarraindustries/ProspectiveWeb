@@ -83,7 +83,7 @@ export function RecordButton({ step, onMessage, soloIcono = false, size = "sm" }
     const aviso = r.hitLimit ? " Se paró sola al llegar a los 3 minutos." : "";
     if (!estudio) {
       setEstado("idle");
-      onMessage({ tone: "info", text: `${sinCasoAviso("Vídeo descargado", archivo)}${aviso}` });
+      onMessage({ tone: "info", text: `${sinCasoAviso("Video descargado", archivo)}${aviso}` });
       return;
     }
     try {
@@ -100,7 +100,7 @@ export function RecordButton({ step, onMessage, soloIcono = false, size = "sm" }
       });
       onMessage({ tone: "ok", text: `Grabación de ${formatElapsed(r.durationS * 1000)} guardada en el caso y descargada.${aviso}` });
     } catch (e) {
-      onMessage({ tone: "err", text: `Vídeo descargado, pero no se guardó en el caso: ${e instanceof Error ? e.message : e}` });
+      onMessage({ tone: "err", text: `Video descargado, pero no se guardó en el caso: ${e instanceof Error ? e.message : e}` });
     } finally {
       setEstado("idle");
     }
@@ -161,9 +161,9 @@ export function RecordButton({ step, onMessage, soloIcono = false, size = "sm" }
   return (
     <Button variant="outline" size={size} onClick={empezar}
             disabled={!viewerRecording || estado === "saving"}
-            {...rotuloAccion(soloIcono, estado === "saving" ? "Guardando vídeo…" : "Grabar", !viewerRecording
+            {...rotuloAccion(soloIcono, estado === "saving" ? "Guardando video…" : "Grabar", !viewerRecording
               ? "Abre un paso con el visor para grabarlo"
-              : `Graba el visor en vídeo (máx. ${MAX_RECORDING_MS / 60000} min), sin audio ni datos del paciente`)}
+              : `Graba el visor en video (máx. ${MAX_RECORDING_MS / 60000} min), sin audio ni datos del paciente`)}
             leadingIcon={<Icon name="RECORD" color={viewerRecording ? "var(--destructive)" : undefined} />}
             style={{ marginRight: 8, ...estiloAccion(size, soloIcono) }} />
   );

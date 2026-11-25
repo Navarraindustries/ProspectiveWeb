@@ -174,8 +174,8 @@ describe("«Editar usuario» corrige la identidad profesional y el CV (UNI-84)",
   it("muestra los tres campos con su valor y los envía recortados", async () => {
     listUsers.mockResolvedValue([conIdentidad()]);
     await abrir();
-    expect([valor("Cédula o ID"), valor("ID profesional"), valor("ORCID")]).toEqual(["1020", "RM-1", "0000-0002-1825-0097"]);
-    fireEvent.change(screen.getByLabelText("Cédula o ID"), { target: { value: " 99887766 " } });
+    expect([valor("Documento de identidad"), valor("ID profesional"), valor("ORCID")]).toEqual(["1020", "RM-1", "0000-0002-1825-0097"]);
+    fireEvent.change(screen.getByLabelText("Documento de identidad"), { target: { value: " 99887766 " } });
     fireEvent.change(screen.getByLabelText("ORCID"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
     await waitFor(() => expect(updateUser).toHaveBeenCalledTimes(1));

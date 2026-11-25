@@ -5,11 +5,13 @@
    funcionando con esa simulación. Por eso miran la forma del error
    (`status`, `fromServer`, como los pone `ApiError`) y no su clase. */
 
+import { NO_RESPONDE } from "./connectionText";
+
 /** Familia Y (F1-41, F1-50, F1-51): el aviso de «Entrar», «Crear cuenta» y el
  *  cambio obligatorio de contraseña cuando el servidor no contesta. Antes decía
  *  «¿Está el backend en marcha?»: una palabra que el médico no tiene por qué
  *  conocer, sobre algo que no está en su mano arrancar. */
-export const SERVER_UNREACHABLE_TEXT = "El servidor no responde. Avisa al responsable de la instalación.";
+export const SERVER_UNREACHABLE_TEXT = `${NO_RESPONDE}. Avisa al responsable de la instalación.`;
 
 type MaybeApiError = Error & { status?: unknown; fromServer?: unknown };
 

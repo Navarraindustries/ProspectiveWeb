@@ -506,7 +506,7 @@ export function Workspace({
             onClick={() => abrirAdjuntar("adjuntar")}
             leadingIcon={<Icon name="SAVE" />}
             {...rotuloAccion(soloIcono, patient ? ARCHIVAR_EN_CASO : "Adjuntar a un caso", patient
-              ? "Crea o elige un caso de este paciente y guarda en él el DICOM, las capturas y los vídeos"
+              ? "Crea o elige un caso de este paciente y guarda en él el DICOM, las capturas y los videos"
               : "Liga esta sesión a un paciente y un caso y archiva su DICOM")}
           />
         )}

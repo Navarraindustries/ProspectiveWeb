@@ -199,20 +199,20 @@ describe("«Estudios»: tarjeta y borrado (F2-33, F2-34, F2-35)", () => {
   it("el subtítulo de la barra cuenta los estudios cargados", async () => {
     listStudies.mockResolvedValue([study({}), study({ id: 6 })]);
     render(<Studies {...props} />);
-    expect(await screen.findByText("2 estudios de imagen archivados · pulsa uno para reanudarlo o abrirlo")).toBeInTheDocument();
+    expect(await screen.findByText("2 estudios de imagen archivados · haz clic en uno para reanudarlo o abrirlo")).toBeInTheDocument();
   });
 
   it("el subtítulo, con un solo estudio, va en singular", async () => {
     listStudies.mockResolvedValue([study({})]);
     render(<Studies {...props} />);
-    expect(await screen.findByText("1 estudio de imagen archivado · pulsa uno para reanudarlo o abrirlo")).toBeInTheDocument();
+    expect(await screen.findByText("1 estudio de imagen archivado · haz clic en uno para reanudarlo o abrirlo")).toBeInTheDocument();
   });
 
   it("los textos de F1-73 y F1-74", async () => {
     listStudies.mockResolvedValue([]);
     render(<Studies {...props} />);
     expect(await within(screen.getByRole("banner")).findByText("0 estudios de imagen archivados")).toBeTruthy();
-    expect(await screen.findByText(/Abre un caso con «Planificar este caso», carga el DICOM y pulsa «Guardar estudio» en el Paso 1/)).toBeTruthy();
+    expect(await screen.findByText(/Abre un caso con «Planificar este caso», carga el DICOM y presiona «Guardar estudio» en el Paso 1/)).toBeTruthy();
     expect(screen.queryByText(/pipeline/)).toBeNull();
   });
 });

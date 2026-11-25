@@ -34,8 +34,10 @@ describe("ServerDownBanner", () => {
   it("con el aviso del cliente dice el texto del anexo y ofrece «Reintentar»", () => {
     render(<ServerDownBanner />);
     avisar(true);
+    // UX-11: ya no pide al médico que reinicie el servidor.
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "El servidor no responde. Tu sesión sigue en disco: reinícialo y pulsa «Reintentar»");
+      "El servidor no responde. Tu sesión sigue guardada; si no vuelve en unos minutos, avisa al responsable de la instalación");
+    expect(screen.getByRole("alert")).not.toHaveTextContent(/reinici/i);
     expect(screen.getByRole("button", { name: "Reintentar" })).toBeInTheDocument();
   });
 

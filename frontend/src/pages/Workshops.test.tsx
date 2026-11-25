@@ -66,7 +66,7 @@ describe("registering a workshop without opening an order", () => {
     render(<WorkshopsPage />);
     fireEvent.click(await abrirDesdeBarra());
     fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: "Precisión Andina" } });
-    fireEvent.change(screen.getByLabelText(/NIF/), { target: { value: "B99999999" } });
+    fireEvent.change(screen.getByLabelText(/Identificación fiscal/), { target: { value: "B99999999" } });
     fireEvent.change(screen.getByLabelText("Notas"), { target: { value: "Titanio grado 5" } });
     fireEvent.click(screen.getByRole("button", { name: /Registrar taller/ }));
     await waitFor(() => expect(addWorkshop).toHaveBeenCalled());
@@ -122,7 +122,7 @@ describe("correcting one", () => {
     render(<WorkshopsPage />);
     fireEvent.click(await screen.findByRole("button", { name: /Editar/ }));
     expect((screen.getByLabelText(/Nombre/) as HTMLInputElement).value).toBe("Taller Mecánico Sur");
-    expect((screen.getByLabelText(/NIF/) as HTMLInputElement).value).toBe("B12345678");
+    expect((screen.getByLabelText(/Identificación fiscal/) as HTMLInputElement).value).toBe("B12345678");
   });
 });
 
@@ -151,14 +151,14 @@ describe("who may delete", () => {
     deleteWorkshop.mockReturnValue(new Promise((r) => { terminar = r; }));
     render(<WorkshopsPage />);
     fireEvent.click(await screen.findByRole("button", { name: /Borrar/ }));
-    const dialogo = screen.getByRole("alertdialog", { name: "Borrar taller" });
+    const dialogo = screen.getByRole("alertdialog", { name: "Eliminar taller" });
     const confirmar = within(dialogo).getByRole("button", { name: "Borrar" });
     fireEvent.click(confirmar);
     fireEvent.click(confirmar);
     expect(deleteWorkshop).toHaveBeenCalledTimes(1);
     expect(within(dialogo).getByRole("button", { name: "Borrando…" })).toBeDisabled();
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.getByRole("alertdialog", { name: "Borrar taller" })).toBeInTheDocument();
+    expect(screen.getByRole("alertdialog", { name: "Eliminar taller" })).toBeInTheDocument();
     terminar({ deleted: true });
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
   });

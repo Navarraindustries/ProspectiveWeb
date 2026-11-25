@@ -131,7 +131,7 @@ describe("botón del caso en la barra superior", () => {
     estado.imagingStudyId = null;
     estado.patient = PACIENTE; render(<Workspace onBack={() => {}} onOpenPatient={() => {}} onFinish={() => {}} />);
     const b = screen.getByRole("button", { name: /Archivar en un caso/ });
-    expect(b.getAttribute("title")).toBe("Crea o elige un caso de este paciente y guarda en él el DICOM, las capturas y los vídeos");
+    expect(b.getAttribute("title")).toBe("Crea o elige un caso de este paciente y guarda en él el DICOM, las capturas y los videos");
     expect(screen.queryByRole("button", { name: /Adjuntar a un caso/ })).toBeNull();
   });
 

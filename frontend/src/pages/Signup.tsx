@@ -161,13 +161,13 @@ export function Signup({ onBack, onDone }: { onBack: () => void; onDone: (msg: s
                 <div style={GROUP_LABEL}>Tus datos</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <Input label="Nombre completo" obligatorio value={form.full_name} onChange={set("full_name")} placeholder="Dr. …" {...props("full_name")} />
-                  <Input label="DNI / NIE (opcional)" hint="Solo si tu centro lo pide" value={form.national_id} onChange={set("national_id")} />
+                  <Input label="Documento de identidad (opcional)" hint="Solo si tu centro lo pide" value={form.national_id} onChange={set("national_id")} />
                   <FileField label="Foto de perfil" accept="image/png,image/jpeg,image/webp" file={photo} onPick={setPhoto} />
                 </div>
 
                 <div style={GROUP_LABEL}>Datos profesionales</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
-                  <Input label="Número de colegiado (opcional)" value={form.professional_id} onChange={set("professional_id")} />
+                  <Input label="Registro profesional (opcional)" value={form.professional_id} onChange={set("professional_id")} />
                   <Select label="Especialidad" options={SPECIALTIES} value={form.specialty} onChange={set("specialty")} />
                   <Input label="Universidad" value={form.university} onChange={set("university")} />
                   <Input label="Hospital / Centro" value={form.hospital} onChange={set("hospital")} />

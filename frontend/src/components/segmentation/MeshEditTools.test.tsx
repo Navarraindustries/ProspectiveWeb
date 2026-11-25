@@ -98,7 +98,7 @@ describe("el panel se monta", () => {
     mount();
     const boton = screen.getByRole("button", { name: /Activar borrador/ });
     fireEvent.click(boton);
-    expect(screen.getByRole("button", { name: /Pincha la pieza a borrar/ }))
+    expect(screen.getByRole("button", { name: /Haz clic en la pieza a borrar/ }))
       .toBeInTheDocument();
   });
 });

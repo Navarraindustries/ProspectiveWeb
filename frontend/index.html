@@ -6,7 +6,20 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Prospective</title>
+    <meta name="description" content="PROSPECTIVE: planificación de cirugía de aneurismas cerebrales en el navegador." />
+    <meta name="theme-color" content="#0B0C0F" />
+    <title>PROSPECTIVE</title>
+    <!-- UX-20: el tema elegido, antes de que cargue React. Sin esto quien eligió
+         el claro veía la aplicación en negro un instante en cada carga. La
+         clave es la de src/hooks/useTheme.ts. -->
+    <script>
+      try {
+        var t = localStorage.getItem("prospective.theme");
+        document.documentElement.setAttribute("data-theme", t === "light" ? "light" : "dark");
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -265,7 +265,7 @@ export function AttachCaseSheet({
           )}
           <Input label="Apellidos" value={np.surname} onChange={(e) => setNp({ ...np, surname: e.target.value })} />
           <Input label="Nombres" value={np.given_name} onChange={(e) => setNp({ ...np, given_name: e.target.value })} />
-          <Input label="Nº de historia / cédula" value={np.hospital_id} onChange={(e) => setNp({ ...np, hospital_id: e.target.value })} />
+          <Input label="Nº de historia o documento" value={np.hospital_id} onChange={(e) => setNp({ ...np, hospital_id: e.target.value })} />
           <div style={{ display: "flex", gap: 8 }}>
             <Input label="Fecha de nacimiento" type="date" value={np.dob} onChange={(e) => setNp({ ...np, dob: e.target.value })} />
             <Input label="Sexo (M/F/O)" value={np.sex} maxLength={1} onChange={(e) => setNp({ ...np, sex: e.target.value.toUpperCase() })} />

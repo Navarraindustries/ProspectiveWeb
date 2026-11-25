@@ -92,7 +92,7 @@ describe("tokens de la dirección D", () => {
     expect(r).toMatch(/--destructive-text:\s*#FF8A96/i);
     expect(r).toMatch(/--warning:\s*#FFC247/i);
     expect(r).toMatch(/--border:\s*rgba\(255, ?255, ?255, ?0?\.14\)/);
-    expect(r).toMatch(/--input:\s*rgba\(255, ?255, ?255, ?0?\.24\)/);
+    expect(r).toMatch(/--input:\s*rgba\(255, ?255, ?255, ?0?\.40\)/);   // UX-2: 3:1
     expect(r).toMatch(/--ring:\s*var\(--primary\)/);
     expect(r).toMatch(/--chart-1:\s*var\(--primary\)/);
   });
@@ -410,8 +410,8 @@ describe("botón de contorno (A21)", () => {
   it("el botón de contorno es transparente en claro y conserva el cristal en oscuro (A21)", () => {
     const dark = block(DARK), light = block('[data-theme="light"]');
     expect(dark).toMatch(/--btn-outline-bg:\s*rgba\(255, ?255, ?255, ?0?\.08\)/);
-    expect(dark).toMatch(/--btn-outline-border:\s*rgba\(255, ?255, ?255, ?0?\.3\)/);
+    expect(dark).toMatch(/--btn-outline-border:\s*rgba\(255, ?255, ?255, ?0?\.40\)/);   // UX-2
     expect(light).toMatch(/--btn-outline-bg:\s*transparent/);
-    expect(light).toMatch(/--btn-outline-border:\s*rgba\(0, ?0, ?0, ?0?\.14\)/);
+    expect(light).toMatch(/--btn-outline-border:\s*rgba\(0, ?0, ?0, ?0?\.45\)/);   // UX-2
   });
 });

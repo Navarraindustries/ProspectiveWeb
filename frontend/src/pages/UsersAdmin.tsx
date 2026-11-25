@@ -205,7 +205,7 @@ function EditUserSheet({
             <Select label="Cargo" options={opcionales(POSITIONS, user.position)} value={position} onChange={(e) => setPosition(e.target.value)} />
             <Input label="Universidad" value={university} onChange={(e) => setUniversity(e.target.value)} />
             <Input label="Hospital / Centro" value={hospital} onChange={(e) => setHospital(e.target.value)} />
-            <Input label="Cédula o ID" value={nationalId} maxLength={64} onChange={(e) => setNationalId(e.target.value)} />
+            <Input label="Documento de identidad" value={nationalId} maxLength={64} onChange={(e) => setNationalId(e.target.value)} />
             <Input label="ID profesional" value={professionalId} maxLength={64} onChange={(e) => setProfessionalId(e.target.value)} />
             <Input label="ORCID" value={orcid} maxLength={64} onChange={(e) => setOrcid(e.target.value)} placeholder="0000-0002-1825-0097" />
           </div>
@@ -340,7 +340,7 @@ function NewUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: ()
               <Select label="Cargo" options={opcionales(POSITIONS, "")} value={form.position} onChange={set("position")} />
               <Input label="Universidad" value={form.university} onChange={set("university")} />
               <Input label="Hospital / Centro" value={form.hospital} onChange={set("hospital")} />
-              <Input label="Cédula o ID" value={form.national_id} onChange={set("national_id")} />
+              <Input label="Documento de identidad" value={form.national_id} onChange={set("national_id")} />
               <Input label="ID profesional" value={form.professional_id} onChange={set("professional_id")} />
               <Input label="ORCID" value={form.orcid} onChange={set("orcid")} placeholder="0000-0002-1825-0097" />
             </div>

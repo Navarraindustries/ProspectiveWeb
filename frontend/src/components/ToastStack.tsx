@@ -27,21 +27,44 @@ const COLOR = {
 export const AUTOCIERRE_MS = 6000;
 
 /** Cierra solo un aviso que no es error; el temporizador es por aviso (id) y
- *  no se reinicia porque cambie el texto o la función de cerrar. */
+ *  no se reinicia porque cambie el texto o la función de cerrar.
+ *
+ *  UX-17: con el puntero o el foco encima no se cierra (se cerraba a los 6 s
+ *  aunque se estuviera leyendo); al salir vuelve a contar el plazo entero. */
 function useAutocierre(items: ToastItem[]) {
   const cerrar = useRef(new Map<string, () => void>());
+  const pausados = useRef(new Set<string>());
+  const timers = useRef(new Map<string, number>());
   for (const t of items) if (t.onClose) cerrar.current.set(t.id, t.onClose);
   const claves = items.filter((t) => t.tono !== "error" && t.onClose).map((t) => t.id).join("|");
+
+  const programar = (id: string) => {
+    window.clearTimeout(timers.current.get(id));
+    timers.current.set(id, window.setTimeout(() => {
+      if (pausados.current.has(id)) return;          // se reprograma al salir
+      cerrar.current.get(id)?.();
+    }, AUTOCIERRE_MS));
+  };
+
   useEffect(() => {
     if (!claves) return;
-    const timers = claves.split("|").map((id) => window.setTimeout(() => cerrar.current.get(id)?.(), AUTOCIERRE_MS));
-    return () => timers.forEach((t) => window.clearTimeout(t));
-  }, [claves]);
+    const ids = claves.split("|");
+    ids.forEach(programar);
+    return () => ids.forEach((id) => window.clearTimeout(timers.current.get(id)));
+  }, [claves]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  return {
+    pausar: (id: string) => { pausados.current.add(id); },
+    seguir: (id: string) => {
+      if (!pausados.current.delete(id)) return;
+      if (claves.split("|").includes(id)) programar(id);
+    },
+  };
 }
 
 export function ToastStack({ items, top, right }: { items: ToastItem[]; top: number; right: number }) {
   const reducido = useReducedMotion();
-  useAutocierre(items);
+  const { pausar, seguir } = useAutocierre(items);
   if (items.length === 0) return null;
   return (
     <div
@@ -61,6 +84,10 @@ export function ToastStack({ items, top, right }: { items: ToastItem[]; top: num
           animate="animate"
           transition={reducido ? { duration: 0 } : glideTransition}
           onClick={t.onClose}
+          onMouseEnter={() => pausar(t.id)}
+          onMouseLeave={() => seguir(t.id)}
+          onFocus={() => pausar(t.id)}
+          onBlur={() => seguir(t.id)}
           style={{
             ...glass("dense"),
             pointerEvents: "auto",

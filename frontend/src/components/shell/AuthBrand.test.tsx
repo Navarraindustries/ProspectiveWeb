@@ -17,12 +17,12 @@ import { STEP_LABELS } from "../../pipeline/steps";
 afterEach(() => { reducido.valor = false; });
 
 describe("AuthBrand", () => {
-  it("reproduce intro.mp4 en bucle, silenciado y con autoplay", () => {
+  it("reproduce intro.mp4 una vez, silenciado y con autoplay (UX-21: sin bucle infinito)", () => {
     const { container } = render(<AuthBrand />);
     const video = container.querySelector<HTMLVideoElement>(`video[src="${VIDEO_MARCA}"]`);
     expect(video).not.toBeNull();
     expect(video!.muted || video!.hasAttribute("muted") || video!.defaultMuted).toBe(true);
-    expect(video!.loop).toBe(true);
+    expect(video!.loop).toBe(false);
     expect(video!.autoplay).toBe(true);
     expect(video!.getAttribute("playsinline")).not.toBeNull();
     expect(video!.style.objectFit).toBe("cover");
@@ -34,7 +34,7 @@ describe("AuthBrand", () => {
     const video = container.querySelector<HTMLVideoElement>("video")!;
     expect(video.autoplay).toBe(false);
     expect(video.loop).toBe(false);
-    expect(video.getAttribute("preload")).toBe("auto");
+    expect(video.getAttribute("preload")).toBe("metadata");     // ni se descarga entero
   });
 
   it("cubre toda la pantalla, fijo y por debajo de la ventana, sin capturar el ratón", () => {

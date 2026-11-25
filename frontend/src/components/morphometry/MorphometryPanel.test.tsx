@@ -372,7 +372,7 @@ describe("F1-153: «Marcar cuello» dice dónde pinchar y dónde quedó", () => 
   it("tras marcar se ve la coordenada", async () => {
     withStore(openCap);
     const boton = await screen.findByRole("button", { name: /Marcar cuello/ });
-    expect(boton).toHaveAttribute("title", "Pincha en la unión del saco con el vaso");
+    expect(boton).toHaveAttribute("title", "Haz clic en la unión del saco con el vaso");
     act(() => { store!.setNeckOrigin([1.23, 4.56, -7.89]); store!.setNeckDome([0, 9.04, 2]); });
     expect(await screen.findByText("(1,2; 4,6; −7,9) mm")).toBeInTheDocument();
     expect(screen.getByText("(0,0; 9,0; 2,0) mm")).toBeInTheDocument();

@@ -108,7 +108,7 @@ export function startRecording(src: FrameSource, opts: RecorderOptions = {}, dep
   const fps = opts.fps ?? 30;
   const maxMs = opts.maxMs ?? MAX_RECORDING_MS;
   const mime = pickMimeType(deps.isTypeSupported);
-  if (!mime) throw new Error("Este navegador no puede grabar vídeo. Usa Chrome o Edge actualizados.");
+  if (!mime) throw new Error("Este navegador no puede grabar video. Usa Chrome o Edge actualizados.");
 
   const primero = src.read();
   if (!primero || primero.width <= 0 || primero.height <= 0) throw new Error("No hay visor que grabar.");

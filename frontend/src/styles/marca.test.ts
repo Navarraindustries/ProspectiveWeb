@@ -11,7 +11,7 @@ it("index.html enlaza el favicon SVG, el PNG de 32 y el apple-touch de 180", () 
   expect(html).toContain('sizes="32x32" href="/favicon-32.png"');
   expect(html).toContain('<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />');
   expect(html).not.toContain('href="/icon.png"');
-  expect(html).toMatch(/<title>Prospective<\/title>/);
+  expect(html).toMatch(/<title>PROSPECTIVE<\/title>/);
 });
 it("los PNG existen con su tamaño", () => {
   expect(png("favicon-32.png")).toEqual({ firma: "PNG", ancho: 32, alto: 32 });

@@ -6,7 +6,7 @@ describe("modalidadesDe", () => {
     expect(modalidadesDe({ mod_angio: true, mod_pangio: true })).toBe("Angiografía por catéter");
   });
   it("solo pangio también se muestra", () => {
-    expect(modalidadesDe({ mod_pangio: true, mod_tac: true })).toBe("TAC · Angiografía por catéter");
+    expect(modalidadesDe({ mod_pangio: true, mod_tac: true })).toBe("TC · Angiografía por catéter");
   });
   it("sin marcas, vacío", () => {
     expect(modalidadesDe({})).toBe("");

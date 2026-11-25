@@ -65,7 +65,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "raton-rueda", keys: "Rueda", action: "Corte siguiente o anterior", scope: "raton" },
   { id: "raton-zoom", keys: "Ctrl+rueda", action: "Acercar o alejar el corte", scope: "raton" },
   { id: "raton-wl", keys: "Arrastrar", action: "Ventana y nivel del corte", scope: "raton" },
-  { id: "raton-pan", keys: "Mayús+arrastrar o botón central", action: "Desplazar el corte", scope: "raton" },
+  { id: "raton-pan", keys: "Shift+arrastrar o botón central", action: "Desplazar el corte", scope: "raton" },
   { id: "raton-wl-reset", keys: "Doble clic en W/L", action: "Volver a la ventana del estudio", scope: "raton" },
   { id: "raton-principal", keys: "Doble clic en el asa", action: "Dejar solo esa vista (otro doble clic devuelve las demás)", scope: "raton" },
   { id: "raton-celda", keys: "Arrastrar la celda", action: "Intercambiar dos vistas (desde el borde de arriba de la celda)", scope: "raton" },

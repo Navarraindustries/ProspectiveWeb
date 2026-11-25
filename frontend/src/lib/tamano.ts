@@ -1,3 +1,4 @@
+import { LOCALE } from "./fecha";
 /* Lo que ocupa un archivo, para leerlo de un vistazo.
 
    F2-73: cada sesión guardada es una copia completa (unos 342 MB) y la ficha
@@ -18,6 +19,6 @@ export function formatBytes(bytes: number): string {
   }
   // Los bytes sueltos no tienen decimales: «512 B», nunca «512,0 B».
   const decimales = u > 0 && valor < 10 ? 1 : 0;
-  const texto = new Intl.NumberFormat("es-ES", { maximumFractionDigits: decimales, useGrouping: false }).format(valor);
+  const texto = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: decimales, useGrouping: false }).format(valor);
   return `${texto} ${UNIDADES[u]}`;
 }

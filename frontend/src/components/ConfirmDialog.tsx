@@ -4,8 +4,9 @@
    ninguna escuchaba Escape ni movía el foco: el teclado se quedaba en la página
    de debajo y la única salida era el ratón. */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
+import { atraparTab } from "../lib/atraparFoco";
 import type { ReactNode } from "react";
 import { fundido, fundidoTransition, glide, glideTransition, motion, useReducedMotion } from "../motion";
 import { glass } from "../styles/glass";
@@ -52,6 +53,7 @@ export function ConfirmDialog({
   onExtra?: () => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const idPregunta = useId();
   const reduced = useReducedMotion();
   // Los manejadores van por ref: quien llama los pasa en línea y cambian en cada
   // render. Si el efecto dependiera de ellos, cada letra tecleada en un campo
@@ -71,6 +73,8 @@ export function ConfirmDialog({
       // Con la acción en curso (`busy`) la tecla se sigue cortando, pero no
       // cancela: cerrar a medias dejaba pulsar otra vez y repetir la petición.
       if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); if (!busy) onCancelRef.current(); return; }
+      // UX-5: el tabulador no sale del diálogo hacia la página de debajo.
+      if (atraparTab(e, panelRef.current)) { e.stopPropagation(); return; }
       if (e.key !== "Enter") return;
       e.stopPropagation();
       e.preventDefault();
@@ -128,12 +132,14 @@ export function ConfirmDialog({
         role="alertdialog"
         aria-modal="true"
         aria-label={title}
+        // UX-5: un lector de pantalla anunciaba el título pero no la pregunta.
+        aria-describedby={idPregunta}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{ ...glass("dense"), boxShadow: "var(--glass-highlight), var(--shadow-lg)", outline: "none", width: 420, maxWidth: "90%", borderRadius: "var(--radius-xl)", padding: "22px 24px" }}
       >
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--foreground)" }}>{title}</div>
-        <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.55 }}>
+        <div id={idPregunta} style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.55 }}>
           {children}
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>

@@ -248,7 +248,7 @@ function PendingRequestsPage() {
                         ["Hospital", u.hospital],
                         ["Universidad", u.university],
                         ["ID profesional", u.professional_id],
-                        ["Cédula / ID", u.national_id],
+                        ["Documento de identidad", u.national_id],
                         ["ORCID", u.orcid],
                       ]
                         .filter(([, v]) => v)

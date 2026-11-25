@@ -209,7 +209,7 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
           </div>
           <div style={{ marginTop: 12 }}>
             <Select
-              label="Ictus previos"
+              label="ACV previos"
               options={[
                 { value: "", label: "Sin registrar" },
                 { value: "0", label: "Ninguno" },

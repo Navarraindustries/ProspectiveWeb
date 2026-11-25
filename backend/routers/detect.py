@@ -434,7 +434,7 @@ async def detect_aneurysm(
     if not vtp_path.exists():
         raise HTTPException(
             status_code=422,
-            detail="No segmented mesh found. Run POST /segment first.",
+            detail="No hay malla segmentada: segmenta el estudio antes de detectar.",
         )
 
     # Lleva medio minuto en una malla real; el mismo registro de progreso que

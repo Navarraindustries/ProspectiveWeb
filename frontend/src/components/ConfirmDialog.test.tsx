@@ -153,7 +153,7 @@ describe("ConfirmDialog con el teclado", () => {
     const onCancel = vi.fn();
     render(
       <Sheet open onClose={onCloseSheet} title="Talleres">
-        <ConfirmDialog open busy title="Borrar taller" destructive confirmLabel="Borrar"
+        <ConfirmDialog open busy title="Eliminar taller" destructive confirmLabel="Borrar"
                        onCancel={onCancel} onConfirm={() => {}}>
           cuerpo
         </ConfirmDialog>
@@ -168,7 +168,7 @@ describe("ConfirmDialog con el teclado", () => {
   it("sin acción en curso, el clic en el velo cancela", () => {
     const onCancel = vi.fn();
     render(
-      <ConfirmDialog open title="Borrar taller" destructive confirmLabel="Borrar" onCancel={onCancel} onConfirm={() => {}}>
+      <ConfirmDialog open title="Eliminar taller" destructive confirmLabel="Borrar" onCancel={onCancel} onConfirm={() => {}}>
         cuerpo
       </ConfirmDialog>,
     );

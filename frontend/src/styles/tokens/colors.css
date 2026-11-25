@@ -53,6 +53,9 @@
   /* ---- Estado clínico ---- */
   --destructive:        #FF5A6A;
   --destructive-text:   #FF8A96;   /* texto de error legible sobre cristal */
+  /* UX-18: leyenda del mapa de cambios (rojo creció, azul encogió): 7:1 sobre el oscuro. */
+  --cambio-crece:       #FF7A6B;
+  --cambio-encoge:      #7FA8FF;
   --destructive-bg:     rgba(255, 90, 106, 0.12);
   --destructive-foreground: #050608;
   --success:            #3DDC97;
@@ -63,10 +66,10 @@
 
   /* ---- Estructura ---- */
   --border:             rgba(255, 255, 255, 0.14);
-  --input:              rgba(255, 255, 255, 0.24);
+  --input:              rgba(255, 255, 255, 0.40);   /* UX-2: 3,8:1, el mínimo de un control es 3:1 (antes 2,1) */
   --field-bg:           rgba(5, 6, 8, 0.5);
   --btn-outline-bg:     rgba(255, 255, 255, 0.08);
-  --btn-outline-border: rgba(255, 255, 255, 0.3);
+  --btn-outline-border: rgba(255, 255, 255, 0.40);
   --ring:               var(--primary);
 
   /* ---- Cristal: hojas, menús y barra superior ---- */
@@ -185,6 +188,8 @@
 
   --destructive:        #B91C1C;
   --destructive-text:   #B91C1C;
+  --cambio-crece:       #B42318;
+  --cambio-encoge:      #1D4ED8;
   --destructive-bg:     #FEE2E2;
   --destructive-foreground: #FFFFFF;
   --success:            #147A3A;   /* un punto más oscuro que #15803D: 4,5:1 sobre el cristal encima del visor */
@@ -194,10 +199,10 @@
   --info:               #4A5361;
 
   --border:             rgba(0, 0, 0, 0.08);
-  --input:              rgba(0, 0, 0, 0.14);
+  --input:              rgba(0, 0, 0, 0.45);   /* UX-2: 3,35:1 sobre blanco (antes 1,38: el campo no se veía) */
   --field-bg:           #FFFFFF;
   --btn-outline-bg:     transparent;
-  --btn-outline-border: rgba(0, 0, 0, 0.14);
+  --btn-outline-border: rgba(0, 0, 0, 0.45);
   --ring:               var(--primary);
 
   /* En el claro el peor fondo del cristal es el negro del quirófano (--viewer-bg):

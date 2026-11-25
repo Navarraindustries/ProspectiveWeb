@@ -38,6 +38,21 @@ import { useRegisterCommands } from "./lib/commands";
 
 const SOLO_OPACIDAD = { initial: { opacity: 0 }, animate: { opacity: 1 } };
 
+/** El título de la pestaña del navegador por pantalla (UX-14). */
+const TITULO_PANTALLA: Record<Screen, string> = {
+  login: "Entrar",
+  signup: "Crear cuenta",
+  patients: "Pacientes",
+  patient: "Ficha del paciente",
+  studies: "Estudios",
+  orders: "Pedidos de clips",
+  workshops: "Talleres",
+  workspace: "Planificación",
+  pending: "Cuentas pendientes",
+  users: "Usuarios",
+  audit: "Auditoría",
+};
+
 function Router() {
   const { user, ready, expiredNotice, logout } = useAuth();
   const planning = usePlanning();
@@ -153,6 +168,11 @@ function Router() {
   // La ficha lleva el id en la URL; el resto de pantallas, su ruta fija.
   const patientId = effective === "patient" ? patientIdFromPath(location.pathname) : null;
   const effectivePath = patientId !== null ? patientPath(patientId) : SCREEN_PATH[effective];
+  // UX-14: cada pestaña del navegador decía «Prospective». Sin el nombre del
+  // paciente: el título se ve en la barra de tareas y queda en el historial.
+  useEffect(() => {
+    document.title = `${TITULO_PANTALLA[effective]} · PROSPECTIVE`;
+  }, [effective]);
 
   // Keep the URL honest when the effective screen differs from the one the path
   // names — a logged-out visitor deep-linking to /app/sesion, bare /app, or a
@@ -488,7 +508,8 @@ function Router() {
           }}
         >
         <motion.div
-          role={retryHere ? "alert" : undefined}
+          // UX-17: sin rol, un lector de pantalla no anunciaba el aviso.
+          role={retryHere ? "alert" : "status"}
           data-glass
           variants={glide}
           initial="initial"

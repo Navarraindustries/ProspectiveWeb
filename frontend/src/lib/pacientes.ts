@@ -4,7 +4,7 @@
 
 import type { PatientSummary } from "../api/types";
 import { STEPS, STEP_LABELS, clampStep } from "../pipeline/steps";
-import { desdeServidor, fechaHora } from "./fecha";
+import { LOCALE, desdeServidor, fechaHora } from "./fecha";
 
 const MIN = 60_000;
 const HORA = 60 * MIN;
@@ -58,7 +58,7 @@ export function tiempoRelativo(iso: string, ahora: Date = new Date()): string {
     const semanas = Math.min(Math.floor(dias / 7), 4);
     return semanas === 1 ? "hace 1 semana" : `hace ${semanas} semanas`;
   }
-  return desdeServidor(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  return desdeServidor(iso).toLocaleDateString(LOCALE, { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
 /** El paso de la tarjeta: número (1-based) y rótulo. Sin sesión, nada que mostrar. */

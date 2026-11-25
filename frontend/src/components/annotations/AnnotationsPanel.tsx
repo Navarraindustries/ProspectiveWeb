@@ -32,7 +32,7 @@ const origin = (a: Annotation) => (a.plane ? `${SLICE_TAG[a.plane.plane]} ${a.pl
     dura más fotogramas de los previstos y un tope fijo se rendía antes. */
 export const NOTE_FOCUS_MS = 500;
 
-export const EMPTY_TEXT = "Sin anotaciones. Elige una herramienta y pincha en un corte o en la malla";
+export const EMPTY_TEXT = "Sin anotaciones. Elige una herramienta y haz clic en un corte o en la malla";
 export const FULL_TEXT = `Máximo ${ANNOTATIONS_MAX} anotaciones por sesión: borra alguna para añadir otra`;
 
 const smallBtn = {

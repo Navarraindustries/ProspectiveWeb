@@ -3,7 +3,7 @@
    grabar, salir). El avance llega fotograma a fotograma por `progreso`, fuera
    de React: así solo se repinta esta barra, no el visor entero.
 
-   Teclas (17-11, a petición): ↑/W adelante, ↓/S atrás, Mayús más rápido,
+   Teclas (17-11, a petición): ↑/W adelante, ↓/S atrás, Shift más rápido,
    Espacio pausa o sigue, F mira al frente, Esc sale. Arrastrar en el visor
    gira la mirada y la rueda avanza o retrocede (eso lo lleva MeshView). */
 import { useEffect, useRef, useSyncExternalStore, type SyntheticEvent } from "react";
@@ -132,12 +132,12 @@ export function HudRecorrido({
         <div className="hud-recorrido-avance" style={{ transform: `scaleX(${k})` }} />
       </div>
       <span className="hud-recorrido-cifras">{`${cifra(mm, 1)} / ${cifra(totalMm, 1)} mm · Ø ${cifra(diametroEn(mm), 1)} mm`}</span>
-      <span className="hud-recorrido-ayuda" title="↑ / W adelante · ↓ / S atrás · Mayús más rápido · rueda paso a paso · arrastrar gira la mirada · F o doble clic mira al frente">
+      <span className="hud-recorrido-ayuda" title="↑ / W adelante · ↓ / S atrás · Shift más rápido · rueda paso a paso · arrastrar gira la mirada · F o doble clic mira al frente">
         ↑↓ avanzar · arrastra para mirar
       </span>
       {onGrabar && (grabando
-        ? <button type="button" className="hud-recorrido-rec grabando" title="Parar la grabación y descargar el vídeo" aria-label={`Parar la grabación (${reloj(grabandoMs ?? 0)})`} onClick={onPararGrabacion}>■ {reloj(grabandoMs ?? 0)}</button>
-        : <button type="button" className="hud-recorrido-rec" title="Grabar el recorrido entero en vídeo: desde fuera, la entrada, el avance y la vuelta final. Se para sola al acabar y se descarga." onClick={onGrabar}>● GRABAR</button>)}
+        ? <button type="button" className="hud-recorrido-rec grabando" title="Parar la grabación y descargar el video" aria-label={`Parar la grabación (${reloj(grabandoMs ?? 0)})`} onClick={onPararGrabacion}>■ {reloj(grabandoMs ?? 0)}</button>
+        : <button type="button" className="hud-recorrido-rec" title="Grabar el recorrido entero en video: desde fuera, la entrada, el avance y la vuelta final. Se para sola al acabar y se descarga." onClick={onGrabar}>● GRABAR</button>)}
       {onIvus && (
         <button type="button" className={ivusVisible ? "hud-recorrido-play" : undefined} aria-pressed={ivusVisible}
           title={ivusVisible ? "Ocultar el IVUS virtual" : "Mostrar el IVUS virtual: el corte transversal donde va la cámara, la vista longitudinal y las medidas"}

@@ -335,7 +335,7 @@ const CAMPOS: Record<string, string> = {
   patient_age: "la edad del paciente",
   wfns_grade: "el grado WFNS",
   fisher_grade: "el grado de Fisher",
-  prior_stroke: "el ictus previo",
+  prior_stroke: "el ACV previo",
 };
 
 /** Un 422 de validación (FastAPI/pydantic: una lista de errores) dicho en

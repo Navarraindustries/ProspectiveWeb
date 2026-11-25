@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { AnimatePresence, motion, fundido, fundidoTransition, scrimFade, sheetSlide, sheetTransition, useIsPresent, useReducedMotion } from "../motion";
 import { useMovil, useTableta } from "../hooks/useEstrecho";
+import { atraparTab } from "../lib/atraparFoco";
 import { glass } from "../styles/glass";
 import { Icon } from "./Icon";
 
@@ -86,7 +87,10 @@ export function Sheet({
     openSheets.push(token);
     avisarHojas();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && openSheets[openSheets.length - 1] === token) onCloseRef.current();
+      if (openSheets[openSheets.length - 1] !== token) return;
+      if (e.key === "Escape") onCloseRef.current();
+      // UX-5: el tabulador no sale de la hoja de encima.
+      else atraparTab(e, panelRef.current);
     };
     document.addEventListener("keydown", onKey);
     const previous = document.activeElement as HTMLElement | null;

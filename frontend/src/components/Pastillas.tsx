@@ -51,7 +51,7 @@ export function Pastillas({
           >
             {o.label}
             {o.cuenta !== undefined && (
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, opacity: 0.7 }}>{o.cuenta}</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 13 }}>{o.cuenta}</span>
             )}
           </button>
         );

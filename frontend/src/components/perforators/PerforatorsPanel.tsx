@@ -126,7 +126,7 @@ export function PerforatorsPanel() {
             <> Zonas por distancia al cuello: alta &lt;{zones[0]} mm · media {zones[0]}–{zones[1]} mm · baja {zones[1]}–{zones[2]} mm. Son cortes de distancia, no una probabilidad de lesionar la rama.</>
           )}
           <br />
-          Pulsa una fila para mostrarla u ocultarla en el visor 3D.
+          Haz clic en una fila para mostrarla u ocultarla en el visor 3D.
           {result.calibre_floor_mm > 0 && (
             <>
               <br />

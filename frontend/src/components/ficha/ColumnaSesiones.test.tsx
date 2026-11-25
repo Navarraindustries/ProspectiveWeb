@@ -156,14 +156,14 @@ describe("renombrar en línea", () => {
 });
 
 describe("borrar una sesión guardada", () => {
-  it("«Borrar» confirma con el nombre y borra", async () => {
+  it("«Eliminar» confirma con el nombre y elimina", async () => {
     deleteSavedSession.mockResolvedValue(undefined);
     render(<Arnes inicial={[guardada({ session_id: "s1", label: "Antes de medir" }), guardada({ session_id: "s2", label: "Otra" })]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Borrar «Antes de medir»" }));
-    const dialogo = screen.getByRole("alertdialog", { name: "Borrar la sesión guardada" });
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar «Antes de medir»" }));
+    const dialogo = screen.getByRole("alertdialog", { name: "Eliminar la sesión guardada" });
     expect(dialogo.textContent).toContain("Antes de medir");
     expect(dialogo.textContent).toContain("Se borra la copia guardada y no se puede deshacer. Si la acabas de reanudar, no se podrá borrar hasta que esa sesión abierta caduque sola.");
-    fireEvent.click(within(dialogo).getByRole("button", { name: "Borrar" }));
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Eliminar" }));
     await waitFor(() => expect(deleteSavedSession).toHaveBeenCalledWith("s1"));
     expect(onBorrada).toHaveBeenCalledWith("s1");
     await waitFor(() => expect(screen.queryByText("Antes de medir")).toBeNull());
@@ -174,8 +174,8 @@ describe("borrar una sesión guardada", () => {
     const detalle = "Esta sesión guardada es el origen de una sesión abierta: ciérrala antes de borrarla.";
     deleteSavedSession.mockRejectedValue(new ApiError(409, detalle));
     render(<Arnes inicial={[guardada({ session_id: "s1", label: "Antes de medir" })]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Borrar «Antes de medir»" }));
-    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Borrar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar «Antes de medir»" }));
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Eliminar" }));
     const aviso = await screen.findByText(detalle);
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(screen.getByText("Antes de medir").closest("[data-guardada]")?.contains(aviso)).toBe(true);

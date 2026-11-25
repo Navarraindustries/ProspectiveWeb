@@ -52,4 +52,23 @@ describe("ToastStack", () => {
       vi.useRealTimers();
     }
   });
+
+  it("no se cierra mientras se lee: con el puntero encima espera, y al salir cuenta el plazo entero (UX-17)", () => {
+    vi.useFakeTimers();
+    try {
+      const ok = vi.fn();
+      render(<ToastStack top={84} right={0} items={[{ id: "o", tono: "ok", texto: "Hecho", role: "status", onClose: ok }]} />);
+      const aviso = screen.getByRole("status");
+      fireEvent.mouseEnter(aviso);
+      vi.advanceTimersByTime(AUTOCIERRE_MS * 2);
+      expect(ok).not.toHaveBeenCalled();
+      fireEvent.mouseLeave(aviso);
+      vi.advanceTimersByTime(AUTOCIERRE_MS - 1);
+      expect(ok).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(ok).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

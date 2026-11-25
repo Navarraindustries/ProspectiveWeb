@@ -866,7 +866,7 @@ async def segment(
     if not any(dicom_dir.iterdir()):
         raise HTTPException(
             status_code=422,
-            detail="No DICOM files found in session. Did you upload files first?",
+            detail="La sesión no tiene archivos DICOM: carga el estudio en el paso 1.",
         )
 
     # Map API levels (0–10) to pipeline parameters

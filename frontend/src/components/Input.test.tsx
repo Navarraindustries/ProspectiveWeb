@@ -90,7 +90,7 @@ describe("Input", () => {
 
   it("deshabilitado, el campo va al 40 % de opacidad", () => {
     render(<Input label="Nombre" disabled />);
-    expect((screen.getByLabelText("Nombre").parentElement as HTMLElement).style.opacity).toBe("0.4");
+    expect((screen.getByLabelText("Nombre").parentElement as HTMLElement).style.opacity).toBe("0.6");
   });
 
   it("encadena los onFocus y onBlur del llamador", () => {

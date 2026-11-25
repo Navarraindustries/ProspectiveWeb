@@ -133,7 +133,7 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
                  : "Como aparecerá en el desplegable al pedir una pieza."} />
         <div className="hoja-dos-columnas">
           <Input label="Persona de contacto" value={form.contact_name} onChange={set("contact_name")} />
-          <Input label="NIF / identificación fiscal" value={form.tax_id} onChange={set("tax_id")} />
+          <Input label="Identificación fiscal (NIT, RUT o similar)" value={form.tax_id} onChange={set("tax_id")} />
           <Input label="Correo" type="email" value={form.email} onChange={set("email")} />
           <Input label="Teléfono" value={form.phone} onChange={set("phone")} />
         </div>
@@ -255,7 +255,7 @@ export function WorkshopsPage() {
                 )}
                 {/* Sans 13 px; mono solo en el código (NIF) y fechas con cifras tabulares. */}
                 <div data-testid="tl-alta" style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
-                  {w.tax_id && <>NIF <span data-mono style={{ fontFamily: "var(--font-mono)" }}>{w.tax_id}</span> · </>}
+                  {w.tax_id && <>Id. fiscal <span data-mono style={{ fontFamily: "var(--font-mono)" }}>{w.tax_id}</span> · </>}
                   alta <span style={ESTILO_FECHA}>{fechaEpoch(w.created_at)}</span>
                   {w.last_used_at
                     ? <> · último pedido <span style={ESTILO_FECHA}>{fechaEpoch(w.last_used_at)}</span></>
@@ -312,7 +312,7 @@ export function WorkshopsPage() {
 
       <ConfirmDialog
         open={toDelete !== null}
-        title="Borrar taller"
+        title="Eliminar taller"
         confirmLabel={deleting ? "Borrando…" : "Borrar"}
         destructive
         busy={deleting}

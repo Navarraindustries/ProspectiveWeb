@@ -493,7 +493,7 @@ async def restore_session(
     if ps is None:
         raise HTTPException(
             status_code=404,
-            detail=f"No saved session found with id '{session_id}'",
+            detail="Esa sesión guardada no existe: puede que se haya borrado.",
         )
     if not has_saved_session(session_id):
         raise HTTPException(

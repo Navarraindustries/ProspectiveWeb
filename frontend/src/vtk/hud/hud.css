@@ -19,6 +19,9 @@
 .hud-label[data-plane="coronal"] { color: var(--plane-coronal); }
 .hud-label[data-plane="sagital"] { color: var(--plane-sagital); }
 .hud-readout { position: absolute; font-size: 10.5px; line-height: 1.5; letter-spacing: .04em; white-space: pre; }
+/* UX-3: las lecturas van sobre la imagen; sobre hueso o un MIP bajaban a unos
+   2,3:1. El mismo halo negro que ya llevan las anotaciones (.hud-anot text). */
+.hud-readout, .hud-label, .hud-edge, .hud-wl { text-shadow: 0 0 2px #000, 0 0 2px #000, 0 0 3px #000; }
 .hud-readout.tl { top: 22px; left: 14px; } .hud-readout.tr { top: 22px; right: 14px; text-align: right; }
 .hud-readout.bl { bottom: calc(22px + var(--hud-bl-extra, 0px)); left: 14px; } .hud-readout.br { bottom: 22px; right: 14px; text-align: right; }
 /* Lectura W/L: botón (doble clic restablece) que se ve como las demás
@@ -181,8 +184,10 @@
 .hud-recorrido-avance { position: absolute; inset: 0; background: var(--hud-text); transform-origin: left center; }
 .hud-recorrido-cifras { color: var(--hud-text); font-variant-numeric: tabular-nums; }
 .hud-recorrido-ayuda { color: var(--hud-text-dim); }
-.hud-recorrido .hud-recorrido-rec { color: var(--destructive); }
-.hud-recorrido .hud-recorrido-rec.grabando { color: var(--destructive); font-variant-numeric: tabular-nums; }
+/* UX-7: el visor es negro en los dos temas, y el rojo del tema claro (#B91C1C)
+   quedaba en 3,25:1 sobre él. El rojo del oscuro, en los dos. */
+.hud-recorrido .hud-recorrido-rec { color: var(--hud-rec, #FF5A6A); }
+.hud-recorrido .hud-recorrido-rec.grabando { color: var(--hud-rec, #FF5A6A); font-variant-numeric: tabular-nums; }
 @media (max-width: 1024px) { .hud-recorrido-ayuda { display: none; } }
 @media (max-width: 640px) { .hud-recorrido-titulo, .hud-recorrido-pista { display: none; } }
 [data-hud][data-tactil="true"] .hud-recorrido button { min-height: 44px; min-width: 44px; font-size: 13px; }

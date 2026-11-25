@@ -43,7 +43,7 @@ describe("el botón de grabar", () => {
     render(<RecordButton step="morpho" onMessage={vi.fn()} soloIcono />);
     const b = screen.getByRole("button", { name: "Grabar" });
     expect(b.textContent).toBe("");
-    expect(b.getAttribute("title")).toMatch(/^Graba el visor en vídeo/);
+    expect(b.getAttribute("title")).toMatch(/^Graba el visor en video/);
     fireEvent.click(b);
     expect((await screen.findByRole("button", { name: /Detener/ })).textContent).toContain("● 00:");
   });
@@ -97,11 +97,11 @@ describe("el botón de grabar", () => {
   });
 
   it("si el navegador no sabe grabar, lo dice", () => {
-    startRecording.mockImplementation(() => { throw new Error("Este navegador no puede grabar vídeo."); });
+    startRecording.mockImplementation(() => { throw new Error("Este navegador no puede grabar video."); });
     const onMessage = vi.fn();
     render(<RecordButton step="morpho" onMessage={onMessage} />);
     fireEvent.click(screen.getByRole("button", { name: /Grabar/ }));
-    expect(onMessage).toHaveBeenLastCalledWith({ tone: "err", text: "Este navegador no puede grabar vídeo." });
+    expect(onMessage).toHaveBeenLastCalledWith({ tone: "err", text: "Este navegador no puede grabar video." });
   });
 
   it("al desmontar grabando, cierra y entrega el vídeo", async () => {

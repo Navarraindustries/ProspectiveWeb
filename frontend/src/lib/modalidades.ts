@@ -4,7 +4,7 @@
 
 export function modalidadesDe(st: { mod_tac?: boolean; mod_angio?: boolean; mod_rm?: boolean; mod_pangio?: boolean }): string {
   return [
-    st.mod_tac && "TAC",
+    st.mod_tac && "TC",
     (st.mod_angio || st.mod_pangio) && "Angiografía por catéter",
     st.mod_rm && "RM",
   ].filter(Boolean).join(" · ");

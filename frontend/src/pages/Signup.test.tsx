@@ -89,9 +89,9 @@ describe("rótulos y ayudas nuevos (F2-13…F2-17)", () => {
 
   it("DNI / NIE, colegiado y ORCID dicen que son opcionales y para qué (F2-14, F2-15, F2-16)", () => {
     montar();
-    expect(screen.getByLabelText("DNI / NIE (opcional)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Documento de identidad (opcional)")).toBeInTheDocument();
     expect(screen.getByText("Solo si tu centro lo pide")).toBeInTheDocument();
-    expect(screen.getByLabelText("Número de colegiado (opcional)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Registro profesional (opcional)")).toBeInTheDocument();
     const orcid = screen.getByLabelText("ORCID (opcional)");
     expect(orcid).toHaveAttribute("placeholder", "0000-0000-0000-0000");
     expect(screen.getByText("Identificador de investigador, si lo tienes")).toBeInTheDocument();

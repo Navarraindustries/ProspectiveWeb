@@ -93,7 +93,7 @@ async def upload_dicom(
 
     files = [v for v in form.getlist("files") if isinstance(v, StarletteUploadFile)]
     if not files:
-        raise HTTPException(status_code=422, detail="No files provided")
+        raise HTTPException(status_code=422, detail="No llegó ningún archivo.")
     todos = len(files)
     files = [f for f in files if es_nombre_dicom(Path(f.filename or "unnamed.dcm").name)]
     if not files:
@@ -130,7 +130,7 @@ async def upload_dicom(
             if len(content) > _MAX_FILE_BYTES:
                 raise HTTPException(
                     status_code=413,
-                    detail=f"File '{uf.filename}' exceeds {_MAX_FILE_MB} MB limit",
+                    detail=f"El archivo «{uf.filename}» supera el máximo de {_MAX_FILE_MB} MB.",
                 )
             total_bytes += len(content)
             if total_bytes > _MAX_UPLOAD_TOTAL_BYTES:
@@ -147,7 +147,7 @@ async def upload_dicom(
             logger.error("Failed to save %s: %s", uf.filename, exc)
             raise HTTPException(
                 status_code=500,
-                detail=f"Could not save file '{uf.filename}': {exc}",
+                detail=f"No se pudo guardar el archivo «{uf.filename}» en el servidor (¿disco lleno?).",
             ) from exc
 
     logger.info("Saved %d files to %s", len(saved), dicom_dir)

@@ -151,7 +151,7 @@ describe("TrajectoryTool · rótulos del abordaje", () => {
   it("«Entrada» explica dónde pinchar (F1-185)", () => {
     render(<TrajectoryTool />);
     expect(screen.getByRole("button", { name: "Entrada" })).toHaveAttribute(
-      "title", "Pincha sobre un vaso en la dirección por la que entrarías");
+      "title", "Haz clic sobre un vaso en la dirección por la que entrarías");
   });
   it("clic fuera de la malla muestra el aviso mientras se marca (F1-185)", () => {
     planning.pickMode = "traj_entry";

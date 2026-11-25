@@ -48,7 +48,7 @@ describe("adjuntar a un caso", () => {
     expect(apellidos.value).toBe("");
     fireEvent.click(await screen.findByText(/Rellenar con la cabecera DICOM/));
     expect(apellidos.value).toBe("Perez");
-    expect((screen.getByLabelText("Nº de historia / cédula") as HTMLInputElement).value).toBe("HC-9");
+    expect((screen.getByLabelText("Nº de historia o documento") as HTMLInputElement).value).toBe("HC-9");
   });
 
   it("si el nº de historia ya existe, elige ese paciente y avisa del duplicado", async () => {

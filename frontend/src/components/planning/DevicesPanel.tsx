@@ -1997,8 +1997,8 @@ export function TrajectoryTool() {
       <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
         {/* «Entrada» no decía dónde pinchar: es un punto sobre un vaso, en la
             dirección por la que entraría la mano (F1-185). */}
-        {pickBtn("traj_entry", "Entrada", !!trajEntry, "Pincha sobre un vaso en la dirección por la que entrarías")}
-        {pickBtn("traj_target", "Diana", !!trajTarget, "Pincha sobre el aneurisma")}
+        {pickBtn("traj_entry", "Entrada", !!trajEntry, "Haz clic sobre un vaso en la dirección por la que entrarías")}
+        {pickBtn("traj_target", "Diana", !!trajTarget, "Haz clic sobre el aneurisma")}
       </div>
       {/* El aviso del visor sale arriba del 3D, lejos de estos botones: un clic
           al vacío parecía no hacer nada y el botón seguía en «Clic en el visor…». */}

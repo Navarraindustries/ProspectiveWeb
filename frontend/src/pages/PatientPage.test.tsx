@@ -437,8 +437,8 @@ describe("PatientPage · casos, estudios y sesiones en cascada", () => {
     deleteSavedSession.mockResolvedValue(undefined);
     await abrirHastaLaVista();
     patientSessions.mockResolvedValueOnce(SESIONES.filter((s) => s.session_id !== "s-1"));
-    fireEvent.click(screen.getByRole("button", { name: "Borrar «Antes de medir»" }));
-    fireEvent.click(within(screen.getByRole("alertdialog", { name: "Borrar la sesión guardada" })).getByRole("button", { name: "Borrar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar «Antes de medir»" }));
+    fireEvent.click(within(screen.getByRole("alertdialog", { name: "Eliminar la sesión guardada" })).getByRole("button", { name: "Eliminar" }));
     await waitFor(() => expect(deleteSavedSession).toHaveBeenCalledWith("s-1"));
     expect(await screen.findByRole("region", { name: "Sesiones guardadas · 0" })).toBeTruthy();
     expect(patientSessions).toHaveBeenCalledTimes(2);
@@ -451,7 +451,7 @@ describe("PatientPage · casos, estudios y sesiones en cascada", () => {
     const vista = await abrirHastaLaVista();
     expect(within(vista).getByRole("button", { name: "Reanudar" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Editar caso «Aneurisma ACM»" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Renombrar|Borrar|Eliminar caso|Editar datos|Eliminar paciente/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Renombrar|Borrar|Eliminar «|Eliminar caso|Editar datos|Eliminar paciente/ })).toBeNull();
   });
 
   // Patients.test › el glosario en «Pacientes»: «Casos (0)» es ahora «Casos · 0»
@@ -543,8 +543,8 @@ describe("PatientPage · casos, estudios y sesiones en cascada", () => {
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Sesiones sin caso · 2" }));
     const borrar = async (nombre: string) => {
-      fireEvent.click(screen.getByRole("button", { name: `Borrar «${nombre}»` }));
-      fireEvent.click(within(screen.getByRole("alertdialog", { name: "Borrar la sesión guardada" })).getByRole("button", { name: "Borrar" }));
+      fireEvent.click(screen.getByRole("button", { name: `Eliminar «${nombre}»` }));
+      fireEvent.click(within(screen.getByRole("alertdialog", { name: "Eliminar la sesión guardada" })).getByRole("button", { name: "Eliminar" }));
       await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     };
     await borrar("Primera");

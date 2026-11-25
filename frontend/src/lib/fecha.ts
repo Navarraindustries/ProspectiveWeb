@@ -20,11 +20,15 @@ export function desdeServidor(iso: string): Date {
   return new Date(aislado);
 }
 
+/** UX-9: español sin región. Da lo mismo que «es-ES» (24 h, coma decimal) sin
+ *  fijar España; «es-419» cambiaría a 12 h y punto decimal. */
+export const LOCALE = "es";
+
 function formatear(iso: string | null | undefined, fmt: Intl.DateTimeFormatOptions, o?: OpcionesFecha): string {
   if (!iso) return SIN_DATO;
   const d = desdeServidor(iso);
   if (Number.isNaN(d.getTime())) return SIN_DATO;
-  return d.toLocaleString("es-ES", { ...fmt, ...(o?.timeZone ? { timeZone: o.timeZone } : {}) });
+  return d.toLocaleString(LOCALE, { ...fmt, ...(o?.timeZone ? { timeZone: o.timeZone } : {}) });
 }
 
 /** «11/10/26, 0:05» */
@@ -47,7 +51,7 @@ export function hoyLocal(ahora: Date = new Date(), o?: OpcionesFecha): string {
  *  de un guardado recién hecho. «Guardado ✓» se borraba a los 1,8 s y no
  *  decía cuándo; con la hora queda a la vista hasta el próximo cambio (F1-109). */
 export function hora(d: Date = new Date(), o?: OpcionesFecha): string {
-  return d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", ...(o?.timeZone ? { timeZone: o.timeZone } : {}) });
+  return d.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", ...(o?.timeZone ? { timeZone: o.timeZone } : {}) });
 }
 
 /** Un día sin hora («2026-10-30» o el DICOM «20261030») → «30/10/26», SIN cambio de zona:
@@ -59,7 +63,7 @@ export function fechaDia(valor: string | null | undefined, o?: OpcionesFecha): s
   const m = /^(\d{4})-?(\d{2})-?(\d{2})$/.exec(t);
   if (m) {
     const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
-    if (!Number.isNaN(d.getTime())) return d.toLocaleDateString("es-ES", { dateStyle: "short", timeZone: "UTC" });
+    if (!Number.isNaN(d.getTime())) return d.toLocaleDateString(LOCALE, { dateStyle: "short", timeZone: "UTC" });
   }
   const f = fecha(t, o);
   return f === SIN_DATO ? t : f;
@@ -70,7 +74,7 @@ export function fechaEpoch(seg: number | null | undefined, o?: OpcionesFecha & {
   if (!seg) return SIN_DATO;
   const d = new Date(seg * 1000);
   if (Number.isNaN(d.getTime())) return SIN_DATO;
-  return d.toLocaleString("es-ES", {
+  return d.toLocaleString(LOCALE, {
     dateStyle: "short",
     ...(o?.conHora ? { timeStyle: "short" as const } : {}),
     ...(o?.timeZone ? { timeZone: o.timeZone } : {}),

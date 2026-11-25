@@ -16,13 +16,17 @@ export function CapasControl({ capas, onChange, corto = false }: {
   const [abierto, setAbierto] = useState(false);
   const id = useId();
   const raiz = useRef<HTMLDivElement>(null);
+  const boton = useRef<HTMLButtonElement>(null);
   const ocultas = contarOcultas(capas);
 
-  // Clic fuera o Escape lo pliegan.
+  // Clic fuera o Escape lo pliegan. Con Escape el foco vuelve al botón (UX-8:
+  // se perdía y el teclado quedaba en ninguna parte).
   useEffect(() => {
     if (!abierto) return;
     const fuera = (e: PointerEvent) => { if (!raiz.current?.contains(e.target as Node)) setAbierto(false); };
-    const tecla = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); setAbierto(false); } };
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.stopPropagation(); setAbierto(false); boton.current?.focus(); }
+    };
     window.addEventListener("pointerdown", fuera, true);
     window.addEventListener("keydown", tecla, true);
     return () => {
@@ -33,7 +37,7 @@ export function CapasControl({ capas, onChange, corto = false }: {
 
   return (
     <div ref={raiz} className="hud-toggle hud-capas" style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6 }}>
-      <button type="button" aria-expanded={abierto} aria-controls={id} title="Qué se ve en la escena 3D: ocultar no cambia ni las medidas ni el plan"
+      <button ref={boton} type="button" aria-expanded={abierto} aria-controls={id} title="Qué se ve en la escena 3D: ocultar no cambia ni las medidas ni el plan"
               onClick={() => setAbierto((a) => !a)}>
         {abierto ? `[ ${corto ? "CAP" : "CAPAS"} ▾ ]` : `${corto ? "CAP" : "CAPAS"} ▾`}
       </button>
@@ -44,20 +48,24 @@ export function CapasControl({ capas, onChange, corto = false }: {
         </span>
       )}
       {abierto && (
-        <div id={id} role="group" aria-label="Capas de la escena 3D"
-             style={{ position: "absolute", top: "100%", right: 0, zIndex: 30, marginTop: 4, padding: "8px 10px", minWidth: 220,
-                      display: "flex", flexDirection: "column", gap: 4, whiteSpace: "nowrap",
+        // UX-7: el visor es oscuro en los dos temas; con los tokens del claro
+        // las casillas salían blancas. UX-8: filas de 28 px y sin salirse por
+        // la izquierda en pantallas estrechas.
+        <div id={id} role="group" aria-label="Capas de la escena 3D" data-theme="dark"
+             style={{ position: "absolute", top: "100%", right: 0, zIndex: 30, marginTop: 4, padding: "8px 10px",
+                      minWidth: "min(220px, calc(100vw - 32px))", maxWidth: "calc(100vw - 32px)",
+                      display: "flex", flexDirection: "column", gap: 2, whiteSpace: "nowrap", colorScheme: "dark",
                       background: "var(--viewer-bg)", border: "1px solid var(--hud-text-dim)", borderRadius: 6 }}>
           {capas.map((c) => (
             <label key={c.id} title={c.disponible ? c.titulo : `${c.titulo}: no hay en este paso`}
-                   style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, letterSpacing: ".04em",
+                   style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, letterSpacing: ".04em", minHeight: 28,
                             color: c.disponible ? "var(--hud-text)" : "var(--hud-text-dim)", cursor: c.disponible ? "pointer" : "default" }}>
               <input type="checkbox" checked={c.visible} disabled={!c.disponible}
                      onChange={(e) => onChange(c.id, e.target.checked)} />
               {c.rotulo}
             </label>
           ))}
-          <span style={{ fontSize: 10, color: "var(--hud-text-dim)", whiteSpace: "normal", marginTop: 4, lineHeight: 1.4 }}>
+          <span style={{ fontSize: 11, color: "var(--hud-text-dim)", whiteSpace: "normal", marginTop: 4, lineHeight: 1.4 }}>
             Solo cambia lo que se ve: las medidas, el plan y el informe siguen igual.
           </span>
         </div>

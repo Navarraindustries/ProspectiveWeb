@@ -24,7 +24,7 @@ describe("Select", () => {
 
   it("deshabilitado, el campo va al 40 % de opacidad", () => {
     render(<Select label="Sexo" disabled options={["Mujer", "Hombre"]} />);
-    expect(screen.getByLabelText("Sexo").style.opacity).toBe("0.4");
+    expect(screen.getByLabelText("Sexo").style.opacity).toBe("0.6");
   });
 
   it("lleva la clase del cristal y un chevron propio aria-hidden hermano", () => {

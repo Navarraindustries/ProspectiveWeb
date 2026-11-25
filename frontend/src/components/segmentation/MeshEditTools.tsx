@@ -366,7 +366,7 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
           Borrador
         </div>
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
-          Pincha en el visor y desaparece. <b>Pieza suelta</b> quita la estructura
+          Haz clic en el visor y desaparece. <b>Pieza suelta</b> quita la estructura
           entera de un clic, que es como viene el ruido de una malla angiográfica.
           <b> Región pegada</b> sirve cuando el hueso TOCA la vasculatura y por eso forma
           parte de él. Se deshace como cualquier otra edición.
@@ -419,8 +419,8 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
         >
           {pickMode === "erase_piece"
             ? (eraseMode === "region"
-                ? "Pincha la zona a borrar… (pulsa para salir)"
-                : "Pincha la pieza a borrar… (pulsa para salir)")
+                ? "Haz clic en la zona a borrar… (presiona para salir)"
+                : "Haz clic en la pieza a borrar… (presiona para salir)")
             : "Activar borrador"}
         </button>
         {eraseMsg && (

@@ -38,7 +38,7 @@ afterEach(() => vi.restoreAllMocks());
 describe("AnnotationsPanel", () => {
   it("vacío explica qué hacer", () => {
     montar();
-    expect(screen.getByText("Sin anotaciones. Elige una herramienta y pincha en un corte o en la malla")).toBeInTheDocument();
+    expect(screen.getByText("Sin anotaciones. Elige una herramienta y haz clic en un corte o en la malla")).toBeInTheDocument();
   });
 
   it("«Regla (R)» arma anot_regla y queda pulsado", async () => {

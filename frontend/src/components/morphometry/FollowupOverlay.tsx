@@ -50,8 +50,8 @@ export function FollowupOverlay({ sessionId }: { sessionId: string }) {
       <SectionLabel>Superponer un estudio anterior</SectionLabel>
       <div style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "6px 0 10px", lineHeight: 1.5 }}>
         Coloca el estudio anterior sobre el actual (encajando los vasos de alrededor) y
-        pinta en el visor dónde ha cambiado: <b style={{ color: "#c0392b" }}>rojo</b>, creció;{" "}
-        <b style={{ color: "#2c5fd1" }}>azul</b>, encogió; gris, sin cambio distinguible.
+        pinta en el visor dónde ha cambiado: <b style={{ color: "var(--cambio-crece)" }}>rojo</b>, creció;{" "}
+        <b style={{ color: "var(--cambio-encoge)" }}>azul</b>, encogió; gris, sin cambio distinguible.
       </div>
 
       {studies === null && <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Buscando estudios…</div>}

@@ -141,18 +141,18 @@ describe("grabaciones en la galería", () => {
 describe("«Borrar esta captura»", () => {
   it("abre la confirmación y no borra hasta confirmar", async () => {
     render(<CaptureGallery patientId={4} />);
-    fireEvent.click(await screen.findByRole("button", { name: /^Borrar la captura «/ }));
-    expect(screen.getByRole("alertdialog", { name: "¿Borrar la captura?" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /^Eliminar la captura «/ }));
+    expect(screen.getByRole("alertdialog", { name: "¿Eliminar la captura?" })).toBeInTheDocument();
     expect(deleteCapture).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Borrar captura" }));
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar captura" }));
     await waitFor(() => expect(deleteCapture).toHaveBeenCalledWith(7));
     await waitFor(() => expect(screen.queryByText("Morfometría · plano de cuello")).toBeNull());
   });
 
   it("«Cancelar» la deja donde estaba", async () => {
     render(<CaptureGallery patientId={4} />);
-    fireEvent.click(await screen.findByRole("button", { name: /^Borrar la captura «/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Eliminar la captura «/ }));
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(deleteCapture).not.toHaveBeenCalled();
@@ -187,11 +187,11 @@ describe("la ficha de capturas (A40)", () => {
     expect(ICON_NAMES).toContain("EXPORT");
     expect(descargar.querySelector("path")!.getAttribute("d")).toBe(pathDe("EXPORT"));
     expect(descargar.querySelector("path")!.getAttribute("d")).not.toBe(pathDe("STEP_EXPORT"));
-    const borrar = screen.getByRole("button", { name: "Borrar la captura «Vista 1»" });
+    const borrar = screen.getByRole("button", { name: "Eliminar la captura «Vista 1»" });
     expect(borrar).toHaveAttribute("data-variant", "destructive-ghost");
     expect(borrar.textContent).not.toContain("✕");
     fireEvent.click(borrar);
-    expect(screen.getByRole("alertdialog", { name: "¿Borrar la captura?" })).toBeInTheDocument();
+    expect(screen.getByRole("alertdialog", { name: "¿Eliminar la captura?" })).toBeInTheDocument();
   });
 
   it("la rejilla nunca desborda a 360 px", async () => {

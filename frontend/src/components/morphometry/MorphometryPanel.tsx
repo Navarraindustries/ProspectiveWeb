@@ -296,7 +296,7 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
           variant={neckOrigin ? "secondary" : "default"}
           onClick={() => setPickMode("neck_origin")}
           disabled={pickMode === "neck_origin"}
-          title="Pincha en la unión del saco con el vaso"
+          title="Haz clic en la unión del saco con el vaso"
           leadingIcon={<Icon name={neckOrigin ? "STATUS_OK" : "TARGET"} size={14} />}
         >
           {neckOrigin ? "Cuello ✓" : "Marcar cuello"}
@@ -306,7 +306,7 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
           variant={neckDome ? "secondary" : "default"}
           onClick={() => setPickMode("neck_dome")}
           disabled={pickMode === "neck_dome"}
-          title="Pincha en la punta del domo"
+          title="Haz clic en la punta del domo"
           leadingIcon={<Icon name={neckDome ? "STATUS_OK" : "TARGET"} size={14} />}
         >
           {neckDome ? "Ápice ✓" : "Marcar ápice del domo"}
@@ -367,7 +367,7 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
       </div>
       {pickMode === "neck_origin" && (
         <div role="status" style={{ fontSize: 11, color: "var(--foreground)", marginTop: 6 }}>
-          Pincha en la unión del saco con el vaso
+          Haz clic en la unión del saco con el vaso
         </div>
       )}
       {neckBusy && <div style={{ marginTop: 8 }}><ProgressBar /></div>}

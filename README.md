@@ -527,7 +527,7 @@ asa de la celda y el divisor, de la rejilla del visor.
 | Rueda | Corte siguiente o anterior |
 | Ctrl+rueda | Acercar o alejar el corte |
 | Arrastrar | Ventana y nivel del corte |
-| Mayús+arrastrar o botón central | Desplazar el corte |
+| Shift+arrastrar o botón central | Desplazar el corte |
 | Doble clic en W/L | Volver a la ventana del estudio |
 | Doble clic en el asa | Dejar solo esa vista (otro doble clic devuelve las demás) |
 | Arrastrar la celda | Intercambiar dos vistas (desde el borde de arriba de la celda) |

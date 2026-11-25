@@ -126,7 +126,8 @@ export function Button({
         fontSize: size === "sm" ? 13 : 14,
         fontWeight: variant === "default" || variant === "destructive" ? 600 : 500,
         cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.4 : 1,
+        // UX-13: al 40 % no se leía qué botón era (1,8:1 en tema claro).
+        opacity: disabled ? 0.6 : 1,
         transition:
           "background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out)",
         ...variantStyle(variant, hover || (variant === "destructive-ghost" && focus), !!disabled),

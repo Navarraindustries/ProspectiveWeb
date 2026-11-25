@@ -36,6 +36,10 @@
   .campo-select option::checkmark { color: var(--primary); }
 }
 
+/* UX-19: el texto de ejemplo de los campos salía con el gris del navegador,
+   cerca de 2,3:1 sobre blanco. El texto apagado del tema cumple 4,5:1. */
+::placeholder { color: var(--muted-foreground); opacity: 1; }
+
 /* Casillas y opciones: un solo dibujo en toda la aplicación, sobre el campo de cristal. */
 input[type="checkbox"], input[type="radio"] {
   appearance: none;

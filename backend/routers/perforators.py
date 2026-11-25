@@ -64,7 +64,7 @@ async def get_perforators(session_id: str) -> PerforatorsResult:
     if not vtp_path.exists():
         raise HTTPException(
             status_code=422,
-            detail="No segmented mesh found. Run POST /segment and POST /detect first.",
+            detail="No hay malla segmentada: segmenta el estudio y detecta el aneurisma antes de buscar perforantes.",
         )
 
     # ── Resolve neck origin ───────────────────────────────────────────── #

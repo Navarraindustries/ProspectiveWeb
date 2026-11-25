@@ -167,7 +167,7 @@ export function ColumnaSesiones({
                     {s.rupture_risk_label && <MorphoRiskBadge label={s.rupture_risk_label} />}
                     {puedeGestionar && (
                       <Button type="button" size="sm" variant="ghost" leadingIcon={<Icon name="DELETE" />}
-                              aria-label={`Borrar «${label}»`} onClick={() => setDelSession(s)}>
+                              aria-label={`Eliminar «${label}»`} onClick={() => setDelSession(s)}>
                         Borrar
                       </Button>
                     )}
@@ -184,14 +184,14 @@ export function ColumnaSesiones({
 
       <ConfirmDialog
         open={!!delSession}
-        title="Borrar la sesión guardada"
+        title="Eliminar la sesión guardada"
         destructive
         busy={delBusy}
-        confirmLabel={delBusy ? "Borrando…" : "Borrar"}
+        confirmLabel={delBusy ? "Eliminando…" : "Eliminar"}
         onCancel={() => setDelSession(null)}
         onConfirm={confirmDelete}
       >
-        ¿Borrar <b style={{ color: "var(--foreground)" }}>«{delSession ? etiquetaGuardada(delSession, nombrePaciente) : ""}»</b>?{" "}
+        ¿Eliminar <b style={{ color: "var(--foreground)" }}>«{delSession ? etiquetaGuardada(delSession, nombrePaciente) : ""}»</b>?{" "}
         {"Se borra la copia guardada y no se puede deshacer. Si la acabas de reanudar, no se podrá borrar hasta que esa sesión abierta caduque sola."}
       </ConfirmDialog>
     </div>

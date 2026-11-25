@@ -1,6 +1,6 @@
 /* Fondo de marca de las pantallas públicas «Entrar» y «Crear cuenta».
 
-   UNI-133: el vídeo quirúrgico de la casa (`intro.mp4`, en bucle y silenciado
+   UNI-133: el vídeo quirúrgico de la casa (`intro.mp4`, silenciado
    para que el navegador permita el autoplay) ya no es un panel a la izquierda:
    cubre toda la pantalla, fijo, y la ventana del formulario flota centrada
    encima. Entre los dos va una capa de atenuación (`ATENUACION`) para que el
@@ -61,13 +61,15 @@ export function AuthBrand() {
         pointerEvents: "none",
       }}
     >
+      {/* UX-21: se movía sin fin y sin pausa mientras se escribía la
+          contraseña. Ahora corre una vez y se queda en su último fotograma;
+          con movimiento reducido no corre ni se descarga entero. */}
       <video
         src={VIDEO_MARCA}
         autoPlay={!reducido}
-        loop={!reducido}
         muted
         playsInline
-        preload="auto"
+        preload={reducido ? "metadata" : "auto"}
         aria-hidden
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
       />

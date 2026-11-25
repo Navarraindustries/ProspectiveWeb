@@ -40,7 +40,7 @@ const ANGIO_TIPO = ["", "BIPLANO", "MONOPLANO"];
 // «Angiografía» y «Panangiografía» se solapaban (F2-40): una sola casilla. El backend
 // conserva las dos columnas, así que se guardan iguales y al leer vale cualquiera.
 const MODALIDADES: [keyof Mods, string][] = [
-  ["tac", "TAC"], ["angio", "Angiografía por catéter"], ["rm", "Resonancia"],
+  ["tac", "TC"], ["angio", "Angiografía por catéter"], ["rm", "Resonancia"],
 ];
 
 type Mods = { tac: boolean; angio: boolean; rm: boolean };

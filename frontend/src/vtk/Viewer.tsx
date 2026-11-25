@@ -1068,7 +1068,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (r.blob.size === 0) { showHintRef.current("La grabación salió vacía: el navegador no entregó ningún fotograma."); return; }
       const archivo = nombreVideoRecorrido(r.mimeType);
       downloadBlob(r.blob, archivo);
-      showHintRef.current(`Vídeo del recorrido descargado: ${archivo}`);
+      showHintRef.current(`Video del recorrido descargado: ${archivo}`);
     } catch (e) {
       showHintRef.current(`No se pudo cerrar la grabación: ${e instanceof Error ? e.message : e}`);
     }

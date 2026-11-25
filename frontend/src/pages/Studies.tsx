@@ -237,7 +237,7 @@ export function StudyGallery({
             : undefined}>
           {q.trim()
             ? `Ningún estudio coincide con «${q.trim()}».`
-            : (emptyHint ?? "Aún no hay estudios archivados. Abre un caso con «Planificar este caso», carga el DICOM y pulsa «Guardar estudio» en el Paso 1.")}
+            : (emptyHint ?? "Aún no hay estudios archivados. Abre un caso con «Planificar este caso», carga el DICOM y presiona «Guardar estudio» en el Paso 1.")}
         </EstadoVacio>
       ) : (
         <div style={{
@@ -377,7 +377,7 @@ export function Studies({
         ? "Cargando…"
         : count === "error"
           ? "No se pudo cargar la lista"
-          : `${count} ${count === 1 ? "estudio" : "estudios"} de imagen ${count === 1 ? "archivado" : "archivados"}${count > 0 ? " · pulsa uno para reanudarlo o abrirlo" : ""}`}
+          : `${count} ${count === 1 ? "estudio" : "estudios"} de imagen ${count === 1 ? "archivado" : "archivados"}${count > 0 ? " · haz clic en uno para reanudarlo o abrirlo" : ""}`}
     >
       <PageBody className="fade-rise">
           <StudyGallery

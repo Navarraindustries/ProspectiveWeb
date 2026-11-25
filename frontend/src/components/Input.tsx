@@ -75,7 +75,7 @@ export function Input({ label, icon, hint, invalid, obligatorio, multiline, styl
           gap: 8,
           ...(multiline ? { minHeight: "calc(var(--field-h) * 2)", padding: "8px 12px", alignItems: "flex-start" } : { height: "var(--field-h)", padding: "0 14px", alignItems: "center" }),
           borderRadius: "var(--radius-md)",
-          opacity: rest.disabled ? 0.4 : 1,
+          opacity: rest.disabled ? 0.6 : 1,
           background: "var(--field-bg)",
           border: `1px solid ${invalid ? "var(--destructive)" : focused ? "var(--primary)" : "var(--input)"}`,
           boxShadow: invalid

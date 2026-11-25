@@ -52,6 +52,9 @@ export function Burbuja(p: BurbujaProps) {
   const vivo = useRef(p);
   vivo.current = p;
 
+  // Se mide en cada render a propósito (el texto cambia de alto); `h !== alto`
+  // corta la cadena: como mucho un render de más.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const h = raiz.current?.offsetHeight ?? 0;
     if (h > 0 && h !== alto) setAlto(h);

@@ -243,7 +243,7 @@ export function SliceView(p: SliceViewProps) {
       scene.current = null;
       grw.delete();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [p.image, p.plane]);
 
   // ── Corte, ventana/nivel, banda: sin reconstruir ─────────────────────── #

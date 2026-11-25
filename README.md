@@ -3428,6 +3428,7 @@ Frontend checks:
 ```bash
 cd frontend
 npx vitest run          # 162 unit tests (vitest + Testing Library, jsdom)
+npm run lint            # ESLint: React hooks rules, no warnings allowed (also in CI)
 npx tsc -b --noEmit     # type check
 npm run build           # production build
 ```

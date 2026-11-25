@@ -339,7 +339,7 @@ function ClipsTab() {
     // Imported clips live in the session directory, but the browser forgets them
     // on resume — the dropdown lost geometry that was still on disk.
     api.listCustomClips(sessionId).then(setCustoms).catch(() => { /* none imported */ });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [sessionId]);
 
   const removeCustom = async (clipId: string) => {
@@ -606,6 +606,7 @@ function ClipsTab() {
       clipReplace.cancellers.delete(cancel);
       clipReplace.forgetters.delete(forget);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- montar y desmontar: la limpieza marca el panel como desmontado
   }, []);
 
   return (
@@ -979,7 +980,7 @@ function CoilsTab() {
       .catch(() => { /* sin morfometría todavía: se monta desde el catálogo */ })
       .finally(() => { if (vivo) setCargado(true); });
     return () => { vivo = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [sessionId]);
 
   // El catálogo entero cuando se pide verlo, y también cuando no hay montaje

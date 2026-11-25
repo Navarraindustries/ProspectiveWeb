@@ -523,7 +523,7 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
 
   // El punto compartido se mueve con la rueda y con los cortes: el giro le
   // sigue sin mover la cámara (el siguiente arrastre gira alrededor del nuevo).
-  useEffect(() => { applyCenter(); }, [mprVoxel, meta, image]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { applyCenter(); }, [mprVoxel, meta, image]);    
 
   // ENCUADRAR encuadra solo lo que el recorte deja ver, no la caja entera: en
   // acumulado al principio del recorrido o en una lámina fina, la caja entera

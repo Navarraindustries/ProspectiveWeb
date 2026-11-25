@@ -825,6 +825,9 @@ export function MeshView({
 
   // ── Scene: render window + mesh layers + surface picking ──────────────── #
   useEffect(() => {
+    // Los mismos Map toda la vida del componente (nunca se reasignan).
+    const nombrados = namedActors.current, contornos = outlineActors.current;
+    const idPorActor = handleIdByActor.current, tipoPorActor = handleKindByActor.current;
     const container = containerRef.current;
     if (!container) return;
 
@@ -1623,8 +1626,8 @@ export function MeshView({
       // desaparecía y los conmutadores de debajo saltaban. Sus métodos ya
       // miran handles.current; se anula solo al desmontar (efecto de abajo).
       registerPartsRef.current?.(null);
-      namedActors.current.clear();
-      outlineActors.current.clear();
+      nombrados.clear();
+      contornos.clear();
       markerActors.current = [];
       planeActors.current = [];
       const sl = sliceActors.current;
@@ -1635,8 +1638,8 @@ export function MeshView({
       // Las asas se van con la capa superior que se borra aquí; el efecto de las
       // asas las vuelve a poner en la capa nueva.
       handleActors.current = [];
-      handleIdByActor.current.clear();
-      handleKindByActor.current.clear();
+      idPorActor.clear();
+      tipoPorActor.clear();
       const h = handles.current;
       if (h) {
         // Remember the camera so a preview refresh can restore the viewpoint.
@@ -1870,7 +1873,7 @@ export function MeshView({
       trazoActor.current = actor;
     }
     h.renderWindow.render();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [key, trazo]);
 
   // ── Rótulos: al cambiar la lista (antes de pintar, para que un rótulo nuevo

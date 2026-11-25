@@ -99,7 +99,7 @@ export function useRecorrido(
     let i = indice - 1;
     while (i >= 0 && omitida(paradas[i])) i--;
     if (i >= 0) setIndice(i);
-  }, [indice, paradas, terminarUnaVez]);
+  }, [indice, paradas]);
 
   const saltar = useCallback(() => terminarUnaVez("saltado"), [terminarUnaVez]);
 

@@ -78,6 +78,9 @@ jobs:
           git diff --exit-code -- src/api/schema.gen.ts
       - name: Tipos
         run: npx tsc --noEmit -p .
+      # Las reglas de los hooks de React; un aviso nuevo rompe el paso.
+      - name: Lint
+        run: npm run lint
       - name: Tests
         run: npm test
       - name: Vulnerabilidades (producción)

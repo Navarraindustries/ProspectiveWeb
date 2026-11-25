@@ -49,9 +49,10 @@ function useAutocierre(items: ToastItem[]) {
   useEffect(() => {
     if (!claves) return;
     const ids = claves.split("|");
+    const mapa = timers.current;   // el mismo Map toda la vida del componente
     ids.forEach(programar);
-    return () => ids.forEach((id) => window.clearTimeout(timers.current.get(id)));
-  }, [claves]);   // eslint-disable-line react-hooks/exhaustive-deps
+    return () => ids.forEach((id) => window.clearTimeout(mapa.get(id)));
+  }, [claves]);    
 
   return {
     pausar: (id: string) => { pausados.current.add(id); },

@@ -43,6 +43,7 @@ export function Cascada({ columnas, onVolver }: { columnas: ColumnaCascada[]; on
   useEffect(() => {
     const ultima = raiz.current?.querySelector<HTMLElement>(":scope > section:last-of-type");
     ultima?.scrollIntoView?.({ behavior: "smooth", inline: "nearest", block: movil ? "start" : "nearest" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al cambiar el número de columnas, no el ancho
   }, [total]);
 
   useLayoutEffect(() => {

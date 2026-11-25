@@ -207,6 +207,7 @@ export function ClipOrderForm({
       })
       .catch((e) => setProblems(problemsFrom(e)))
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- el cirujano se propone una vez por caso, no al cambiar la cuenta
   }, [sessionId, caseId]);
 
   useEffect(load, [load]);

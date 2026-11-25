@@ -627,7 +627,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     selected_clip: (placedClipsRef.current.find((c) => c.key === selectedClipKeyRef.current) ?? placedClipsRef.current.at(-1))?.key ?? null,
     // Cuántas anotaciones podían salir en la imagen (las ocultas no se pintan).
     annotations_visible: annotationsRef.current.filter((a) => a.visible).length,
-  }), [levelNote, viewMode, selectedCandidate, allCandidates, morphometry, mprWl, orientation]);
+  }), [levelNote, viewMode, meshVisible, selectedCandidate, allCandidates, morphometry, mprWl, orientation]);
 
   // Lo que se ve AHORA: cada panel visible con su sitio, su HUD y su captura.
   // Lo usan la captura (una vez) y la grabación (en cada fotograma), así que

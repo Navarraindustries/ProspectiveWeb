@@ -308,12 +308,20 @@ def vessel_overlap(vessel: vtk.vtkPolyData, device_world: vtk.vtkPolyData,
 
 # ── Neck-plane coverage ─────────────────────────────────────────────────────── #
 
-def plane_span(device_world: vtk.vtkPolyData, origin: Vec3, normal: Vec3) -> float:
+#: Cuánto más allá del borde del cuello cuenta todavía un dispositivo (mm).
+MARGEN_CUELLO_MM = 1.5
+
+
+def plane_span(device_world: vtk.vtkPolyData, origin: Vec3, normal: Vec3,
+               radio_mm: float | None = None) -> float:
     """Extent (mm) of the device's intersection with the neck plane.
 
     Cuts the device mesh with the plane and returns the diagonal of the
     intersection's bounding box — how wide the device sits across the neck.
     Returns 0 when the device does not reach the plane.
+
+    Con `radio_mm` solo cuenta el corte a esa distancia del origen: el plano es
+    infinito, y un clip que lo cruzaba a 15 mm del cuello daba 100 %.
     """
     if device_world is None or device_world.GetNumberOfPoints() == 0:
         return 0.0
@@ -327,9 +335,24 @@ def plane_span(device_world: vtk.vtkPolyData, origin: Vec3, normal: Vec3) -> flo
     cut = cutter.GetOutput()
     if cut is None or cut.GetNumberOfPoints() == 0:
         return 0.0
-    b = cut.GetBounds()  # xmin,xmax,ymin,ymax,zmin,zmax
-    dx, dy, dz = b[1] - b[0], b[3] - b[2], b[5] - b[4]
-    return float(math.sqrt(dx * dx + dy * dy + dz * dz))
+    if radio_mm is not None:
+        # Se recortan las LÍNEAS del corte contra la esfera, interpolando el
+        # cruce: una hoja larga tiene pocos puntos de corte, casi todos en sus
+        # extremos, y filtrar por vértice la dejaba sin nada dentro del cuello.
+        esfera = vtk.vtkSphere()
+        esfera.SetCenter(float(origin[0]), float(origin[1]), float(origin[2]))
+        esfera.SetRadius(float(radio_mm))
+        recorte = vtk.vtkClipPolyData()
+        recorte.SetInputData(cut)
+        recorte.SetClipFunction(esfera)
+        recorte.InsideOutOn()
+        recorte.Update()
+        cut = recorte.GetOutput()
+        if cut is None or cut.GetNumberOfPoints() == 0:
+            return 0.0
+    pts = vtk_to_numpy(cut.GetPoints().GetData()).astype(np.float64)
+    d = pts.max(axis=0) - pts.min(axis=0)
+    return float(np.linalg.norm(d))
 
 
 def clip_neck_coverage(
@@ -338,11 +361,27 @@ def clip_neck_coverage(
     neck_axis: Vec3,
     neck_mm: float,
 ) -> float:
-    """Fraction (0–100) of the neck diameter spanned by the clips at the neck plane."""
+    """Fraction (0–100) of the neck diameter spanned by the clips at the neck plane.
+
+    Solo lo que cruza el plano cerca del cuello: a menos de un diámetro de
+    cuello y 3 mm de su centro. El clip va ABIERTO sobre el cuello, con las
+    hojas a ambos lados y fuera de su radio (±4,8 mm para un cuello de 6 en un
+    NAVARRO de 13 mm), así que el radio del cuello no basta."""
     if neck_mm <= 0.1:
         return 0.0
-    span = plane_span(clips_world, neck_origin, neck_axis)
+    span = plane_span(clips_world, neck_origin, neck_axis, radio_mm=neck_mm + 3.0)
     return float(min(100.0, span / neck_mm * 100.0))
+
+
+def pasa_por_el_cuello(device_world: vtk.vtkPolyData, neck_origin: Vec3, neck_mm: float) -> bool:
+    """¿Llega el dispositivo al cuello? Algún punto suyo a menos del radio del
+    cuello y un margen de su centro. La cobertura del stent salía de su
+    longitud y su diámetro, se pusiera donde se pusiera."""
+    if device_world is None or device_world.GetNumberOfPoints() == 0:
+        return False
+    pts = vtk_to_numpy(device_world.GetPoints().GetData()).astype(np.float64)
+    cerca = neck_mm / 2.0 + MARGEN_CUELLO_MM + 1.0
+    return bool(np.min(np.linalg.norm(pts - np.asarray(neck_origin, dtype=float), axis=1)) <= cerca)
 
 
 def perpendicular(axis: Vec3) -> Vec3:

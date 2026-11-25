@@ -179,6 +179,13 @@ async def compute_plan(
 
         write_vtp(world, meshes_dir / "stent_deployed.vtp")
         stent_url = f"{mesh_url(req.session_id, 'stent_deployed.vtp')}?v={int(time.time() * 1000)}"
+        # La cobertura sale de la longitud y el diámetro, se ponga donde se
+        # ponga: un stent lejos del cuello también daba su porcentaje.
+        neck_origin = tuple(_load_float(req.session_id, f"morpho.neck_origin_{k}", 0.0) for k in "xyz")
+        if neck_mm > 0.1 and any(neck_origin) and not devices.pasa_por_el_cuello(world, neck_origin, neck_mm):
+            coverage, neck_covered = 0.0, 0.0
+            warnings.append("El dispositivo no pasa por el cuello del aneurisma: no lo cubre. "
+                            "Muévelo sobre la arteria madre, a la altura del cuello.")
     except Exception as exc:
         logger.warning("Stent mesh generation skipped: %s", exc)
 

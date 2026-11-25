@@ -180,6 +180,16 @@ async def plan_coils(
     if not session_exists(req.session_id):
         raise HTTPException(status_code=404, detail=f"Sesión '{req.session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
 
+    # Un coil que no está en el catálogo contaba 0 de hilo y se guardaba en el
+    # plan igual: la densidad salía baja y el informe listaba un coil sin datos.
+    conocidos = {_slug(c.name) for c in COIL_CATALOGUE}
+    desconocidos = sorted({pl.coil_id for pl in req.placements if pl.coil_id not in conocidos})
+    if desconocidos:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Coil(s) que no están en el catálogo: {', '.join(desconocidos)}.",
+        )
+
     # Load aneurysm volume from session morphometry (written after morpho computation)
     aneurysm_vol = _load_float(req.session_id, "morpho.volume_mm3", 0.0)
 

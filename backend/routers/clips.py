@@ -376,6 +376,41 @@ async def upload_custom_clip(
     return CustomClipInfo(clip_id=clip_id, name=name)
 
 
+from dataclasses import dataclass as _dataclass  # noqa: E402
+
+
+@_dataclass(frozen=True)
+class ResultadoChoque:
+    choque: bool
+    contactos: int
+    cuello_excluido: bool
+    #: False si no se pudo mirar: sin malla del vaso o con la prueba rota. Antes
+    #: ese caso salía como «sin choque», igual que un clip comprobado.
+    comprobado: bool
+    motivo: str = ""
+
+
+def comprobar_choque(vessel_path, clips_world, neck_origin, neck_mm: float) -> ResultadoChoque:
+    """¿Entra el clip en algún vaso fuera del cuello? (devices.vessel_overlap)."""
+    from services import devices
+    from services.segmentation import read_vtp
+    if not vessel_path.exists():
+        return ResultadoChoque(False, 0, False, comprobado=False, motivo="no hay malla del vaso")
+    excluido = False
+    try:
+        vessel = read_vtp(vessel_path)
+        radio = 0.0
+        if neck_mm > 0.1:
+            from services.clip_fit import exclusion_radius
+            radio = exclusion_radius(neck_mm)
+            excluido = True
+        n = devices.vessel_overlap(vessel, clips_world, neck_origin, radio)
+    except Exception as exc:  # noqa: BLE001 — se dice que no se comprobó
+        logger.warning("Clip collision check failed: %s", exc)
+        return ResultadoChoque(False, 0, excluido, comprobado=False, motivo=f"la prueba falló: {exc}")
+    return ResultadoChoque(n > 0, int(n), excluido, comprobado=True)
+
+
 @router.post(
     "/clips/plan",
     response_model=ClipPlanResult,
@@ -460,19 +495,8 @@ def plan_clips(
     # Y se cuenta lo que ENTRA en otro vaso, no lo que roza (devices.vessel_overlap):
     # una hoja paralela y a ras de la arteria madre —la orientación correcta—
     # roza su pared, y el cruce de superficies la daba por «Choca».
-    collision, n_contacts, neck_excluded = False, 0, False
-    if vessel_path.exists():
-        try:
-            vessel = read_vtp(vessel_path)
-            radio = 0.0
-            if neck_mm > 0.1:
-                from services.clip_fit import exclusion_radius
-                radio = exclusion_radius(neck_mm)
-                neck_excluded = True
-            n_contacts = devices.vessel_overlap(vessel, clips_world, neck_origin, radio)
-            collision = n_contacts > 0
-        except Exception as exc:
-            logger.warning("Clip collision check skipped: %s", exc)
+    choque = comprobar_choque(vessel_path, clips_world, neck_origin, neck_mm)
+    collision, n_contacts, neck_excluded = choque.choque, choque.contactos, choque.cuello_excluido
 
     coverage = devices.clip_neck_coverage(clips_world, neck_origin, neck_axis, neck_mm)
 
@@ -550,6 +574,9 @@ def plan_clips(
         warning = (f"Contacto con la malla ({n_contacts} puntos), sin poder separar el "
                    f"cuello: un clip bien puesto lo toca por definición. Ejecuta la "
                    f"morfometría para que esta comprobación distinga una cosa de la otra.")
+    elif not choque.comprobado:
+        # Antes salía como un clip comprobado y limpio.
+        warning = f"No se pudo comprobar si el clip choca con los vasos ({choque.motivo}): revisarlo en el ensayo."
     elif neck_mm <= 0.1:
         warning = "Ejecuta la morfometría para medir la extensión de las hojas sobre el cuello."
     elif coverage < 95.0:
@@ -558,6 +585,7 @@ def plan_clips(
     audit_device("clips", req.session_id, current_user, {
         "clips": [pl.clip_id for pl in req.placements],
         "neck_coverage_pct": round(coverage, 1), "collision": bool(collision),
+        "collision_checked": choque.comprobado,
     })
     return ClipPlanResult(
         clips_mesh_url=clips_url,

@@ -145,11 +145,14 @@ def verify_candidate(
     # menos la esfera del cuello); se acepta para no romper a quien lo pasa.
     local = build_candidate_mesh(cand)
     best: GeometryCheck | None = None
+    best_sin_comprobar = False
     clean = 0
+    sin_comprobar = 0
 
     for roll in _ROTATIONS_DEG:
         t = pose_transform(neck_origin, neck_normal, roll)
         world = apply_transform(local, t)
+        comprobada = True
         try:
             # Lo que entra en otro vaso, no lo que roza (devices.vessel_overlap):
             # una hoja a ras de la arteria madre no es un choque.
@@ -157,8 +160,11 @@ def verify_candidate(
             hit = contacts > 0
         except Exception as exc:  # noqa: BLE001 — a degenerate mesh must not sink the run
             logger.warning("Collision test failed for %s: %s", cand.clip.name, exc)
-            hit, contacts = False, 0
-        if not hit:
+            # Una orientación que no se pudo probar no cuenta como limpia: antes
+            # sumaba a «libra los vasos» igual que una comprobada.
+            hit, contacts, comprobada = False, 0, False
+            sin_comprobar += 1
+        if not hit and comprobada:
             clean += 1
         span = plane_span(world, neck_origin, neck_normal)
         coverage = clip_neck_coverage(world, neck_origin, neck_normal, case.neck_mm)
@@ -170,9 +176,11 @@ def verify_candidate(
             neck_coverage_pct=round(float(coverage), 1),
             note=f"roll {roll:.0f}°",
         )
-        # Fewest contacts wins; ties go to the pose that covers more neck.
-        if best is None or (check.n_contacts, -check.neck_coverage_pct) < (best.n_contacts, -best.neck_coverage_pct):
-            best = check
+        # Fewest contacts wins; ties go to the pose that covers more neck. Una
+        # sin comprobar solo gana si ninguna se pudo comprobar.
+        clave = (not comprobada, check.n_contacts, -check.neck_coverage_pct)
+        if best is None or clave < (best_sin_comprobar, best.n_contacts, -best.neck_coverage_pct):
+            best, best_sin_comprobar = check, not comprobada
 
     assert best is not None
     best.clean_rolls = clean
@@ -180,6 +188,9 @@ def verify_candidate(
 
     cover = (f"cubre el cuello por completo" if best.neck_coverage_pct >= 99.0
              else f"cubre el {best.neck_coverage_pct:.0f}% del cuello")
+    if sin_comprobar == best.n_rolls:
+        best.note = f"No se pudo comprobar el choque con los vasos vecinos en ninguna orientación; {cover}"
+        return best
     if clean == 0:
         best.note = (
             f"Toca estructuras vecinas en las {best.n_rolls} orientaciones probadas "
@@ -196,6 +207,8 @@ def verify_candidate(
         )
     else:
         best.note = f"Libra los vasos vecinos en toda orientación; {cover}"
+    if sin_comprobar:
+        best.note += f" ({sin_comprobar} orientación(es) sin poder comprobar)"
     return best
 
 

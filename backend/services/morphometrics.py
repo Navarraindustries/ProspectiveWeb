@@ -405,10 +405,29 @@ class MorphometricAnalyzer:
         if cut.GetNumberOfPoints() < 3:
             return 0.0, 0.0
 
-        pts  = ns.vtk_to_numpy(cut.GetPoints().GetData()).astype(np.float64)
-        diff = pts - np.roll(pts, -1, axis=0)
-        perim = float(np.sum(np.linalg.norm(diff, axis=1)))
-        diam  = perim / math.pi if perim > 0 else 0.0
+        # Los puntos del corte salen por triángulo, no en orden de contorno:
+        # sumar distancias entre consecutivos daba más del doble del perímetro.
+        # Se ordenan en contornos y se mide el más largo, cerrado.
+        stripper = vtk.vtkStripper()
+        stripper.SetInputData(cut)
+        stripper.JoinContiguousSegmentsOn()
+        stripper.Update()
+        lazos = stripper.GetOutput()
+        pts = ns.vtk_to_numpy(lazos.GetPoints().GetData()).astype(np.float64) if lazos.GetPoints() else None
+        lines = lazos.GetLines()
+        perim = 0.0
+        if pts is not None and lines is not None and lines.GetNumberOfCells():
+            ids = vtk.vtkIdList()
+            lines.InitTraversal()
+            while lines.GetNextCell(ids):
+                idx = [ids.GetId(i) for i in range(ids.GetNumberOfIds())]
+                if len(idx) < 3:
+                    continue
+                lazo = pts[idx]
+                if np.linalg.norm(lazo[0] - lazo[-1]) > 1e-9:
+                    lazo = np.vstack([lazo, lazo[:1]])
+                perim = max(perim, float(np.sum(np.linalg.norm(np.diff(lazo, axis=0), axis=1))))
+        diam = perim / math.pi if perim > 0 else 0.0
         return perim, diam
 
     # ------------------------------------------------------------------ #

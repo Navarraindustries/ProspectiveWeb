@@ -553,10 +553,14 @@ def isolate_sac_volumetric(
         comp_id = int(lab[tuple(idx[d2.argmin()])])
     comp = lab == comp_id
 
-    # Marching cubes on the isolated component: pass HU inside, a sentinel below
-    # the threshold outside, so the pipeline surfaces only the component.
+    # Marching cubes on the isolated component: pass HU inside and, outside, the
+    # real value capped just below the threshold, so the pipeline surfaces only
+    # the component. Antes, fuera iba un centinela 1000 HU por debajo: el
+    # suavizado previo mezclaba el borde del saco con él, el borde caía bajo el
+    # umbral y se perdía una capa de vóxeles. Medido con una esfera: −12 % de
+    # volumen con contraste de angio-TC y hasta −45 % con poco contraste.
     hu = np.where(comp, np.maximum(sub, np.float32(lower)),
-                  np.float32(lower - 1000.0)).astype(np.float32)
+                  np.minimum(sub, np.float32(lower - 1.0))).astype(np.float32)
     seg = SegmentationPipeline(
         threshold_hu=float(lower),
         threshold_max_hu=float(upper) if upper > lower else 0.0,

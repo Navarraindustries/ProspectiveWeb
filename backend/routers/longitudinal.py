@@ -47,14 +47,49 @@ def _ps_to_entry(ps: PlanningSession, label: str | None = None,
     )
 
 
-def _compute_deltas(current: LongitudinalEntry, previous: LongitudinalEntry) -> list[LongitudinalDelta]:
-    """Return growth deltas between two consecutive sessions."""
+def _estado_guardado(session_id: str, key: str) -> str:
+    """Una clave del estado de la sesión, viva o guardada."""
+    from services.sessions import _read_state_map, has_saved_session, saved_session_dir
+    if session_exists(session_id):
+        return read_state(session_id, key, "") or ""
+    if has_saved_session(session_id):
+        return _read_state_map(saved_session_dir(session_id) / "state.txt").get(key, "")
+    return ""
+
+
+def _metodo_del_cuello(session_id: str) -> str:
+    """«marcado» o «auto» (vacío si no consta): un AR con cuello marcado a mano y
+    otro con el estimado no miden lo mismo."""
+    from services.neck_provenance import neck_is_marked
+    fuente = _estado_guardado(session_id, "morpho.neck_source")
+    if not fuente:
+        return ""
+    return "marcado" if neck_is_marked(fuente) else "auto"
+
+
+def _compute_deltas(current: LongitudinalEntry, previous: LongitudinalEntry,
+                    fuentes: tuple[str, str] = ("", "")) -> list[LongitudinalDelta]:
+    """Return growth deltas between two consecutive sessions.
+
+    `fuentes` = método del cuello (actual, anterior). Lo no medido (0) contaba
+    como un valor, y pasar de «sin medir» a 6 mm era «crecimiento»; y se
+    comparaban medidas con el cuello marcado a mano contra el estimado. En los
+    dos casos el cambio se enseña pero no dispara el aviso.
+    """
     metrics = [
         # (field, label, concern threshold for is_concerning)
         ("max_diameter_mm", "Diametro maximo", 1.0),   # > 1 mm growth → concerning
         ("volume_mm3",      "Volumen",         20.0),  # > 20% relative change → concerning
         ("ar",              "Aspect Ratio",    0.15),  # absolute delta > 0.15 → concerning
     ]
+    from services.neck_provenance import neck_is_marked
+
+    def _metodo(f: str) -> str:
+        if f in ("marcado", "auto", ""):
+            return f
+        return "marcado" if neck_is_marked(f) else "auto"
+    m_cur, m_prev = (_metodo(f) for f in fuentes)
+    otro_metodo = bool(m_cur and m_prev and m_cur != m_prev)
     deltas: list[LongitudinalDelta] = []
     for field, label, threshold in metrics:
         v_cur  = getattr(current,  field, 0.0) or 0.0
@@ -73,6 +108,13 @@ def _compute_deltas(current: LongitudinalEntry, previous: LongitudinalEntry) -> 
             trend = "↓ reduccion"
         else:
             trend = "→ estable"
+        if v_cur <= 0 or v_prev <= 0:
+            is_concerning = False
+            trend = "sin medida en uno de los dos estudios"
+        elif otro_metodo and field != "max_diameter_mm":
+            # El Ø máximo no depende del cuello; el volumen y el AR sí.
+            is_concerning = False
+            trend = f"{trend} (cuello medido con otro método)"
 
         deltas.append(
             LongitudinalDelta(
@@ -202,7 +244,7 @@ async def get_longitudinal(
         key = ps.imaging_study_id if ps.imaging_study_id is not None else f"session:{ps.session_id}"
         groups.setdefault(key, []).append(ps)
 
-    points: list[tuple[date, LongitudinalEntry]] = []
+    points: list[tuple[date, LongitudinalEntry, str]] = []
     for key, sessions in groups.items():
         # Prefer a run that actually has morphometry, then the most recent.
         measured = [p for p in sessions if p.max_diameter_mm is not None] or sessions
@@ -214,15 +256,16 @@ async def get_longitudinal(
         is_this = any(p.session_id in (session_id, ps_current.session_id) for p in sessions)
         label = "Estudio actual" if is_this else (latest.label or f"Estudio {when.isoformat()}")
         points.append((when, _ps_to_entry(latest, label=label, when=when,
-                                          n_sessions=len(sessions))))
+                                          n_sessions=len(sessions)),
+                       _metodo_del_cuello(latest.session_id)))
 
     points.sort(key=lambda t: t[0])
-    entries: list[LongitudinalEntry] = [e for _w, e in points]
+    entries: list[LongitudinalEntry] = [e for _w, e, _m in points]
 
     # ── 4. Compute deltas between last two entries ────────────────────────── #
     deltas: list[LongitudinalDelta] = []
     if len(entries) >= 2:
-        deltas = _compute_deltas(entries[-1], entries[-2])
+        deltas = _compute_deltas(entries[-1], entries[-2], fuentes=(points[-1][2], points[-2][2]))
 
     growth_alert = any(d.is_concerning for d in deltas)
     growth_alert_message = _growth_message(deltas) if growth_alert else None

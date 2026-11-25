@@ -69,6 +69,22 @@ class FollowupResult:
 
 # ── Geometría DICOM → espacio del paciente ─────────────────────────────────── #
 
+def direccion_de_corte(ipps: np.ndarray, rowdir: np.ndarray, coldir: np.ndarray) -> np.ndarray:
+    """Vector UNITARIO de un corte al siguiente, en el espacio del paciente.
+
+    La z de la malla ya está en mm. Se dividía el paso entre cortes por el
+    espaciado del volumen de trabajo: si el volumen se había remuestreado
+    (cortes de 0,625 mm a 0,5) el vector medía 1,25 y la malla anterior salía
+    estirada un 25 % en z, con un mapa de cambio falso."""
+    if len(ipps) > 1:
+        paso = (np.asarray(ipps[-1], float) - np.asarray(ipps[0], float)) / (len(ipps) - 1)
+        norma = float(np.linalg.norm(paso))
+        if norma > 1e-9:
+            return paso / norma
+    normal = np.cross(rowdir, coldir)
+    return normal / max(float(np.linalg.norm(normal)), 1e-9)
+
+
 def mesh_to_patient(dicom_dir: Path, series_id: str, spacing_z: float) -> np.ndarray:
     """Afín 4×4: mm de la malla (x = columna, y = fila, z = corte) → paciente.
 
@@ -89,11 +105,7 @@ def mesh_to_patient(dicom_dir: Path, series_id: str, spacing_z: float) -> np.nda
         ipps = np.array([pydicom.dcmread(f, stop_before_pixels=True).ImagePositionPatient for f in files], float)
         iop = np.array(first.ImageOrientationPatient, float)
     rowdir, coldir = iop[:3], iop[3:]
-    if len(ipps) > 1:
-        step = (ipps[-1] - ipps[0]) / (len(ipps) - 1)
-        slicedir = step / max(spacing_z, 1e-9)
-    else:
-        slicedir = np.cross(rowdir, coldir)
+    slicedir = direccion_de_corte(ipps, rowdir, coldir)
     A = np.eye(4)
     A[:3, 0], A[:3, 1], A[:3, 2], A[:3, 3] = rowdir, coldir, slicedir, ipps[0]
     return A

@@ -225,7 +225,11 @@
 .hud-ivus .hud-ivus-marca { color: var(--plane-libre); }
 .hud-ivus .hud-ivus-enlace { padding: 0 2px; color: inherit; text-decoration: underline dotted; }
 .hud-ivus .hud-ivus-enlace:disabled { text-decoration: none; cursor: default; }
-@media (max-width: 640px) { .hud-ivus { display: none; } }
+.hud-ivus-estrecho { display: none; }
+@media (max-width: 640px) {
+  .hud-ivus { display: none; }
+  .hud-ivus-estrecho { display: block; position: absolute; right: 12px; left: 12px; top: 96px; z-index: 7; margin: 0; padding: 6px 10px; font-family: var(--font-mono); font-size: 11px; color: var(--hud-text); background: var(--viewer-bg); border: var(--hud-line) solid var(--hud-text-dim); border-radius: var(--radius-md); }
+}
 /* ── Modo presentación (sesión clínica) ─────────────────────────────────
    Para proyectar: letra grande, poco texto y un velo suave arriba y abajo
    para que se lea sobre cualquier parte de la malla. */

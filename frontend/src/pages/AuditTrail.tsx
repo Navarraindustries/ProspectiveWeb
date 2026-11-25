@@ -200,7 +200,7 @@ function AuditTrailPage() {
             <Input
               icon={<Icon name="SEARCH" />}
               aria-label="Buscar en la cadena"
-              placeholder="Usuario, acción, paciente, hash o fecha…"
+              placeholder="Usuario, acción, paciente, huella del bloque o fecha…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />

@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import io
 import logging
+from pathlib import Path
 
 import numpy as np
 
 from services.sessions import session_subdir
-from services.storage import dicom_key, get_storage, study_prefix, thumb_key
+from services.storage import get_storage, study_prefix
 
 logger = logging.getLogger(__name__)
 
@@ -50,13 +51,17 @@ def build_thumbnail_png(session_id: str) -> bytes | None:
         return None
 
 
-def archive_session_dicom(session_id: str, study_id: int) -> dict:
+def archive_session_dicom(session_id: str, study_id: int, prefix: str | None = None) -> dict:
     """Copy the session's DICOM into durable storage and store a thumbnail.
+
+    `prefix`: la carpeta en el almacén (por defecto `studies/<id>`). El router
+    pasa otra cuando esa ya es de un estudio migrado, que guarda el número de su
+    caso antiguo: archivar empieza borrando la carpeta, y se llevaba la suya.
 
     Returns {"storage_prefix", "thumb_key", "n_files", "size_mb"} for the Study row.
     """
     storage = get_storage()
-    prefix = study_prefix(study_id)
+    prefix = prefix or study_prefix(study_id)
     dicom_dir = session_subdir(session_id, "dicom")
 
     files = sorted(p for p in dicom_dir.rglob("*") if p.is_file())
@@ -66,12 +71,12 @@ def archive_session_dicom(session_id: str, study_id: int) -> dict:
     # Re-archiving replaces the previous copy so a study never mixes two uploads.
     storage.delete_prefix(prefix)
     for f in files:
-        storage.put_file(dicom_key(study_id, f.name), f)
+        storage.put_file(f"{prefix}/dicom/{Path(f.name).name}", f)
 
     tkey = ""
     png = build_thumbnail_png(session_id)
     if png:
-        tkey = thumb_key(study_id)
+        tkey = f"{prefix}/thumb.png"
         storage.put_bytes(tkey, png)
 
     size_mb = round(storage.size_bytes(prefix) / 1e6, 1)
@@ -87,12 +92,16 @@ def archive_session_dicom(session_id: str, study_id: int) -> dict:
     }
 
 
-def restore_study_to_session(study_id: int, session_id: str) -> int:
-    """Copy an archived study's DICOM back into a live session. Returns file count."""
+def restore_study_to_session(prefix: str, session_id: str) -> int:
+    """Copy an archived study's DICOM back into a live session. Returns file count.
+
+    Por el prefijo que guarda la fila, no por el número del estudio: los
+    migrados de una versión anterior viven en la carpeta de su caso antiguo, y
+    por número se abría otro estudio (o ninguno)."""
     storage = get_storage()
     dest = session_subdir(session_id, "dicom")
-    n = storage.download_prefix(f"{study_prefix(study_id)}/dicom", dest)
+    n = storage.download_prefix(f"{prefix.rstrip('/')}/dicom", dest)
     if n == 0:
-        raise FileNotFoundError(f"El estudio {study_id} no tiene DICOM archivado.")
-    logger.info("Restored %d DICOM files of study %s into session %s", n, study_id, session_id)
+        raise FileNotFoundError("Este estudio no tiene DICOM archivado.")
+    logger.info("Restored %d DICOM files from %s into session %s", n, prefix, session_id)
     return n

@@ -9,7 +9,7 @@
    Cuando el inventario no da, el panel no se queda vacío: muestra la ficha de
    fabricación con medidas, forma y fuerza, y deja descargar el STL. */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import type {
   ClipCandidateOut,
@@ -326,17 +326,22 @@ export function ClipSelectionPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // FE-17: solo cuenta la última petición. Recalcular dos veces seguidas y que
+  // la primera llegara después dejaba en pantalla la respuesta vieja.
+  const ultima = useRef(0);
   const load = useCallback(() => {
+    const yo = ++ultima.current;
     setLoading(true);
     setError(null);
     api.clipSelection(sessionId, caseId)
       .then((r) => {
+        if (yo !== ultima.current) return;
         setSel(r);
         setOpenIds(new Set(r.recommended.slice(0, 1).map((c) => c.clip_id)));
         onLoaded?.(r);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Error cargando la selección de clip"))
-      .finally(() => setLoading(false));
+      .catch((e) => { if (yo === ultima.current) setError(e instanceof Error ? e.message : "Error cargando la selección de clip"); })
+      .finally(() => { if (yo === ultima.current) setLoading(false); });
     // `onLoaded` fuera de las dependencias: un callback nuevo en cada render del
     // padre relanzaría la evaluación del catálogo entera.
     // eslint-disable-next-line react-hooks/exhaustive-deps

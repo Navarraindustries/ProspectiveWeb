@@ -2391,7 +2391,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
             onIvus={sessionId ? () => setIvusVisible((v) => !v) : undefined} ivusVisible={ivusVisible} />
         )}
         {!compact && isMesh && recorrido && centerline && sessionId && ivusVisible && (
-          <HudIvus sessionId={sessionId} claveLinea={`${claveDeLinea(centerline)}|${deviceMeshes.stent ?? ""}`} progreso={progresoRecorrido}
+          <HudIvus sessionId={sessionId} claveLinea={`${claveDeLinea(centerline)}|${deviceMeshes.stent ?? ""}`}
+                   claveMedida={morphometry ? `${morphometry.candidate_id ?? ""}|${morphometry.neck_mm}|${morphometry.max_diameter_mm}` : ""} progreso={progresoRecorrido}
             onIrA={(mm) => { camaraRecorrido.current?.irARecorrido(mm); setRecorrido({ estado: "pausa" }); }}
             onCerrar={() => setIvusVisible(false)}
             anterior={followup?.previousSessionId ?? null} marcas={marcasLinea} onMarcar={marcarEnRecorrido}

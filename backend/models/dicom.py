@@ -33,6 +33,13 @@ class SeriesInfo(BaseModel):
         None,
         description="Human-readable warning message when is_projection is True",
     )
+    geometry_warning: str | None = Field(
+        None,
+        description=(
+            "Missing slices, repeated positions, irregular spacing or gantry tilt "
+            "found in the slice positions: measurements along z may come out scaled."
+        ),
+    )
     size_mb: float = Field(..., description="Estimated volume size in RAM (MB)")
     acquisition_date: str = Field(
         "",

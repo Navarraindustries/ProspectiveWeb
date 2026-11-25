@@ -27,6 +27,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 REPORT = Path(__file__).resolve().parents[1] / "data" / "ingest_zenodo.json"
+#: El de scripts/ingest_zenodo.py: así se reconoce una ficha creada por la ingesta.
+from scripts.ingest_zenodo import HOSPITAL_ID_PREFIX  # noqa: E402
 
 
 def _dir_bytes(p: Path) -> int:
@@ -60,6 +62,13 @@ def main(argv=None) -> int:
             patient = db.get(Patient, pid)
             if patient is None:
                 print(f"  paciente {pid}: ya no está")
+                continue
+            # Solo si sigue siendo el de la ingesta: los números se reutilizan
+            # tras un borrado, y por número a secas se borraba a un paciente
+            # real que hubiera heredado el de uno ingerido.
+            if not (patient.surname == "ZENODO"
+                    and (patient.hospital_id or "").startswith(HOSPITAL_ID_PREFIX)):
+                print(f"  paciente {pid}: NO es de la ingesta (otra ficha con ese número); se deja")
                 continue
             imaging = db.query(ImagingStudy).filter(ImagingStudy.patient_id == pid).all()
             sessions = db.query(PlanningSession).filter(PlanningSession.patient_id == pid).all()

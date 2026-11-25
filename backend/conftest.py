@@ -21,6 +21,10 @@ from pathlib import Path
 # (y el `tmp_path` de pytest) caigan dentro.
 _RAIZ = Path(tempfile.mkdtemp(prefix="prospective_tests_"))
 tempfile.tempdir = str(_RAIZ)
+# Y otra vez al salir del proceso: algún hilo de trabajo (segmentación, purga)
+# termina después de pytest_unconfigure y deja carpetas de sesión.
+import atexit  # noqa: E402
+atexit.register(shutil.rmtree, _RAIZ, True)
 
 # Must be set before anything imports services.database (it reads the env at
 # import time to build the engine). conftest.py is imported by pytest first.

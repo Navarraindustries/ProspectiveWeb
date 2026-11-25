@@ -284,12 +284,16 @@ async def guard_private_static(request: Request, call_next):
 # /static — bundled sample meshes (development only; production: S3/CloudFront)
 # /data   — session-scoped files: DICOM uploads, meshes, reports, exports
 #            served directly so vtk.js can fetch .vtp mesh URLs from the browser
-Path("data").mkdir(exist_ok=True)     # ensure root exists for StaticFiles mount
-Path("static").mkdir(exist_ok=True)   # same for static
+# Junto a este fichero, no en la carpeta desde la que se arranca: arrancado
+# desde la raíz del repositorio creaba data/ y static/ allí, sin regla en
+# .gitignore, y servía otra carpeta.
+_BACKEND_DIR = Path(__file__).resolve().parent
+(_BACKEND_DIR / "data").mkdir(exist_ok=True)     # ensure root exists for StaticFiles mount
+(_BACKEND_DIR / "static").mkdir(exist_ok=True)   # same for static
 
 app.mount(
     "/static",
-    StaticFiles(directory="static", html=False),
+    StaticFiles(directory=str(_BACKEND_DIR / "static"), html=False),
     name="static",
 )
 # /data/sessions sigue la raíz configurable (PROSPECTIVE_SESSIONS_ROOT): con la
@@ -306,7 +310,7 @@ app.mount(
 )
 app.mount(
     "/data",
-    StaticFiles(directory="data", html=False),
+    StaticFiles(directory=str(_BACKEND_DIR / "data"), html=False),
     name="data",
 )
 

@@ -170,3 +170,30 @@ class TestTokensRevocados:
         assert r.status_code == 200
         assert a.get("/api/auth/me").status_code == 200           # cookie nueva
         assert self._con_token(token_viejo).get("/api/auth/me").status_code == 401
+
+
+class TestS3ConClienteFalso:
+    def test_borrar_un_estudio_no_toca_los_de_numero_parecido(self):
+        """Con un cliente falso que guarda en un diccionario (no hay tests
+        contra un S3 real): borrar studies/4 deja studies/40 y studies/400."""
+        from services.storage import S3Backend
+        objetos: dict[str, bytes] = {}
+
+        class _Pag:
+            def paginate(self, Bucket, Prefix):
+                return [{"Contents": [{"Key": k, "Size": len(v)} for k, v in objetos.items()
+                                      if k.startswith(Prefix)]}]
+
+        class _Cliente:
+            def get_paginator(self, _n): return _Pag()
+            def put_object(self, Bucket, Key, Body, **_k): objetos[Key] = Body
+            def delete_objects(self, Bucket, Delete):
+                for o in Delete["Objects"]:
+                    objetos.pop(o["Key"], None)
+
+        b = S3Backend.__new__(S3Backend)
+        b.bucket, b.prefix, b._s3 = "b", "", _Cliente()
+        for k in ("studies/4/dicom/a", "studies/40/dicom/a", "studies/400/dicom/a"):
+            b.put_bytes(k, b"x")
+        b.delete_prefix("studies/4")
+        assert sorted(objetos) == ["studies/40/dicom/a", "studies/400/dicom/a"]

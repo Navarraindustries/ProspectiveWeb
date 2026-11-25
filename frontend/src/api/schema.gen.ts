@@ -9905,6 +9905,11 @@ export interface components {
              */
             description: string;
             /**
+             * Geometry Warning
+             * @description Missing slices, repeated positions, irregular spacing or gantry tilt found in the slice positions: measurements along z may come out scaled.
+             */
+            geometry_warning?: string | null;
+            /**
              * Is Projection
              * @description True when the series appears to be a 2D projection (< 10 slices or spacing_z > 4 × spacing_xy). 3D segmentation will not be meaningful.
              * @default false

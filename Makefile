@@ -3,7 +3,9 @@
 
 BACKEND_DIR = backend
 FRONTEND_DIR = frontend
-VENV        = $(BACKEND_DIR)\.venv\Scripts
+# Relativa a backend/: cada receta hace `cd $(BACKEND_DIR)` antes de usarla.
+# Con el prefijo backend\ quedaba backendackend\.venv y no funcionaba ninguna.
+VENV        = .venv\Scripts
 
 .PHONY: dev\:backend dev\:frontend install\:backend install\:frontend
 

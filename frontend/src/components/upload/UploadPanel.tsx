@@ -399,6 +399,12 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
               {series.projection_warning}
             </div>
           )}
+          {series.geometry_warning && (
+            <div style={{ marginTop: 10, fontSize: 12, color: "var(--warning)", display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <Icon name="STATUS_WARN" size={14} />
+              {series.geometry_warning}
+            </div>
+          )}
         </Card>
       )}
 
@@ -409,7 +415,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
           <SectionLabel>Guardar en el archivo de estudios</SectionLabel>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "6px 0 10px", lineHeight: 1.5 }}>
             {alreadyArchived
-              ? "Este DICOM ya está en el archivo permanente; puedes seguir con el pipeline sin volver a guardarlo."
+              ? "Este DICOM ya está en el archivo permanente; puedes seguir con el análisis sin volver a guardarlo."
               : `Guarda este DICOM de forma permanente como un estudio del caso clínico elegido (un caso puede tener varios: TC, angiografía, control) y genera su vista previa. Si no lo guardas, la sesión se borra a las ${hoursEs(series.session_ttl_hours ?? 24)} horas de crearla.`}
           </div>
           {alreadyArchived ? (

@@ -70,7 +70,7 @@ export function ToastStack({ items, top, right }: { items: ToastItem[]; top: num
   return (
     <div
       style={{
-        position: "absolute", zIndex: 200, top, left: 0, right,
+        position: "absolute", zIndex: "var(--capa-aviso)", top, left: 0, right,
         display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
         pointerEvents: "none",
       }}

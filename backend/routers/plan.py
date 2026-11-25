@@ -134,7 +134,7 @@ def compute_plan(
     # en una arteria curva atraviesa la pared; y el transporte paralelo que lo
     # resuelve ya estaba escrito en services/stent_deployment.py, usado sólo
     # por la pestaña «Stent CL». Dos geometrías para el mismo dispositivo.
-    stent_url = "/static/sample-meshes/stent_deployed.vtp"
+    stent_url = ""
     follows_centerline = False
     meshes_dir = session_subdir(req.session_id, "meshes")
     points_path = meshes_dir / "centerline_points.npz"
@@ -187,7 +187,13 @@ def compute_plan(
             warnings.append("El dispositivo no pasa por el cuello del aneurisma: no lo cubre. "
                             "Muévelo sobre la arteria madre, a la altura del cuello.")
     except Exception as exc:
-        logger.warning("Stent mesh generation skipped: %s", exc)
+        # Antes se seguía con una dirección de ejemplo que no existe y el stent
+        # se guardaba igual: el informe lo daba por desplegado sin malla.
+        logger.exception("Stent mesh generation failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudo generar la malla del stent ({exc}). El dispositivo no se ha guardado.",
+        ) from exc
 
     if follows_centerline:
         fit.notes.append(

@@ -46,7 +46,7 @@ export function LoadingScreen({ onDone, onFading, label = "Preparando el espacio
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 900,
+        zIndex: "var(--capa-carga)",
         background: "var(--media-bg)",
         color: "var(--on-media)",
         display: "flex",

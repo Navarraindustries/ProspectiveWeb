@@ -543,13 +543,21 @@ async def add_workshop(req: WorkshopIn, user: CurrentUser) -> WorkshopOut:
     response_model=WorkshopOut,
     summary="Correct a workshop's details",
 )
-async def edit_workshop(workshop_id: str, req: WorkshopIn, _user: CurrentUser) -> WorkshopOut:
+async def edit_workshop(workshop_id: str, req: WorkshopIn, user: CurrentUser) -> WorkshopOut:
     from dataclasses import asdict
 
+    antes = store.get_workshop(workshop_id)
     try:
-        return WorkshopOut(**asdict(store.update_workshop(workshop_id, **req.model_dump())))
+        w = store.update_workshop(workshop_id, **req.model_dump())
     except store.OrderError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    # Cualquiera puede corregir un taller, y los pedidos que se firmen después
+    # van a ese destino: que quede quién cambió qué, con el valor de antes.
+    previo = asdict(antes) if antes else {}
+    cambios = {k: {"antes": previo.get(k), "ahora": v} for k, v in req.model_dump().items()
+               if previo.get(k) != v}
+    audit_append("clip_workshop_updated", {"workshop": w.name, "changes": cambios}, username=user.username)
+    return WorkshopOut(**asdict(w))
 
 
 @router.delete(

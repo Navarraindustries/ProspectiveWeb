@@ -74,8 +74,8 @@ vi.mock("./pages/PendingRequests", () => ({ PendingRequests: () => null }));
 vi.mock("./pages/UsersAdmin", () => ({ UsersAdmin: () => null }));
 vi.mock("./pages/AuditTrail", () => ({ AuditTrail: () => null }));
 vi.mock("./pages/Login", () => ({
-  Login: ({ onLogin }: { onLogin: () => void }) => (
-    <><p>pantalla de entrada</p><button onClick={() => { usuario = USUARIO; onLogin(); }}>entrar</button></>
+  Login: ({ onLogin, notice }: { onLogin: () => void; notice?: string | null }) => (
+    <><p>pantalla de entrada</p>{notice && <p>{notice}</p>}<button onClick={() => { usuario = USUARIO; onLogin(); }}>entrar</button></>
   ),
 }));
 vi.mock("./pages/Signup", () => ({ Signup: () => null }));
@@ -127,6 +127,17 @@ describe("App · cerrar sesión desde el quirófano", () => {
     expect(await screen.findByRole("dialog")).toBeTruthy();
     expect(logout).not.toHaveBeenCalled();
     expect(screen.getByText("pipeline")).toBeTruthy();
+  });
+
+  it("FE-10: si la sesión caduca con cambios, no pregunta encima de «Entrar» y dice qué pasó", async () => {
+    planning.dirty = true;
+    const router = montar("/app/sesion");
+    await screen.findByText("pipeline");
+    usuario = null;                                    // el servidor contestó 401: sesión caducada
+    await act(async () => { await router.navigate("/app/sesion?caducada=1"); });
+    expect(await screen.findByText("pantalla de entrada")).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByText(/Tu sesión caducó con cambios sin guardar/)).toBeTruthy();
   });
 
   it("«Seguir aquí» cancela también el cierre de sesión", async () => {

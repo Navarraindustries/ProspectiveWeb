@@ -801,3 +801,51 @@ def internal_order_rows(order: ClipOrder) -> list[tuple[str, str]]:
     if order.advised_label:
         rows.append(("El sistema recomendaba", order.advised_label))
     return rows
+
+
+# ── Pedidos que siguen a su paciente ──────────────────────────────────────── #
+
+def mover_pedidos(session_ids: Iterable[str], patient_id: int, patient: str,
+                  case_id: int, case_label: str) -> int:
+    """Al mover una sesión a otro paciente, sus pedidos van con ella. Antes se
+    quedaban con el paciente anterior: en su ficha y fuera de la del nuevo. Lo
+    que se cambia es interno (la copia del taller nunca lleva el paciente)."""
+    sids = {s for s in session_ids if s}
+    if not sids:
+        return 0
+    with _LOCK:
+        entries = _read(_ORDERS_FILE)
+        n = 0
+        for e in entries:
+            if isinstance(e, dict) and e.get("session_id") in sids:
+                e.update(patient_id=patient_id, patient=patient, case_id=case_id,
+                         case_label=case_label, updated_at=time.time())
+                n += 1
+        if n:
+            _write(_ORDERS_FILE, entries)
+    return n
+
+
+def soltar_pedidos(patient_id: int | None = None, case_ids: Iterable[int] = ()) -> int:
+    """Al borrar un paciente o un caso, sus pedidos dejan de apuntar a su
+    número: SQLite lo reutiliza para el siguiente que se crea, y el pedido
+    pasaba a figurar en la ficha de otra persona. Se quedan con el nombre que
+    se imprimió y sin número."""
+    casos = {int(c) for c in case_ids}
+    with _LOCK:
+        entries = _read(_ORDERS_FILE)
+        n = 0
+        for e in entries:
+            if not isinstance(e, dict):
+                continue
+            del_paciente = patient_id is not None and e.get("patient_id") == patient_id
+            del_caso = e.get("case_id") is not None and int(e["case_id"]) in casos
+            if del_paciente or del_caso:
+                if del_paciente:
+                    e["patient_id"] = None
+                e["case_id"] = None
+                e["updated_at"] = time.time()
+                n += 1
+        if n:
+            _write(_ORDERS_FILE, entries)
+    return n

@@ -200,3 +200,19 @@ class TestLibraryFeedsTheSelector:
 
     def test_deleting_something_that_is_not_there_reports_it(self):
         assert clip_library.delete_clip("no-existe") is False
+
+
+class TestIndiceDanado:
+    def test_un_indice_truncado_no_se_sobrescribe(self):
+        """Antes se leía como vacío y la siguiente alta lo pisaba con una sola
+        entrada: se perdía la biblioteca entera."""
+        _add(name="Uno")
+        _add(name="Dos")
+        indice = clip_library._manifest_path()
+        entero = indice.read_text(encoding="utf-8")
+        indice.write_text(entero[: len(entero) // 2], encoding="utf-8")   # truncado
+        with pytest.raises(clip_library.IndiceDanado):
+            _add(name="Tres")
+        with pytest.raises(clip_library.IndiceDanado):
+            clip_library.delete_clip("lo-que-sea")
+        assert indice.read_text(encoding="utf-8") == entero[: len(entero) // 2]

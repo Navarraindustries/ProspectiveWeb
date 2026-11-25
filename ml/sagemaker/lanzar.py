@@ -27,6 +27,10 @@ IMAGEN = "763104351884.dkr.ecr.us-east-1.amazonaws.com/pytorch-training:2.10.0-g
 TARIFAS = {"ml.g4dn.2xlarge": 0.94, "ml.g4dn.4xlarge": 1.505, "ml.g5.2xlarge": 1.515, "ml.g6.4xlarge": 1.654,
            "ml.g5.4xlarge": 2.03, "ml.g6e.2xlarge": 2.80, "ml.g6e.4xlarge": 3.76}
 DISCO_USD_GB_MES = 0.14
+#: S3 estándar en us-east-1: lo que queda guardado (checkpoints, modelo,
+#: preprocesado) se sigue pagando después del trabajo. Se cuenta un mes.
+S3_USD_GB_MES = 0.023
+FECHA_TARIFAS = "11-11-2026"
 
 ARRANQUE = """
 import boto3, subprocess, sys, tarfile
@@ -38,8 +42,20 @@ sys.exit(subprocess.run([sys.executable, '/opt/ml/code/entrenar.py', *sys.argv[2
 """
 
 
-def costo_maximo(instancia: str, horas: float, disco_gb: int) -> float:
-    return horas * TARIFAS[instancia] + disco_gb * DISCO_USD_GB_MES / 730 * horas
+def costo_maximo(instancia: str, horas: float, disco_gb: int, s3_gb: float = 0.0,
+                 tarifa_hora: float | None = None) -> float:
+    """Cómputo y disco del trabajo, más un mes de lo que deja en S3. El techo
+    es por trabajo: varios trabajos suman sus techos, y eso lo controla quien
+    los aprueba (el presupuesto de la cuenta en AWS Budgets)."""
+    hora = tarifa_hora if tarifa_hora is not None else TARIFAS[instancia]
+    return horas * hora + disco_gb * DISCO_USD_GB_MES / 730 * horas + s3_gb * S3_USD_GB_MES
+
+
+def _positivo(texto: str) -> float:
+    v = float(texto)
+    if not v > 0:
+        raise argparse.ArgumentTypeError("tiene que ser mayor que 0")
+    return v
 
 
 def peticion(a, nombre: str, bucket: str, codigo_s3: str) -> dict:
@@ -78,9 +94,14 @@ def main(argv=None) -> int:
     ap.add_argument("--checkpoints", help="nombre de un trabajo anterior, para continuar sus checkpoints")
     ap.add_argument("--rol", required=True, help="ARN del rol de ejecución de SageMaker")
     ap.add_argument("--instancia", choices=sorted(TARIFAS), default="ml.g6e.4xlarge")
-    ap.add_argument("--max-horas", type=float, required=True)
-    ap.add_argument("--techo-usd", type=float, required=True, help="gasto aprobado para este trabajo")
-    ap.add_argument("--disco-gb", type=int, default=200)
+    # Mayores que 0: con 0 horas el costo salía 0 y pasaba cualquier techo.
+    ap.add_argument("--max-horas", type=_positivo, required=True)
+    ap.add_argument("--techo-usd", type=_positivo, required=True, help="gasto aprobado para este trabajo")
+    ap.add_argument("--disco-gb", type=lambda s: int(_positivo(s)), default=200)
+    ap.add_argument("--s3-gb", type=float, default=50.0,
+                    help="lo que dejará en S3 (checkpoints, modelo); se cuenta un mes")
+    ap.add_argument("--tarifa-usd-h", type=_positivo,
+                    help=f"precio por hora actual de la instancia, si cambió desde el {FECHA_TARIFAS}")
     ap.add_argument("--spot", action="store_true")
     ap.add_argument("--tarea", default="A4", help="ID de la tarea del plan de trabajo")
     ap.add_argument("--perfil", default="prospective")
@@ -91,10 +112,12 @@ def main(argv=None) -> int:
     nombre = f"prospective-{a.tarea.lower()}-{a.modo}-{time.strftime('%Y%m%d-%H%M%S')}"
     codigo_s3 = f"s3://{bucket}/codigo/{nombre}/codigo.tar.gz"
     p = peticion(a, nombre, bucket, codigo_s3)
-    maximo = costo_maximo(a.instancia, a.max_horas, a.disco_gb)
+    maximo = costo_maximo(a.instancia, a.max_horas, a.disco_gb, a.s3_gb, a.tarifa_usd_h)
     print(json.dumps(p, indent=2, ensure_ascii=False))
-    print(f"\nCosto máximo: {maximo:.2f} USD ({a.max_horas} h de {a.instancia} bajo demanda, disco incluido)"
+    print(f"\nCosto máximo: {maximo:.2f} USD ({a.max_horas} h de {a.instancia} bajo demanda, disco y {a.s3_gb:g} GB un mes en S3 incluidos)"
           + (" · con spot se paga menos, nunca más" if a.spot else ""))
+    if a.tarifa_usd_h is None:
+        print(f"Tarifa de la lista del {FECHA_TARIFAS}: compruébala en la consola de AWS o pasa --tarifa-usd-h.")
     if maximo > a.techo_usd:
         print(f"NO SE LANZA: supera el techo aprobado de {a.techo_usd:.2f} USD. Baja --max-horas o aprueba más.")
         return 2

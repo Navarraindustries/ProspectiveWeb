@@ -20,15 +20,18 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+import math
+
+from pydantic import BaseModel, Field, model_validator
 
 from .treatment import AneurysmLocation
 
 
 class Position3D(BaseModel):
-    x: float = Field(..., description="X coordinate in mm (patient space)")
-    y: float = Field(..., description="Y coordinate in mm (patient space)")
-    z: float = Field(..., description="Z coordinate in mm (patient space)")
+    # Finitas: un NaN o un infinito pasaban a VTK y salían medidas sin sentido.
+    x: float = Field(..., allow_inf_nan=False, description="X coordinate in mm (patient space)")
+    y: float = Field(..., allow_inf_nan=False, description="Y coordinate in mm (patient space)")
+    z: float = Field(..., allow_inf_nan=False, description="Z coordinate in mm (patient space)")
 
 
 class Veto(BaseModel):
@@ -486,3 +489,13 @@ class NeckPlaneRequest(BaseModel):
             "its diameter. `origin` and `normal` are then ignored."
         ),
     )
+
+    @model_validator(mode="after")
+    def _normal_util(self) -> "NeckPlaneRequest":
+        # Una normal nula o no finita no define plano; antes se aceptaba. Con
+        # tres puntos del borde la normal no se usa.
+        if not all(math.isfinite(v) for v in self.normal):
+            raise ValueError("La normal del plano tiene valores no numéricos.")
+        if len(self.rim_points) < 3 and math.hypot(*self.normal) < 1e-9:
+            raise ValueError("La normal del plano es nula: marca hacia dónde está la cúpula.")
+        return self

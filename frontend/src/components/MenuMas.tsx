@@ -152,7 +152,7 @@ export function MenuMas({ items, label = "Más acciones", tactil = false }: {
             ...glass("dense"),
             position: "fixed", right: pos.derecha, top: pos.top, bottom: pos.bottom,
             width: ANCHO_MENU, maxWidth: "calc(100vw - 16px)", padding: 6, borderRadius: "var(--radius-md)",
-            zIndex: 300, boxSizing: "border-box",
+            zIndex: "var(--capa-menu)", boxSizing: "border-box",
           }}
         >
           {items.map((it) => {

@@ -2,3 +2,9 @@ node_modules/
 dist/
 .vite/
 coverage/
+
+# Configuración local y estudios de prueba (DICOM de pacientes reales).
+.env
+.env.*
+Estudios/
+data/

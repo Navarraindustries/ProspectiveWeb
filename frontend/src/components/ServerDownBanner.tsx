@@ -26,7 +26,7 @@ export const SERVER_BACK_TEXT = "El servidor responde de nuevo; repite la acció
 const botonDeBanda = { color: "inherit", borderColor: "currentColor", background: "transparent" } as const;
 
 const bandStyle = (bg: string) => ({
-  position: "fixed" as const, top: 0, left: 0, right: 0, zIndex: 300,
+  position: "fixed" as const, top: 0, left: 0, right: 0, zIndex: "var(--capa-servidor)",
   display: "flex", alignItems: "center", justifyContent: "center", gap: 14,
   padding: "10px 18px",
   background: bg, color: "var(--background)",

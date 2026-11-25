@@ -794,6 +794,15 @@ class TestDetectionEndpoints:
             assert field in data, f"Missing: {field}"
 
 
+def _cuello_en_el_origen(sid: str) -> None:
+    """Un cuello medido en el centro del cilindro. Sin cuello ni candidato la
+    búsqueda de ramas contesta 422 (antes medía alrededor de (0,0,0) y decía
+    «0 ramas» como si las hubiera buscado)."""
+    from services.sessions import write_state
+    for k in "xyz":
+        write_state(sid, f"morpho.neck_origin_{k}", "0.0")
+
+
 class TestPerforatorEndpoints:
     """GET /api/perforators/{session_id}."""
 
@@ -823,6 +832,7 @@ class TestPerforatorEndpoints:
         cylinder.SetResolution(16)
         cylinder.Update()
         write_vtp(cylinder.GetOutput(), str(mesh_dir / "vessel_tree.vtp"))
+        _cuello_en_el_origen(sid)
 
         resp = client.get(f"/api/perforators/{sid}")
         assert resp.status_code == 200
@@ -846,6 +856,7 @@ class TestPerforatorEndpoints:
         cyl.SetResolution(12)
         cyl.Update()
         write_vtp(cyl.GetOutput(), str(mesh_dir / "vessel_tree.vtp"))
+        _cuello_en_el_origen(sid)
 
         data = client.get(f"/api/perforators/{sid}").json()
         for field in ("candidates", "high_count", "medium_count",

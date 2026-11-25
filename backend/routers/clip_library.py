@@ -124,6 +124,8 @@ async def add_library_clip(
             fenestration_mm=fenestration_mm,
             notes=notes,
         )
+    except clip_library.IndiceDanado as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -195,6 +197,10 @@ async def library_clip_mesh(clip_id: str):
     summary="Remove a clip from the library (admin)",
 )
 async def delete_library_clip(clip_id: str) -> dict:
-    if not clip_library.delete_clip(clip_id):
+    try:
+        borrado = clip_library.delete_clip(clip_id)
+    except clip_library.IndiceDanado as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    if not borrado:
         raise HTTPException(status_code=404, detail=f"Clip '{clip_id}' no está en la biblioteca")
     return {"deleted": clip_id}

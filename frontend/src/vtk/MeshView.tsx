@@ -38,6 +38,7 @@ import { createOrientationInset, type OrientationInset } from "./OrientationInse
 import { captureRenderWindow, type CapturableWindow, type CaptureFn } from "./captureRenderWindow";
 import { lookAlongUp, resolveView, standardViewInVolume, type Orientation, type Vec3 } from "./geometry";
 import { IDENTITY } from "./clipPose";
+import { MAPA_DIVERGENTE } from "./mapaDivergente";
 import { matrixAfterSwap, shouldApplyMatrix, toColumnMajor } from "./layerMatrix";
 import { chooseHandle, nextDrag, type DragEvent, type DragState } from "./handleDrag";
 import { cameraLike, type CameraLike, type Viewport } from "./dragController";
@@ -2450,9 +2451,7 @@ export function divergingLut(range: number, deadband: number, invert = false) {
   const r = Math.max(range, 1e-3);
   const d = Math.min(Math.max(deadband, 0), r * 0.9);
   const lut = vtkColorTransferFunction.newInstance();
-  const grey: [number, number, number] = [0.78, 0.8, 0.82];
-  const blue: [number, number, number] = [0.15, 0.35, 0.85];
-  const red: [number, number, number] = [0.88, 0.2, 0.15];
+  const { gris: grey, azul: blue, rojo: red } = MAPA_DIVERGENTE;
   lut.addRGBPoint(-r, ...(invert ? red : blue));
   lut.addRGBPoint(-d, ...grey);
   lut.addRGBPoint(d, ...grey);

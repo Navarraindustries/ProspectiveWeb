@@ -38,6 +38,7 @@ looks like it should be automatic:
 from __future__ import annotations
 
 import json
+import threading
 import logging
 import os
 import shutil
@@ -98,22 +99,44 @@ def _manifest_path() -> Path:
     return LIBRARY_ROOT / _MANIFEST
 
 
-def _read_manifest() -> list[dict]:
+class IndiceDanado(RuntimeError):
+    """El índice existe pero no se puede leer: no se sobrescribe."""
+
+
+#: Altas y bajas de una en una: leer, cambiar y escribir el índice entero.
+_INDICE_LOCK = threading.RLock()
+
+
+def _read_manifest(estricto: bool = False) -> list[dict]:
+    """El índice. Ilegible: para listar, vacío con aviso; para cambiarlo
+    (`estricto`), error. Antes un índice truncado se leía como vacío y la
+    siguiente alta lo sobrescribía con una sola entrada: se perdía la
+    biblioteca entera."""
     p = _manifest_path()
     if not p.exists():
         return []
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
-        return data if isinstance(data, list) else []
-    except (json.JSONDecodeError, OSError) as exc:
-        logger.warning("Clip library manifest unreadable (%s); treating as empty", exc)
+        if not isinstance(data, list):
+            raise ValueError("no es una lista")
+        return data
+    except (ValueError, OSError) as exc:
+        logger.error("Clip library manifest unreadable (%s)", exc)
+        if estricto:
+            raise IndiceDanado(
+                f"El índice de la biblioteca de clips ({p}) está dañado y no se modifica: "
+                "restáuralo desde la copia de seguridad."
+            ) from exc
         return []
 
 
 def _write_manifest(entries: list[dict]) -> None:
-    _manifest_path().write_text(
-        json.dumps(entries, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    # Por un temporal y un reemplazo: un corte a mitad no deja medio índice.
+    from services import atomic
+    destino = _manifest_path()
+    tmp = destino.with_name(destino.name + ".tmp")
+    tmp.write_text(json.dumps(entries, indent=2, ensure_ascii=False), encoding="utf-8")
+    atomic.replace(tmp, destino)
 
 
 def list_clips(kind: str | None = None) -> list[LibraryClip]:
@@ -273,24 +296,28 @@ def add_clip(
         mesh_file=mesh_file,
         source_filename=source_filename,
     )
-    entries = _read_manifest()
-    entries.append(asdict(clip))
-    _write_manifest(entries)
+    with _INDICE_LOCK:
+        entries = _read_manifest(estricto=True)
+        entries.append(asdict(clip))
+        _write_manifest(entries)
     logger.info("Clip library import — id=%s kind=%s name=%s", clip_id, kind, clip.name)
     return clip
 
 
 def delete_clip(clip_id: str) -> bool:
-    entries = _read_manifest()
-    keep = [e for e in entries if e.get("id") != clip_id]
-    if len(keep) == len(entries):
-        return False
-    gone = next(e for e in entries if e.get("id") == clip_id)
+    with _INDICE_LOCK:
+        entries = _read_manifest(estricto=True)
+        keep = [e for e in entries if e.get("id") != clip_id]
+        if len(keep) == len(entries):
+            return False
+        gone = next(e for e in entries if e.get("id") == clip_id)
+        _write_manifest(keep)
+    # La malla, después de quitarla del índice: al revés, un fallo al escribir
+    # dejaba una entrada que apunta a un fichero borrado.
     try:
         (LIBRARY_ROOT / gone.get("mesh_file", "")).unlink(missing_ok=True)
-    except OSError as exc:  # noqa: BLE001 — the catalogue entry is already going
+    except OSError as exc:  # noqa: BLE001 — the catalogue entry is already gone
         logger.warning("Could not remove clip mesh %s: %s", clip_id, exc)
-    _write_manifest(keep)
     logger.info("Clip library delete — id=%s", clip_id)
     return True
 

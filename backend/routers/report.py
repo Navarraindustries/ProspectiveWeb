@@ -282,6 +282,10 @@ async def generate_dicom_sr(
             "study_date":        data.patient.study_date,
             "study_description": "PROSPECTIVE Surgical Plan",
         }
+        from services.dicom_sr import referencias_de_la_serie
+        from services.sessions import session_dir
+        series_meta.update(referencias_de_la_serie(
+            session_dir(req.session_id) / "dicom", read_state(req.session_id, "dicom.series_id", "")))
         # The SR builder already models clip/coil/stent containers, but nothing
         # was feeding them — the planned devices only existed in the PDF.
         stent = data.stent

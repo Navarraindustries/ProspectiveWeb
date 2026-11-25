@@ -19,7 +19,8 @@ from sqlalchemy.orm import Session
 from models.dicom import UploadResult
 from models.patient import StudyCard
 from services.access import can_share_patient, own_patient_ids, require_patient
-from services.audit import ACT_STUDY_DELETED, audit_append, audit_patient
+from services.audit import (ACT_STUDY_ARCHIVED, ACT_STUDY_DELETED, ACT_STUDY_OPENED, audit_append,
+                            audit_patient)
 from services.auth_service import get_current_user
 from services.database import get_db
 from services.db_models import (CaseCapture, ImagingStudy, LesionConfirmation, PlanningSession,
@@ -150,6 +151,13 @@ async def get_thumbnail(
                     headers={"Cache-Control": "private, max-age=300"})
 
 
+def _descripcion_de_serie(texto: str) -> str:
+    """La descripción de la serie, sin el relleno que pone la subida cuando el
+    DICOM no trae ninguna."""
+    texto = (texto or "").strip()
+    return "" if texto == "Sin descripción" else texto
+
+
 def archive_into_case(db: Session, case: Study, session_id: str) -> ImagingStudy:
     """Archiva el DICOM de la sesión como un estudio de imagen NUEVO del caso y
     liga la sesión. Lo usan «archivar» y «Adjuntar a un caso».
@@ -168,7 +176,11 @@ def archive_into_case(db: Session, case: Study, session_id: str) -> ImagingStudy
     img = ImagingStudy(
         case_id=case.id,
         patient_id=case.patient_id,
-        description=read_state(session_id, "dicom.series_description", "") or (modality and f"Estudio {modality}") or "Estudio",
+        # «dicom.description» es la clave que escribe la subida; la de antes
+        # («dicom.series_description») no la escribía nadie y todas las
+        # tarjetas decían «Estudio XA» o «Estudio CT».
+        description=_descripcion_de_serie(read_state(session_id, "dicom.description", ""))
+                    or (modality and f"Estudio {modality}") or "Estudio",
         modality=modality,
         acquired_at=case.acquired_at or "",
         n_slices=n_slices,
@@ -178,7 +190,14 @@ def archive_into_case(db: Session, case: Study, session_id: str) -> ImagingStudy
     db.refresh(img)
 
     try:
-        info = archive_session_dicom(session_id, img.id)
+        from services.storage import study_prefix
+        prefijo = study_prefix(img.id)
+        # Un estudio migrado puede vivir ya en esa carpeta (la de su caso
+        # antiguo): archivar la vacía primero, así que se usa otra.
+        if db.query(ImagingStudy).filter(ImagingStudy.id != img.id,
+                                         ImagingStudy.storage_prefix == prefijo).first():
+            prefijo = f"imaging/{img.id}"
+        info = archive_session_dicom(session_id, img.id, prefijo)
     except BaseException:
         db.delete(img); db.commit()
         raise
@@ -233,6 +252,9 @@ async def archive_study(
         logger.exception("Archive failed")
         raise HTTPException(status_code=500, detail=f"No se pudo archivar el estudio: {exc}")
 
+    audit_append(ACT_STUDY_ARCHIVED, {"case": case_id, "imaging_study": img.id, "session_id": session_id,
+                                      "files": img.n_files},
+                 username=_user.username if _user else "", **audit_patient(db.get(Patient, case.patient_id)))
     latest = max(img.sessions, key=lambda x: x.updated_at or x.created_at) if img.sessions else None
     return _to_card(img, latest)
 
@@ -265,7 +287,7 @@ async def open_study(
 
     sid = create_session(owner_id=_user.id if _user is not None else None)
     try:
-        n = await asyncio.to_thread(restore_study_to_session, study_id, sid)
+        n = await asyncio.to_thread(restore_study_to_session, img.storage_prefix, sid)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except OSError as exc:
@@ -293,6 +315,8 @@ async def open_study(
     _activate_series(sid, series_list[0])
 
     logger.info("Opened study %s into session %s: %d files, %d series", study_id, sid, n, len(series_list))
+    audit_append(ACT_STUDY_OPENED, {"imaging_study": study_id, "session_id": sid},
+                 username=_user.username if _user else "", **audit_patient(db.get(Patient, img.patient_id)))
     return UploadResult(session_id=sid, series=series_list, total_files=n)
 
 

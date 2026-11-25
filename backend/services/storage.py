@@ -14,9 +14,11 @@ served through authenticated endpoints.
 Backend selection (env `STORAGE_BACKEND`):
   "local" (default) — filesystem under STUDY_FILES_ROOT. No credentials needed,
                       so the feature can be built and tested without AWS.
-  "s3"              — AWS S3 via boto3. Requires STORAGE_S3_BUCKET; the bucket
-                      must be private and encrypted at rest, and objects are
-                      handed to clients only as short-lived presigned URLs.
+  "s3"              — AWS S3 via boto3 (SIN TERMINAR: boto3 no viene en las
+                      dependencias, no hay tests contra un S3 real y la
+                      aplicación no usa direcciones prefirmadas: los ficheros
+                      pasan por el backend). Requires STORAGE_S3_BUCKET; the
+                      bucket must be private and encrypted at rest.
 
 Keys are POSIX-style and backend-agnostic, e.g.
     studies/42/dicom/IM_0018
@@ -185,7 +187,13 @@ class S3Backend:
     """AWS S3 store. The bucket MUST be private and encrypted at rest."""
 
     def __init__(self, bucket: str, prefix: str = "") -> None:
-        import boto3  # imported lazily so local dev needs no AWS deps
+        try:
+            import boto3  # imported lazily so local dev needs no AWS deps
+        except ImportError as exc:
+            raise RuntimeError(
+                "STORAGE_BACKEND=s3 necesita boto3 (pip install boto3), que no viene en "
+                "requirements-lock.txt: el almacén S3 no está terminado."
+            ) from exc
         self.bucket = bucket
         self.prefix = prefix.strip("/")
         self._s3 = boto3.client("s3")

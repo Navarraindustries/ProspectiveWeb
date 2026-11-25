@@ -52,7 +52,7 @@ function matches(query: string, ...parts: (string | undefined)[]): boolean {
 
 type PatientsState = { status: "idle" | "loading" | "error" } | { status: "ok"; list: PatientSummary[] };
 
-const veil = { position: "fixed", inset: 0, zIndex: 300, background: "var(--scrim-dense)", display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: "14vh" } as const;
+const veil = { position: "fixed", inset: 0, zIndex: "var(--capa-menu)", background: "var(--scrim-dense)", display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: "14vh" } as const;
 const eyebrow = {
   fontFamily: "var(--font-mono)", fontSize: "var(--text-eyebrow)", textTransform: "uppercase",
   letterSpacing: "var(--tracking-eyebrow)", color: "var(--muted-foreground)", padding: "10px 16px 4px",

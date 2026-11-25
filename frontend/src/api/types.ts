@@ -538,6 +538,8 @@ export interface SeriesInfo {
   window_width: number;
   is_projection: boolean;
   projection_warning: string | null;
+  /** Cortes que faltan, posiciones repetidas o gantry inclinado. */
+  geometry_warning?: string | null;
   size_mb: number;
   /** YYYY-MM-DD; vacío si la cabecera no trae fecha (F1-127). */
   acquisition_date: string;

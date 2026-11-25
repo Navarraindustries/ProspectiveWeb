@@ -238,6 +238,7 @@ def _build_series_list(session_id: str, raw_series: list[dict]) -> list[SeriesIn
             window_width=      ww,
             is_projection=     is_proj,
             projection_warning=proj_warn,
+            geometry_warning=  raw.get("geometry_warning") or None,
             size_mb=           size_mb,
             acquisition_date=  str(raw.get("acquisition_date", "") or ""),
             acquisition_time=  str(raw.get("acquisition_time", "") or ""),

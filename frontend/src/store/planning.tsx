@@ -463,6 +463,9 @@ interface PlanningState {
   registerSceneFramer: (fn: SceneFramer | null) => void;
   /** Called after a successful save — the session on disk now matches the store. */
   markSaved: () => void;
+  /** FE-8: lo que se guarda en el servidor al momento pero entra en la sesión
+   *  guardada solo con «Guardar progreso» (la decisión del equipo, p. ej.). */
+  marcarCambios: () => void;
   /** «Guardar progreso» de Workspace, prestado mientras está montado: el aviso
    *  de salida de App («Guardar y salir», F1-110) guarda con él sin duplicar
    *  qué se guarda. null al desmontarse. */
@@ -575,6 +578,12 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     return w;
   }, []);
   const [trajSaved, setTrajSaved] = useState<TrajectoryResult | null>(null);
+  // FE-8: guardar (o quitar) la trayectoria cambia lo que «Guardar progreso»
+  // tiene que llevarse.
+  const setTrajSavedConCambios = useCallback((t: TrajectoryResult | null) => {
+    setTrajSaved(t);
+    setDirty(true);
+  }, []);
   const [trajectorySavedAt, setTrajectorySavedAt] = useState(0);
   const [pickMiss, setPickMiss] = useState(false);
   const [reportUrls, setReportUrls] = useState<ReportUrls | null>(null);
@@ -628,6 +637,9 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   // manipulador y lo que venga después escriben ángulos, y solo aquí se acotan.
   const setPlacedClips = useCallback((u: PlacedClip[] | ((p: PlacedClip[]) => PlacedClip[])) => {
     _setPlacedClips((prev) => (typeof u === "function" ? u(prev) : u).map((c) => ({ ...c, ...clampTilt(c) })));
+    // FE-8: la lista de clips editada entra en la sesión guardada con «Guardar
+    // progreso»; sin esto, salir no avisaba y se perdía.
+    setDirty(true);
   }, []);
   const [sacFrame, setSacFrame] = useState<number | null>(null);
   const [clipParts, registerClipParts] = useState<PartsHandle | null>(null);
@@ -672,6 +684,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const registerSceneFramer = useCallback((fn: SceneFramer | null) => _setSceneFramer(() => fn), []);
   const [dirty, setDirty] = useState(false);
   const markSaved = () => setDirty(false);
+  const marcarCambios = () => setDirty(true);
   // En un ref: cambiar de guardado no tiene que repintar nada.
   const saverRef = useRef<(() => Promise<boolean>) | null>(null);
   const registerSaver = useCallback((fn: (() => Promise<boolean>) | null) => { saverRef.current = fn; }, []);
@@ -954,7 +967,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
         selectedCandidate, morphoInvalidatedNotice, morphometry, aneurysmSite, setAneurysmSite, treatment, deviceMeshes,
         centerlineMesh, centerline, setCenterline, obliqueWalk, setObliqueWalk, recorridoVaso, setRecorridoVaso, segmentando, setSegmentando, centerlineArcMm, stentMap, setStentMap, mprWl, restoreWl, takeRestoredWl, mprVoxel, pickMode, clSource, clTarget, stentSac, neckOrigin, neckDome,
-        annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, clipPlan, setClipPlan, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropInvert, trajEntry, trajTarget, trajSaved, setTrajSaved, trajectorySavedAt, setTrajectorySavedAt, pickMiss, setPickMiss, reportUrls, setReportUrls, morphoOverlay, showRejectedIn3d, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, sceneFramer, dirty,
+        annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, clipPlan, setClipPlan, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropInvert, trajEntry, trajTarget, trajSaved, setTrajSaved: setTrajSavedConCambios, trajectorySavedAt, setTrajectorySavedAt, pickMiss, setPickMiss, reportUrls, setReportUrls, morphoOverlay, showRejectedIn3d, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, sceneFramer, dirty,
         viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion, volumeReady, setVolumeReady,
         freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, mipWindow, mipLocal, cine, focusedPane,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, seriesList, setSeriesList, setPreviewBand, setPreviewMeshUrl, setSegmentation,
@@ -964,7 +977,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setPickMode, setClSource, setClTarget, setStentSac, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setFieldMeshShown, setFieldMeshUrl, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
         setNeckOrigin, setNeckDome,
         setAnnotations, setAnnotationDraft, setSelectedAnnotation, setAnnotationsSync, setAnnotationsLoaded, setAnnotationsLoadState, clearAnnotations, setNoteFocusRequest, setCropCenter, setErasePick, setCropRadius, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay, setShowRejectedIn3d,
-        setCaptureViewport, setCenterOnLesion, registerSceneFramer, markSaved, registerSaver, saveNow,
+        setCaptureViewport, setCenterOnLesion, registerSceneFramer, markSaved, marcarCambios, registerSaver, saveNow,
         setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,
         setFreePlane, setClipMode, setCutFaceVisible, setSlices3dMeshVisible, setVolumeWindow, setMipWindow, setMipLocal, setCine, setFocusedPane,
         reset, resetDownstream, olvidarLoDeLaMalla, epoca, epocaActual,

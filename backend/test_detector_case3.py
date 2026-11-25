@@ -69,14 +69,10 @@ from services.aneurysm_consensus import (CH_CALIBRE, CH_RATIO,
                                          consensus)
 from services.mesh_components import keep_main_tree
 
-_CASE3_REPO = (Path(__file__).resolve().parent.parent
-               / "Archivos DICOM" / "DICOM" / "Case 3" / "Case 3" / "Unknown Study" / "XA")
-#: La misma serie XA tal y como la guarda la sesión de Case 3 del entorno de
-#: desarrollo. Sin este respaldo, en una copia sin `Archivos DICOM/` estos tests
-#: se saltaban en silencio aunque el estudio estuviera en disco.
-_CASE3_SESSION = (Path(__file__).resolve().parent / "data" / "sessions"
-                  / "c80edc28-f42d-40f6-b2e2-a882c84fbe02" / "dicom")
-CASE3 = _CASE3_REPO if _CASE3_REPO.exists() else _CASE3_SESSION
+#: Por `casos_reales`: antes había un respaldo en la carpeta de una sesión de
+#: desarrollo, que se purga a las 24 h, y el test se saltaba sin decir por qué.
+from casos_reales import archivos_dicom
+CASE3 = archivos_dicom() / "DICOM" / "Case 3" / "Case 3" / "Unknown Study" / "XA"
 
 #: Dónde está la lesión, en coordenadas de mundo de la malla segmentada con los
 #: parámetros de la interfaz (suavizado 3, limpieza 7, «solo el árbol»).
@@ -262,10 +258,6 @@ class TestDetectarSobreLaMallaCompleta:
                     == igual[0].poly_data.GetNumberOfPoints())
 
 
-#: La sesión de Case 3 del entorno de desarrollo guarda el volumen ya cargado:
-#: de ahí sale la malla tubular a resolución nativa, como la da la API.
-_CASE3_MESHES = (Path(__file__).resolve().parent / "data" / "sessions"
-                 / "c80edc28-f42d-40f6-b2e2-a882c84fbe02" / "meshes")
 #: Umbral inferior de Case 3 con el que se validó la segmentación (Task 11).
 _CASE3_LOWER = 1470.0
 
@@ -277,20 +269,20 @@ def tubular_arbol():
     El mismo camino que `scripts/validate_case3.py`: `build_vascular_mask` +
     `mask_to_surface` con sus valores por defecto. Unos 40 s (Frangi).
     """
-    import json
-    if not (_CASE3_MESHES / "_volume.npy").exists():
-        pytest.skip("la sesión de Case 3 no está en disco (data/ está en .gitignore)")
+    # El volumen, de los DICOM (`casos_reales`): antes salía de la caché de una
+    # sesión de desarrollo, que se purga a las 24 h, y el test se saltaba.
+    from services.dicom_loader import load_series, scan_series
     from services.segmentation import mask_to_surface
     from services.vascular_mask import MaskParams, build_vascular_mask
-    meta = json.loads((_CASE3_MESHES / "_volume_meta.json").read_text())
-    sp = tuple(float(s) for s in meta["spacing"])
-    vol = np.ascontiguousarray(np.load(_CASE3_MESHES / "_volume.npy", mmap_mode="r"),
-                               dtype=np.float32)
+    serie = scan_series(CASE3)[0]
+    dcm = load_series(serie["series_uid"], CASE3)
+    sp = tuple(float(s) for s in dcm.spacing)
+    vol = np.ascontiguousarray(dcm.volume, dtype=np.float32)
     mr = build_vascular_mask(vol, sp, MaskParams(lower=_CASE3_LOWER))
     del vol
     mt = keep_main_tree(mask_to_surface(mr.mask, sp))
     assert mt.applied
-    return mt.poly, meta.get("modality", "XA")
+    return mt.poly, dcm.modality or "XA"
 
 
 @pytest.mark.slow

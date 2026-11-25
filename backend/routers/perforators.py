@@ -70,8 +70,14 @@ async def get_perforators(session_id: str) -> PerforatorsResult:
     # ── Resolve neck origin ───────────────────────────────────────────── #
     # Priority 1: neck_origin from morphometry (most accurate)
     # Priority 2: centroid of best detected candidate (good fallback)
-    # Priority 3: (0, 0, 0) — last resort when nothing else is available
+    # Sin ninguno de los dos no hay dónde buscar: antes se medía alrededor del
+    # origen (0,0,0) y respondía «0 ramas», igual que un cuello sin ramas.
     neck_origin = _resolve_neck_origin(session_id)
+    if neck_origin is None:
+        raise HTTPException(
+            status_code=422,
+            detail="No hay cuello ni aneurisma detectado: detecta el aneurisma antes de buscar ramas cerca del cuello.",
+        )
 
     loop = asyncio.get_event_loop()
     try:
@@ -92,8 +98,8 @@ async def get_perforators(session_id: str) -> PerforatorsResult:
     return result
 
 
-def _resolve_neck_origin(session_id: str) -> tuple[float, float, float]:
-    """Return neck_origin from morphometry state, candidate centroid, or (0,0,0)."""
+def _resolve_neck_origin(session_id: str) -> tuple[float, float, float] | None:
+    """Return neck_origin from morphometry state or the candidate centroid; None if neither."""
     def _f(key: str) -> str:
         return read_state(session_id, key, "")
 
@@ -114,8 +120,7 @@ def _resolve_neck_origin(session_id: str) -> tuple[float, float, float]:
         )
         return cand
 
-    logger.warning("No neck origin available for session %s — using (0,0,0)", session_id)
-    return (0.0, 0.0, 0.0)
+    return None
 
 
 def _run_perforators_sync(

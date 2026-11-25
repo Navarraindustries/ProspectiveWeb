@@ -17,3 +17,15 @@ openapi_check.json
 start.bat
 db_backups/
 clip_orders/
+
+# Configuración local y la biblioteca privada de clips: una imagen construida
+# en un equipo de desarrollo se los llevaba dentro.
+.env
+.env.*
+clip_library/
+logs/
+*.db
+*.db-wal
+*.db-shm
+eval/
+casos_reales.py

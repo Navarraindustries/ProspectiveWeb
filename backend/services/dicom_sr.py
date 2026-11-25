@@ -118,6 +118,39 @@ _PHASES_SCOPE = ("Riesgo poblacional de rotura a 5 años de un aneurisma no roto
                  "no es una predicción para este paciente")
 
 
+def referencias_de_la_serie(dicom_dir: Path, series_uid: str) -> dict[str, Any]:
+    """El estudio y la serie medidos, para que el SR nazca en SU estudio y los
+    cite como evidencia. Sin esto el SR iba a un estudio nuevo, sin referencia
+    a nada: en el PACS quedaba huérfano. Solo cabeceras; vacío si no se puede."""
+    try:
+        import pydicom
+        from services.dicom_loader import _series_file_names
+        ficheros = _series_file_names(series_uid, dicom_dir)
+    except Exception:  # noqa: BLE001
+        return {}
+    instancias: list[tuple[str, str]] = []
+    cabecera = None
+    for f in ficheros:
+        try:
+            ds = pydicom.dcmread(f, stop_before_pixels=True, specific_tags=[
+                "StudyInstanceUID", "SeriesInstanceUID", "SOPClassUID", "SOPInstanceUID",
+                "AccessionNumber", "StudyID", "StudyDate"])
+        except Exception:  # noqa: BLE001
+            continue
+        cabecera = cabecera or ds
+        if getattr(ds, "SOPInstanceUID", None) and getattr(ds, "SOPClassUID", None):
+            instancias.append((str(ds.SOPClassUID), str(ds.SOPInstanceUID)))
+    if cabecera is None or not getattr(cabecera, "StudyInstanceUID", None):
+        return {}
+    return {
+        "study_instance_uid":  str(cabecera.StudyInstanceUID),
+        "series_instance_uid": str(getattr(cabecera, "SeriesInstanceUID", "") or ""),
+        "accession_number":    str(getattr(cabecera, "AccessionNumber", "") or ""),
+        "study_id":            str(getattr(cabecera, "StudyID", "") or ""),
+        "instances":           instancias,
+    }
+
+
 def _code_ds(code: str, scheme: str, meaning: str) -> Dataset:
     ds = Dataset()
     ds.CodeValue = code
@@ -239,9 +272,26 @@ class DicomSRGenerator:
         ds.StudyDate = str(self._meta.get("study_date", date_str)).replace("-", "")
         ds.StudyTime = ""
         ds.ReferringPhysicianName = ""
-        ds.StudyID = "1"
-        ds.AccessionNumber = ""
+        ds.StudyID = self._meta.get("study_id") or "1"
+        ds.AccessionNumber = self._meta.get("accession_number", "")
         ds.StudyDescription = self._meta.get("study_description", "")
+
+        # La serie medida, como evidencia del informe: el PACS la enlaza.
+        instancias = self._meta.get("instances") or []
+        if self._meta.get("study_instance_uid") and instancias:
+            serie = Dataset()
+            serie.SeriesInstanceUID = self._meta.get("series_instance_uid", "")
+            refs = []
+            for clase, uid in instancias:
+                r = Dataset()
+                r.ReferencedSOPClassUID = clase
+                r.ReferencedSOPInstanceUID = uid
+                refs.append(r)
+            serie.ReferencedSOPSequence = Sequence(refs)
+            evidencia = Dataset()
+            evidencia.StudyInstanceUID = ds.StudyInstanceUID
+            evidencia.ReferencedSeriesSequence = Sequence([serie])
+            ds.CurrentRequestedProcedureEvidenceSequence = Sequence([evidencia])
 
         ds.Modality = "SR"
         ds.SeriesInstanceUID = generate_uid()

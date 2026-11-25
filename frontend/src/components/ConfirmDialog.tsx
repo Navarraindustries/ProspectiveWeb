@@ -120,7 +120,7 @@ export function ConfirmDialog({
       animate="animate"
       transition={fundidoTransition}
       onClick={busy ? undefined : onCancel}
-      style={{ position: "fixed", inset: 0, zIndex: 400, background: "var(--scrim-dense)", display: "flex", alignItems: "center", justifyContent: "center" }}
+      style={{ position: "fixed", inset: 0, zIndex: "var(--capa-dialogo)", background: "var(--scrim-dense)", display: "flex", alignItems: "center", justifyContent: "center" }}
     >
       <motion.div
         ref={panelRef}

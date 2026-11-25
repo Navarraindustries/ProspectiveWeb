@@ -367,7 +367,9 @@ def _apposition(session_id: str, result, out_path):
         a = annotate(
             result.stent_poly_data, read_vtp(vessel), result.centerline_segment,
             neck_center=neck if tiene_cuello else None, neck_mm=neck_mm if tiene_cuello else 0.0,
-            voxel_mm=_load_float(session_id, "dicom.spacing_x", 0.0),
+            # El vóxel más grueso de los tres ejes: con cortes de 0,6 mm y píxel de
+            # 0,3 solo contaba el 0,3 y marcaba como hueco lo que era resolución.
+            voxel_mm=max(_load_float(session_id, f"dicom.spacing_{k}", 0.0) for k in "xyz"),
         )
         write_vtp(result.stent_poly_data, out_path)
         return asdict(a)

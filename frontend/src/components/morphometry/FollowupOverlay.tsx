@@ -12,6 +12,7 @@ import { Button } from "../Button";
 import { ErrorNote, SectionLabel } from "../PanelHead";
 import { usePlanning } from "../../store/planning";
 import { cifra, mm } from "../../lib/numero";
+import { degradadoLeyenda } from "../../vtk/mapaDivergente";
 
 export function FollowupOverlay({ sessionId }: { sessionId: string }) {
   const { followup, setFollowup } = usePlanning();
@@ -87,7 +88,7 @@ export function FollowupOverlay({ sessionId }: { sessionId: string }) {
           </div>
           {/* La barra de color, con la franja gris del ruido en medio. */}
           <div aria-hidden style={{ height: 8, borderRadius: 4, margin: "8px 0 2px",
-                                    background: "linear-gradient(90deg, #2659d9, #c7ccd1 40%, #c7ccd1 60%, #e0331f)" }} />
+                                    background: degradadoLeyenda(40, 60) }} />
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--muted-foreground)" }}>
             <span>encogió</span><span>± {mm(r.noise_mm, 2)} = ruido</span><span>creció</span>
           </div>

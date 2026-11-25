@@ -592,6 +592,22 @@ describe("guardar el corredor relanza la selección (F1-193)", () => {
   });
 });
 
+describe("respuestas que llegan tarde (FE-17)", () => {
+  it("si la primera petición llega después de la segunda, manda la segunda", async () => {
+    let soltarVieja: (r: ClipSelectionResult) => void = () => {};
+    clipSelection
+      .mockImplementationOnce(() => new Promise((r) => { soltarVieja = r; }))
+      .mockResolvedValueOnce(result({ outcome: "manufacture", recommended: [] }));
+    const { rerender } = render(<ClipSelectionPanel sessionId="s1" reloadKey={0} />);
+    rerender(<ClipSelectionPanel sessionId="s1" reloadKey={1} />);
+    expect(await screen.findByText("Pieza a medida: se pide en Fabricación")).toBeInTheDocument();
+    soltarVieja(result());          // la vieja («hay clip en inventario») llega ahora
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText("Hay clip en inventario")).toBeNull();
+    expect(screen.getByText("Pieza a medida: se pide en Fabricación")).toBeInTheDocument();
+  });
+});
+
 describe("la remisión a Fabricación (F1-198)", () => {
   it("con un clip colocado nombra esa pieza", async () => {
     clipSelection.mockResolvedValue(result({

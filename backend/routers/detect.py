@@ -1989,6 +1989,9 @@ def _morfometria_sin_cerrojo(
         # Solo aquí, con el plano marcado: es el único caso en que el contorno
         # describe el cuello y no un corte cualquiera del árbol. Sin esto, la
         # selección aplica la regla de ×1,5, que es lo que había.
+        # El de la medida anterior no vale para esta: si ahora no sale, se
+        # queda vacío y la selección usa la regla de ×1,5.
+        write_state(session_id, "morpho.neck_perimeter_mm", "")
         try:
             from services.sac_isolation import measure_neck_contour
             perim, _area = measure_neck_contour(
@@ -2009,12 +2012,18 @@ def _morfometria_sin_cerrojo(
         # plano guardado ya no aísla nada, el desplazamiento guardado describía
         # una medida que no es esta, y el estado no puede seguir diciéndolo.
         write_state(session_id, "morpho.neck_shift_mm", "0")
+        # Sin plano marcado no hay contorno del cuello: el perímetro de una
+        # medida marcada anterior dimensionaba el clip de esta.
+        write_state(session_id, "morpho.neck_perimeter_mm", "")
 
     mr = analyzer.analyze(poly, neck_plane=plane_arg)
 
     # ── Size Ratio: estimate the parent-artery diameter from the full vessel ─ #
-    # SR = max_aneurysm_diameter / parent_artery_diameter (Dhar 2008). Requires
-    # the whole vascular tree (the candidate mesh alone is not enough).
+    # SR = altura máxima del saco / diámetro de la arteria madre (Dhar 2008):
+    # la altura es la distancia perpendicular de la cúpula al plano del cuello,
+    # la misma que usa el AR. Antes se dividía el diámetro máximo, que en un saco
+    # ancho y bajo infla el cociente. Sin altura medida, el diámetro máximo.
+    # Requires the whole vascular tree (the candidate mesh alone is not enough).
     vessel_path = vtp_path.parent / "vessel_tree.vtp"
     if vessel_path.exists():
         try:
@@ -2036,7 +2045,8 @@ def _morfometria_sin_cerrojo(
             write_state(session_id, "morpho.parent_artery_mm", "")
             write_state(session_id, "morpho.parent_artery_method", "")
             if parent_dia > 0.1:
-                mr.size_ratio = mr.max_diameter_mm / parent_dia
+                altura = mr.dome_height_mm if mr.dome_height_mm > 0.1 else mr.max_diameter_mm
+                mr.size_ratio = altura / parent_dia
                 write_state(session_id, "morpho.parent_artery_mm", str(round(parent_dia, 3)))
                 # Con qué versión del cálculo: las anteriores al percentil 25
                 # (services/parent_artery.py) se quedaban en el estado de las

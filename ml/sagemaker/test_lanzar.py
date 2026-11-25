@@ -26,3 +26,16 @@ def test_spot_dobla_la_espera_no_el_computo(capsys):
     lanzar.main([*BASE, "--max-horas", "2", "--techo-usd", "10", "--spot"])
     salida = capsys.readouterr().out
     assert '"MaxRuntimeInSeconds": 7200' in salida and '"MaxWaitTimeInSeconds": 14400' in salida
+
+
+def test_cero_horas_no_pasa(capsys):
+    """Con 0 horas el costo salía 0 y cualquier techo lo aceptaba."""
+    with pytest.raises(SystemExit):
+        lanzar.main(["--modo", "benchmark", "--datos", "s3://b/d", "--rol", "arn:r",
+                     "--max-horas", "0", "--techo-usd", "10"])
+
+
+def test_cuenta_lo_que_queda_en_s3():
+    sin = lanzar.costo_maximo("ml.g6e.4xlarge", 2, 0)
+    assert lanzar.costo_maximo("ml.g6e.4xlarge", 2, 0, s3_gb=100) == pytest.approx(sin + 100 * 0.023)
+    assert lanzar.costo_maximo("ml.g6e.4xlarge", 2, 0, tarifa_hora=5.0) == pytest.approx(10.0)

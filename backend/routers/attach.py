@@ -414,13 +414,22 @@ async def move_session(
            .update(mover, synchronize_session=False))
     capturas = (db.query(CaseCapture).filter(CaseCapture.imaging_study_id == img.id)
                   .update(mover, synchronize_session=False))
+    sesiones_del_estudio = [s for (s,) in db.query(PlanningSession.session_id)
+                            .filter(PlanningSession.imaging_study_id == img.id).all()]
     db.commit()
     db.refresh(patient)
+
+    # Los pedidos de clip firmados desde esas sesiones van con ellas.
+    from routers.clips import _case_identity
+    from services.clip_orders import mover_pedidos
+    nombre, etiqueta = _case_identity(session_id, case.id)
+    pedidos = mover_pedidos([session_id, *sesiones_del_estudio], patient.id, nombre, case.id, etiqueta)
 
     audit_append(ACT_SESSION_MOVED, {
         "session_id": session_id, **antes, "patient": patient.id, "case": case.id,
         "imaging_study": img.id, "new_patient": req.new_patient is not None,
         "new_case": req.new_case is not None, "confirmations": n, "captures": capturas,
+        "clip_orders": pedidos,
     }, username=current_user.username if current_user else "", **audit_patient(patient))
     logger.info("Session %s moved from case %s to case %d (study %d)", session_id, antes["from_case"], case.id, img.id)
     compartido = (current_user is not None and current_user.role != "admin"

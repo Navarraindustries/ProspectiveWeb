@@ -38,6 +38,7 @@ import { FdSizing } from "./FdSizing";
 import { StentTresClics } from "./StentTresClics";
 import { WebSizing } from "./WebSizing";
 import { VERDICT_LABEL } from "./approachSummary";
+import { degradadoLeyenda } from "../../vtk/mapaDivergente";
 import { Icon } from "../Icon";
 import { Metric } from "../Metric";
 import { PanelHead, SectionLabel, ErrorNote, Card } from "../PanelHead";
@@ -1547,7 +1548,7 @@ export function AppositionSummary({ a }: { a: ClStentApposition }) {
     <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
       <SectionLabel>Aposición a la pared</SectionLabel>
       <div aria-hidden style={{ height: 8, borderRadius: 4, margin: "8px 0 2px",
-                                background: "linear-gradient(90deg, #2659d9, #c7ccd1 35%, #c7ccd1 65%, #e0331f)" }} />
+                                background: degradadoLeyenda(35, 65) }} />
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--muted-foreground)" }}>
         <span>comprimido</span><span>± {cifra(a.noise_mm, 2)} mm = contacto</span><span>separado</span>
       </div>
@@ -1584,7 +1585,7 @@ export function CoverageSummary({ c }: { c: ClStentCoverage }) {
     <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
       <SectionLabel>Cobertura metálica · {c.device}</SectionLabel>
       <div aria-hidden style={{ height: 8, borderRadius: 4, margin: "8px 0 2px",
-                                background: "linear-gradient(90deg, #2659d9, #c7ccd1 35%, #c7ccd1 65%, #e0331f)" }} />
+                                background: degradadoLeyenda(35, 65) }} />
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--muted-foreground)" }}>
         <span>más metal</span><span>≈ catálogo ({c.nominal_coverage_pct.toFixed(0)} %)</span><span>poros abiertos</span>
       </div>
@@ -1961,12 +1962,28 @@ export function TrajectoryTool() {
   const requestClear = () => (trajSaved ? setAskingClear(true) : void clear());
 
   const clear = async () => {
+    // FE-12: primero el servidor. Antes se vaciaba la pantalla y el error del
+    // servidor se tragaba: el PDF y la reanudación traían la trayectoria que
+    // en pantalla ya no estaba.
+    if (sessionId && trajSaved) {
+      setError(null);
+      try {
+        await api.clearTrajectory(sessionId);
+      } catch (err) {
+        setError(err instanceof Error
+          ? `No se pudo quitar la trayectoria guardada: ${err.message}`
+          : "No se pudo quitar la trayectoria guardada.");
+        return;
+      }
+    }
     setTrajEntry(null);
     setTrajTarget(null);
     setSaved(null);
     setSugerencias(null);
     setPickMode(null);
-    if (sessionId) { try { await api.clearTrajectory(sessionId); } catch { /* ignore */ } }
+    // Sin guardar no había nada en el servidor; se avisa igual por si acaso,
+    // sin bloquear (lo único que hay es lo de la pantalla).
+    if (sessionId && !trajSaved) { api.clearTrajectory(sessionId).catch(() => {}); }
   };
 
   const pickBtn = (which: "traj_entry" | "traj_target", label: string, done: boolean, title: string) => {

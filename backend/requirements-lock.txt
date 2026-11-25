@@ -29,7 +29,6 @@ MarkupSafe==3.0.4
 matplotlib==3.10.9
 numpy==2.4.4
 packaging==26.2
-passlib==1.7.4
 pillow==12.2.0
 pluggy==1.6.0
 pyasn1==0.6.3

@@ -21,7 +21,8 @@ from services.mpr import _display_window
 Base.metadata.create_all(bind=engine)
 client = TestClient(app, raise_server_exceptions=True)
 
-_CORPUS = Path(r"C:\UniNavarra\Proyectos\Prospective\ProspectiveWeb\Archivos DICOM\DICOM")
+from casos_reales import archivos_dicom
+_CORPUS = archivos_dicom() / "DICOM"
 
 
 # ── upload: > 1000 files must not be rejected by the multipart cap ──────────── #

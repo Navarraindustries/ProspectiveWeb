@@ -195,6 +195,18 @@ describe("unsaved-changes flag", () => {
     expect(result.current.dirty).toBe(true);
   });
 
+  it("FE-8: la trayectoria, la lista de clips y la decisión del equipo también cuentan", () => {
+    const { result } = renderHook(() => usePlanning(), { wrapper });
+    act(() => result.current.setTrajSaved({ entry: [0, 0, 0], target: [0, 0, 1], depth_mm: 1, angle_deg: 0, corridor: null } as never));
+    expect(result.current.dirty).toBe(true);
+    act(() => result.current.markSaved());
+    act(() => result.current.setPlacedClips([]));
+    expect(result.current.dirty).toBe(true);
+    act(() => result.current.markSaved());
+    act(() => result.current.marcarCambios());
+    expect(result.current.dirty).toBe(true);
+  });
+
   it("goes clean again after a save", () => {
     const { result } = renderHook(() => usePlanning(), { wrapper });
     act(() => result.current.setMorphometry(fakeMorpho));

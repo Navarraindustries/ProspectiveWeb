@@ -16,6 +16,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Lo mínimo: leer el código. Sin esto el token del flujo tenía los permisos por
+# defecto del repositorio, de escritura.
+permissions:
+  contents: read
+
 jobs:
   backend:
     runs-on: windows-latest
@@ -32,6 +37,12 @@ jobs:
           cache-dependency-path: backend/requirements-lock.txt
       - name: Dependencias
         run: python -m pip install -r requirements-lock.txt
+      # Vulnerabilidades conocidas en las dependencias de Python (las del
+      # frontend las mira `npm audit`).
+      - name: Vulnerabilidades (Python)
+        run: |
+          python -m pip install pip-audit
+          pip-audit -r requirements-lock.txt
       - name: Tests
         shell: bash
         env:

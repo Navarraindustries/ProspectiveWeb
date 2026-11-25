@@ -75,6 +75,16 @@ describe("HudIvus", () => {
     expect(p.onCerrar).toHaveBeenCalled();
   });
 
+  it("UX-29: la vista longitudinal se recorre con las flechas", async () => {
+    const p = montar();
+    await screen.findByText("7,07 mm²");
+    const largo = screen.getByRole("img", { name: /Vista longitudinal/ });
+    fireEvent.keyDown(largo, { key: "ArrowRight" });
+    expect(p.onIrA).toHaveBeenLastCalledWith(0.5);
+    fireEvent.keyDown(largo, { key: "End" });
+    expect(p.onIrA).toHaveBeenLastCalledWith(2);
+  });
+
   it("no vuelve a pedir el pullback al reabrirlo con la misma línea", async () => {
     const { unmount } = render(<HudIvus sessionId="s" claveLinea="a" progreso={crearProgreso()} onIrA={vi.fn()} onCerrar={vi.fn()} />);
     await screen.findByText("7,07 mm²");

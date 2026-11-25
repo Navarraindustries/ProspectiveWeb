@@ -142,7 +142,7 @@ def test_dos_fichas_con_la_misma_hc_y_fecha_el_filtro_manda_el_id_pedido():
 def test_el_filtro_no_monta_el_mapa_de_todos(monkeypatch):
     import routers.audit as ra
     llamado = []
-    monkeypatch.setattr(ra, "pacientes_por_hash", lambda ps: llamado.append(1) or {})
+    monkeypatch.setattr(ra, "pacientes_por_hash", lambda ps, *alias: llamado.append(1) or {})
     p = _paciente()
     _bloque(p, "SOLO_EL_SUYO")
     filtrado = admin.get(f"/api/audit/blocks?patient_id={p.id}").json()

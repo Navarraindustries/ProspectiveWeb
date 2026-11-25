@@ -61,6 +61,8 @@ export function TeamDecisionCard() {
       // La recomendación del store la lleva también, para que Dispositivos e
       // Informe la vean sin volver a pedirla.
       if (treatment) planning.setTreatment({ ...treatment, team: res.team_decision ? res : null });
+      // FE-8: entra en la sesión guardada con «Guardar progreso».
+      else planning.marcarCambios();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar la decisión del equipo");
     }

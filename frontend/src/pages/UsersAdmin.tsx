@@ -632,7 +632,7 @@ function UsersAdminPage() {
       {resetDone && (
         <div
           role="status" data-glass
-          style={{ ...glass("dense"), position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 330, color: "var(--foreground)", padding: "10px 18px", borderRadius: "var(--radius-full)", fontSize: 13, fontWeight: 600 }}
+          style={{ ...glass("dense"), position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: "var(--capa-aviso-flotante)", color: "var(--foreground)", padding: "10px 18px", borderRadius: "var(--radius-full)", fontSize: 13, fontWeight: 600 }}
         >
           Contraseña de @{resetDone} restablecida
         </div>

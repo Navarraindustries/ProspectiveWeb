@@ -77,7 +77,7 @@ describe("Reanudar rellena el store con lo guardado", () => {
     let out: { step: number; invalidated: boolean } | undefined;
     await act(async () => { out = await rehydrateSession(result.current, restored()); });
     const p = result.current;
-    expect(out).toEqual({ step: 7, invalidated: false });
+    expect(out).toEqual({ step: 7, invalidated: false, faltan: [] });
     // F1-27: la decisión y lo que se tecleó para pedirla.
     expect(p.treatment?.recommendation_key).toBe("clip");
     expect(p.treatmentInputs?.location).toBe("ACoP — Arteria Comunicante Posterior");
@@ -131,6 +131,15 @@ describe("Reanudar rellena el store con lo guardado", () => {
     expect(api.detect).toHaveBeenNthCalledWith(1, SID, { cached: true });
     expect(api.detect).toHaveBeenNthCalledWith(2, SID);
     expect(result.current.candidates).toHaveLength(2);
+  });
+
+  it("FE-13: si la medida no llega, se dice qué falta", async () => {
+    api.morphometry.mockImplementationOnce(() => Promise.reject(new ApiError(500, "caída")));
+    const { result } = montar();
+    let r: { faltan?: string[] } = {};
+    await act(async () => { r = await rehydrateSession(result.current, restored()); });
+    expect(r.faltan).toEqual(["la morfometría"]);
+    expect(result.current.morphometry).toBeNull();
   });
 
   it("lo que no se guardó no se inventa", async () => {

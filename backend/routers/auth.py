@@ -50,7 +50,10 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 # (these are personal documents) and served only through admin-authenticated
 # endpoints below. `PROSPECTIVE_USER_FILES` lo cambia (los tests lo apuntan a un
 # temporal: escribían en el user_files real y podían pisar fotos de cuentas reales).
-_USER_FILES = Path(os.environ.get("PROSPECTIVE_USER_FILES") or "user_files")
+# Junto al backend, no en la carpeta desde la que se arranca (desde la raíz
+# las fotos y los CV iban a una carpeta sin regla en .gitignore).
+_USER_FILES = Path(os.environ.get("PROSPECTIVE_USER_FILES")
+                   or Path(__file__).resolve().parents[1] / "user_files")
 
 
 def _cookie_segura(request: Request) -> bool:
@@ -1022,6 +1025,14 @@ async def delete_user(
     # Lo que esta cuenta compartió sigue compartido, ahora «por» el destino.
     db.query(PatientShare).filter(PatientShare.shared_by == user_id).update(
         {"shared_by": target.id}, synchronize_session=False)
+    # Capturas y lesiones confirmadas apuntaban a la cuenta y el borrado daba
+    # un 500. Se quedan sin autor en vez de atribuírselas al destino: quién las
+    # hizo sigue en la cadena de auditoría.
+    from services.db_models import CaseCapture, LesionConfirmation
+    db.query(CaseCapture).filter(CaseCapture.created_by == user_id).update(
+        {"created_by": None}, synchronize_session=False)
+    db.query(LesionConfirmation).filter(LesionConfirmation.created_by == user_id).update(
+        {"created_by": None}, synchronize_session=False)
     deleted_name = user.username
     db.delete(user)
     db.commit()

@@ -563,6 +563,10 @@ async def restore_session(
         "Session restored — original=%s  new=%s  step=%d  has_seg=%s",
         session_id, new_sid, ps.current_step, has_seg,
     )
+    from services.audit import ACT_SESSION_RESTORED
+    audit_append(ACT_SESSION_RESTORED, {"session_id": session_id, "new_session_id": new_sid},
+                 username=current_user.username if current_user else "",
+                 **(audit_patient(db.get(Patient, ps.patient_id)) if ps.patient_id else {}))
 
     return SessionRestoreResult(
         session_id=new_sid,

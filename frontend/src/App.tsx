@@ -33,6 +33,9 @@ import { rehydrateSession } from "./resume";
 import { restoreFailure } from "./restoreFailure";
 import { ServerDownBanner } from "./components/ServerDownBanner";
 import { MORPHO_INVALIDATED } from "./components/planning/detectCopy";
+
+/** FE-10: la sesión caducó con el análisis sin guardar. */
+export const CADUCADA_CON_CAMBIOS = "Tu sesión caducó con cambios sin guardar: lo hecho desde el último «Guardar progreso» no se pudo guardar. Entra de nuevo y reanuda la sesión guardada.";
 import { CommandPalette } from "./components/CommandPalette";
 import { useRegisterCommands } from "./lib/commands";
 
@@ -126,10 +129,15 @@ function Router() {
 
   // useBlocker catches EVERY router navigation, including Back/Forward, which a
   // hand-rolled guard around our own click handlers could never see.
+  // FE-10: con la sesión caducada (sin usuario) no se pregunta: «Guardar y
+  // salir» ya no puede guardar, y el aviso salía encima de «Entrar».
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
-      dirtyWorkspace && currentLocation.pathname !== nextLocation.pathname,
+      dirtyWorkspace && !!user && currentLocation.pathname !== nextLocation.pathname,
   );
+  // Y se dice en «Entrar» qué ha pasado con lo que no estaba guardado.
+  const sucioRef = useRef(false);
+  sucioRef.current = dirtyWorkspace;
 
   // «Cerrar sesión» con el análisis sin guardar: cerrar primero desmontaba el
   // quirófano y mataba la cookie, así que el aviso salía cuando «Guardar y
@@ -137,6 +145,9 @@ function Router() {
   // bloqueador pregunta) y la sesión se cierra al llegar fuera.
   const cierrePendiente = useRef(false);
   const cierreVoluntario = useRef(false);
+  useEffect(() => {
+    if (!user && sucioRef.current && !cierreVoluntario.current) setLoginNotice(CADUCADA_CON_CAMBIOS);
+  }, [user]);
   const salir = useCallback(() => {
     if (dirtyWorkspace) {
       cierrePendiente.current = true;
@@ -286,7 +297,7 @@ function Router() {
       // Todo lo que vuelve con la sesión —también la decisión, el corredor, los
       // clips editables, la ventana y los enlaces del informe— y sin rehacer la
       // detección (familia S). Deja la sesión sin cambios pendientes.
-      const { step, invalidated } = await rehydrateSession(planning, r);
+      const { step, invalidated, faltan = [] } = await rehydrateSession(planning, r);
       // Otra sesión empezó mientras tanto: es ella la que manda en la pantalla.
       if (planning.epocaActual() !== epoca) return null;
       // En el mismo render: el quirófano se monta ya con el paso de ESTA sesión.
@@ -295,6 +306,10 @@ function Router() {
       if (invalidated) {
         setToast(MORPHO_INVALIDATED);
         setTimeout(() => setToast(null), 5000);
+      } else if (faltan.length) {
+        // FE-13: se dice qué no llegó; el paso se puede repetir desde ahí.
+        setToast(`No se pudo cargar ${faltan.join(" ni ")} de esta sesión. Vuelve a ese paso para repetirlo.`);
+        setTimeout(() => setToast(null), 8000);
       } else {
         setToast(null);
       }
@@ -497,7 +512,7 @@ function Router() {
         <div
           style={{
             position: "fixed",
-            zIndex: 200,
+            zIndex: "var(--capa-aviso)",
             pointerEvents: "none",
             display: "flex",
             left: 0,

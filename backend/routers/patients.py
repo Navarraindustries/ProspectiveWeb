@@ -21,8 +21,10 @@ _STUDY_CASE_FIELDS = (
 from services.database import get_db
 from services.access import own_patient_ids, require_patient, require_share_right
 from services.auth_service import get_current_user
-from services.audit import (ACT_CASE_DELETED, ACT_PATIENT_DELETED, ACT_PATIENT_SHARED,
-                            SkullChain, audit_append, audit_patient, pacientes_por_hash)
+from services.audit import (ACT_CASE_CREATED, ACT_CASE_DELETED, ACT_CASE_EDITED,
+                            ACT_PATIENT_CREATED, ACT_PATIENT_DELETED, ACT_PATIENT_EDITED,
+                            ACT_PATIENT_SHARED, SkullChain, audit_append, audit_patient,
+                            hash_de_paciente, pacientes_por_hash)
 from services.sessions import size_of_row
 from services.db_models import (CaseCapture, ImagingStudy, LesionConfirmation, Patient,
                                 PatientShare, PlanningSession, Study, User)
@@ -213,8 +215,12 @@ async def patients_activity(
     # (`pacientes_por_hash`, compartido con /api/audit/blocks). Se recorre por
     # id y, si dos fichas comparten hash, gana la más antigua: así el nombre de
     # la actividad no cambia de una petición a otra.
-    por_hash = pacientes_por_hash(query.order_by(Patient.id).all())
-    bloques = SkullChain.instance().get_recent(set(por_hash), limit, _ACCIONES_FUERA_DE_ACTIVIDAD)
+    cadena = SkullChain.instance()
+    # Con los hashes de antes de editar la historia o la fecha de cada uno.
+    from services.audit import ACT_PATIENT_EDITED, alias_de_hashes
+    por_hash = pacientes_por_hash(query.order_by(Patient.id).all(),
+                                  alias_de_hashes(cadena.bloques_de_accion(ACT_PATIENT_EDITED)))
+    bloques = cadena.get_recent(set(por_hash), limit, _ACCIONES_FUERA_DE_ACTIVIDAD)
     return [PatientActivity(patient_id=por_hash[b["patient_hash"]].id,
                             patient_name=por_hash[b["patient_hash"]].full_name,
                             action=b["action"], at=b["iso_ts"], username=b["username"])
@@ -377,11 +383,11 @@ async def create_patient(
     db.commit()
     db.refresh(patient)
 
-    logger.info(
-        "Patient created — id=%d surname=%s creator=%s",
-        patient.id, patient.surname,
-        current_user.username if current_user else "anonymous",
-    )
+    # Sin el apellido: el registro del servidor no es sitio para datos del paciente.
+    logger.info("Patient created — id=%d creator=%s", patient.id,
+                current_user.username if current_user else "anonymous")
+    audit_append(ACT_PATIENT_CREATED, {"patient": patient.id},
+                 username=current_user.username if current_user else "", **audit_patient(patient))
     return _patient_to_summary(patient)
 
 
@@ -438,7 +444,9 @@ async def create_case(
     db.add(study)
     db.commit()
     db.refresh(patient)
-    logger.info("Case created — patient=%d study=%d dx=%s", patient.id, study.id, req.dx_principal)
+    logger.info("Case created — patient=%d study=%d", patient.id, study.id)
+    audit_append(ACT_CASE_CREATED, {"patient": patient.id, "case": study.id, "new_patient": True},
+                 username=current_user.username if current_user else "", **audit_patient(patient))
     return _patient_to_summary(patient)
 
 
@@ -504,6 +512,8 @@ async def create_study(
     db.commit()
     db.refresh(study)
     logger.info("Study added — patient=%d study=%d", patient_id, study.id)
+    audit_append(ACT_CASE_CREATED, {"patient": patient_id, "case": study.id},
+                 username=current_user.username if current_user else "", **audit_patient(patient))
     return _study_to_summary(study)
 
 
@@ -550,6 +560,9 @@ async def update_study(
     db.commit()
     db.refresh(study)
     logger.info("Study updated — patient=%d study=%d", patient_id, study_id)
+    audit_append(ACT_CASE_EDITED, {"patient": patient_id, "case": study_id},
+                 username=current_user.username if current_user else "",
+                 **audit_patient(db.get(Patient, patient_id)))
     return _study_to_summary(study)
 
 
@@ -581,6 +594,9 @@ async def delete_study(
     db.delete(study)
     db.commit()
     _borrar_ficheros_de_capturas(claves)
+    # Su número se reutiliza: los pedidos no pueden seguir apuntándolo.
+    from services.clip_orders import soltar_pedidos
+    soltar_pedidos(case_ids=[study_id])
     logger.info("Study deleted — patient=%d study=%d", patient_id, study_id)
     audit_append(ACT_CASE_DELETED, {"patient": patient_id, "case": study_id,
                                     "captures": n_capturas, "imaging_studies": n_estudios},
@@ -641,11 +657,21 @@ async def update_patient(
                 detail=f"Ya existe un paciente con la historia clínica '{hc}'.",
             )
 
+    hash_antes = hash_de_paciente(patient)
+    # Qué campos cambian (sus nombres, nunca los valores).
+    campos = [f for f in _PATIENT_FIELDS if getattr(patient, f) != getattr(req, f)]
     for field in _PATIENT_FIELDS:
         setattr(patient, field, getattr(req, field))
     db.commit()
     db.refresh(patient)
-    logger.info("Patient updated — id=%d surname=%s", patient.id, patient.surname)
+    logger.info("Patient updated — id=%d", patient.id)
+    carga: dict = {"patient": patient.id, "fields": campos}
+    if hash_de_paciente(patient) != hash_antes:
+        # Cambió la historia o la fecha, y con ellas el hash: así sus bloques
+        # anteriores siguen llevando a esta ficha (services/audit.py).
+        carga["hash_anterior"] = hash_antes
+    audit_append(ACT_PATIENT_EDITED, carga,
+                 username=current_user.username if current_user else "", **audit_patient(patient))
     return _patient_to_summary(patient)
 
 
@@ -689,8 +715,13 @@ async def delete_patient(
     n_sesiones = db.query(PlanningSession).filter(PlanningSession.patient_id == patient_id).delete()
     # Y sus confirmaciones de lesión (misma razón que en delete_study).
     db.query(LesionConfirmation).filter(LesionConfirmation.patient_id == patient_id).delete()
+    casos = [c.id for c in patient.studies]
     db.delete(patient)
     db.commit()
+    # Sus números (paciente y casos) se reutilizan: los pedidos dejan de
+    # apuntarlos y se quedan con el nombre impreso.
+    from services.clip_orders import soltar_pedidos
+    soltar_pedidos(patient_id=patient_id, case_ids=casos)
     # Después del commit, lo que estaba en disco: los ficheros de las capturas y
     # las carpetas de las sesiones guardadas. Antes se quedaban sin fila (de ahí
     # buena parte de las carpetas huérfanas de session_saves).

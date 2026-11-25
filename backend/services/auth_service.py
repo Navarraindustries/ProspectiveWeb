@@ -22,7 +22,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from sqlalchemy.orm import Session
 
 from services.database import SessionLocal, get_db
@@ -73,15 +73,25 @@ SECRET_KEY = _load_or_generate_secret()
 
 # ── Password hashing ───────────────────────────────────────────────────────── #
 
-_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt directamente: passlib, que lo envolvía, no se mantiene desde 2020 (y
+# su 1.7 no funciona con bcrypt 5). Los hashes son los mismos («$2b$12$…»), así
+# que las contraseñas guardadas siguen valiendo. bcrypt solo mira los 72
+# primeros bytes: se cortan aquí, igual que hacía passlib.
+
+
+def _bytes_de(password: str) -> bytes:
+    return password.encode("utf-8")[:72]
 
 
 def get_password_hash(password: str) -> str:
-    return _pwd_ctx.hash(password)
+    return bcrypt.hashpw(_bytes_de(password), bcrypt.gensalt(rounds=12)).decode("ascii")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_ctx.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(_bytes_de(plain), (hashed or "").encode("ascii"))
+    except ValueError:      # hash vacío o con otro formato
+        return False
 
 
 # ── User queries ───────────────────────────────────────────────────────────── #
@@ -114,6 +124,10 @@ def authenticate_user(db: Session, username: str, password: str) -> User | None:
     """
     user = db.query(User).filter(User.username == username.strip()).first()
     if user is None:
+        # El mismo trabajo que con una cuenta real: sin esto, un usuario que no
+        # existe contestaba al instante y uno que existe tardaba lo que bcrypt,
+        # y el tiempo de respuesta decía qué nombres hay.
+        verify_password(password, _hash_de_relleno())
         return None
 
     status_val = getattr(user, "status", User.STATUS_ACTIVE)
@@ -131,6 +145,16 @@ def authenticate_user(db: Session, username: str, password: str) -> User | None:
     if not verify_password(password, user.hashed_password):
         return None
     return user
+
+
+_RELLENO: str | None = None
+
+
+def _hash_de_relleno() -> str:
+    global _RELLENO
+    if _RELLENO is None:
+        _RELLENO = get_password_hash("relleno-para-igualar-el-tiempo")
+    return _RELLENO
 
 
 # ── Self-registration + admin approval ─────────────────────────────────────── #

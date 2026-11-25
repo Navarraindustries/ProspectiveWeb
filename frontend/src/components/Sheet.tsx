@@ -42,7 +42,7 @@ const avisarHojas = () => oyentesHojas.forEach((f) => f());
     en vez de perderse durante los 480 ms de la animación. */
 function CapaHoja({ children }: { children: ReactNode }) {
   const presente = useIsPresent();
-  return <div style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: presente ? "auto" : "none" }}>{children}</div>;
+  return <div style={{ position: "fixed", inset: 0, zIndex: "var(--capa-hoja)", pointerEvents: presente ? "auto" : "none" }}>{children}</div>;
 }
 
 export function Sheet({

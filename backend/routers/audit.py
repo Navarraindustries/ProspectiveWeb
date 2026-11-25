@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 from fastapi.responses import PlainTextResponse
 
 from models.audit import AuditBlock, AuditVerifyResult
-from services.audit import SkullChain, ACT_INTEGRITY_CHECK, hash_de_paciente, pacientes_por_hash
+from services.audit import (SkullChain, ACT_INTEGRITY_CHECK, alias_de_hashes, hashes_del_paciente,
+                            pacientes_por_hash)
 from services.database import get_db
 from services.auth_service import require_admin
 from services.db_models import Patient, User
@@ -48,13 +49,15 @@ async def list_blocks(db: Annotated[Session, Depends(get_db)],
         # Todos los bloques devueltos son de este paciente: se resuelven con él,
         # sin montar el mapa de todos. Si otra ficha comparte su HC y su fecha,
         # manda el id que se pidió, no la ficha más antigua.
-        raw = chain.get_blocks(hash_de_paciente(patient))
+        todos = chain.get_all_blocks()
+        # Con los hashes de antes de editar su historia o su fecha.
+        suyos = hashes_del_paciente(patient, todos)
         return [AuditBlock(**b, patient_id=patient.id, patient_name=patient.full_name)
-                for b in raw]
+                for b in todos if b["patient_hash"] in suyos]
     raw = chain.get_all_blocks()
     # Se invierte el hash como en la actividad de pacientes: por id, gana el
-    # primero. Sin coincidencia (borrado, o HC/fecha editadas) queda vacío.
-    por_hash = pacientes_por_hash(db.query(Patient).order_by(Patient.id).all())
+    # primero. Sin coincidencia (paciente borrado) queda vacío.
+    por_hash = pacientes_por_hash(db.query(Patient).order_by(Patient.id).all(), alias_de_hashes(raw))
     out = []
     for b in raw:
         p = por_hash.get(b["patient_hash"])

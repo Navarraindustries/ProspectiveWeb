@@ -138,6 +138,17 @@ describe("«Limpiar» la trayectoria", () => {
     expect(planning.setTrajEntry).toHaveBeenCalledWith(null);
   });
 
+  it("FE-12: si el servidor no la quita, la pantalla tampoco y se dice", async () => {
+    planning.trajSaved = { entry: [0, 0, 0], target: [0, 0, 10], depth_mm: 10, angle_deg: 41.5, corridor: null };
+    clearTrajectory.mockRejectedValue(new ApiErrorMock(500, "disco lleno"));
+    render(<TrajectoryTool />);
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar trayectoria" }));
+    expect(await screen.findByText(/No se pudo quitar la trayectoria guardada: disco lleno/)).toBeInTheDocument();
+    expect(planning.setTrajEntry).not.toHaveBeenCalled();
+    expect(screen.getByText("Corredor guardado y analizado ✓")).toBeInTheDocument();
+  });
+
   it("con solo los puntos sin guardar, limpia sin preguntar", async () => {
     render(<TrajectoryTool />);
     fireEvent.click(screen.getByRole("button", { name: "Limpiar" }));

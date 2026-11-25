@@ -27,6 +27,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from casos_reales import archivos_dicom  # noqa: E402
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "data" / "regresion_xa"
 
 #: Verdad de terreno en coordenadas de malla (x, y, z) mm. Case 3: tronco
@@ -35,12 +37,12 @@ DEFAULT_OUT = Path(__file__).resolve().parents[1] / "data" / "regresion_xa"
 #: usuario (memoria del proyecto, 2026-09-29).
 CASES = {
     "case3": {
-        "dir": ROOT / "Archivos DICOM" / "DICOM" / "Case 3" / "Case 3" / "Unknown Study" / "XA",
+        "dir": archivos_dicom() / "DICOM" / "Case 3" / "Case 3" / "Unknown Study" / "XA",
         "gt": (62.0, 64.0, 63.0),
         "pick": None,                    # la serie con más cortes
     },
     "im0055": {
-        "dir": ROOT / "Archivos DICOM" / "DICOM-20260714T160737Z-1-001" / "DICOM",
+        "dir": archivos_dicom() / "DICOM-20260714T160737Z-1-001" / "DICOM",
         "gt": (72.6, 68.5, 83.7),
         "pick": 0.3634,                  # la única 3DRA con este espaciado
     },

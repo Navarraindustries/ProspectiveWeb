@@ -45,8 +45,8 @@ from pathlib import Path
 
 # Real DICOM files, needed by the tests that reopen a study: `open` now scans
 # the archived files for series, so placeholder bytes are (correctly) rejected.
-_CORPUS = Path(r"C:\UniNavarra\Proyectos\Prospective\ProspectiveWeb\Archivos DICOM"
-               r"\DICOM-20260714T160737Z-1-001\DICOM")
+from casos_reales import archivos_dicom
+_CORPUS = archivos_dicom() / "DICOM-20260714T160737Z-1-001" / "DICOM"
 
 
 def _session_with_dicom_and_volume(real_dicom: bool = False) -> str:

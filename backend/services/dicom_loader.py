@@ -115,9 +115,10 @@ def _scan_series(dicom_dir: Path) -> list[dict]:
             meta = _extract_metadata(Path(file_names[0]), len(file_names))
             # Prefer the real inter-slice spacing over the single-header estimate
             # so the upload preview matches the volume that gets segmented.
-            z_real = _z_spacing_from_positions(list(file_names))
+            z_real, aviso = geometria_de_la_serie(list(file_names))
             if z_real is not None:
                 meta["spacing_z"] = z_real
+            meta["geometry_warning"] = aviso
             results.append({"series_uid": sid, "n_files": len(file_names), **meta})
         except Exception as exc:
             logger.warning("Metadata read failed for series %s: %s", sid, exc)
@@ -306,6 +307,41 @@ def _image_to_result(
 
 
 def _z_spacing_from_positions(file_names: "list[str]") -> "float | None":
+    return geometria_de_la_serie(file_names)[0]
+
+
+def aviso_de_geometria(proj: "list[float]", inclinacion_deg: float) -> "str | None":
+    """Qué tiene de raro la pila de cortes (posiciones ya proyectadas sobre la
+    normal y ordenadas). SimpleITK la monta igual con un corte ausente, dos
+    posiciones repetidas o el gantry inclinado, y las medidas en z salen
+    escaladas sin que nada lo diga."""
+    import numpy as np
+    if len(proj) < 3:
+        return None
+    d = np.diff(np.asarray(proj, dtype=float))
+    avisos: list[str] = []
+    repetidas = int(np.sum(d < 0.01))
+    if repetidas:
+        avisos.append(f"{repetidas} corte(s) con la posición repetida")
+    utiles = d[d >= 0.01]
+    if utiles.size:
+        mediana = float(np.median(utiles))
+        huecos = utiles[utiles > 1.5 * mediana]
+        if huecos.size:
+            avisos.append(f"falta(n) corte(s): hueco de {float(huecos.max()):.2f} mm donde lo normal es "
+                          f"{mediana:.2f} mm")
+        elif float(utiles.max() - utiles.min()) > 0.1 * mediana:
+            avisos.append(f"espaciado irregular entre cortes ({float(utiles.min()):.2f} a "
+                          f"{float(utiles.max()):.2f} mm)")
+    if inclinacion_deg > 1.0:
+        avisos.append(f"gantry inclinado {inclinacion_deg:.1f}°")
+    if not avisos:
+        return None
+    return ("Geometría de la serie: " + "; ".join(avisos)
+            + ". Las medidas a lo largo de los cortes pueden salir escaladas.")
+
+
+def geometria_de_la_serie(file_names: "list[str]") -> "tuple[float | None, str | None]":
     """Real inter-slice spacing, computed the way SimpleITK does when it builds
     the volume: project every slice's ImagePositionPatient onto the slice normal,
     sort, and take the *average* spacing (span / (n − 1)).
@@ -325,7 +361,7 @@ def _z_spacing_from_positions(file_names: "list[str]") -> "float | None":
 
     n = len(file_names)
     if n < 2 or n > 4000:
-        return None
+        return None, None
 
     positions: list["np.ndarray"] = []
     normal = None
@@ -337,7 +373,7 @@ def _z_spacing_from_positions(file_names: "list[str]") -> "float | None":
             )
             ipp = getattr(ds, "ImagePositionPatient", None)
             if ipp is None:
-                return None
+                return None, None
             positions.append(np.asarray([float(x) for x in ipp], dtype=float))
             if normal is None:
                 iop = getattr(ds, "ImageOrientationPatient", None)
@@ -346,14 +382,22 @@ def _z_spacing_from_positions(file_names: "list[str]") -> "float | None":
                     col = np.asarray([float(x) for x in iop[3:6]], dtype=float)
                     normal = np.cross(row, col)
     except Exception:
-        return None
+        return None, None
 
     if normal is None or float(np.linalg.norm(normal)) < 1e-6:
-        return None
+        return None, None
     normal = normal / float(np.linalg.norm(normal))
-    proj = sorted(float(np.dot(p, normal)) for p in positions)
+    orden = sorted(positions, key=lambda p: float(np.dot(p, normal)))
+    proj = [float(np.dot(p, normal)) for p in orden]
     span = proj[-1] - proj[0]
-    return span / (len(proj) - 1) if span > 1e-3 else None
+    # Inclinación: el paso de un corte al siguiente no va por la normal.
+    paso = orden[-1] - orden[0]
+    inclinacion = 0.0
+    if float(np.linalg.norm(paso)) > 1e-3:
+        coseno = abs(float(np.dot(paso / np.linalg.norm(paso), normal)))
+        inclinacion = float(np.degrees(np.arccos(min(1.0, coseno))))
+    espaciado = span / (len(proj) - 1) if span > 1e-3 else None
+    return espaciado, aviso_de_geometria(proj, inclinacion)
 
 
 def direction_from_headers(dicom_dir: Path, series_id: str) -> "tuple[list[float] | None, bool]":

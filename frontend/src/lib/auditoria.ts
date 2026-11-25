@@ -15,7 +15,14 @@ const ACCIONES: Record<string, string> = {
   REPORT_GENERATED: "Informe generado",
   DICOM_SR_GENERATED: "Informe DICOM SR generado",
   DICOM_SEG_GENERATED: "Segmentación DICOM generada",
+  PATIENT_CREATED: "Paciente creado",
+  PATIENT_EDITED: "Paciente editado",
   PATIENT_DELETED: "Paciente eliminado",
+  CASE_CREATED: "Caso creado",
+  CASE_EDITED: "Caso editado",
+  STUDY_ARCHIVED: "Estudio archivado",
+  STUDY_OPENED: "Estudio abierto",
+  SESSION_RESTORED: "Sesión guardada reanudada",
   PATIENT_SHARED: "Paciente compartido",
   CASE_DELETED: "Caso eliminado",
   STUDY_DELETED: "Estudio eliminado",
@@ -48,6 +55,7 @@ const ACCIONES: Record<string, string> = {
   clip_order_verified: "Pedido de clips verificado",
   clip_order_packet_downloaded: "Paquete del pedido descargado",
   clip_workshop_added: "Taller de clips añadido",
+  clip_workshop_updated: "Taller de clips editado",
 };
 
 export function etiquetaAccion(code: string): string {
@@ -55,7 +63,8 @@ export function etiquetaAccion(code: string): string {
 }
 
 const CLAVES: Record<string, string> = {
-  target: "Cuenta", session_id: "Sesión", part_no: "Nº de pieza", role: "Rol", workshop: "Taller",
+  target: "Cuenta", session_id: "Sesión", new_session_id: "Sesión nueva", fields: "Campos", changes: "Cambios",
+  imaging_study: "Estudio de imagen", files: "Ficheros", part_no: "Nº de pieza", role: "Rol", workshop: "Taller",
   username: "Usuario", user_ids: "Usuarios", status: "Estado", reason: "Motivo",
   patient_id: "Id. del paciente", patient: "Paciente", pages: "Páginas", ok: "Correcto", broken: "Bloques rotos",
   label: "Nombre", kind: "Tipo", case: "Caso", capture: "Captura", step: "Paso", study: "Estudio",

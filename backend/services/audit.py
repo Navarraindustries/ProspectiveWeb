@@ -86,6 +86,15 @@ ACT_USER_CREATED = "USER_CREATED"
 ACT_USER_ROLE_CHANGED = "USER_ROLE_CHANGED"
 ACT_USER_DEACTIVATED = "USER_DEACTIVATED"
 ACT_USER_REACTIVATED = "USER_REACTIVATED"
+# Lo que no dejaba rastro: crear y editar pacientes y casos, archivar y abrir
+# un estudio, restaurar una sesión guardada.
+ACT_PATIENT_CREATED = "PATIENT_CREATED"
+ACT_PATIENT_EDITED = "PATIENT_EDITED"
+ACT_CASE_CREATED = "CASE_CREATED"
+ACT_CASE_EDITED = "CASE_EDITED"
+ACT_STUDY_ARCHIVED = "STUDY_ARCHIVED"
+ACT_STUDY_OPENED = "STUDY_OPENED"
+ACT_SESSION_RESTORED = "SESSION_RESTORED"
 
 #: Overridable so a test run cannot append to the real chain. The suite used to
 #: write thousands of blocks into the developer's own audit trail — a
@@ -266,6 +275,13 @@ class SkullChain:
         rows = self._conn.execute(sql + " ORDER BY id ASC", args).fetchall()
         return [dict(r) for r in rows]
 
+    def bloques_de_accion(self, action: str) -> list[dict]:
+        """Los bloques de una acción, del más antiguo al más reciente."""
+        rows = self._conn.execute(
+            "SELECT id, iso_ts, username, patient_hash, action, payload_json, payload_hash, prev_hash, block_hash"
+            " FROM blocks WHERE action = ? ORDER BY id ASC", (action,)).fetchall()
+        return [dict(r) for r in rows]
+
     def get_recent(self, patient_hashes: set[str], limit: int,
                    exclude_actions: set[str] = frozenset()) -> list[dict]:
         """Los `limit` bloques más recientes de esos pacientes, el último primero.
@@ -343,7 +359,39 @@ def hash_de_paciente(patient) -> str:
     return patient_hash_for(args["patient_id"], args["patient_dob"])
 
 
-def pacientes_por_hash(pacientes) -> dict:
+def alias_de_hashes(bloques) -> dict[str, str]:
+    """Hash anterior → hash nuevo, de los bloques PATIENT_EDITED que cambiaron
+    la historia clínica o la fecha de nacimiento (con lo que cambia el hash)."""
+    alias: dict[str, str] = {}
+    for b in bloques:
+        if b.get("action") != ACT_PATIENT_EDITED:
+            continue
+        try:
+            anterior = json.loads(b.get("payload_json") or "{}").get("hash_anterior")
+        except ValueError:
+            anterior = None
+        if anterior and b.get("patient_hash"):
+            alias[anterior] = b["patient_hash"]
+    return alias
+
+
+def hashes_del_paciente(patient, bloques) -> set[str]:
+    """Todos los hashes con que la cadena ha guardado a este paciente: el de
+    ahora y, siguiendo los PATIENT_EDITED hacia atrás, los de antes de cada
+    edición. Sin esto, editar la historia clínica dejaba sus bloques
+    anteriores fuera de su ficha."""
+    actual = hash_de_paciente(patient)
+    if not actual:
+        return set()
+    alias = alias_de_hashes(bloques)
+    out, frontera = {actual}, {actual}
+    while frontera:
+        frontera = {viejo for viejo, nuevo in alias.items() if nuevo in frontera and viejo not in out}
+        out |= frontera
+    return out
+
+
+def pacientes_por_hash(pacientes, alias: dict[str, str] | None = None) -> dict:
     """Invierte el hash de paciente de la cadena: hash → fila `Patient`.
 
     La cadena no guarda el id del paciente sino el hash de su historia clínica
@@ -351,13 +399,23 @@ def pacientes_por_hash(pacientes) -> dict:
     Dos fichas con la misma historia y fecha comparten hash (la HC no es única
     en BD si viene vacía o de datos antiguos): gana la primera en el orden
     recibido. Quien llama ordena por id, para que gane la más antigua y el
-    nombre no cambie de una petición a otra. Si se edita la historia o la
-    fecha, los bloques anteriores dejan de casar (límite aceptado, spec §4.4)."""
+    nombre no cambie de una petición a otra. Con `alias` (de
+    `alias_de_hashes`), los hashes de antes de editar la historia o la fecha
+    también llevan a su ficha."""
     por_hash: dict = {}
     for p in pacientes:
         h = hash_de_paciente(p)
         if h:
             por_hash.setdefault(h, p)
+    if alias:
+        # Hacia atrás, hasta que no quede ningún hash viejo por resolver.
+        cambiado = True
+        while cambiado:
+            cambiado = False
+            for viejo, nuevo in alias.items():
+                if viejo not in por_hash and nuevo in por_hash:
+                    por_hash[viejo] = por_hash[nuevo]
+                    cambiado = True
     return por_hash
 
 

@@ -223,7 +223,7 @@ def plan_coils(
     # (Tier 2) existe `aneurysm_sac.vtp`, que es el cuerpo medido: la masa se
     # dibuja ahí dentro y con el volumen de hilo real, de modo que lo que se ve
     # lleno se corresponde con la densidad que dice la tarjeta.
-    coils_url = "/static/sample-meshes/coils_placed.vtp"
+    coils_url = ""
     try:
         import time
         from services import devices
@@ -259,7 +259,13 @@ def plan_coils(
         write_vtp(world, meshes_dir / "coils_placed.vtp")
         coils_url = f"{mesh_url(req.session_id, 'coils_placed.vtp')}?v={int(time.time() * 1000)}"
     except Exception as exc:
-        logger.warning("Coil mesh generation skipped: %s", exc)
+        # Antes se seguía con una dirección de ejemplo que no existe y los coils
+        # se guardaban igual.
+        logger.exception("Coil mesh generation failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudo generar la malla de los coils ({exc}). No se han guardado.",
+        ) from exc
 
     # ── Persist placed coils for the report / session restore ────────────── #
     # Use the API catalogue (JSON-safe: coil_type already a plain string) keyed

@@ -27,18 +27,22 @@ async function detection(sessionId: string): Promise<AneurysmDetectionResult> {
   }
 }
 
-/** Rellena el store con la sesión restaurada. Devuelve el paso en el que abrir
- *  y si el backend invalidó la medida (solo puede pasar al recalcular). */
+/** Rellena el store con la sesión restaurada. Devuelve el paso en el que abrir,
+ *  si el backend invalidó la medida (solo puede pasar al recalcular) y qué no se
+ *  pudo cargar (`faltan`), para decirlo en vez de abrir la sesión sin medida. */
 export async function rehydrateSession(
   planning: Planning,
   r: SessionRestoreResult,
-): Promise<{ step: number; invalidated: boolean }> {
+): Promise<{ step: number; invalidated: boolean; faltan?: string[] }> {
   // FE-5: si mientras se espera al servidor empieza otra sesión (otro
   // «Reanudar», una prueba rápida, salir), lo que llegue después es de esta y no
   // se escribe en aquella. Se mira después de cada espera.
   const epoca = planning.epocaActual();
   const sigue = () => planning.epocaActual() === epoca;
   const abandonada = { step: 0, invalidated: false };
+  // FE-13: lo que no se pudo traer del servidor. Antes cada fallo se tragaba y
+  // la sesión se abría sin detección o sin medida, sin aviso.
+  const faltan: string[] = [];
   // A resumed session keeps planning the same case and acquisition, so the
   // breadcrumb and the next "Guardar progreso" don't lose that link.
   planning.setCase(r.study_id, r.study_label);
@@ -76,7 +80,7 @@ export async function rehydrateSession(
         invalidated = true;
         planning.setMorphoInvalidatedNotice(true);
       }
-    } catch { /* leave candidates empty */ }
+    } catch { faltan.push("la detección"); }
     if (!sigue()) return abandonada;
   }
   // Con la medida invalidada no se pide otra: sin elección guardada el
@@ -108,7 +112,7 @@ export async function rehydrateSession(
       if (m.neck_source === "manual" && m.plane_origin) {
         planning.setNeckOrigin([m.plane_origin.x, m.plane_origin.y, m.plane_origin.z]);
       }
-    } catch { /* leave morphometry empty */ }
+    } catch { faltan.push("la morfometría"); }
     if (!sigue()) return abandonada;
   }
   // La decisión, DESPUÉS de elegir el candidato: cambiar la selección la
@@ -182,5 +186,5 @@ export async function rehydrateSession(
   const step = clampStep(invalidated
     ? Math.min(r.current_step, STEPS.findIndex((s) => s.key === "detect"))
     : r.current_step);
-  return { step, invalidated };
+  return { step, invalidated, faltan };
 }

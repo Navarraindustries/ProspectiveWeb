@@ -113,3 +113,19 @@ def test_deja_bloque_user_deleted_y_ningun_paciente_sin_creador():
     # Solo los pacientes de ESTE test: la base de la suite es compartida y otros
     # módulos crean pacientes sin creador a propósito.
     assert _creadores(ids) == [b_id, b_id]
+
+
+def test_borrar_una_cuenta_con_lesiones_confirmadas_no_da_500():
+    """Las lesiones que confirmó apuntaban a la cuenta: el borrado daba un 500.
+    Se quedan sin autor (quién fue sigue en la cadena de auditoría)."""
+    from services.db_models import LesionConfirmation
+    a_id, _, _ = _medico()
+    db = SessionLocal()
+    lc = LesionConfirmation(source="manual", created_by=a_id)
+    db.add(lc); db.commit(); lc_id = lc.id; db.close()
+    assert admin.delete(f"/api/auth/users/{a_id}").status_code == 204
+    db = SessionLocal()
+    try:
+        assert db.get(LesionConfirmation, lc_id).created_by is None
+    finally:
+        db.close()

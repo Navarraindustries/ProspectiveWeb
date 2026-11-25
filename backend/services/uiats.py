@@ -155,7 +155,8 @@ class UiatsScore:
 
 
 def _sum(selected: list[str], table: dict[str, int], label: str, out: list):
-    for k in selected:
+    # Cada factor cuenta una vez: repetido en la lista se sumaba dos veces.
+    for k in dict.fromkeys(selected):
         if k not in table:
             raise ValueError(f"«{k}» no es un valor de {label}.")
         if table[k]:

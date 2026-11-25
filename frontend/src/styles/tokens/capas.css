@@ -1,0 +1,13 @@
+/* UX-22: una sola escala de capas para lo que flota sobre la aplicación.
+   Había veinte valores repartidos en quince ficheros y la pantalla de carga
+   (900) tapaba el aviso de servidor caído (300): justo cuando más falta hace,
+   no se veía. De abajo arriba: */
+:root {
+  --capa-hoja: 100;          /* hojas laterales (Sheet) */
+  --capa-aviso: 200;         /* avisos y toasts */
+  --capa-menu: 300;          /* menús, paleta ⌘K */
+  --capa-aviso-flotante: 330;/* aviso de gestión sobre un menú abierto */
+  --capa-dialogo: 400;       /* confirmaciones (modales) */
+  --capa-carga: 900;         /* pantalla de carga de marca */
+  --capa-servidor: 950;      /* «el servidor no responde»: por encima de todo lo anterior */
+}

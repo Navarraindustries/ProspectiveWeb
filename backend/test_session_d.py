@@ -191,8 +191,10 @@ class TestPatients:
         assert data["id"] > 0
 
     def test_create_patient_unauthenticated(self):
-        """Unauthenticated POST still works (anonymous creation allowed)."""
-        resp = client.post(
+        """Sin sesión no se crean pacientes. El test decía lo contrario y usaba
+        el cliente con token de administrador, así que no comprobaba nada."""
+        from conftest import anonymous_client
+        resp = anonymous_client(app).post(
             "/api/patients",
             json={
                 "surname": "Anon",
@@ -202,7 +204,7 @@ class TestPatients:
                 "sex": "M",
             },
         )
-        assert resp.status_code == 201
+        assert resp.status_code == 401
 
     def test_list_patients_empty_initially(self):
         # Fresh override_get_db may still have patients from prior tests in same session

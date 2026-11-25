@@ -9,7 +9,7 @@
 <p align="center">
   <img alt="Pruebas de backend" src="https://img.shields.io/badge/pruebas%20backend-2601-2ea44f">
   <img alt="Archivos de pruebas de frontend" src="https://img.shields.io/badge/pruebas%20frontend-312%20archivos-2ea44f">
-  <img alt="API" src="https://img.shields.io/badge/API-179%20operaciones-1f6feb">
+  <img alt="API" src="https://img.shields.io/badge/API-180%20operaciones-1f6feb">
   <img alt="Python" src="https://img.shields.io/badge/python-3.11%2B-3776ab">
   <img alt="React" src="https://img.shields.io/badge/react-19-61dafb">
   <img alt="IA" src="https://img.shields.io/badge/detector%20de%20IA-en%20desarrollo-f59e0b">
@@ -101,7 +101,7 @@ Al 20 de noviembre de 2026.
 |---|---|
 | Pruebas de backend | **2601** recogidas (`pytest`, 194 archivos) |
 | Pruebas de frontend | **312** archivos de pruebas (`vitest`) · `tsc -b` limpio · build de producción limpio |
-| Endpoints REST | **179** operaciones (32 routers), todas autenticadas salvo login/signup/logout; `/docs` y `/openapi.json` también piden sesión |
+| Endpoints REST | **180** operaciones (32 routers), todas autenticadas salvo login/signup/logout; `/docs` y `/openapi.json` también piden sesión |
 | Paridad con la aplicación de escritorio | **Completa** |
 | Modelos de IA | **En desarrollo**: datos preparados y código de entrenamiento escrito |
 
@@ -187,7 +187,7 @@ rotacional 3D.
 | Auth | python-jose (JWT HS256), passlib + bcrypt 4.x |
 | Database | SQLAlchemy 2.0 + SQLite (WAL mode) |
 | Report generation | reportlab 4.x (PDF), pydicom (DICOM SR) |
-| Study archive | pluggable local filesystem or AWS S3 (boto3, optional) |
+| Study archive | local filesystem; AWS S3 unfinished (see Security notes) |
 | Frontend | React 19 + TypeScript 5.8 + Vite 7 |
 | 3D / 2D viewers | @kitware/vtk.js 36 (meshes, MPR, oblique reslice and MIP rendered client-side from a chunked int16 copy of the volume) |
 | Routing | react-router-dom 7 |
@@ -619,13 +619,22 @@ The server runs out of the box with sensible defaults.
 | `PROSPECTIVE_SESSIONS_ROOT` | `backend/data/sessions` | Folder for working sessions (tests point it at a temp dir) |
 | `PROSPECTIVE_SAVES_ROOT` | `backend/data/session_saves` | Folder for saved sessions (tests point it at a temp dir) |
 | `STUDY_FILES_ROOT` | `backend/study_files` | Root of the durable study archive |
-| `STORAGE_BACKEND` | `local` | `local` (filesystem) or `s3` |
+| `STORAGE_BACKEND` | `local` | `local` (filesystem) or `s3` (unfinished: needs `pip install boto3`, untested against real S3) |
 | `STORAGE_S3_BUCKET` | — | Required when `STORAGE_BACKEND=s3`; bucket must be private |
 | `STORAGE_S3_PREFIX` | — | Optional key prefix inside the bucket |
 | `COOKIE_SECURE` | off | Force the `Secure` mark on the cookies. Requests that arrive over HTTPS (or with `X-Forwarded-Proto: https` from nginx) get it anyway |
 | `ADMIN_INITIAL_PASSWORD` | random | Initial password of the seeded `admin` on a new database. Unset, a random one is written to `backend/secrets/admin_inicial.txt` |
 | `AUDIT_HMAC_KEY` | file | Key that signs the audit chain. Unset, one is created in `backend/secrets/audit_key.txt`: back it up, blocks signed with a lost key no longer verify |
 | `PROSPECTIVE_SIGNUP_PER_HOUR` | `5` | Account requests per address and hour on the public signup |
+| `PROSPECTIVE_LOG_LEVEL` | `INFO` | Server log level |
+| `PROSPECTIVE_LOG_DIR` | `data/logs` | Folder of the rotated server log (`backend.log`) |
+| `PROSPECTIVE_USER_FILES` | `backend/user_files` | Profile photos and CVs of the accounts |
+| `AUDIT_DB_PATH` | `data/audit/chain.db` | The audit chain database (the tests point it at a temporary file) |
+| `CLIP_ORDERS_ROOT` | `backend/clip_orders` | Clip orders and workshops |
+| `CLIP_LIBRARY_ROOT` | `backend/clip_library` | Private clip library |
+| `NAVARRO_ROOT` | repo's `NAVARRO™ - Variantes/` | CAD of the NAVARRO™ clip series |
+| `PROSPECTIVE_ALLOW_MULTI_PROCESS` | off | `1` lets several server processes share the data folder (tests only) |
+| `PROSPECTIVE_ARCHIVOS_DICOM` | found upwards | The real studies used by the regression tests |
 | `PROSPECTIVE_ALLOW_DEFAULT_ADMIN_PASSWORD` | off | `1` seeds `admin` / `admin123` and skips the forced change (tests, local dev only) |
 | `CORS_ORIGINS` | Vite dev server | Comma-separated origins allowed to call the API with credentials. `*` is refused |
 | `PROSPECTIVE_PLAN_VIEWS` | probed | `0` / `1` forces the report's server-rendered plan views off / on. Unset, a child process probes once whether offscreen OpenGL works: on a machine without it VTK does not raise, it kills the process |
@@ -2793,7 +2802,7 @@ their back. Delete the captures from the gallery, then the study.
 
 ## API Reference
 
-160 operations under `/api`. Full spec in `frontend/openapi.json` or at `/docs` (requires a session).
+180 operations under `/api`. Full spec in `frontend/openapi.json` or at `/docs` (requires a session).
 
 **Everything except `POST /api/auth/login`, `/signup` and `/logout` requires a
 token.** It travels as `Authorization: Bearer …` or as the `prospective_token`
@@ -3417,17 +3426,17 @@ quedan para fuera de D4: un valor mínimo de pico en `_peaks`.
 
 ```bash
 cd backend
-.venv\Scripts\python -m pytest -q                        # all 836 tests
+.venv\Scripts\python -m pytest -q --ignore=eval           # about 2 900 tests
 .venv\Scripts\python -m pytest test_session_abc.py -v    # one suite
 ```
 
-Expected: **836 passed, 0 failed** (~3–4 min; VTK and SimpleITK do real work).
+Expected: **0 failed** (about 2 900 tests in 20–25 min on Windows; VTK and SimpleITK do real work). The tests against real studies run only where `Archivos DICOM/` exists (it is gitignored); point `PROSPECTIVE_ARCHIVOS_DICOM` at it from another copy, e.g. a worktree finds the main copy's by itself.
 
 Frontend checks:
 
 ```bash
 cd frontend
-npx vitest run          # 162 unit tests (vitest + Testing Library, jsdom)
+npx vitest run          # about 3 400 unit tests (vitest + Testing Library, jsdom), 7–10 min
 npm run lint            # ESLint: React hooks rules, no warnings allowed (also in CI)
 npx tsc -b --noEmit     # type check
 npm run build           # production build
@@ -3828,9 +3837,11 @@ This software handles identifiable patient data.
 - **Never run `git add -A` in this repository.** Real DICOM files have no extension
   (`IM_0001`, bare UIDs); the ignore rules cover the known folders, but stage
   explicit paths and check `git diff --cached --name-only` first.
-- **S3 archive**: the bucket must be private and encrypted at rest; objects are
-  handed out only as short-lived presigned URLs. Get legal sign-off before
-  uploading identifiable patient imaging to a cloud provider.
+- **S3 archive (unfinished)**: `boto3` is not in the dependencies, there are no
+  tests against a real bucket, and files are streamed through the backend
+  (presigned URLs are not used). The bucket must be private and encrypted at
+  rest. Get legal sign-off before uploading identifiable patient imaging to a
+  cloud provider.
 
 ---
 

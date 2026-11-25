@@ -8,7 +8,7 @@
    longitudinal; un clic en la vista longitudinal o en el gráfico de
    secciones (P4: área, diámetros o circularidad a lo largo de la línea)
    lleva el recorrido allí. */
-import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type ReactNode, type SyntheticEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SyntheticEvent } from "react";
 import { api } from "../../api/client";
 import type { FdSizingResult, IvusBranch, IvusCompareResult, IvusResult } from "../../api/types";
 import { cifra } from "../../lib/numero";
@@ -43,14 +43,18 @@ function cargar(sessionId: string, clave: string): Promise<Pullback> {
    Sin morfometría el servidor contesta 422 con lo que falta: se dice tal cual. */
 type Plan = { fd: FdSizingResult } | { nota: string };
 const cachePlan = new Map<string, Promise<Plan>>();
-function cargarPlan(sessionId: string, clave: string): Promise<Plan> {
-  const k = `${sessionId}|${clave}`;
+/* FE-14: la clave lleva también la medida del cuello: con solo la línea, volver
+   a medir dejaba el plan del cuello anterior. Y un error no se guarda: antes se
+   quedaba fijo hasta recargar la página. */
+export function cargarPlan(sessionId: string, clave: string, medida = ""): Promise<Plan> {
+  const k = `${sessionId}|${clave}|${medida}`;
   let p = cachePlan.get(k);
   if (!p) {
     p = api.fdSizing(sessionId).then(
       (fd): Plan => ({ fd }),
       (e: unknown): Plan => ({ nota: e instanceof Error ? e.message : "No se pudo dimensionar el flow diverter." }),
     );
+    void p.then((r) => { if ("nota" in r) cachePlan.delete(k); });
     cachePlan.set(k, p);
   }
   return p;
@@ -79,6 +83,8 @@ export interface HudIvusProps {
   sessionId: string;
   /** Cambia cuando cambia la línea central (se vuelve a pedir el pullback). */
   claveLinea: string;
+  /** Cambia cuando cambia la medida del cuello (se vuelve a pedir el plan del flow diverter). */
+  claveMedida?: string;
   progreso: ProgresoRecorrido;
   onIrA(mm: number): void;
   onCerrar(): void;
@@ -100,7 +106,7 @@ const conSigno = (v: number) => `${v < 0 ? "−" : "+"}${cifra(Math.abs(v), 1)}`
 
 const SIN_MARCAS: MarcaEnLinea[] = [];
 
-export function HudIvus({ sessionId, claveLinea, progreso, onIrA, onCerrar, anterior = null, marcas = SIN_MARCAS, onMarcar, registrarCopia }: HudIvusProps) {
+export function HudIvus({ sessionId, claveLinea, claveMedida = "", progreso, onIrA, onCerrar, anterior = null, marcas = SIN_MARCAS, onMarcar, registrarCopia }: HudIvusProps) {
   const [pb, setPb] = useState<Pullback | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [angulo, setAngulo] = useState(0);
@@ -129,9 +135,9 @@ export function HudIvus({ sessionId, claveLinea, progreso, onIrA, onCerrar, ante
     if (!sinStent) return;
     let vivo = true;
     setPlan(null); setOpcionIdx(0);
-    cargarPlan(sessionId, claveLinea).then((r) => { if (vivo) setPlan(r); });
+    cargarPlan(sessionId, claveLinea, claveMedida).then((r) => { if (vivo) setPlan(r); });
     return () => { vivo = false; };
-  }, [sessionId, claveLinea, sinStent]);
+  }, [sessionId, claveLinea, claveMedida, sinStent]);
   // Comparar con el estudio anterior: solo cuando se pide (corta otra malla entera).
   useEffect(() => {
     if (!comparar || !anterior) { setComparacion(null); return; }
@@ -197,10 +203,32 @@ export function HudIvus({ sessionId, claveLinea, progreso, onIrA, onCerrar, ante
     const r = e.currentTarget.getBoundingClientRect();
     onIrA(pb.datos.sections[seccionDe(e.clientX - r.left, pb.datos.n_sections, r.width)].arc_mm);
   };
+  // UX-29: lo mismo con el teclado. Las vistas solo se manejaban con el puntero.
+  const recorrerConTeclas = (e: KeyboardEvent<HTMLCanvasElement>) => {
+    if (!pb) return;
+    const n = pb.datos.sections.length;
+    const paso = e.shiftKey ? 10 : 1;
+    const destino = e.key === "ArrowRight" || e.key === "ArrowUp" ? Math.min(n - 1, i + paso)
+      : e.key === "ArrowLeft" || e.key === "ArrowDown" ? Math.max(0, i - paso)
+      : e.key === "Home" ? 0 : e.key === "End" ? n - 1 : null;
+    if (destino === null) return;
+    e.preventDefault();
+    onIrA(pb.datos.sections[destino].arc_mm);
+  };
+  const girarConTeclas = (e: KeyboardEvent<HTMLCanvasElement>) => {
+    const d = e.key === "ArrowRight" || e.key === "ArrowUp" ? 15 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -15 : 0;
+    if (!d) return;
+    e.preventDefault();
+    setAngulo((a) => (((a + d) % 180) + 180) % 180);
+  };
 
   const s = pb?.datos.sections[i];
   const sm = pb?.datos.summary;
   return (
+    <>
+    {/* UX-29: en pantallas de 640 px o menos el panel no cabe; antes desaparecía
+        sin decir nada. */}
+    <p className="hud-ivus-estrecho" role="status">El IVUS virtual necesita más ancho: gira el dispositivo o amplía la ventana.</p>
     <div ref={caja} className="hud-ivus" role="region" aria-label="IVUS virtual" onPointerDown={stop} onDoubleClick={stop} onWheel={stop}>
       <div className="hud-ivus-cabecera">
         <span className="hud-ivus-titulo">IVUS VIRTUAL</span>
@@ -210,8 +238,9 @@ export function HudIvus({ sessionId, claveLinea, progreso, onIrA, onCerrar, ante
       {!pb && !error && <p className="hud-ivus-nota" aria-live="polite">Calculando las secciones del vaso…</p>}
       {pb && s && (
         <>
-          <canvas ref={corte} className="hud-ivus-corte" aria-label={`Corte transversal a ${cifra(s.arc_mm, 1)} mm`} role="img"
-            onPointerDown={girar} onPointerMove={girar} />
+          <canvas ref={corte} className="hud-ivus-corte" role="img" tabIndex={0}
+            aria-label={`Corte transversal a ${cifra(s.arc_mm, 1)} mm. Flechas: girar la vista longitudinal`}
+            onPointerDown={girar} onPointerMove={girar} onKeyDown={girarConTeclas} />
           <div className="hud-ivus-fila" aria-live="off">
             <span>{`${mm1(s.arc_mm)} mm`}</span>
             {s.in_lesion ? <span className="hud-ivus-aviso">EN LA LESIÓN</span> : s.in_branch ? <span>RAMA</span> : null}
@@ -238,8 +267,9 @@ export function HudIvus({ sessionId, claveLinea, progreso, onIrA, onCerrar, ante
           ) : (
             <p className="hud-ivus-nota">Aquí la malla no rodea la línea central: sin medidas.</p>
           )}
-          <canvas ref={largo} className="hud-ivus-largo" role="img" title="Clic para llevar el recorrido a esa sección"
-            aria-label="Vista longitudinal del vaso enderezado" onPointerDown={irA} onPointerMove={irA} />
+          <canvas ref={largo} className="hud-ivus-largo" role="img" tabIndex={0} title="Clic (o flechas) para llevar el recorrido a esa sección"
+            aria-label="Vista longitudinal del vaso enderezado. Flechas: sección anterior o siguiente; con Shift, de diez en diez"
+            onPointerDown={irA} onPointerMove={irA} onKeyDown={recorrerConTeclas} />
           <div className="hud-ivus-metricas" role="group" aria-label="Medida del gráfico de secciones">
             {METRICAS_GRAFICO.map((m) => (
               <button key={m.id} type="button" aria-pressed={metrica === m.id} onClick={() => setMetrica(m.id)}>{m.rotulo}</button>
@@ -253,7 +283,8 @@ export function HudIvus({ sessionId, claveLinea, progreso, onIrA, onCerrar, ante
             <div className="hud-ivus-resumen">
               <button type="button" className="hud-ivus-mla" title="Llevar el recorrido a la sección más estrecha"
                 onClick={() => onIrA(sm.mla_arc_mm)}>
-                {`MLA ${mm2(sm.mla_mm2)} a ${mm1(sm.mla_arc_mm)} mm`}
+                {/* UX-27: la sigla, desplegada al pasar por encima (en el vídeo no cabe). */}
+                <abbr title="Área luminal mínima" style={{ textDecoration: "none" }}>MLA</abbr>{` ${mm2(sm.mla_mm2)} a ${mm1(sm.mla_arc_mm)} mm`}
               </button>
               <span>{`Ref. prox ${mm2(sm.ref_prox_mm2)} · dist ${mm2(sm.ref_dist_mm2)}`}</span>
               <span>{sm.area_stenosis_pct == null ? "Estenosis de área: sin referencia" : `Estenosis de área ${cifra(sm.area_stenosis_pct, 0)} %`}</span>
@@ -304,6 +335,7 @@ export function HudIvus({ sessionId, claveLinea, progreso, onIrA, onCerrar, ante
         </>
       )}
     </div>
+    </>
   );
 }
 

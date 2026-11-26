@@ -337,6 +337,8 @@ describe("tokens de la dirección D", () => {
     expect(m![1]).not.toMatch(/--glass(-dense|-viewer)?:/);
   });
 
+  // Lee todas las hojas y todo el código: en la batería completa, con los
+  // demás ficheros en paralelo, pasaba de los 5 s por defecto (solo, 0,8 s).
   it("todo var(--x) que usa el código está definido en una hoja, en un style en línea o en la lista de las fijadas en ejecución", () => {
     // Variables que el código fija al montar sin que el escaneo las vea (cada una con su motivo).
     const EN_EJECUCION: Record<string, string> = {};
@@ -376,7 +378,7 @@ describe("tokens de la dirección D", () => {
     for (const valores of Object.values(DINAMICAS)) {
       for (const v of valores) expect(definidas.has("--" + v), `--${v}`).toBe(true);
     }
-  });
+  }, 20_000);
 });
 
 describe("Sora autoalojada para la marca", () => {

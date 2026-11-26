@@ -1964,6 +1964,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mesh/{session_id}/red": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Centreline network of the whole vessel tree, for display
+         * @description TEASAR skeleton of the slice-filled interior mask (0.4 mm voxels): every vessel of the largest piece gets its axis, short wall bumps are pruned, close junctions merge, each segment is smoothed and kept inside the wall. Cached next to the mesh as `<name>.red.vtp` and rebuilt when the mesh is newer. Display only.
+         */
+        post: operations["vessel_network_api_mesh__session_id__red_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/mesh/{session_id}/smooth": {
         parameters: {
             query?: never;
@@ -11416,6 +11436,44 @@ export interface components {
             distance_from_entry_mm: number;
             position: components["schemas"]["Position3D"];
         };
+        /** VesselNetworkResult */
+        VesselNetworkResult: {
+            /**
+             * Extremos
+             * @description Free ends
+             */
+            extremos: number;
+            /**
+             * Largo Total Mm
+             * @description Total length of the network
+             */
+            largo_total_mm: number;
+            /**
+             * Segundos
+             * @description Seconds it took to compute (the stored value when served from the cache)
+             */
+            segundos: number;
+            /**
+             * Tramos
+             * @description Segments between junctions and free ends
+             */
+            tramos: number;
+            /**
+             * Uniones
+             * @description Junctions (bifurcations closer than 1.5 mm count as one)
+             */
+            uniones: number;
+            /**
+             * Url
+             * @description URL of the network drawn as thin tubes plus a sphere per junction (.vtp, direct RGB field `colores`)
+             */
+            url: string;
+            /**
+             * Voxel Mm
+             * @description Voxel size used
+             */
+            voxel_mm: number;
+        };
         /**
          * Veto
          * @description Por qué un sitio propuesto se apartó de la lista (`candidate_vetoes`).
@@ -15131,6 +15189,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CalibreMeshResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    vessel_network_api_mesh__session_id__red_post: {
+        parameters: {
+            query: {
+                /** @description File name inside the session's meshes folder */
+                name: string;
+            };
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VesselNetworkResult"];
                 };
             };
             /** @description Validation Error */

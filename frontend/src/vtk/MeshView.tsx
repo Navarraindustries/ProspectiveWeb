@@ -229,6 +229,10 @@ export interface MeshMarker {
   /** Multiplier on the shared marker radius. Lets one marker in a set stand out
    *  (a selected perforator) without breaking the scale everything else uses. */
   scale?: number;
+  /** En la capa de encima, como el punto compartido: se ve aunque quede
+   *  dentro del vaso o del saco. Lo pide el final de la línea central, que
+   *  cae en el punto más hondo del saco y la superficie lo tapaba. */
+  encima?: boolean;
 }
 
 /** El punto compartido de los cortes. No es un marcador más: se dibuja en una
@@ -589,6 +593,10 @@ export function MeshView({
   const handleIdByActor = useRef<Map<vtkActor, string>>(new Map());
   const handleKindByActor = useRef<Map<vtkActor, string>>(new Map());
   const handleBounds = useRef<number[] | null>(null);
+  // Marcadores `encima`: sus actores en la capa superior y sus límites, que
+  // `syncOverlay` suma al recorte de la capa como los de las asas.
+  const markerEncimaActors = useRef<vtkActor[]>([]);
+  const markerEncimaBounds = useRef<number[] | null>(null);
   // Lo último que llegó por props, leído desde los oyentes del puntero, que
   // viven mientras el componente y no se rehacen en cada render.
   const onHandleDragRef = useRef(onHandleDrag);
@@ -814,7 +822,7 @@ export function MeshView({
   const key = sceneKey(layers, focusUrl);
   const geoKey = geometryKey(layers);
   const appearanceKey = layers.map((l) => `${l.id ?? l.url}|${l.color.join(",")}|${l.opacity ?? 1}`).join(";");
-  const markerKey = markers.map((m) => `${m.pos.join(",")}|${m.color.join(",")}|${m.scale ?? 1}`).join(";");
+  const markerKey = markers.map((m) => `${m.pos.join(",")}|${m.color.join(",")}|${m.scale ?? 1}|${m.encima ? 1 : 0}`).join(";");
   const focusKey = focus ? `${focus.pos.join(",")}|${focus.color.join(",")}|${focus.radiusMm}` : "";
   const planeKey = planes.map((p) => p.corners.flat().join(",") + "|" + p.color.join(",")).join(";");
   const lineKey = lines
@@ -889,8 +897,8 @@ export function MeshView({
       // recortada, y tampoco se podría pinchar (el rayo del picker va del
       // plano cercano al lejano). Sin nada visible el recorte queda como esté.
       let b: Bounds | null = focusActor.getVisibility() ? [...focusActor.getBounds()] as Bounds : null;
-      const hb = handleBounds.current;
-      if (hb) {
+      for (const hb of [handleBounds.current, markerEncimaBounds.current]) {
+        if (!hb) continue;
         b = b
           ? [Math.min(b[0], hb[0]), Math.max(b[1], hb[1]), Math.min(b[2], hb[2]), Math.max(b[3], hb[3]), Math.min(b[4], hb[4]), Math.max(b[5], hb[5])]
           : [...hb] as Bounds;
@@ -1639,6 +1647,8 @@ export function MeshView({
       nombrados.clear();
       contornos.clear();
       markerActors.current = [];
+      markerEncimaActors.current = [];
+      markerEncimaBounds.current = null;
       planeActors.current = [];
       const sl = sliceActors.current;
       if (sl) {
@@ -1804,20 +1814,36 @@ export function MeshView({
     if (!h) return;
     markerActors.current.forEach((a) => h.renderer.removeActor(a));
     markerActors.current = [];
+    markerEncimaActors.current.forEach((a) => h.overlay.removeActor(a));
+    markerEncimaActors.current = [];
 
     const rMarker = markerRadiusMm(referenceDiameterMm, sceneDiagonal);
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
 
     for (const m of markers) {
-      const sphere = vtkSphereSource.newInstance({ radius: rMarker * (m.scale ?? 1), thetaResolution: 16, phiResolution: 16 });
+      const r = rMarker * (m.scale ?? 1);
+      const sphere = vtkSphereSource.newInstance({ radius: r, thetaResolution: 16, phiResolution: 16 });
       sphere.setCenter(m.pos[0], m.pos[1], m.pos[2]);
       const mapper = vtkMapper.newInstance();
       mapper.setInputConnection(sphere.getOutputPort());
       const actor = vtkActor.newInstance();
       actor.setMapper(mapper);
       actor.getProperty().setColor(...m.color);
-      h.renderer.addActor(actor);
-      markerActors.current.push(actor);
+      if (m.encima) {
+        // Fuera del encuadre y no seleccionable, como las asas; el recorte de
+        // la capa lo cuenta aparte (markerEncimaBounds).
+        actor.setUseBounds(false);
+        actor.setPickable(false);
+        for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], m.pos[i] - r); hi[i] = Math.max(hi[i], m.pos[i] + r); }
+        h.overlay.addActor(actor);
+        markerEncimaActors.current.push(actor);
+      } else {
+        h.renderer.addActor(actor);
+        markerActors.current.push(actor);
+      }
     }
+    markerEncimaBounds.current = markerEncimaActors.current.length ? [lo[0], hi[0], lo[1], hi[1], lo[2], hi[2]] : null;
+    h.syncOverlay();
 
     for (const l of lines) {
       // Una regla de 0 mm (la altura de cúpula de un cuello inválido) no es

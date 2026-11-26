@@ -43,3 +43,7 @@ export function bandTier(bandWidth: number, touch: boolean): BandTier {
 /** Título del conmutador CALIBRE (mapa de calibre del árbol), en las dos bandas. */
 export const CALIBRE_TITULO_OFF = "Pintar el árbol según el diámetro local del vaso (de violeta, fino, a amarillo, grueso)";
 export const CALIBRE_TITULO_ON = "Ver el árbol sin el mapa de calibre";
+
+/** Título del conmutador RED (red de vasos), en las dos bandas. */
+export const RED_TITULO_OFF = "Ver el eje de cada vaso del árbol y sus bifurcaciones";
+export const RED_TITULO_ON = "Ocultar la red de vasos";

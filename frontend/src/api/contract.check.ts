@@ -164,6 +164,7 @@ export type Contrato = [
   Cabe<Completo<S["FdOption"]>, Laxo<ui.FdOption>>,
   Cabe<Completo<S["FdSizingResult"]>, Laxo<ui.FdSizingResult>>,
   Cabe<Completo<S["CalibreMeshResult"]>, ui.CalibreMeshResult>,
+  Cabe<Completo<S["VesselNetworkResult"]>, ui.VesselNetworkResult>,
   Cabe<Completo<S["IvusBranch"]>, ui.IvusBranch>,
   Cabe<Completo<S["IvusCompareResult"]>, ui.IvusCompareResult>,
   Cabe<Completo<S["IvusCompareSection"]>, ui.IvusCompareSection>,

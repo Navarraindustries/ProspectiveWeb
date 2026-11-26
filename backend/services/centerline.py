@@ -61,6 +61,51 @@ class CenterlineResult:
     poly_data: vtk.vtkPolyData | None = field(default=None, repr=False)
 
 
+def voxelizar(poly_data: vtk.vtkPolyData, bds, vs: float):
+    """Máscara del interior de la malla en la rejilla de `bds` con vóxel `vs`
+    (la usan la línea central y la red de vasos).
+
+    Relleno por cortes (`vtkPolyDataToImageStencil`), como
+    `branch_origins._rasterise`. `vtkSelectEnclosedPoints` fallaba en
+    mallas reales: en la de case 3 marcaba «dentro» 16 cm³ para un vaso de
+    5,6 (vóxeles a 24 mm de la pared, con 0 cortes de rayo en los seis
+    ejes), y la línea central pasaba por fuera del vaso hasta 7 mm. Además
+    tardaba casi un minuto en la malla entera; esto, menos de un segundo.
+    """
+    pad = vs * 2
+
+    origin = np.array([bds[0] - pad, bds[2] - pad, bds[4] - pad])
+    nx = max(4, int((bds[1] - bds[0] + 2 * pad) / vs) + 1)
+    ny = max(4, int((bds[3] - bds[2] + 2 * pad) / vs) + 1)
+    nz = max(4, int((bds[5] - bds[4] + 2 * pad) / vs) + 1)
+
+    img = vtk.vtkImageData()
+    img.SetDimensions(nx, ny, nz)
+    img.SetOrigin(*origin)
+    img.SetSpacing(vs, vs, vs)
+    img.AllocateScalars(vtk.VTK_UNSIGNED_CHAR, 1)
+    img.GetPointData().GetScalars().Fill(1)
+
+    stencil = vtk.vtkPolyDataToImageStencil()
+    stencil.SetInputData(poly_data)
+    stencil.SetOutputOrigin(img.GetOrigin())
+    stencil.SetOutputSpacing(img.GetSpacing())
+    stencil.SetOutputWholeExtent(img.GetExtent())
+    stencil.Update()
+
+    cut = vtk.vtkImageStencil()
+    cut.SetInputData(img)
+    cut.SetStencilData(stencil.GetOutput())
+    cut.ReverseStencilOff()
+    cut.SetBackgroundValue(0)
+    cut.Update()
+
+    flat = vtk_to_numpy(cut.GetOutput().GetPointData().GetScalars())
+    # VTK entrega el volumen con el eje X variando más rápido.
+    mask = flat.reshape((nz, ny, nx)).astype(bool).transpose(2, 1, 0)
+    return np.ascontiguousarray(mask), origin, vs
+
+
 class CenterlineExtractor:
     """Extract the medial-axis centreline of a vessel mesh between two points."""
 
@@ -200,48 +245,7 @@ class CenterlineExtractor:
             logger.info("Centerline: grid too large, voxel size raised to %.2f mm", self.voxel_size_mm)
 
     def _voxelise(self, poly_data: vtk.vtkPolyData, bds):
-        """Máscara del interior de la malla en la rejilla de `bds`.
-
-        Relleno por cortes (`vtkPolyDataToImageStencil`), como
-        `branch_origins._rasterise`. `vtkSelectEnclosedPoints` fallaba en
-        mallas reales: en la de case 3 marcaba «dentro» 16 cm³ para un vaso de
-        5,6 (vóxeles a 24 mm de la pared, con 0 cortes de rayo en los seis
-        ejes), y la línea central pasaba por fuera del vaso hasta 7 mm. Además
-        tardaba casi un minuto en la malla entera; esto, menos de un segundo.
-        """
-        vs  = self.voxel_size_mm
-        pad = vs * 2
-
-        origin = np.array([bds[0] - pad, bds[2] - pad, bds[4] - pad])
-        nx = max(4, int((bds[1] - bds[0] + 2 * pad) / vs) + 1)
-        ny = max(4, int((bds[3] - bds[2] + 2 * pad) / vs) + 1)
-        nz = max(4, int((bds[5] - bds[4] + 2 * pad) / vs) + 1)
-
-        img = vtk.vtkImageData()
-        img.SetDimensions(nx, ny, nz)
-        img.SetOrigin(*origin)
-        img.SetSpacing(vs, vs, vs)
-        img.AllocateScalars(vtk.VTK_UNSIGNED_CHAR, 1)
-        img.GetPointData().GetScalars().Fill(1)
-
-        stencil = vtk.vtkPolyDataToImageStencil()
-        stencil.SetInputData(poly_data)
-        stencil.SetOutputOrigin(img.GetOrigin())
-        stencil.SetOutputSpacing(img.GetSpacing())
-        stencil.SetOutputWholeExtent(img.GetExtent())
-        stencil.Update()
-
-        cut = vtk.vtkImageStencil()
-        cut.SetInputData(img)
-        cut.SetStencilData(stencil.GetOutput())
-        cut.ReverseStencilOff()
-        cut.SetBackgroundValue(0)
-        cut.Update()
-
-        flat = vtk_to_numpy(cut.GetOutput().GetPointData().GetScalars())
-        # VTK entrega el volumen con el eje X variando más rápido.
-        mask = flat.reshape((nz, ny, nx)).astype(bool).transpose(2, 1, 0)
-        return np.ascontiguousarray(mask), origin, vs
+        return voxelizar(poly_data, bds, self.voxel_size_mm)
 
     # ------------------------------------------------------------------ #
     # Coordinate helpers                                                   #
@@ -565,7 +569,8 @@ def _meter_dentro(p: np.ndarray, dist: DistanciaFirmada) -> None:
 
 
 def centrar_en_malla(pts: np.ndarray, poly_data: vtk.vtkPolyData,
-                     dist: "DistanciaFirmada | None" = None) -> np.ndarray:
+                     dist: "DistanciaFirmada | None" = None,
+                     rondas: int = _RONDAS_SUAVES) -> np.ndarray:
     """Lleva cada punto interior de la línea al centro del vaso en la malla.
 
     Cada punto sube por la profundidad dentro de su plano transversal (la
@@ -586,7 +591,7 @@ def centrar_en_malla(pts: np.ndarray, poly_data: vtk.vtkPolyData,
     # vuelve al centro desde la línea ya suavizada. Solo empujar hacia dentro
     # entre suavizados encogía la línea hacia la cara interior de las curvas
     # (pegada a la pared); centrar una vez y suavizar fuerte dejaba quiebros.
-    for _ in range(_RONDAS_SUAVES):
+    for _ in range(rondas):
         tang = _tangentes(p)
         for i in range(1, n - 1):
             p[i] = _al_centro(p[i], tang[i], dist)

@@ -13058,6 +13058,56 @@
     "title": "VesselCrossingOut",
     "type": "object"
    },
+   "VesselNetworkResult": {
+    "properties": {
+     "extremos": {
+      "description": "Free ends",
+      "title": "Extremos",
+      "type": "integer"
+     },
+     "largo_total_mm": {
+      "description": "Total length of the network",
+      "title": "Largo Total Mm",
+      "type": "number"
+     },
+     "segundos": {
+      "description": "Seconds it took to compute (the stored value when served from the cache)",
+      "title": "Segundos",
+      "type": "number"
+     },
+     "tramos": {
+      "description": "Segments between junctions and free ends",
+      "title": "Tramos",
+      "type": "integer"
+     },
+     "uniones": {
+      "description": "Junctions (bifurcations closer than 1.5 mm count as one)",
+      "title": "Uniones",
+      "type": "integer"
+     },
+     "url": {
+      "description": "URL of the network drawn as thin tubes plus a sphere per junction (.vtp, direct RGB field `colores`)",
+      "title": "Url",
+      "type": "string"
+     },
+     "voxel_mm": {
+      "description": "Voxel size used",
+      "title": "Voxel Mm",
+      "type": "number"
+     }
+    },
+    "required": [
+     "url",
+     "tramos",
+     "uniones",
+     "extremos",
+     "largo_total_mm",
+     "segundos",
+     "voxel_mm"
+    ],
+    "title": "VesselNetworkResult",
+    "type": "object"
+   },
    "Veto": {
     "description": "Por qué un sitio propuesto se apartó de la lista (`candidate_vetoes`).\n\nSe devuelve el motivo en vez de borrar el sitio: el veto es geométrico y\npuede equivocarse, así que el clínico tiene que poder ver lo descartado.",
     "properties": {
@@ -19085,6 +19135,65 @@
      }
     ],
     "summary": "Local vessel diameter at every vertex, for the calibre colour map",
+    "tags": [
+     "mesh-display"
+    ]
+   }
+  },
+  "/api/mesh/{session_id}/red": {
+   "post": {
+    "description": "TEASAR skeleton of the slice-filled interior mask (0.4 mm voxels): every vessel of the largest piece gets its axis, short wall bumps are pruned, close junctions merge, each segment is smoothed and kept inside the wall. Cached next to the mesh as `<name>.red.vtp` and rebuilt when the mesh is newer. Display only.",
+    "operationId": "vessel_network_api_mesh__session_id__red_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     },
+     {
+      "description": "File name inside the session's meshes folder",
+      "in": "query",
+      "name": "name",
+      "required": true,
+      "schema": {
+       "description": "File name inside the session's meshes folder",
+       "title": "Name",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/VesselNetworkResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Centreline network of the whole vessel tree, for display",
     "tags": [
      "mesh-display"
     ]

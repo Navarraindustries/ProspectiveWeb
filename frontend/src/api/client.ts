@@ -7,7 +7,7 @@ import type {
   ElapssRequest, ElapssResult,
   DicomSegResult,
   AttachRequest, AttachResult, SessionIdentity,
-  GlbExportResult, CalibreMeshResult,
+  GlbExportResult, CalibreMeshResult, VesselNetworkResult,
   WebSizingResult,
   FdSizingResult,
   LesionConfirmIn, LesionConfirmation, LesionSummary,
@@ -731,6 +731,10 @@ export const api = {
    *  resumen (la primera vez se calcula: unos segundos en un árbol real). */
   calibreMesh: (sessionId: string, name: string) =>
     post<CalibreMeshResult>(`/api/mesh/${sessionId}/calibre?name=${encodeURIComponent(name)}`, undefined, 120_000),
+  /** Red de líneas centrales de todo el árbol, para verla (la primera vez se
+   *  calcula: unos segundos en un árbol real). */
+  vesselNetwork: (sessionId: string, name: string) =>
+    post<VesselNetworkResult>(`/api/mesh/${sessionId}/red?name=${encodeURIComponent(name)}`, undefined, 180_000),
   /** Discard the centreline, its cached points and any stent built along it. */
   clearCenterline: (sessionId: string) =>
     request<CenterlineClearResult>(`/api/centerline/${sessionId}`, { method: "DELETE" }),

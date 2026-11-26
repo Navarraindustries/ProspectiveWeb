@@ -17,7 +17,7 @@ import { Icon } from "../components/Icon";
 import type { ViewerHeaderProps } from "./ViewerHeader";
 import { CapasControl } from "./hud/CapasControl";
 import { ViewerLayoutControls } from "./ViewerLayoutControls";
-import { CALIBRE_TITULO_OFF, CALIBRE_TITULO_ON, REFERENCIAS_TITLE } from "./mainOptions";
+import { CALIBRE_TITULO_OFF, CALIBRE_TITULO_ON, RED_TITULO_OFF, RED_TITULO_ON, REFERENCIAS_TITLE } from "./mainOptions";
 import { nextHudLevel } from "./viewerPrefs";
 
 export interface ViewerHeaderIconosProps extends ViewerHeaderProps {
@@ -39,7 +39,7 @@ export function ViewerHeaderIconos({
   syncViews, onSyncViewsChange,
   hasClipField, showClipField, clipRehearsal, onShowClipFieldChange, onHelp,
   levelNote, movil, noteOpen, onToggleNote, noteId, capas, onCapaChange,
-  hasCalibre, showCalibre, onShowCalibreChange,
+  hasCalibre, showCalibre, onShowCalibreChange, hasRed, showRed, onShowRedChange,
 }: ViewerHeaderIconosProps) {
   // Durante el ensayo manda el saco que se deforma y el campo no se pinta.
   const calorOn = showClipField && !clipRehearsal;
@@ -84,6 +84,13 @@ export function ViewerHeaderIconos({
                   title={showCalibre ? CALIBRE_TITULO_ON : CALIBRE_TITULO_OFF}
                   onClick={() => onShowCalibreChange(!showCalibre)}>
             {showCalibre ? "Ø ●" : "Ø ○"}
+          </button>
+        )}
+        {hasRed && onShowRedChange && (
+          <button type="button" aria-label="Red de vasos" aria-pressed={!!showRed} style={OBJETIVO}
+                  title={showRed ? RED_TITULO_ON : RED_TITULO_OFF}
+                  onClick={() => onShowRedChange(!showRed)}>
+            {showRed ? "RED ●" : "RED ○"}
           </button>
         )}
         {/* Sin tamaño en línea: el objetivo de 44 px lo pone hud.css. */}

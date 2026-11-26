@@ -89,6 +89,9 @@ import { ViewerHeader } from "./ViewerHeader";
 import { conCapa, estadoCapas, type Capa } from "./capas";
 import { CAMPO_CALIBRE, conCalibre, pedirCalibre, RANGO_CALIBRE_MM } from "./mapaCalibre";
 import { LeyendaCalibre, type EstadoCalibre } from "./hud/LeyendaCalibre";
+import { LeyendaRed, type EstadoRed } from "./hud/LeyendaRed";
+import { LeyendasEscena } from "./hud/LeyendasEscena";
+import { CAMPO_COLOR_RED, pedirRed } from "./redVasos";
 import { legendLines } from "./clipFieldLegend";
 import { HudHeadingSlot } from "./hud/HudHeadingSlot";
 import { OrientationSheet } from "./OrientationSheet";
@@ -185,6 +188,8 @@ const CENTERLINE_RADIUS_MM = 0.3;
 const NECK_MARK_SCALE = 0.6;
 const SOURCE_COLOR: Vector3 = [0.25, 0.73, 0.31];     // green — picked source endpoint
 const TARGET_COLOR: Vector3 = [0.97, 0.32, 0.29];     // red — picked target endpoint
+/** El marcador del final de la línea central, algo menor que los de marcar. */
+const FIN_LINEA_SCALE = 0.8;
 const STENT_SAC_COLOR: Vector3 = [0.98, 0.75, 0.14];  // ámbar — el saco del stent en tres clics (P10)
 const PENDING_COLOR: Vector3 = [0.98, 0.55, 0.10];    // orange — borrador de anotación (DRAFT_HEX en los cortes)
 /** La anotación seleccionada, más gruesa en el 3D (en los cortes, trazo 3). */
@@ -429,6 +434,33 @@ export function ViewerWorkspace({ step }: { step: string }) {
     return () => { vivo = false; };
   }, [calibreOn, meshUrl]);
   const estadoCalibre: EstadoCalibre = calibreDe?.url === meshUrl ? calibreDe.estado : { estado: "cargando" };
+  // Red de vasos (RED en la cabecera): el eje de cada vaso del árbol y sus
+  // bifurcaciones, encima del árbol translúcido. Mismas condiciones que CALIBRE.
+  const [showRed, setShowRed] = useState(false);
+  // Encender o apagar CALIBRE o RED rehace la escena (cambia la URL de una
+  // capa) y, fuera de Dispositivos, la escena se reencuadraba: el zoom sobre
+  // el saco se perdía al pedir el mapa. Hasta el siguiente cambio de paso o
+  // de marcado, la cámara se queda donde está.
+  const [camaraPorMapa, setCamaraPorMapa] = useState(false);
+  const [mapaVisto, setMapaVisto] = useState({ step, pickMode });
+  if (mapaVisto.step !== step || mapaVisto.pickMode !== pickMode) {
+    setMapaVisto({ step, pickMode });
+    setCamaraPorMapa(false);
+  }
+  const conmutarCalibre = useCallback((on: boolean) => { setCamaraPorMapa(true); setShowCalibre(on); }, []);
+  const conmutarRed = useCallback((on: boolean) => { setCamaraPorMapa(true); setShowRed(on); }, []);
+  const redOn = showRed && hayCalibre;
+  const [redDe, setRedDe] = useState<{ url: string; estado: EstadoRed } | null>(null);
+  useEffect(() => {
+    if (!redOn || !meshUrl) return;
+    let vivo = true;
+    void pedirRed(meshUrl).then((r) => {
+      if (vivo) setRedDe({ url: meshUrl, estado: r ? { estado: "listo", resumen: r } : { estado: "error" } });
+    });
+    return () => { vivo = false; };
+  }, [redOn, meshUrl]);
+  const estadoRed: EstadoRed = redDe?.url === meshUrl ? redDe.estado : { estado: "cargando" };
+  const redUrl = redOn && estadoRed.estado === "listo" ? estadoRed.resumen.url : null;
   const candidate = allCandidates[selectedCandidate];
 
   // What the markers should be sized against. The candidate's own diameter is
@@ -912,7 +944,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
 
   const layers = useMemo<MeshLayer[]>(() => {
     if (!displayMeshUrl) return [];
-    const vesselDim = step === "detect" || step === "morpho" || showDevice || pickMode !== null || showCenterline;
+    const vesselDim = step === "detect" || step === "morpho" || showDevice || pickMode !== null || showCenterline || redOn;
     // En Cortes 3D la malla se vuelve translúcida para ver los cortes a través
     // de ella; con MALLA ○ baja a 0 en vez de salir de las capas, así no se
     // vuelve a descargar al encenderla (la opacidad cambia el actor en sitio).
@@ -922,15 +954,17 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // Con el mapa de calibre el color ES el dato: translúcido al 0,45 se leía
     // apagado. Opaco, salvo que dentro haya algo que ver (la línea, un
     // dispositivo, lo que se está marcando): entonces casi opaco.
-    const dentroQueVer = showDevice || pickMode !== null || showCenterline;
+    const dentroQueVer = showDevice || pickMode !== null || showCenterline || redOn;
     const vesselOpacity = viewMode === "slices3d"
       ? ((slices3dMeshVisible || pickMode !== null) ? SLICES3D_MESH_OPACITY : 0)
-      : calibreOn ? (dentroQueVer ? 0.7 : 1)
+      : calibreOn ? (redOn ? 0.45 : dentroQueVer ? 0.7 : 1)
       : vesselDim ? 0.45 : 1;
     // La segmentada se ve suavizada; la vista previa del umbral cambia a cada
     // ajuste y se ve tal cual.
     const out: MeshLayer[] = [{ url: vesselUrl ?? displayMeshUrl, color: VESSEL_COLOR, opacity: vesselOpacity, suavizar: displayMeshUrl === meshUrl,
                                 ...(calibreOn ? { scalars: { name: CAMPO_CALIBRE, secuencial: RANGO_CALIBRE_MM } } : {}) }];
+    // La red trae su color por vértice (tramos y bifurcaciones).
+    if (redUrl) out.push({ url: redUrl, color: HUD_RGB, opacity: 1, scalars: { array: CAMPO_COLOR_RED } });
     // En Morfometría se marcan el cuello y el ápice PINCHANDO la superficie, y
     // una mancha opaca encima tapa justo el sitio donde hay que pinchar. Así
     // que ahí el resalte se vuelve translúcido: sigue diciendo dónde está, y
@@ -1008,7 +1042,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (followup.ghostUrl) out.push({ url: followup.ghostUrl, color: FOLLOWUP_GHOST_COLOR, opacity: 0.3, id: "saco-anterior" });
     }
     return out;
-  }, [followup, stentMap, displayMeshUrl, vesselUrl, calibreOn, meshUrl, candidate?.dome_mesh_url, candidates, rejectedCandidates, selectedCandidate, showRejectedIn3d, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, lineaSinPuntos, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible, ver]);
+  }, [followup, stentMap, displayMeshUrl, vesselUrl, calibreOn, redOn, redUrl, meshUrl, candidate?.dome_mesh_url, candidates, rejectedCandidates, selectedCandidate, showRejectedIn3d, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, lineaSinPuntos, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible, ver]);
 
   // ── Recorrido por dentro del vaso (vesselWalk) ─────────────────────── #
   // Lo pide el panel de la línea central (o DENTRO en la cinta DESDE) por el
@@ -1437,6 +1471,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (stentSac && tresClics) out.push({ pos: stentSac, color: STENT_SAC_COLOR });
     if (clSource && marcandoLinea) out.push({ pos: clSource, color: SOURCE_COLOR });
     if (clTarget && marcandoLinea) out.push({ pos: clTarget, color: TARGET_COLOR });
+    // Extraída, el final de la línea con el color del destino y encima de la
+    // malla: cae en el punto más hondo del saco, a 1-2 mm de la pared en un
+    // saco poco profundo, y la superficie del saco lo tapaba; parecía que la
+    // línea se paraba en el cuello.
+    const finLinea = showCenterline && !marcandoLinea ? centerline?.points[centerline.points.length - 1] : undefined;
+    if (finLinea) out.push({ pos: finLinea, color: TARGET_COLOR, scale: FIN_LINEA_SCALE, encima: true });
     for (const p of annotationDraft) out.push({ pos: p, color: PENDING_COLOR });
     for (const a of annotations) {
       if (!a.visible || a.kind !== "marcador" || a.points.length === 0) continue;
@@ -1472,7 +1512,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       });
     }
     return out;
-  }, [clSource, clTarget, stentSac, centerlineMesh, pickMode, step, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators, ver]);
+  }, [clSource, clTarget, stentSac, centerlineMesh, showCenterline, centerline, pickMode, step, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators, ver]);
 
   const trazoLinea = useMemo<MeshTrazo | null>(
     () => (showCenterline && centerline
@@ -2323,7 +2363,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
           <MeshView layers={layers} markers={recorrido ? SIN_MARCAS : markers} trazo={recorrido ? null : trazoLinea} focus={recorrido ? null : focusMarker} planes={recorrido ? SIN_PLANOS : planes}
             lines={recorrido ? SIN_LINEAS : lines} labels={recorrido ? SIN_ROTULOS : meshLabels} cropPreview={cropPreview}
             boxPreview={step === "segment" ? boxCut : null} referenceDiameterMm={referenceDiameterMm} pickMode={pickMode !== null || candidatePick} onPick={onPick} onPickMiss={onPickMiss} focusUrl={focusUrl} registerCapture={registerMeshCapture} registerCamera={registerCamera} registerParts={registerClipParts}
-            preserveCamera={step === "devices" || !cameraMayMove({ pickMode, justMeasuredManually: step === "morpho" && !!hudManualTag(morphometry) })}
+            preserveCamera={step === "devices" || camaraPorMapa || !cameraMayMove({ pickMode, justMeasuredManually: step === "morpho" && !!hudManualTag(morphometry) })}
             handles={recorrido ? SIN_ASAS : sceneHandles} onHandleDrag={onSceneHandleDrag} onHandleDoubleClick={onHandleDoubleClick}
             onLayerLoaded={onLayerLoaded} slicePlanes={slicePlanesProp}
             orientation={orientation} onCameraChange={onCameraChange} insetRaised={insetRaised} showInset={hudLevel !== "limpio" && !presentando}
@@ -2419,7 +2459,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
           </HudFrame>
         )}
 
-        {!compact && isMesh && calibreOn && !recorrido && <LeyendaCalibre calibre={estadoCalibre} />}
+        {!compact && isMesh && (calibreOn || redOn) && !recorrido && (
+          <LeyendasEscena>
+            {calibreOn && <LeyendaCalibre calibre={estadoCalibre} />}
+            {redOn && <LeyendaRed red={estadoRed} />}
+          </LeyendasEscena>
+        )}
 
         {!compact && isMesh && recorrido && centerline && (
           <HudRecorrido progreso={progresoRecorrido} totalMm={longitudRecorrido(centerline)} diametroEn={(mm) => diameterAtArc(centerline, mm)}
@@ -2543,7 +2588,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
         syncViews={syncViews} onSyncViewsChange={setSyncViews}
         hasClipField={!!clipField} showClipField={showClipField} clipRehearsal={!!clipRehearsal}
         onShowClipFieldChange={setShowClipField} onHelp={openSheet}
-        hasCalibre={hayCalibre} showCalibre={showCalibre} onShowCalibreChange={setShowCalibre}
+        hasCalibre={hayCalibre} showCalibre={showCalibre} onShowCalibreChange={conmutarCalibre}
+        hasRed={hayCalibre} showRed={showRed} onShowRedChange={conmutarRed}
         levelNote={levelNote}
         capas={estadoCapas(capasOcultas, {
           cuello: (step === "morpho" || pickMode === "neck_origin" || pickMode === "neck_dome" || pickMode === "neck_rim")

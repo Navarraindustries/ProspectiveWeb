@@ -324,6 +324,27 @@ describe("ViewerHeader — modo iconos (táctil ≤ 1024, móvil ≤ 640)", () =
     expect(screen.getByRole("button", { name: /CALIBRE ●/ })).toHaveAttribute("title", "Ver el árbol sin el mapa de calibre");
   });
 
+  it("RED solo con la malla segmentada, y dice qué hace al pulsarlo", () => {
+    const { props, rerender } = setup();
+    expect(screen.queryByRole("button", { name: /RED/ })).toBeNull();
+    const onShowRedChange = vi.fn();
+    rerender(<ViewerHeader {...props} hasRed showRed={false} onShowRedChange={onShowRedChange} />);
+    const boton = screen.getByRole("button", { name: /RED ○/ });
+    expect(boton).toHaveAttribute("title", expect.stringContaining("bifurcaciones"));
+    fireEvent.click(boton);
+    expect(onShowRedChange).toHaveBeenCalledWith(true);
+  });
+
+  it("en iconos, RED con aria-pressed y nombre entero", () => {
+    simularPantalla(390); stubBandWidth(anchoBanda(390));
+    const onShowRedChange = vi.fn();
+    setup({ hasRed: true, showRed: true, onShowRedChange });
+    const red = screen.getByRole("button", { name: "Red de vasos" });
+    expect(red).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(red);
+    expect(onShowRedChange).toHaveBeenCalledWith(false);
+  });
+
   it("en iconos, CALIBRE es «Ø» con aria-pressed y nombre entero", () => {
     simularPantalla(390); stubBandWidth(anchoBanda(390));
     const onShowCalibreChange = vi.fn();

@@ -290,6 +290,18 @@ export interface CalibreMeshResult {
   maximo_mm: number;
 }
 
+/** Red de líneas centrales del árbol (POST /api/mesh/{id}/red): tubos finos y
+ *  una esfera por unión, con color directo en el campo `colores`. */
+export interface VesselNetworkResult {
+  url: string;
+  tramos: number;
+  uniones: number;
+  extremos: number;
+  largo_total_mm: number;
+  segundos: number;
+  voxel_mm: number;
+}
+
 export interface IvusResult {
   n_sections: number;
   size_px: number;

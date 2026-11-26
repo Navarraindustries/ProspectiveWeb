@@ -1,20 +1,19 @@
 /* La leyenda del mapa de calibre (mapaCalibre.ts): la barra de color con los
-   extremos de la escala y el resumen del árbol, arriba a la derecha. Mientras el servidor calcula (unos segundos la primera
-   vez) lo dice; si falla, el árbol se ve con su color de siempre y la leyenda
-   lo explica en vez de desaparecer. */
+   extremos de la escala y el resumen del árbol. Va en la columna de leyendas
+   de arriba a la derecha (LeyendasEscena). Mientras el servidor calcula (unos
+   segundos la primera vez) lo dice; si falla, el árbol se ve con su color de
+   siempre y la leyenda lo explica en vez de desaparecer. */
 import type { CalibreMeshResult } from "../../api/types";
 import { cifra, mm } from "../../lib/numero";
 import { degradadoSecuencial, RANGO_CALIBRE_MM } from "../mapaCalibre";
 
 export type EstadoCalibre = { estado: "cargando" } | { estado: "error" } | { estado: "listo"; resumen: CalibreMeshResult };
 
-// Arriba a la derecha, bajo el rótulo del modo: abajo y centrada tapaba el
-// árbol (y la barra de pasos la tapaba a ella).
+// En flujo dentro de LeyendasEscena (que la coloca); `hud-readout` la
+// posicionaría sola, así que se anula aquí.
 const CAJA = {
-  position: "absolute", right: 14, top: 44,
-  display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, pointerEvents: "none",
-  // Va fuera del marco del HUD, que es quien da el color a las lecturas.
-  color: "var(--hud-text)", fontFamily: "var(--font-mono)",
+  position: "static",
+  display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3,
 } as const;
 
 export function LeyendaCalibre({ calibre }: { calibre: EstadoCalibre }) {

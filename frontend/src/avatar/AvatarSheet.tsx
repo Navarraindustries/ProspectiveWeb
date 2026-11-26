@@ -88,7 +88,7 @@ export function AvatarSheet({ open, onClose }: {
       setModo("avatar"); // el servidor ya pasa a «avatar»; el borrador (config) se conserva
       await refreshUser();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo quitar la foto");
+      setError(e instanceof Error ? e.message : "No se pudo quitar la foto. Vuelve a intentarlo.");
     } finally {
       setBusyQuitar(false);
     }

@@ -40,6 +40,7 @@ from services.database import get_db
 from services.db_models import Study, User
 from services.numero import cifra
 from services.sessions import session_exists
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["clip-orders"])
@@ -764,7 +765,7 @@ async def create_order(session_id: str, req: OrderIn, user: CurrentUser, db: Db)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Order %s: paperwork failed", order.part_no)
             raise HTTPException(status_code=500,
-                                detail=f"No se pudo generar la documentación: {exc}")
+                                detail=mensaje_error(f"No se pudo generar la documentación", exc))
 
     audit_append("clip_order_created",
                  {"part_no": order.part_no, "status": order.status,
@@ -855,7 +856,7 @@ async def advance(part_no: str, req: StatusIn, user: CurrentUser, db: Db) -> Ord
             store.persist(order)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Order %s: paperwork failed", part_no)
-            raise HTTPException(status_code=500, detail=f"No se pudo generar la documentación: {exc}")
+            raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudo generar la documentación", exc))
     audit_append("clip_order_status", {"part_no": part_no, "status": req.status},
                  username=user.username)
     return _out(order)

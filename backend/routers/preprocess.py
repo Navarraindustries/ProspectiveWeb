@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException
 from models.preprocess import PreprocessRequest, PreprocessResult, PreprocessStatus
 from services.preprocess import ops_params, ops_text
 from services.sessions import read_state, session_exists, write_state
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["preprocess"])
@@ -176,7 +177,7 @@ async def preprocess(session_id: str, req: PreprocessRequest) -> PreprocessResul
         raise HTTPException(status_code=409, detail="No hay volumen en la sesión. Sube un DICOM primero.")
     except Exception as exc:  # noqa: BLE001
         logger.exception("Preprocess failed")
-        raise HTTPException(status_code=500, detail=f"Error en el preprocesamiento: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"Error en el preprocesamiento", exc))
 
 
 # ── Reverting the preprocessing ───────────────────────────────────────────── #
@@ -285,4 +286,4 @@ async def revert_preprocess(session_id: str) -> PreprocessResult:
         raise HTTPException(status_code=409, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
         logger.exception("Preprocess revert failed")
-        raise HTTPException(status_code=500, detail=f"No se pudo restaurar el volumen: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudo restaurar el volumen", exc))

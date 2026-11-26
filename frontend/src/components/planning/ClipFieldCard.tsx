@@ -15,6 +15,7 @@ import { Metric } from "../Metric";
 import { Card, SectionLabel } from "../PanelHead";
 import { CriterionChip } from "./ClipSelection";
 import { cifra } from "../../lib/numero";
+import { Explica } from "../Explica";
 
 type BadgeVariant = "success" | "warning" | "destructive";
 
@@ -68,7 +69,7 @@ export function ClipFieldCard({
             <Badge variant="warning">DESFASADO</Badge>
           </span>
         )}
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted-foreground)", cursor: "pointer" }}>
           <input type="checkbox" aria-label="Mapa de calor" checked={show} onChange={(e) => onToggle(e.target.checked)} />
           Mostrar en el visor
         </label>
@@ -82,28 +83,28 @@ export function ClipFieldCard({
       <Metric wrapLabel label="Fuerza de cierre" value={forceValue(s)} badge={forceBadge(s.pressure_verdict, s.force_provisional)} />
       {/* La ventana en gramos sirve incluso sin ficha: quien conozca la fuerza de
           su clip importado puede compararla. */}
-      <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", marginTop: 6 }}>
+      <div style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", marginTop: 6 }}>
         Ventana del cuello: óptima {optLo.toFixed(0)}–{g0(optHi)} · aceptable {accLo.toFixed(0)}–{g0(accHi)}
       </div>
       {s.clips.length > 1 && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4 }}>
           {s.clips.map((c, i) => (
             <div key={i}>{c.name}: {c.force_g > 0 ? g0(c.force_g) : "—"} · {forceBadge(c.verdict, s.force_provisional)[0]}</div>
           ))}
         </div>
       )}
       {!sinFuerza && matiz && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4 }}>
           {matiz.charAt(0).toUpperCase() + matiz.slice(1)}
         </div>
       )}
-      <div title="Incluye la pared de vaso que queda entre las hojas, dentro de su banda de profundidad: es una cota amplia, no el contacto real hoja-tejido.">
+      <Explica como="div" texto="Incluye la pared de vaso que queda entre las hojas, dentro de su banda de profundidad: es una cota amplia, no el contacto real hoja-tejido.">
         <Metric
           wrapLabel
           label="Área pinzada estimada"
           value={s.contact_area_mm2 > 0 ? `${cifra(s.contact_area_mm2, 1)} mm²` : "—"}
         />
-      </div>
+      </Explica>
 
       {s.criteria.length > 0 && (
         <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--border)" }}>
@@ -111,7 +112,7 @@ export function ClipFieldCard({
         </div>
       )}
 
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45 }}>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45 }}>
         {s.note}
       </div>
     </Card>

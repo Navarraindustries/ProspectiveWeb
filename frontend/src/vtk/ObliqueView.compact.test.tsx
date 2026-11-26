@@ -21,10 +21,10 @@ vi.mock("@kitware/vtk.js/Common/DataModel/Plane", () => ({ default: { newInstanc
 const setFreePlane = vi.hoisted(() => vi.fn());
 vi.mock("../store/planning", () => ({
   usePlanning: () => ({
-    mprVoxel: { x: 50, y: 50, z: 25 },
     freePlane: { azimuthDeg: 0, elevationDeg: 0, offsetMm: 0 },
     setFreePlane,
   }),
+  useCursor: () => ({ mprVoxel: { x: 50, y: 50, z: 25 } }),
 }));
 
 const { ObliqueView } = await import("./ObliqueView");

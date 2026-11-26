@@ -83,8 +83,19 @@ def _bytes_de(password: str) -> bytes:
     return password.encode("utf-8")[:72]
 
 
+#: Coste de bcrypt: 12 en producción. PROSPECTIVE_BCRYPT_ROUNDS lo baja en los
+#: tests (conftest.py): cada hash a 12 tarda ~250 ms y la batería crea cientos
+#: de cuentas. verify_password lee el coste del propio hash, así que un hash
+#: hecho con uno vale con cualquier otro valor de esta variable.
+def _rondas() -> int:
+    try:
+        return max(4, min(15, int(os.environ.get("PROSPECTIVE_BCRYPT_ROUNDS", "12"))))
+    except ValueError:
+        return 12
+
+
 def get_password_hash(password: str) -> str:
-    return bcrypt.hashpw(_bytes_de(password), bcrypt.gensalt(rounds=12)).decode("ascii")
+    return bcrypt.hashpw(_bytes_de(password), bcrypt.gensalt(rounds=_rondas())).decode("ascii")
 
 
 def verify_password(plain: str, hashed: str) -> bool:

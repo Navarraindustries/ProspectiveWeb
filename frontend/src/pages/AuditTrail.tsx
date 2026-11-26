@@ -179,7 +179,7 @@ function AuditTrailPage() {
           <Card style={{ padding: "14px 18px", marginBottom: 16, display: "flex", alignItems: "center", gap: 14, borderColor: verify.ok ? "var(--success)" : "var(--destructive)" }}>
             <Icon name={verify.ok ? "STATUS_OK" : "STATUS_WARN"} size={22} color={verify.ok ? "var(--success)" : "var(--destructive)"} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, color: verify.ok ? "var(--success)" : "var(--destructive)" }}>
+              <div style={{ fontWeight: 600, color: verify.ok ? "var(--success)" : "var(--destructive)" }}>
                 {verify.ok ? "Integridad verificada" : `¡${plural(verify.broken.length)}!`}
               </div>
               <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>{verify.total_blocks} bloques en la cadena</div>

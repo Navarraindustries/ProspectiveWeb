@@ -343,7 +343,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       <SectionLabel style={{ marginTop: 18, marginBottom: 10 }}>
         Umbral de intensidad
         {previewing && !segmentation && (
-          <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 500, color: "var(--muted-foreground)" }}>
+          <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 500, color: "var(--muted-foreground)" }}>
             · actualizando vista previa…
           </span>
         )}
@@ -359,7 +359,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           enseña el hueso; sin decirlo parecía que la segmentación lo iba a
           dejar. El visor no sabe del método, así que se dice aquí. */}
       {method === "tubular" && !segmentation && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -6, marginBottom: 12, lineHeight: 1.45 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: -6, marginBottom: 12, lineHeight: 1.45 }}>
           La vista previa solo aplica el umbral; la forma tubular quitará el hueso
         </div>
       )}
@@ -368,20 +368,20 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         {/* F1-131: el número no decía de dónde salía; el arranque es el
             percentil del propio volumen y conviene saber si se ha movido. */}
         {suggestedLower !== null && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -4, lineHeight: 1.45 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: -4, lineHeight: 1.45 }}>
             {lower === suggestedLower
               ? `${lower} · sugerido por el histograma de este estudio`
               : `${lower} · sugerido: ${suggestedLower}`}
             {/* Junto a lo que restablece, no al fondo en un enlace gris (auditoría F3). */}
             {lower !== suggestedLower && (
-              <Button variant="link" size="sm" onClick={resetBand} style={{ marginLeft: 8, height: "auto", padding: 0, fontSize: 11 }}>
+              <Button variant="link" size="sm" onClick={resetBand} style={{ marginLeft: 8, height: "auto", padding: 0, fontSize: 12 }}>
                 Restablecer banda sugerida
               </Button>
             )}
           </div>
         )}
         {banda === "fallo" && (
-          <div role="status" style={{ fontSize: 11, color: "var(--warning)", marginTop: -4, lineHeight: 1.45 }}>
+          <div role="status" style={{ fontSize: 12, color: "var(--warning)", marginTop: -4, lineHeight: 1.45 }}>
             No se pudo calcular el umbral sugerido para este estudio: el valor es uno genérico de TC. Revísalo en la vista previa antes de segmentar.
           </div>
         )}
@@ -401,7 +401,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         </CeilingControls>
         {/* Sin HU el número no es una magnitud física: se dice para que no se compare entre estudios. */}
         {!isHu && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 6 }}>
             Intensidad del volumen, sin unidad física
           </div>
         )}
@@ -411,14 +411,14 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             y el techo corta el vaso donde más denso está. El backend ya sabe
             desactivarlo (`upper <= lower` → sin límite); faltaba poder pedirlo. */}
         {method !== "tubular" && (
-        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 12, color: "var(--muted-foreground)", cursor: "pointer" }}>
           <input type="checkbox" checked={sinTecho}
                  onChange={(e) => setSinTecho(e.target.checked)} />
           Sin límite superior — conserva todo lo más brillante que el umbral inferior
         </label>
         )}
         {sinTecho && method !== "tubular" && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.45 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.45 }}>
             En angiografía con contraste suele ser lo correcto: el techo recorta
             justo los vasos más llenos y puede partir la vasculatura en trozos que
             luego la limpieza descarta. Quítalo si ves ramas cortadas.
@@ -443,7 +443,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             fueron casi dos minutos. Un botón que parece instantáneo y tarda eso
             se acaba pulsando dos veces. */}
         {method === "threshold" && !sinTecho && upper > lower && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 5, lineHeight: 1.45 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 5, lineHeight: 1.45 }}>
             {comparando
               ? "Segmentando y detectando de las dos formas; en un examen de 384³ fueron unos dos minutos."
               : "Tarda el doble que segmentar: lo hace de las dos formas y enseña las dos listas. No cambia la malla."}
@@ -452,14 +452,14 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
 
         {method === "threshold" && comparacion && (
           <Card style={{ marginTop: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginBottom: 4 }}>
               Con techo vs sin techo
             </div>
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 8 }}>
               {comparacion.note}
             </div>
             {comparacion.candidates.map((c, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 11, padding: "3px 0" }}>
+              <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 12, padding: "3px 0" }}>
                 <span style={{ fontFamily: "var(--font-mono)", color: "var(--foreground)", minWidth: 52 }}>
                   Ø {cifra(c.diameter_mm, 1)}
                 </span>
@@ -474,7 +474,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
                 )}
               </div>
             ))}
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45 }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45 }}>
               Malla: {comparacion.vertices_con_techo.toLocaleString("es")} vért con techo ·{" "}
               {comparacion.vertices_sin_techo.toLocaleString("es")} sin él. Esto no
               ha cambiado nada todavía: elige y segmenta.
@@ -492,7 +492,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
         <div style={{ height: 14 }} />
         <Slider label="Suavizado" min={0} max={10} value={smoothing} onChange={setSmoothing} />
         {/* F1-133: «Suavizado 3» no decía qué suaviza ni qué se arriesga. */}
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -4, lineHeight: 1.45 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: -4, lineHeight: 1.45 }}>
           Iteraciones de suavizado de la superficie; valores altos redondean el cuello
         </div>
         {/* La máscara tubular ya es un componente: el filtro de fragmentos no
@@ -501,7 +501,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           <>
             <div style={{ height: 14 }} />
             <Slider label="Limpieza" min={0} max={10} value={cleanup} onChange={setCleanup} />
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -4, marginBottom: 8, lineHeight: 1.45 }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: -4, marginBottom: 8, lineHeight: 1.45 }}>
               {cleanup === 0
                 ? "Sin filtrar: se conserva todo, incluido el ruido."
                 : cleanup <= 4
@@ -537,7 +537,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
               Solo la vasculatura principal
             </span>
-            <span style={{ display: "block", fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45, marginTop: 2 }}>
+            <span style={{ display: "block", fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.45, marginTop: 2 }}>
               Conserva la estructura conectada mayor y descarta el resto. En
               angiografía esa estructura es la vasculatura y lo que sobra es hueso, que
               el umbral no puede quitar porque comparte brillo con el contraste.
@@ -564,7 +564,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
               Segmentar a media resolución (más rápido)
             </span>
-            <span style={{ display: "block", fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45, marginTop: 2 }}>
+            <span style={{ display: "block", fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.45, marginTop: 2 }}>
               Rompe los vasos finos; úsalo solo si el servidor tarda demasiado.
             </span>
           </span>
@@ -572,7 +572,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
       </div>
       {/* Habla de «Limpieza», que solo existe con el umbral clásico. */}
       {method === "threshold" && (
-        <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+        <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
           En estudios con hueso/cráneo, el umbral por sí solo no separa el vaso: sube «Limpieza»
           para aislar la vasculatura principal. Si el hueso queda <b style={{ color: "var(--foreground)" }}>pegado
           a la vasculatura</b>, el borrador de región (abajo) lo quita sin tocar los vasos de al lado.
@@ -588,7 +588,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             ? <div style={{ marginTop: 18 }}><ProgressBar marca /></div>
             : <SegmentProgress state={progress} />}
           {progressLost && (
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>
               {progress.message}. La segmentación sigue en el servidor; el resultado llegará igualmente.
             </div>
           )}
@@ -604,7 +604,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
               las cifras, y se leía como una nota más; va en cabeza. */}
           {segmentation.fallback_note && (
             <div style={{
-              fontSize: 11, lineHeight: 1.5, marginBottom: 10, padding: "8px 10px",
+              fontSize: 12, lineHeight: 1.5, marginBottom: 10, padding: "8px 10px",
               borderRadius: "var(--radius-md)", background: "var(--warning-bg)",
               borderLeft: "3px solid var(--warning)", color: "var(--foreground)",
             }}>
@@ -654,7 +654,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
           />
           )}
           {tubular && hasQuality && (
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -2, lineHeight: 1.45 }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: -2, lineHeight: 1.45 }}>
               frente a la máscara del umbral, que incluía el hueso
             </div>
           )}
@@ -662,7 +662,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
               cifras de depuración; a la vista queda solo cuánto tardó. */}
           {elapsed !== null && <div style={hudLine}>Segmentada en {elapsed} s</div>}
           {(
-            <details style={{ marginTop: 4, fontSize: 11, color: "var(--muted-foreground)" }}>
+            <details style={{ marginTop: 4, fontSize: 12, color: "var(--muted-foreground)" }}>
               <summary style={{ cursor: "pointer" }}>Detalles</summary>
               <Metric label="Vértices" value={segmentation.vertices.toLocaleString("es")} />
               <Metric label="Caras" value={segmentation.faces.toLocaleString("es")} />
@@ -692,7 +692,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
             </details>
           )}
           {segmentation.fragments_removed > 0 && (
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
               Se descartaron {segmentation.fragments_removed.toLocaleString("es")} fragmentos
               sueltos; el mayor medía {cifra(segmentation.largest_removed_mm3, 1)} mm³.
               {segmentation.largest_removed_mm3 >= 20 && (
@@ -706,14 +706,14 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
               decir por qué: un botón que no hace nada en silencio deja al
               usuario pensando que la aplicación está rota. */}
           {segmentation.main_tree_applied && segmentation.main_tree_removed > 0 && (
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
               Vasculatura principal aislada: fuera {segmentation.main_tree_removed}{" "}
               {segmentation.main_tree_removed === 1 ? "estructura suelta" : "estructuras sueltas"}.
             </div>
           )}
           {segmentation.main_tree_warning && (
             <div style={{
-              fontSize: 11, lineHeight: 1.5, marginTop: 8, padding: "8px 10px",
+              fontSize: 12, lineHeight: 1.5, marginTop: 8, padding: "8px 10px",
               borderRadius: "var(--radius-md)", background: "var(--glass-hover)",
               borderLeft: "3px solid var(--warning)", color: "var(--foreground)",
             }}>
@@ -793,7 +793,7 @@ export function SegmentPanel({ onNext }: { onNext: () => void }) {
 
 /* Cifras del resultado tubular, en la línea mono del HUD. */
 const hudLine = {
-  fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)",
+  fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)",
   marginTop: 6, lineHeight: 1.5, letterSpacing: ".02em",
 } as const;
 

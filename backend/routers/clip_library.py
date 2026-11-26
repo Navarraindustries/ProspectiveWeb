@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from services import clip_library
 from services.auth_service import require_admin
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["clip-library"])
@@ -130,7 +131,7 @@ async def add_library_clip(
         raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
         logger.exception("Clip library import failed")
-        raise HTTPException(status_code=422, detail=f"No se pudo importar el clip: {exc}")
+        raise HTTPException(status_code=422, detail=mensaje_error(f"No se pudo importar el clip", exc))
     return _out(clip)
 
 
@@ -162,7 +163,7 @@ async def measure_before_import(file: UploadFile = File(...)) -> ShapeSuggestion
         tmp.write_bytes(raw)
         long_mm, mid_mm, short_mm, volume = clip_library.measure_mesh(tmp)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=422, detail=f"No se pudo medir la malla: {exc}")
+        raise HTTPException(status_code=422, detail=mensaje_error(f"No se pudo medir la malla", exc))
     finally:
         tmp.unlink(missing_ok=True)
 

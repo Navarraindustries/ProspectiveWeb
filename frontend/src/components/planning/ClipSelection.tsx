@@ -40,7 +40,7 @@ export function CriterionChip({ c }: { c: ClipCriterion }) {
     <div
       title={c.detail}
       style={{
-        display: "flex", alignItems: "flex-start", gap: 6, fontSize: 11,
+        display: "flex", alignItems: "flex-start", gap: 6, fontSize: 12,
         lineHeight: 1.45, padding: "3px 0",
       }}
     >
@@ -49,7 +49,7 @@ export function CriterionChip({ c }: { c: ClipCriterion }) {
         style={{
           flex: "0 0 auto", width: 14, height: 14, borderRadius: 4, marginTop: 1,
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 10, fontWeight: 800, color: "#fff",
+          fontSize: 12, fontWeight: 600, color: "#fff",
           background: VERDICT_COLOR[c.verdict],
         }}
       >
@@ -58,7 +58,7 @@ export function CriterionChip({ c }: { c: ClipCriterion }) {
       <span style={{ color: "var(--muted-foreground)", minWidth: 0 }}>
         {/* Los dos puntos en su propio nodo: el rótulo queda solo en el <b> y se
             puede buscar por su texto exacto («Fuerza»), sin cambiar cómo se ve. */}
-        <b style={{ color: "var(--foreground)", fontWeight: 700 }}>{c.label}<span>:</span></b>{" "}
+        <b style={{ color: "var(--foreground)", fontWeight: 600 }}>{c.label}<span>:</span></b>{" "}
         {c.detail}
       </span>
     </div>
@@ -96,13 +96,13 @@ function CandidateCard({
           <button
             type="button" aria-expanded={open}
             onClick={(e) => { e.stopPropagation(); onToggle(); }}
-            style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "baseline", gap: 6, fontSize: 13, fontWeight: 700, color: "var(--foreground)", flex: 1, minWidth: 0 }}
+            style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "baseline", gap: 6, fontSize: 13, fontWeight: 600, color: "var(--foreground)", flex: 1, minWidth: 0 }}
           >
-            <span aria-hidden style={{ fontSize: 10, color: "var(--muted-foreground)", width: 10 }}>{open ? "▾" : "▸"}</span>
+            <span aria-hidden style={{ fontSize: 12, color: "var(--muted-foreground)", width: 10 }}>{open ? "▾" : "▸"}</span>
             <span>{cand.clip_name}</span>
           </button>
         ) : (
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", flex: 1, minWidth: 0 }}>
             {cand.clip_name}
           </div>
         )}
@@ -117,7 +117,7 @@ function CandidateCard({
         </Badge>
       </div>
 
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", marginTop: 2 }}>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", marginTop: 2 }}>
         {shapeWithBend(cand.shape, cand.bend_angle_deg)}
         {" · mordaza "}{cifra(cand.blade_length_mm, 1)} mm ·{" "}
         {/* Una banda es una banda: quedarse con el punto medio inventaría una
@@ -140,7 +140,7 @@ function CandidateCard({
           limpio en 1 de 6 es utilizable, pero exige una precisión que el que
           está limpio en 6 de 6 no pide — y eso no se ve en un score. */}
       {fit && fit.n_rolls > 0 && (
-        <div style={{ marginTop: 6, fontSize: 11, color: "var(--muted-foreground)" }}>
+        <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted-foreground)" }}>
           Comprobado sobre la malla del paciente:{" "}
           <b style={{ color: fit.clean_rolls === 0 ? "var(--destructive)" : "var(--foreground)" }}>
             {fit.clean_rolls}/{fit.n_rolls}
@@ -154,7 +154,7 @@ function CandidateCard({
           callar se leía como «ajusta» (F1-195). */}
       {!fit && (
         <div
-          style={{ marginTop: 6, fontSize: 11, color: "var(--muted-foreground)" }}
+          style={{ marginTop: 6, fontSize: 12, color: "var(--muted-foreground)" }}
           title="Solo los primeros clips del ranking se prueban sobre la malla del paciente, y hace falta el plano del cuello marcado a mano"
         >
           <b style={{ color: "var(--foreground)" }}>Ajuste real:</b> sin comprobar
@@ -192,7 +192,7 @@ function CustomJawSheet({
         sessionId, jaw, suggestion.angle_deg,
         suggestion.shape, suggestion.window_mm));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo generar el clip");
+      setError(e instanceof Error ? e.message : "No se pudo generar el clip. Vuelve a intentarlo.");
     } finally {
       setBusy(false);
     }
@@ -201,12 +201,12 @@ function CustomJawSheet({
   return (
     <Card>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--foreground)", flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", flex: 1 }}>
           {suggestion.label}
         </div>
         <Badge variant="subtle">bajo pedido</Badge>
       </div>
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
         {suggestion.reason}
       </div>
 
@@ -219,7 +219,7 @@ function CustomJawSheet({
           min={2} max={30} step={0.5} value={jaw} unit=" mm"
           onChange={(v) => { setJaw(v); setBuilt(null); }}
         />
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4 }}>
           Talla dibujada más cercana: {suggestion.nearest_drawn_mm.toFixed(0)} mm
         </div>
       </div>
@@ -227,7 +227,7 @@ function CustomJawSheet({
       <ErrorNote>{error}</ErrorNote>
 
       {built && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
           {built.reason}
         </div>
       )}
@@ -282,7 +282,7 @@ export function CatalogueToggle({
 }) {
   const empty = stockCount === 0;
   return (
-    <div style={{ marginTop: 6, fontSize: 11, color: "var(--muted-foreground)" }}>
+    <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted-foreground)" }}>
       {empty && (
         <div style={{ marginBottom: 4, lineHeight: 1.5 }}>
           No hay catálogo de clips cargado en esta instalación
@@ -371,7 +371,7 @@ export function ClipSelectionPanel({
           {sel.summary}
         </div>
         {sel.case.neck_mm > 0 && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", marginTop: 4 }}>
             cuello {cifra(sel.case.neck_mm, 2)} mm · AR {cifra(sel.case.ar, 2)}
             {sel.case.parent_artery_mm > 0 && ` · vaso padre ${cifra(sel.case.parent_artery_mm, 2)} mm`}
             {sel.case.region && ` · ${sel.case.region}`}
@@ -389,7 +389,7 @@ export function ClipSelectionPanel({
             el mango salir por el corredor, y el ángulo entre esas dos
             direcciones ES la acodadura que hace falta. */}
         {sel.case.approach_bend_deg !== null && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
             El corredor marcado llega a{" "}
             <b style={{ color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
               {(sel.case.approach_angle_deg ?? 0).toFixed(0)}°
@@ -404,7 +404,7 @@ export function ClipSelectionPanel({
         )}
 
         {sel.case.required_jaw_mm > 0 && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
             Mordaza mínima{" "}
             <b style={{ color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
               {cifra(sel.case.required_jaw_mm, 1)} mm
@@ -455,7 +455,7 @@ export function ClipSelectionPanel({
           la pieza tarda semanas y sigue vivo después de cerrar el plan. */}
       {sel.manufacture && (
         <div style={{
-          fontSize: 11, lineHeight: 1.5, color: "var(--muted-foreground)",
+          fontSize: 12, lineHeight: 1.5, color: "var(--muted-foreground)",
           padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--glass-hover)",
         }}>
           {/* Con un clip colocado, el servidor fija `manufacture` a esa pieza y
@@ -484,23 +484,23 @@ export function ClipSelectionPanel({
           es la que se usa en quirófano. */}
       {sel.multiclip && (
         <Card style={{ borderLeft: "3px solid var(--warning)" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
             O un montaje de varios clips
           </div>
           <div style={{ fontSize: 12, color: "var(--foreground)", marginTop: 6, lineHeight: 1.5 }}>
             <b>{sel.multiclip.label}</b>
           </div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", marginTop: 4 }}>
             cubre {cifra(sel.multiclip.covered_mm, 1)} mm de los{" "}
             {cifra(sel.multiclip.required_mm, 1)} mm que mide el cuello aplastado
           </div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
             Las hojas van <b>solapadas</b>, no adosadas: dejarlas tocándose por la
             punta deja sin cerrar justo el tramo donde se juntan.
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
             {sel.multiclip.cautions.map((c, i) => (
-              <div key={i} style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+              <div key={i} style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
                 — {c}
               </div>
             ))}
@@ -529,7 +529,7 @@ export function ClipSelectionPanel({
           storageKey={`clipsel.caveats.${sessionId}`}
           defaultOpen={sel.outcome === "unmeasured"}
         >
-          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.6 }}>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.6 }}>
             {sel.caveats.map((c) => <li key={c}>{c}</li>)}
           </ul>
         </Collapsible>

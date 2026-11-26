@@ -13,6 +13,7 @@ from models.print_prep import PrintBed, PrintPrepRequest, PrintPrepResult
 from services.mesh_prep import PRINT_BED_PRESETS, prepare_mesh_for_print
 from services.segmentation import read_vtp
 from services.sessions import session_exists, session_subdir
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["print-prep"])
@@ -82,7 +83,7 @@ async def print_prep(session_id: str, req: PrintPrepRequest) -> PrintPrepResult:
         raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
         logger.exception("Print-prep failed")
-        raise HTTPException(status_code=500, detail=f"Error en la preparación de impresión: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"Error en la preparación de impresión", exc))
 
     # Cache-busted: the filename is fixed per session, so without a token the
     # browser can hand back the STL prepared before the last mesh edit.

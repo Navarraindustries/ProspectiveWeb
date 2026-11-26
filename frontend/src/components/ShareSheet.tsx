@@ -126,7 +126,7 @@ export function ShareSheet({
       onClose();
     } catch (e) {
       // El 403 trae su motivo («solo quien lo creó…»): se dice tal cual.
-      setError(e instanceof Error ? e.message : "No se pudo guardar con quién se comparte");
+      setError(e instanceof Error ? e.message : "No se pudo guardar con quién se comparte. Vuelve a intentarlo.");
     } finally {
       setBusy(false);
     }

@@ -14,7 +14,7 @@ export function CeilingControls({ method, children, nota = "Sin techo en el mét
 }) {
   if (method !== "tubular") return <>{children}</>;
   return (
-    <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+    <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
       {nota}
     </div>
   );
@@ -34,7 +34,7 @@ export function TubularControls({ method, reclaimMm, onMethod, onReclaim, ct = f
       <input type="radio" name={name} value={value} checked={method === value} onChange={() => onMethod(value)} style={{ marginTop: 2 }} />
       <span style={{ minWidth: 0 }}>
         <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>{label}</span>
-        <span style={{ display: "block", fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.4 }}>{hint}</span>
+        <span style={{ display: "block", fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.4 }}>{hint}</span>
       </span>
     </label>
   );
@@ -45,7 +45,7 @@ export function TubularControls({ method, reclaimMm, onMethod, onReclaim, ct = f
         {opt("threshold", "Umbral clásico", "Solo la banda de intensidad; deja láminas y cáscaras.")}
       </div>
       {method === "tubular" && ct && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 10, lineHeight: 1.45 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 10, lineHeight: 1.45 }}>
           En angio-TC se queda el árbol de vasos conectado dentro del cráneo: lo que supera el umbral
           inferior y todo lo unido a ello con un umbral más bajo, calculado del propio estudio, para no
           cortar las ramas finas. Fuera quedan el cráneo, el cuero cabelludo y los senos paranasales.
@@ -56,7 +56,7 @@ export function TubularControls({ method, reclaimMm, onMethod, onReclaim, ct = f
       {method === "tubular" && !ct && (
         <div style={{ marginTop: 10 }}>
           <Slider label="Recuperar pared y sacos" min={0} max={5} step={0.5} value={reclaimMm} onChange={onReclaim} unit=" mm" />
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -2, lineHeight: 1.45 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: -2, lineHeight: 1.45 }}>
             El filtro de tubularidad adelgaza la pared y no ve los sacos, que no son tubos. Este radio devuelve
             lo que queda a esa distancia del vaso; el hueso en forma de lámina no vuelve.
           </div>

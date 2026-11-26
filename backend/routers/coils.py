@@ -26,6 +26,7 @@ from services.coils    import (
     PACKING_AIM, PACKING_MIN, PACKING_MAX,
 )
 from services.sessions import read_state, session_exists, session_subdir, mesh_url
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["coils"])
@@ -264,7 +265,7 @@ def plan_coils(
         logger.exception("Coil mesh generation failed")
         raise HTTPException(
             status_code=500,
-            detail=f"No se pudo generar la malla de los coils ({exc}). No se han guardado.",
+            detail=mensaje_error("No se pudo generar la malla de los coils; no se han guardado", exc),
         ) from exc
 
     # ── Persist placed coils for the report / session restore ────────────── #

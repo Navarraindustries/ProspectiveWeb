@@ -19,6 +19,15 @@ type Completo<T> = T extends (infer U)[] ? Completo<U>[]
   : T extends object ? { [K in keyof T]-?: Completo<T[K]> }
   : T;
 type Cabe<Servidor extends Interfaz, Interfaz> = [Servidor, Interfaz];
+/** La interfaz es a veces MÁS ESTRICTA que la API: una unión de literales o
+ *  una tupla donde el esquema promete `string` o `number[]`. Esos tipos se
+ *  comparan con su versión laxa: los mismos campos y la misma forma, para que
+ *  un campo quitado o renombrado siga fallando aquí. Estrechar el modelo de
+ *  Pydantic (Literal[...], tuple[...]) permitiría quitar el Laxo. */
+type Laxo<T> = T extends string ? string
+  : T extends readonly (infer U)[] ? Laxo<U>[]
+  : T extends object ? { [K in keyof T]: Laxo<T[K]> }
+  : T;
 
 export type Contrato = [
   Cabe<Completo<S["AneurysmCandidate"]>, ui.AneurysmCandidate>,
@@ -144,18 +153,116 @@ export type Contrato = [
   Cabe<Completo<S["UserInfo"]>, ui.UserInfo>,
   Cabe<Completo<S["VesselCrossingOut"]>, ui.VesselCrossingOut>,
   Cabe<Completo<S["WorkshopIn"]>, ui.WorkshopIn>,
+  Cabe<Completo<S["AvatarConfig"]>, ui.AvatarConfig>,
+  Cabe<Completo<S["BranchLumenOut"]>, ui.BranchLumenOut>,
+  Cabe<Completo<S["ClipFieldClip"]>, Laxo<ui.ClipFieldClip>>,
+  Cabe<Completo<S["ClipFieldResult"]>, Laxo<ui.ClipFieldResult>>,
+  Cabe<Completo<S["ClipFieldSummary"]>, Laxo<ui.ClipFieldSummary>>,
+  Cabe<Completo<S["ClipSelectionResult"]>, Laxo<ui.ClipSelectionResult>>,
+  Cabe<Completo<S["CustomJawOut"]>, Laxo<ui.CustomJawOut>>,
+  Cabe<Completo<S["DeviceClearResult"]>, Laxo<ui.DeviceClearResult>>,
+  Cabe<Completo<S["FdOption"]>, Laxo<ui.FdOption>>,
+  Cabe<Completo<S["FdSizingResult"]>, Laxo<ui.FdSizingResult>>,
+  Cabe<Completo<S["IvusBranch"]>, ui.IvusBranch>,
+  Cabe<Completo<S["IvusCompareResult"]>, ui.IvusCompareResult>,
+  Cabe<Completo<S["IvusCompareSection"]>, ui.IvusCompareSection>,
+  Cabe<Completo<S["IvusResult"]>, ui.IvusResult>,
+  Cabe<Completo<S["IvusSection"]>, ui.IvusSection>,
+  Cabe<Completo<S["IvusSectionStent"]>, ui.IvusSectionStent>,
+  Cabe<Completo<S["IvusStentSummary"]>, ui.IvusStentSummary>,
+  Cabe<Completo<S["IvusSummary"]>, ui.IvusSummary>,
+  Cabe<Completo<S["MeshHistoryResult"]>, Laxo<ui.MeshHistoryResult>>,
+  Cabe<Completo<S["MeshHistoryStep"]>, Laxo<ui.MeshHistoryStep>>,
+  Cabe<Completo<S["NeckDetailResult"]>, ui.NeckDetailResult>,
+  Cabe<Completo<S["OnboardingState"]>, ui.OnboardingState>,
+  Cabe<Completo<S["ParentLumenSection"]>, ui.ParentLumenSection>,
+  Cabe<Completo<S["PatientActivity"]>, ui.PatientActivity>,
+  Cabe<Completo<S["PatientMatch"]>, Laxo<ui.PatientMatch>>,
+  Cabe<Completo<S["PlacedClipState"]>, ui.PlacedClipState>,
+  Cabe<Completo<S["PlacedClipsState"]>, ui.PlacedClipsState>,
+  Cabe<Completo<S["SegmentResult"]>, Laxo<ui.SegmentResult>>,
+  Cabe<Completo<S["SessionIdentity"]>, Laxo<ui.SessionIdentity>>,
+  Cabe<Completo<S["StentTresClicsResult"]>, Laxo<ui.StentTresClicsResult>>,
+  Cabe<Completo<S["TreatmentDecisionResult"]>, Laxo<ui.TreatmentDecisionResult>>,
+  Cabe<Completo<S["Veto"]>, ui.Veto>,
+  Cabe<Completo<S["WebOption"]>, Laxo<ui.WebOption>>,
+  Cabe<Completo<S["WebSacDims"]>, Laxo<ui.WebSacDims>>,
+  Cabe<Completo<S["WebSizingResult"]>, Laxo<ui.WebSizingResult>>,
 ];
 
-/* Fuera de la comprobación, a propósito:
+/** Lo que la interfaz ENVÍA tiene que caber en lo que el servidor acepta: la
+ *  dirección contraria a la de una respuesta. */
+type Envia<Interfaz extends Partial<Servidor>, Servidor> = [Interfaz, Servidor];
+/** El esquema marca obligatorios los campos con valor por defecto, que la
+ *  interfaz no tiene por qué mandar: de ahí el Partial. Lo que sí falla: un
+ *  campo que la interfaz envía y el servidor no conoce (renombrado o quitado). */
+type Nada<T extends never> = T;
 
-   - La interfaz es MÁS ESTRICTA que la API: declara una unión de literales o
-     una pareja donde el esquema solo promete `string` o `number[]`. No es un
-     fallo hoy, pero el servidor podría mandar otro valor sin romper su
-     contrato. Para meterlos aquí hay que estrechar el modelo de Pydantic
-     (Literal[...], tuple[float, float]):
-       ClipSelectionResult, CustomJawOut, DeviceClearResult, FdOption, FdSizingResult, MeshHistoryResult, MeshHistoryStep, SegmentResult, SessionIdentity, TreatmentDecisionResult, WebOption, WebSacDims, WebSizingResult
+export type Peticiones = [
+  Envia<ui.AttachRequest, S["AttachRequest"]>,
+  Nada<Exclude<keyof ui.AttachRequest, keyof S["AttachRequest"]>>,
+  Envia<ui.CaptureCreate, S["CaptureCreate"]>,
+  Nada<Exclude<keyof ui.CaptureCreate, keyof S["CaptureCreate"]>>,
+  Envia<ui.CeilingCompareRequest, S["CeilingCompareRequest"]>,
+  Nada<Exclude<keyof ui.CeilingCompareRequest, keyof S["CeilingCompareRequest"]>>,
+  Envia<ui.CenterlineRequest, S["CenterlineRequest"]>,
+  Nada<Exclude<keyof ui.CenterlineRequest, keyof S["CenterlineRequest"]>>,
+  Envia<ui.ClStentRequest, S["ClStentRequest"]>,
+  Nada<Exclude<keyof ui.ClStentRequest, keyof S["ClStentRequest"]>>,
+  Envia<ui.ClipPlanRequest, S["ClipPlanRequest"]>,
+  Nada<Exclude<keyof ui.ClipPlanRequest, keyof S["ClipPlanRequest"]>>,
+  Envia<ui.CrossSectionRequest, S["CrossSectionRequest"]>,
+  Nada<Exclude<keyof ui.CrossSectionRequest, keyof S["CrossSectionRequest"]>>,
+  Envia<ui.ElapssRequest, S["ElapssRequest"]>,
+  Nada<Exclude<keyof ui.ElapssRequest, keyof S["ElapssRequest"]>>,
+  Envia<ui.ExportRequest, S["ExportRequest"]>,
+  Nada<Exclude<keyof ui.ExportRequest, keyof S["ExportRequest"]>>,
+  Envia<ui.LesionConfirmIn, S["LesionConfirmIn"]>,
+  Nada<Exclude<keyof ui.LesionConfirmIn, keyof S["LesionConfirmIn"]>>,
+  Envia<ui.MeshCropRequest, S["MeshCropRequest"]>,
+  Nada<Exclude<keyof ui.MeshCropRequest, keyof S["MeshCropRequest"]>>,
+  Envia<ui.NeckPlaneRequest, S["NeckPlaneRequest"]>,
+  Nada<Exclude<keyof ui.NeckPlaneRequest, keyof S["NeckPlaneRequest"]>>,
+  Envia<ui.PatientCreate, S["PatientCreate"]>,
+  Nada<Exclude<keyof ui.PatientCreate, keyof S["PatientCreate"]>>,
+  Envia<ui.PatientSharesIn, S["PatientSharesIn"]>,
+  Nada<Exclude<keyof ui.PatientSharesIn, keyof S["PatientSharesIn"]>>,
+  Envia<ui.PhasesRequest, S["PhasesRequest"]>,
+  Nada<Exclude<keyof ui.PhasesRequest, keyof S["PhasesRequest"]>>,
+  Envia<ui.PreprocessRequest, S["PreprocessRequest"]>,
+  Nada<Exclude<keyof ui.PreprocessRequest, keyof S["PreprocessRequest"]>>,
+  Envia<ui.PreviewRequest, S["PreviewRequest"]>,
+  Nada<Exclude<keyof ui.PreviewRequest, keyof S["PreviewRequest"]>>,
+  Envia<ui.PrintPrepRequest, S["PrintPrepRequest"]>,
+  Nada<Exclude<keyof ui.PrintPrepRequest, keyof S["PrintPrepRequest"]>>,
+  Envia<ui.ReportRequest, S["ReportRequest"]>,
+  Nada<Exclude<keyof ui.ReportRequest, keyof S["ReportRequest"]>>,
+  Envia<ui.SavedSessionRenameIn, S["SavedSessionRenameIn"]>,
+  Nada<Exclude<keyof ui.SavedSessionRenameIn, keyof S["SavedSessionRenameIn"]>>,
+  Envia<ui.ScissorsRequest, S["ScissorsRequest"]>,
+  Nada<Exclude<keyof ui.ScissorsRequest, keyof S["ScissorsRequest"]>>,
+  Envia<ui.SegmentRequest, S["SegmentRequest"]>,
+  Nada<Exclude<keyof ui.SegmentRequest, keyof S["SegmentRequest"]>>,
+  Envia<ui.SessionSaveRequest, S["SessionSaveRequest"]>,
+  Nada<Exclude<keyof ui.SessionSaveRequest, keyof S["SessionSaveRequest"]>>,
+  Envia<ui.StentTresClicsRequest, S["StentTresClicsRequest"]>,
+  Nada<Exclude<keyof ui.StentTresClicsRequest, keyof S["StentTresClicsRequest"]>>,
+  Envia<ui.StudyCreate, S["StudyCreate"]>,
+  Nada<Exclude<keyof ui.StudyCreate, keyof S["StudyCreate"]>>,
+  Envia<ui.SuggestCorridorsRequest, S["SuggestCorridorsRequest"]>,
+  Nada<Exclude<keyof ui.SuggestCorridorsRequest, keyof S["SuggestCorridorsRequest"]>>,
+  Envia<ui.TrajectoryRequest, S["TrajectoryRequest"]>,
+  Nada<Exclude<keyof ui.TrajectoryRequest, keyof S["TrajectoryRequest"]>>,
+  Envia<ui.TreatmentDecisionRequest, S["TreatmentDecisionRequest"]>,
+  Nada<Exclude<keyof ui.TreatmentDecisionRequest, keyof S["TreatmentDecisionRequest"]>>,
+  Envia<ui.UiatsRequest, S["UiatsRequest"]>,
+  Nada<Exclude<keyof ui.UiatsRequest, keyof S["UiatsRequest"]>>,
+  Envia<ui.UserUpdate, S["UserUpdate"]>,
+  Nada<Exclude<keyof ui.UserUpdate, keyof S["UserUpdate"]>>,
+  Envia<ui.WorkshopIn, S["WorkshopIn"]>,
+  Nada<Exclude<keyof ui.WorkshopIn, keyof S["WorkshopIn"]>>,
+];
 
-   - Son cuerpos de PETICIÓN, donde la dirección es la contraria (lo que la
-     interfaz envía tiene que caber en lo que el servidor acepta):
-       AnnotationsIn, AttachRequest, LesionConfirmIn, SuggestCorridorsRequest, UserUpdate
-*/
+/* FE-16: todos los tipos que existen con el mismo nombre en el esquema y en
+   types.ts están arriba (contract.cobertura.test.ts lo vigila): las
+   respuestas, en una dirección; las peticiones, en la otra. */

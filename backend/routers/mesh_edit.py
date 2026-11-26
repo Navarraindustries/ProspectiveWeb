@@ -31,6 +31,7 @@ from services.segmentation import (
     level_to_smooth_iters, level_to_cleanup_verts,
 )
 from services.sessions import cerrojo_de_sesion, mesh_url, session_exists, session_subdir, write_state
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["mesh-edit"])
@@ -137,7 +138,7 @@ async def mesh_crop(session_id: str, req: MeshCropRequest) -> MeshCropResult:
         raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
         logger.exception("Mesh crop failed")
-        raise HTTPException(status_code=500, detail=f"Error al recortar la malla: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"Error al recortar la malla", exc))
 
     write_state(session_id, "seg.n_vertices", str(n_after))
     write_state(session_id, "seg.n_faces", str(n_faces))
@@ -361,7 +362,7 @@ async def mesh_restore(session_id: str, req: MeshRestoreRequest) -> MeshRestoreR
         n_vertices, n_faces = await asyncio.to_thread(_mesh_counts, vessel_path)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Could not read the restored mesh")
-        raise HTTPException(status_code=500, detail=f"Error leyendo la malla restaurada: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"Error leyendo la malla restaurada", exc))
 
     write_state(session_id, "seg.n_vertices", str(n_vertices))
     write_state(session_id, "seg.n_faces", str(n_faces))

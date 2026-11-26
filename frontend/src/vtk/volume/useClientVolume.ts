@@ -47,7 +47,7 @@ export function useClientVolume(sid: string | null, meta: VolumeMeta | null, cur
       } catch (err) {
         if (ctrl.signal.aborted) return;
         // Sin el completo se sigue con el grueso; el rótulo lo dirá.
-        setError(err instanceof Error ? err.message : "No se pudo descargar el volumen");
+        setError(err instanceof Error ? err.message : "No se pudo descargar el volumen. Vuelve a intentarlo.");
         setProgress(null);
       }
     })();

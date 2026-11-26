@@ -111,7 +111,7 @@ export function ColumnaMarca({ alLogo, pegada = false }: { alLogo?: () => void; 
         <span style={{ alignSelf: "flex-start", display: "inline-flex", color: "var(--on-media)" }}>{logo}</span>
       )}
       <div aria-hidden style={{ width: 48, height: 2, background: "var(--primary)" }} />
-      <p style={{ margin: 0, color: "var(--on-media)", fontSize: "clamp(32px, 3.3vw, 48px)", fontWeight: 700, letterSpacing: "var(--tracking-title)", lineHeight: 1.06, textWrap: "balance", textShadow: "var(--on-media-shadow)" }}>
+      <p style={{ margin: 0, color: "var(--on-media)", fontSize: "clamp(32px, 3.3vw, 48px)", fontWeight: 600, letterSpacing: "var(--tracking-title)", lineHeight: 1.06, textWrap: "balance", textShadow: "var(--on-media-shadow)" }}>
         {LEMA}
       </p>
       <p style={{ margin: 0, color: "var(--on-media-muted)", fontSize: 18, lineHeight: 1.5, textShadow: "var(--on-media-shadow)" }}>

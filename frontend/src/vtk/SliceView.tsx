@@ -406,7 +406,9 @@ export function SliceView(p: SliceViewProps) {
       onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp}
       onMouseLeave={() => { drag.current = null; }} onKeyDown={onKey} onDoubleClick={onDoubleClick}
       style={{ position: "relative", width: "100%", height: "100%", background: "var(--viewer-bg)", overflow: "hidden", cursor: "crosshair", outline: "none" }}
-      title={"Rueda o flechas: corte · Ctrl+rueda: zoom · Arrastrar: ventana/nivel · Shift o botón central: desplazar · " + (annotating ? "Clic: punto" : "Clic: centrar")}
+      // UX-15: sin `title`: con el cursor quieto salía un texto largo encima de
+      // la anatomía. Los atajos están en la hoja «?»; aquí, para lectores de pantalla.
+      aria-label={`Corte ${LABEL[p.plane]}. Rueda o flechas: corte · Ctrl+rueda: zoom · Arrastrar: ventana/nivel · Shift o botón central: desplazar · ` + (annotating ? "Clic: punto" : "Clic: centrar")}
     >
       <HudFrame active={p.active} label={LABEL[p.plane]} labelPlane={p.plane}>
         <span className="hud-edge top">{labels.top}</span>

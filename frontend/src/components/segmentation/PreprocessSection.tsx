@@ -107,7 +107,7 @@ export function PreprocessSection() {
       resetDownstream();
       clearAnnotations();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo restaurar el volumen");
+      setError(err instanceof Error ? err.message : "No se pudo restaurar el volumen. Vuelve a intentarlo.");
     } finally {
       setReverting(false);
     }
@@ -133,7 +133,7 @@ export function PreprocessSection() {
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", marginBottom: 4 }}>
                 <input type="checkbox" checked={n4} onChange={(e) => setN4(e.target.checked)} /> Corrección de campo (N4)
               </label>
-              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8, lineHeight: 1.45 }}>
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 8, lineHeight: 1.45 }}>
                 Quita la variación de intensidad de la antena, para que el umbral valga en toda la
                 cabeza. Al segmentar una angio-RM, los vasos se localizan a 1 mm y la malla sale a
                 resolución nativa.
@@ -147,7 +147,7 @@ export function PreprocessSection() {
             <input type="checkbox" checked={clip} disabled={!isHu} onChange={(e) => setClip(e.target.checked)} /> Recorte de HU (−1000…3000)
           </label>
           {!isHu && (
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8, lineHeight: 1.45 }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 8, lineHeight: 1.45 }}>
               No aplicable a {series?.modality || "esta modalidad"}: sus intensidades no son
               unidades Hounsfield y el recorte aplanaría todo lo que supere 3000, que es
               justo donde está el contraste.
@@ -157,7 +157,7 @@ export function PreprocessSection() {
             <input type="checkbox" checked={isoOn} disabled={alreadyIso} onChange={(e) => setIso(e.target.checked)} /> Remuestreo isotrópico
           </label>
           {alreadyIso && minSp != null && (
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8, lineHeight: 1.45 }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 8, lineHeight: 1.45 }}>
               El volumen ya es isotrópico ({mmEs(minSp)} mm)
             </div>
           )}
@@ -165,7 +165,7 @@ export function PreprocessSection() {
             <div style={{ marginBottom: 8 }}>
               <Slider label="Tamaño de vóxel objetivo" min={0.2} max={2} step={0.1} value={target} onChange={setTarget} unit=" mm" />
               {minSp != null && target > minSp + 1e-6 && (
-                <div style={{ fontSize: 11, color: "var(--warning)", marginTop: -2, lineHeight: 1.45 }}>
+                <div style={{ fontSize: 12, color: "var(--warning)", marginTop: -2, lineHeight: 1.45 }}>
                   Baja la resolución de {mmEs(minSp)} a {mmEs(target)} mm
                 </div>
               )}
@@ -187,7 +187,7 @@ export function PreprocessSection() {
             </div>
           )}
           {applied && (
-            <div style={{ fontSize: 11, color: "var(--warning)", background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 35%, transparent)", borderRadius: "var(--radius-md)", padding: "8px 12px", marginBottom: 10, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, color: "var(--warning)", background: "var(--warning-bg)", border: "1px solid color-mix(in srgb, var(--warning) 35%, transparent)", borderRadius: "var(--radius-md)", padding: "8px 12px", marginBottom: 10, lineHeight: 1.5 }}>
               Este volumen ya está preprocesado ({applied}). Restaurarlo lo reconstruye
               desde el DICOM original de la sesión.
             </div>

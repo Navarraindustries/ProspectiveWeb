@@ -12,7 +12,7 @@ import vtkImageSlice from "@kitware/vtk.js/Rendering/Core/ImageSlice";
 import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
 import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import type { VolumeMeta } from "../api/types";
-import { usePlanning } from "../store/planning";
+import { useCursor, usePlanning } from "../store/planning";
 import type { Vec3 } from "./geometry";
 import {
   AZIMUTH_RANGE, ELEVATION_RANGE, clampOffsetToBox, clipPolygon, normalOf, originOf, rightOf, upOf, type FreePlane,
@@ -52,7 +52,8 @@ export function ObliqueView({ image, meta, wc, ww, onWindowLevel, onWindowLevelR
    *  como `registerCapture`: el visor no ve la cámara de cada celda. */
   registerFit?: (fn: (() => void) | null) => void;
 }) {
-  const { mprVoxel, freePlane, setFreePlane } = usePlanning();
+  const { freePlane, setFreePlane } = usePlanning();
+  const { mprVoxel } = useCursor();
   // Por ref: cambiar de destinatario no puede rehacer la escena.
   const registerCaptureRef = useRef(registerCapture);
   registerCaptureRef.current = registerCapture;

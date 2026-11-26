@@ -111,3 +111,16 @@ class TestInformeDicomEnSuEstudio:
         serie = ds.CurrentRequestedProcedureEvidenceSequence[0].ReferencedSeriesSequence[0]
         assert serie.SeriesInstanceUID == "1.2.3.4"
         assert [r.ReferencedSOPInstanceUID for r in serie.ReferencedSOPSequence] == ["1.2.3.4.1", "1.2.3.4.2"]
+
+
+class TestErroresSinExcepcion:
+    def test_un_fallo_interno_no_ensena_la_excepcion_y_da_referencia(self, caplog):
+        from services.errores import mensaje_error
+        texto = mensaje_error("No se pudo medir", KeyError("vtkPolyData interno"))
+        assert "vtkPolyData" not in texto and "referencia" in texto
+        assert any("vtkPolyData" in r.getMessage() or "vtkPolyData" in str(r.exc_info) for r in caplog.records)
+
+    def test_un_valueerror_nuestro_se_ensena(self):
+        from services.errores import mensaje_error
+        assert mensaje_error("No se pudo importar el clip", ValueError("la malla no es cerrada")) == \
+            "No se pudo importar el clip: la malla no es cerrada"

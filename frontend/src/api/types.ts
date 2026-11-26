@@ -125,7 +125,7 @@ export interface UserAdminInfo {
 
 export interface UserUpdate {
   full_name?: string;
-  role?: string;
+  role?: import("../lib/roles").Rol;   // los que acepta el servidor
   is_active?: boolean;
   specialty?: string;
   hospital?: string;

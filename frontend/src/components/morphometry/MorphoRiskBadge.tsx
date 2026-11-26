@@ -5,6 +5,7 @@
    heurística de los índices de forma (F1-68, F1-151). */
 
 import { Badge, riskVariant } from "../Badge";
+import { Explica } from "../Explica";
 
 /** El criterio que decide la etiqueta (backend/services/morphometrics.py, rupture_risk).
  *  Los cortes son los de thresholds.ts: los mismos que las insignias (F1-161). */
@@ -34,9 +35,9 @@ export function MorphoRiskBadge({ label, measured = true, corto = false }: {
 }) {
   if (!measured) {
     return (
-      <span title="Sin índices de forma medidos no hay etiqueta: marca el cuello para medir el saco.">
+      <Explica texto="Sin índices de forma medidos no hay etiqueta: marca el cuello para medir el saco.">
         <Badge variant="outline">Sin medir</Badge>
-      </span>
+      </Explica>
     );
   }
   return (

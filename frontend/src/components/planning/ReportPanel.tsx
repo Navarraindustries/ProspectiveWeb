@@ -288,7 +288,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
             />
             {/* Se leía como el riesgo de rotura del PHASES; es una etiqueta de
                 forma. La misma distinción que hace el PDF (F1-234). */}
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", padding: "4px 0 6px", lineHeight: 1.45 }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", padding: "4px 0 6px", lineHeight: 1.45 }}>
               Etiqueta de forma (AR, DNR, ondulación, elipticidad, cociente de tamaño), sin validar como
               predicción de rotura; no es el PHASES
             </div>
@@ -297,7 +297,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
         <Metric label="Abordaje" value={planning.trajSaved ? approachSummary(planning.trajSaved) : "—"} />
         <Metric label="Dispositivo elegido" value={strategySummary(devices)} />
         {devices && !devices.strategy && evaluatedSummary(devices.placed_counts) && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", padding: "4px 0 6px", lineHeight: 1.45 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", padding: "4px 0 6px", lineHeight: 1.45 }}>
             Sin estrategia marcada, el informe los lista como evaluados, no como el plan.
             Márcala en Dispositivos, «Estrategia del equipo».
           </div>
@@ -338,7 +338,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
           {busy === "pdf" ? "Generando…" : stale("pdf") ? "Regenerar informe PDF" : "Generar informe PDF"}
         </Button>
         {!surgeon.trim() && (
-          <div style={{ fontSize: 11.5, color: "var(--muted-foreground)", textAlign: "center" }}>
+          <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", textAlign: "center" }}>
             Escribe el cirujano responsable
           </div>
         )}
@@ -385,7 +385,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
           {busy === "seg" ? "Generando…" : stale("seg") ? "Regenerar DICOM SEG" : "Generar DICOM SEG (segmentación)"}
         </Button>
         {seg?.warnings.map((w) => (
-          <div key={w} style={{ fontSize: 11.5, color: "var(--warning)", lineHeight: 1.5 }}>{w}</div>
+          <div key={w} style={{ fontSize: 12.5, color: "var(--warning)", lineHeight: 1.5 }}>{w}</div>
         ))}
         {seg?.seg_url && (
           <OutputLink href={seg.seg_url} stale={stale("seg")} download="prospective-segmentacion.dcm">
@@ -403,7 +403,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
 
       {/* F1-240: lo prometía siempre, también en una sesión sin caso, que se
           guarda suelta y no queda ligada a ningún paciente. */}
-      <div style={{ marginTop: 14, textAlign: "center", fontSize: 11, color: "var(--muted-foreground)" }}>
+      <div style={{ marginTop: 14, textAlign: "center", fontSize: 12, color: "var(--muted-foreground)" }}>
         {caseId != null
           ? "La sesión se vincula al paciente y estudio en la base de datos."
           : "Sin caso, la sesión se guarda suelta: con «Adjuntar a un caso» queda ligada al paciente"}

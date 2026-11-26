@@ -159,7 +159,7 @@ export function AttachCaseSheet({
       onAttached(r);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : mover ? "No se pudo mover" : "No se pudo adjuntar");
+      setError(e instanceof Error ? e.message : mover ? "No se pudo mover. Vuelve a intentarlo." : "No se pudo adjuntar. Vuelve a intentarlo.");
     } finally {
       setBusy(false);
     }

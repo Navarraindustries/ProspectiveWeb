@@ -17,6 +17,7 @@ import { useMovil, useTableta } from "../hooks/useEstrecho";
 import { atraparTab } from "../lib/atraparFoco";
 import { glass } from "../styles/glass";
 import { Icon } from "./Icon";
+import { destinoCapa } from "../lib/destinoCapa";
 
 /** Las fichas abiertas, de abajo arriba. La ficha del paciente abre encima la
     del caso; con las dos escuchando Escape en `document`, una sola pulsación
@@ -174,6 +175,6 @@ export function Sheet({
         </CapaHoja>
       )}
     </AnimatePresence>,
-    document.body,
+    destinoCapa(),
   );
 }

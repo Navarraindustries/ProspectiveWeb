@@ -98,7 +98,7 @@ function WorkshopSheet({ open, workshop, onClose, onSaved }: {
       : api.addWorkshop(form);
     done
       .then(() => { onSaved(); onClose(); })
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo guardar el taller"))
+      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo guardar el taller. Vuelve a intentarlo."))
       .finally(() => setBusy(false));
   };
 
@@ -188,7 +188,7 @@ export function WorkshopsPage() {
     api.deleteWorkshop(toDelete.id)
       .then(() => { setToDelete(null); load(); })
       .catch((e) => {
-        setError(e instanceof Error ? e.message : "No se pudo borrar el taller");
+        setError(e instanceof Error ? e.message : "No se pudo borrar el taller. Vuelve a intentarlo.");
         setToDelete(null);
       })
       .finally(() => setDeleting(false));

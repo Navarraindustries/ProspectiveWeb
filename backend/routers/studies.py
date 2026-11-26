@@ -28,6 +28,7 @@ from services.db_models import (CaseCapture, ImagingStudy, LesionConfirmation, P
 from services.sessions import create_session, has_saved_session, session_subdir
 from services.storage import get_storage
 from services.study_archive import archive_session_dicom, restore_study_to_session
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/studies", tags=["studies"])
@@ -145,7 +146,7 @@ async def get_thumbnail(
     try:
         data = get_storage().get_bytes(img.thumb_key)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=404, detail=f"Vista previa no disponible: {exc}")
+        raise HTTPException(status_code=404, detail=mensaje_error(f"Vista previa no disponible", exc))
     # Private: it is patient imaging, so never let a shared cache keep it.
     return Response(content=data, media_type="image/png",
                     headers={"Cache-Control": "private, max-age=300"})
@@ -250,7 +251,7 @@ async def archive_study(
         raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
         logger.exception("Archive failed")
-        raise HTTPException(status_code=500, detail=f"No se pudo archivar el estudio: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudo archivar el estudio", exc))
 
     audit_append(ACT_STUDY_ARCHIVED, {"case": case_id, "imaging_study": img.id, "session_id": session_id,
                                       "files": img.n_files},
@@ -292,10 +293,10 @@ async def open_study(
         raise HTTPException(status_code=409, detail=str(exc))
     except OSError as exc:
         logger.exception("Open study failed (filesystem)")
-        raise HTTPException(status_code=507, detail=f"No se pudo abrir el estudio: {exc}")
+        raise HTTPException(status_code=507, detail=mensaje_error(f"No se pudo abrir el estudio", exc))
     except Exception as exc:  # noqa: BLE001
         logger.exception("Open study failed")
-        raise HTTPException(status_code=500, detail=f"No se pudo abrir el estudio: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudo abrir el estudio", exc))
 
     # Scan + activate a series, exactly like an upload: without this the session
     # has no `dicom.series_id`, so the volume loader would lump every file into
@@ -307,7 +308,7 @@ async def open_study(
         raw = await asyncio.to_thread(scan_series, session_subdir(sid, "dicom"))   # ver routers/upload.py
     except Exception as exc:  # noqa: BLE001
         logger.exception("Series scan failed on open")
-        raise HTTPException(status_code=500, detail=f"No se pudieron leer las series: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudieron leer las series", exc))
 
     series_list = _build_series_list(sid, raw)
     if not series_list:
@@ -364,7 +365,7 @@ async def delete_imaging_study(
             storage.delete_key(img.thumb_key)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Delete study objects failed")
-        raise HTTPException(status_code=500, detail=f"No se pudo borrar el estudio: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudo borrar el estudio", exc))
     db.query(PlanningSession).filter(PlanningSession.imaging_study_id == img.id).update(
         {"imaging_study_id": None}
     )

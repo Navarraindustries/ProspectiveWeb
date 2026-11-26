@@ -14,7 +14,7 @@ import { PanelHead, ErrorNote, SectionLabel } from "../PanelHead";
 import { ProgressBar } from "../ProgressBar";
 import { DiameterChart } from "./DiameterChart";
 import { candidateNameAt } from "../planning/detectCopy";
-import { usePlanning } from "../../store/planning";
+import { useCursor, usePlanning } from "../../store/planning";
 import { useVolumeMeta } from "../../vtk/useVolumeMeta";
 import { indexAtArc, nearestIndex, planoDeLinea } from "../../vtk/centerlineWalk";
 import { useCenterlineTrack } from "../../vtk/useCenterlineTrack";
@@ -81,9 +81,10 @@ export function CenterlinePanel() {
   const {
     sessionId, segmentation, pickMode, clSource, clTarget, centerlineMesh,
     setPickMode, setClSource, setClTarget, setCenterlineMesh, setCenterlineArcMm,
-    clearDeviceMeshes, centerline, setCenterline, focusPoint, setFocusMm, setFreePlane, volumeVersion,
+    clearDeviceMeshes, centerline, setCenterline, setFreePlane, volumeVersion,
     deviceMeshes, recorridoVaso, setRecorridoVaso, allCandidates, candidates, rejectedCandidates, selectedCandidate, morphometry,
   } = usePlanning();
+  const { focusPoint, setFocusMm } = useCursor();
   const { meta } = useVolumeMeta(sessionId, volumeVersion);
 
   const [voxel, setVoxel] = useState("0.8");
@@ -180,7 +181,7 @@ export function CenterlinePanel() {
       // device silently vanish from the devices step.
       if (r.removed.includes("cl_stent.vtp")) clearDeviceMeshes("stent");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo borrar la línea central del servidor");
+      setError(err instanceof Error ? err.message : "No se pudo borrar la línea central del servidor. Vuelve a intentarlo.");
     } finally {
       setClearing(false);
     }
@@ -245,7 +246,7 @@ export function CenterlinePanel() {
         {pickBtn("cl_source", "Marcar origen", !!clSource)}
         {pickBtn("cl_target", "Destino (opcional)", !!clTarget)}
       </div>
-      <div style={{ display: "flex", gap: 8, fontSize: 11, fontFamily: "var(--font-mono)", marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: 8, fontSize: 12, fontFamily: "var(--font-mono)", marginBottom: 14 }}>
         <span style={{ flex: 1, color: clSource ? "var(--success)" : "var(--muted-foreground)" }}>{fmt(clSource)}</span>
         <span style={{ flex: 1, color: clTarget ? "var(--destructive)" : "var(--muted-foreground)", textAlign: "right" }}>
           {clTarget ? fmt(clTarget) : lesion ? `Dentro ${lesion}` : fmt(null)}
@@ -260,7 +261,7 @@ export function CenterlinePanel() {
             onClick={() => setVoxel(r.value)}
             disabled={busy}
             style={{
-              flex: 1, padding: "7px 4px", fontSize: 11, cursor: busy ? "not-allowed" : "pointer",
+              flex: 1, padding: "7px 4px", fontSize: 12, cursor: busy ? "not-allowed" : "pointer",
               borderRadius: "var(--radius-md)", border: "1px solid var(--border)",
               background: voxel === r.value ? "var(--brand-subtle)" : "transparent",
               color: voxel === r.value ? "var(--brand-subtle-foreground)" : "var(--muted-foreground)",
@@ -299,7 +300,7 @@ export function CenterlinePanel() {
 
       {busy && (
         <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 6 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 6 }}>
             Voxelizando y trazando el eje medial… (puede tardar según el tamaño del vaso)
           </div>
           <ProgressBar marca />
@@ -330,11 +331,11 @@ export function CenterlinePanel() {
               value={result.mean_curvature_per_mm != null ? (
                 <>
                   {cifra(result.mean_curvature_per_mm, 3)}
-                  <span style={{ color: "var(--muted-foreground)", fontSize: 11 }}> /mm</span>
+                  <span style={{ color: "var(--muted-foreground)", fontSize: 12 }}> /mm</span>
                   {result.mean_curvature_radius_mm != null && (
                     <>
                       {" · R "}{cifra(result.mean_curvature_radius_mm, 1)}
-                      <span style={{ color: "var(--muted-foreground)", fontSize: 11 }}> mm</span>
+                      <span style={{ color: "var(--muted-foreground)", fontSize: 12 }}> mm</span>
                     </>
                   )}
                 </>
@@ -408,7 +409,7 @@ export function CenterlinePanel() {
                   <Badge variant={stenosisVariant(xs.stenosis_label)}>{xs.stenosis_label}</Badge>
                 </div>
                 {xs.stenosis_note && (
-                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, margin: "-4px 0 8px" }}>
+                  <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, margin: "-4px 0 8px" }}>
                     {xs.stenosis_note}
                   </div>
                 )}

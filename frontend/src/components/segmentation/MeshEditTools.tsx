@@ -303,7 +303,7 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
     } catch (e) {
       setScissorsPreview(null);
       setTijeraSaldo(null);
-      setTijeraAviso(e instanceof Error ? e.message : "No se pudo calcular el corte");
+      setTijeraAviso(e instanceof Error ? e.message : "No se pudo calcular el corte. Vuelve a intentarlo.");
     } finally {
       setTijeraOcupada(false);
     }
@@ -335,7 +335,7 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
       setNote(`Cortado: ${r.removed_vertices.toLocaleString("es")} vértices fuera, ${r.kept_vertices.toLocaleString("es")} en la malla.`);
       refreshHistory();
     } catch (e) {
-      setTijeraAviso(e instanceof Error ? e.message : "No se pudo cortar");
+      setTijeraAviso(e instanceof Error ? e.message : "No se pudo cortar. Vuelve a intentarlo.");
     } finally {
       setTijeraOcupada(false);
     }
@@ -362,10 +362,10 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
           separadas, un clic basta: pintar sobre ellas dejaría bordes a medio
           borrar y no haría nada que esto no haga. */}
       <Card>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 4 }}>
           Borrador
         </div>
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
           Haz clic en el visor y desaparece. <b>Pieza suelta</b> quita la estructura
           entera de un clic, que es como viene el ruido de una malla angiográfica.
           <b> Región pegada</b> sirve cuando el hueso TOCA la vasculatura y por eso forma
@@ -401,7 +401,7 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
           <div style={{ marginBottom: 8 }}>
             <Slider label="Radio del borrado" min={2} max={40} value={eraseRadius}
                     onChange={setEraseRadius} unit=" mm" />
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 4 }}>
               El radio se mide en línea recta desde el clic, pero el borrado se
               propaga <b>por la superficie</b>: un vaso que cruza esa bola pero
               se une a la vasculatura por fuera de ella no se toca. Eso es lo que el
@@ -424,7 +424,7 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
             : "Activar borrador"}
         </button>
         {eraseMsg && (
-          <div style={{ fontSize: 11, lineHeight: 1.5, marginTop: 8, color: "var(--muted-foreground)" }}>
+          <div style={{ fontSize: 12, lineHeight: 1.5, marginTop: 8, color: "var(--muted-foreground)" }}>
             {eraseMsg}
             {eraseLeft !== null && <> Quedan {eraseLeft} {eraseLeft === 1 ? "pieza" : "piezas"}.</>}
           </div>
@@ -441,10 +441,10 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
           nada de salida— y cada eje se cierra por los dos lados. Se ve, y las
           tres dimensiones están a la vez. */}
       <Card>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 4 }}>
           Caja de recorte
         </div>
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
           La caja empieza envolviendo toda la malla. <b>Cierra cada eje por donde
           quieras</b> y mira el visor: la caja amarilla es lo que se conserva, y
           lo de fuera desaparece en el momento. «Recortar» solo confirma lo que
@@ -452,7 +452,7 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
         </div>
 
         {!bounds && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
             Cargando los límites de la malla…
           </div>
         )}
@@ -471,7 +471,7 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
               const paso = Math.max(0.1, Math.round((hi - lo) / 200 * 10) / 10);
               return (
                 <div key={eje} style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--foreground)", marginBottom: 2 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginBottom: 2 }}>
                     Eje {eje.toUpperCase()}
                   </div>
                   <Slider
@@ -507,7 +507,7 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
               </Button>
             </div>
             {!cajaRecorta && (
-              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 6 }}>
                 La caja envuelve la malla entera: no hay nada que recortar todavía.
               </div>
             )}
@@ -517,10 +517,10 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
 
       {/* ── ROI crop ────────────────────────────────────────────────────── */}
       <Card>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 4 }}>
           Recortar malla (ROI)
         </div>
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 10 }}>
           Elige un centro y conserva o elimina la geometría dentro de una esfera.
           Para recortar por una caja con los seis límites a la vista, usa la «Caja de recorte» de arriba.
         </div>
@@ -561,7 +561,7 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
       {/* ── La tijera ─────────────────────────────────────────────────── */}
       <Card style={{ marginTop: 12 }}>
         <SectionLabel style={{ marginBottom: 6 }}>Tijera</SectionLabel>
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 8 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 8 }}>
           Marca puntos <b>rodeando</b> la arteria, como los del borde del cuello, y
           la malla se secciona por ahí. Nada se corta hasta que veas en rojo lo
           que se va.
@@ -585,7 +585,7 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
         </div>
 
         {scissorsPoints.length > 0 && scissorsPoints.length < 3 && (
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 8 }}>
             Faltan {3 - scissorsPoints.length} puntos: con menos de tres no hay
             plano que ajustar.
           </div>
@@ -612,14 +612,14 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
 
         {tijeraSaldo && (
           <>
-            <div style={{ marginTop: 8, fontSize: 11, fontFamily: "var(--font-mono)",
+            <div style={{ marginTop: 8, fontSize: 12, fontFamily: "var(--font-mono)",
                           color: "var(--muted-foreground)" }}>
               {tijeraSaldo.separa
                 ? <>en rojo se van {tijeraSaldo.quita.toLocaleString("es")} vértices · quedan {tijeraSaldo.deja.toLocaleString("es")}</>
                 : <>en rojo, el tajo</>}
             </div>
             {!tijeraSaldo.separa && (
-              <div style={{ marginTop: 6, fontSize: 11, lineHeight: 1.5, color: "var(--foreground)" }}>
+              <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.5, color: "var(--foreground)" }}>
                 El vaso queda <b>cortado</b>, pero sus dos extremos siguen unidos
                 por otro camino —un lazo, una anastomosis o dos vasos que se
                 tocan—, así que no se desprende nada. Para quitar ese tramo,
@@ -639,7 +639,7 @@ export function MeshEditTools({ sinCabecera = false }: { sinCabecera?: boolean }
         )}
 
         {tijeraAviso && (
-          <div style={{ marginTop: 8, fontSize: 11, color: "var(--destructive)", lineHeight: 1.5 }}>
+          <div style={{ marginTop: 8, fontSize: 12, color: "var(--destructive)", lineHeight: 1.5 }}>
             {tijeraAviso}
           </div>
         )}

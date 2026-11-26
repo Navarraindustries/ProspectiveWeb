@@ -475,7 +475,7 @@ describe("F1-175: el JSDB, veredicto arriba y WFNS antes de evaluar", () => {
     const veredicto = screen.getByText("Clipaje quirúrgico sale menos penalizado.");
     const via = screen.getByText("Clipaje quirúrgico");
     expect(veredicto.compareDocumentPosition(via) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(veredicto).toHaveStyle({ fontWeight: "700" });
+    expect(veredicto).toHaveStyle({ fontWeight: "600" });   // UX-23: el máximo de la escala
   });
 });
 
@@ -484,7 +484,8 @@ describe("F1-177: la confianza baja dice por qué", () => {
     stored = { ...RESULT, confidence: "Baja", confidence_reason: "los factores empujan en sentidos opuestos" };
     render(<TreatmentPanel onNext={() => {}} />);
     expect(screen.getByText("Confianza baja: los factores empujan en sentidos opuestos")).toBeInTheDocument();
-    expect(screen.getByText("100 % de los datos")).toHaveAttribute(
+    // UX-16: la explicación va en el envoltorio (texto emergente + botón ⓘ).
+    expect(screen.getByText("100 % de los datos").closest(".explica")).toHaveAttribute(
       "title", "Parte de los datos del caso que este motor ha podido evaluar");
   });
 });

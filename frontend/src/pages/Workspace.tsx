@@ -256,7 +256,7 @@ export function Workspace({
       return true;
     } catch (e) {
       setSaving("idle");
-      setSaveError(e instanceof Error ? e.message : "No se pudo guardar el progreso");
+      setSaveError(e instanceof Error ? e.message : "No se pudo guardar el progreso. Vuelve a intentarlo.");
       return false;
     }
   };

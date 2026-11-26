@@ -37,6 +37,7 @@ from services.dicom_sr import DicomSRGenerator
 from services.mesh_exporter import export_stl, merge_poly_datas, apply_scale
 from services.segmentation import read_vtp
 from services.isolated import CalculoCaido, run_isolated
+from services.errores import mensaje_error
 
 logger  = logging.getLogger(__name__)
 router  = APIRouter(prefix="/api", tags=["report"])
@@ -195,7 +196,7 @@ async def generate_report(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Report generation failed for session %s", req.session_id)
-        raise HTTPException(status_code=500, detail=f"No se pudo generar el informe: {exc}") from exc
+        raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudo generar el informe", exc)) from exc
 
     # Build the page count from the file (reportlab writes it as part of the PDF)
     # We can get an approximate page count by reading the PDF trailer — simpler:
@@ -328,7 +329,7 @@ async def generate_dicom_sr(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("DICOM SR generation failed for session %s", req.session_id)
-        raise HTTPException(status_code=500, detail=f"No se pudo generar el DICOM SR: {exc}") from exc
+        raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudo generar el DICOM SR", exc)) from exc
 
     sr_url = _versioned(f"/data/sessions/{req.session_id}/reports/{req.session_id}_sr.dcm")
     write_state(req.session_id, SR_SIGNATURE_KEY, firma)
@@ -428,7 +429,7 @@ async def export_stl_endpoint(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("STL export failed for session %s", req.session_id)
-        raise HTTPException(status_code=500, detail=f"No se pudo exportar el STL: {exc}") from exc
+        raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudo exportar el STL", exc)) from exc
 
     stl_url = _versioned(f"/data/sessions/{req.session_id}/exports/{req.session_id}_export.stl")
 
@@ -535,7 +536,7 @@ async def export_dicom_seg(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("DICOM SEG failed for session %s", session_id)
-        raise HTTPException(status_code=500, detail=f"No se pudo generar el DICOM SEG: {exc}") from exc
+        raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudo generar el DICOM SEG", exc)) from exc
 
     from services.audit import ACT_SEG_GENERATED, audit_append
     audit_append(ACT_SEG_GENERATED, {

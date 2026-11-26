@@ -4,7 +4,8 @@
    `AUTOCIERRE_MS` (auditoría F3: se quedaban tapando el visor hasta que se
    pulsaban). Los textos y roles (`alert`/`status`) los pone quien avisa. */
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "./Icon";
 import { glide, glideTransition, motion, useReducedMotion } from "../motion";
 import { glass } from "../styles/glass";
@@ -63,11 +64,24 @@ function useAutocierre(items: ToastItem[]) {
   };
 }
 
+/** UX-6: en pantalla completa (modo presentación) solo se pinta la escena; el
+ *  aviso se monta dentro de ella para que se vea. */
+function usePantallaCompleta(): Element | null {
+  const [el, setEl] = useState<Element | null>(() => (typeof document !== "undefined" ? document.fullscreenElement : null));
+  useEffect(() => {
+    const f = () => setEl(document.fullscreenElement);
+    document.addEventListener("fullscreenchange", f);
+    return () => document.removeEventListener("fullscreenchange", f);
+  }, []);
+  return el;
+}
+
 export function ToastStack({ items, top, right }: { items: ToastItem[]; top: number; right: number }) {
   const reducido = useReducedMotion();
   const { pausar, seguir } = useAutocierre(items);
+  const pantallaCompleta = usePantallaCompleta();
   if (items.length === 0) return null;
-  return (
+  const pila = (
     <div
       style={{
         position: "absolute", zIndex: "var(--capa-aviso)", top, left: 0, right,
@@ -116,4 +130,5 @@ export function ToastStack({ items, top, right }: { items: ToastItem[]; top: num
       ))}
     </div>
   );
+  return pantallaCompleta ? createPortal(pila, pantallaCompleta) : pila;
 }

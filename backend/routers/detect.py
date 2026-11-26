@@ -46,6 +46,7 @@ from services.numero import cifra
 from services.perforator_risk import neck_origin_from_morpho
 from services.segmentation import read_vtp, write_vtp
 from services import progress
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["detection"])
@@ -461,7 +462,7 @@ async def detect_aneurysm(
     except Exception as exc:
         logger.error("Detection failed for session %s: %s", session_id, exc, exc_info=True)
         progress.finish(session_id, ok=False, message=str(exc) or type(exc).__name__)
-        raise HTTPException(status_code=500, detail=f"La detección falló: {exc}") from exc
+        raise HTTPException(status_code=500, detail=mensaje_error(f"La detección falló", exc)) from exc
 
     progress.finish(session_id, ok=True)
     return result
@@ -1325,7 +1326,7 @@ async def get_morphometry(
         )
     except Exception as exc:
         logger.error("Morphometry failed for session %s: %s", session_id, exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"La morfometría falló: {exc}") from exc
+        raise HTTPException(status_code=500, detail=mensaje_error(f"La morfometría falló", exc)) from exc
 
     result.candidate_id = measured_id
     # «Reanudar» repite esta ruta: la localización vuelve con la medida.
@@ -1477,7 +1478,7 @@ async def morphometry_neck_plane(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("Neck-plane morphometry failed for %s: %s", session_id, exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"La morfometría falló: {exc}") from exc
+        raise HTTPException(status_code=500, detail=mensaje_error(f"La morfometría falló", exc)) from exc
 
     # El candidato que mide este plano pasa a ser el elegido. Con uno
     # detectado ya lo era (GET /morphometry lo guardó); con uno marcado a mano

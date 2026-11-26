@@ -44,7 +44,7 @@ export function ChangePasswordSheet({ open, onClose }: { open: boolean; onClose:
       setDone(true);
       setTimeout(close, 1600);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cambiar la contraseña");
+      setError(e instanceof Error ? e.message : "No se pudo cambiar la contraseña. Vuelve a intentarlo.");
     } finally {
       setBusy(false);
     }

@@ -71,7 +71,7 @@ export function coordMm(p: readonly [number, number, number]): string {
    dónde quedó. */
 function MarkCoord({ p, color, what }: { p: readonly [number, number, number]; color: Rgb; what: string }) {
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
       <span role="img" aria-label={`Color de la marca de ${what}`}
             style={{ width: 10, height: 10, borderRadius: "50%", background: rgbCss(color), flexShrink: 0 }} />
       {coordMm(p)}
@@ -144,7 +144,7 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
     } catch (e) {
       // Sin guardar, el PDF y la sesión siguen con la anterior, y el selector
       // vuelve a ella para no enseñar una que no está guardada.
-      setError(e instanceof Error ? e.message : "No se pudo guardar la localización");
+      setError(e instanceof Error ? e.message : "No se pudo guardar la localización. Vuelve a intentarlo.");
     } finally {
       setSitePending(null);
       setSiteBusy(false);
@@ -278,7 +278,7 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
           {mr?.neck_source === "rim" && <> <Badge variant="success">ajustado al borde</Badge></>}
         </div>
       </div>
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 10 }}>
         {!mr
           ? "Marca el cuello y el ápice del domo sobre el modelo 3D para medir sobre un saco cerrado."
           : mr.neck_source === "rim"
@@ -334,7 +334,7 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
             >
               Marcar borde del cuello
             </Button>
-            <span style={{ alignSelf: "center", fontSize: 11, color: "var(--muted-foreground)" }}>
+            <span style={{ alignSelf: "center", fontSize: 12, color: "var(--muted-foreground)" }}>
               {`${neckRim.length} ${neckRim.length === 1 ? "punto" : "puntos"} de borde`}
             </span>
           </>
@@ -358,7 +358,7 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
           {neckBusy ? "Midiendo…" : "Medir saco cerrado"}
         </Button>
       </div>
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
         {usesRim
           ? `El plano se ajustará a los ${neckRim.length} puntos del borde: la orientación sale de la anatomía en vez de suponerse perpendicular al eje del domo.`
           : neckRim.length > 0
@@ -366,7 +366,7 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
             : "Con un solo punto de cuello el plano se supone perpendicular al eje del domo. Si el cuello es oblicuo —típico en bifurcaciones— marca varios puntos de su borde."}
       </div>
       {pickMode === "neck_origin" && (
-        <div role="status" style={{ fontSize: 11, color: "var(--foreground)", marginTop: 6 }}>
+        <div role="status" style={{ fontSize: 12, color: "var(--foreground)", marginTop: 6 }}>
           Haz clic en la unión del saco con el vaso
         </div>
       )}
@@ -470,7 +470,7 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
                 if (planning.treatment) setAskingSite(next); else void changeSite(next);
               }}
             />
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
               La usan PHASES, ELAPSS, UIATS, la decisión terapéutica y el informe.
             </div>
             {siteNotice && (
@@ -494,7 +494,7 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
                           badge={provisional ? ["provisional", "warning"] : undefined} />
                 </div>
                 {avisoCorte && (
-                  <div style={{ fontSize: 11, lineHeight: 1.5, color: "var(--warning)", margin: "4px 0 6px" }}>
+                  <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--warning)", margin: "4px 0 6px" }}>
                     {avisoCorte}
                   </div>
                 )}
@@ -549,7 +549,7 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
                     value={riskMeasured ? m.rupture_risk_label : "Sin medir"}
                     badge={riskMeasured ? undefined : ["sin medir", "outline"]}
                   />
-                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, margin: "4px 0 6px" }}>
+                  <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, margin: "4px 0 6px" }}>
                     {MORPHO_RISK_CRITERIA}
                   </div>
                 </div>
@@ -579,7 +579,7 @@ export function MorphometryPanel({ onNext, children }: { onNext: () => void; chi
                   />
                 </div>
                 {m.sr > 0 && m.neck_source === "auto" && (
-                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, margin: "-2px 0 8px" }}>
+                  <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, margin: "-2px 0 8px" }}>
                     SR orientativo: el cuello está estimado, no marcado. La arteria madre se
                     mide justo bajo el cuello, así que marca el borde para fiarte de esta cifra.
                   </div>

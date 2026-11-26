@@ -15,20 +15,20 @@ import { cifra } from "../../lib/numero";
 function zona(nombre: string, z: FdLandingZone) {
   return (
     <div style={{ flex: 1 }}>
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: ".04em" }}>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: ".04em" }}>
         {nombre}
       </div>
-      <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 700 }}>
+      <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 600 }}>
         {z.diameter_mm > 0 ? `${cifra(z.diameter_mm, 2)} mm` : "sin medir"}
       </div>
       {/* F1-208: el calibre dice dónde se mide. Es la mediana de los cortes
           en el anclaje, no la arteria portadora en el cuello ni la media del
           tramo que da el despliegue: tres cifras distintas del mismo vaso. */}
-      <div style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>
+      <div style={{ fontSize: 12.5, color: "var(--muted-foreground)" }}>
         {`Ø mediano del vaso en el ${nombre.toLowerCase()}`}
       </div>
       {z.diameter_mm > 0 && (
-        <div style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>
+        <div style={{ fontSize: 12.5, color: "var(--muted-foreground)" }}>
           {cifra(z.min_mm, 2)}–{cifra(z.max_mm, 2)} · {z.n_sections} cortes
         </div>
       )}
@@ -55,7 +55,7 @@ export function FdSizing({
     try {
       setR(await api.fdSizing(sessionId));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo dimensionar");
+      setError(e instanceof Error ? e.message : "No se pudo dimensionar. Vuelve a intentarlo.");
     } finally {
       setBusy(false);
     }
@@ -98,7 +98,7 @@ export function FdSizing({
               }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
                   <b style={{ fontSize: 13 }}>{o.name}</b>
-                  <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{o.manufacturer}</span>
+                  <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{o.manufacturer}</span>
                   <div style={{ flex: 1 }} />
                   {o.fits && (
                     <span style={{ fontFamily: "var(--font-mono)", fontSize: 13 }}>
@@ -106,13 +106,13 @@ export function FdSizing({
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 11.5, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>{o.reason}</div>
+                <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>{o.reason}</div>
                 {o.neck_note && (
-                  <div style={{ fontSize: 11.5, marginTop: 4, lineHeight: 1.5 }}><b>En el cuello:</b> {o.neck_note}</div>
+                  <div style={{ fontSize: 12.5, marginTop: 4, lineHeight: 1.5 }}><b>En el cuello:</b> {o.neck_note}</div>
                 )}
                 {o.fits && o.neck_coverage_pct != null && <Trenza o={o} />}
                 {o.narrow_end_note && (
-                  <div style={{ fontSize: 11.5, marginTop: 4, lineHeight: 1.5 }}><b>En el anclaje estrecho:</b> {o.narrow_end_note}</div>
+                  <div style={{ fontSize: 12.5, marginTop: 4, lineHeight: 1.5 }}><b>En el anclaje estrecho:</b> {o.narrow_end_note}</div>
                 )}
                 {o.fits && (
                   <Button size="sm" variant="ghost" style={{ marginTop: 6 }}
@@ -125,9 +125,9 @@ export function FdSizing({
           </div>
 
           {r.notes.map((n) => (
-            <div key={n} style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>{n}</div>
+            <div key={n} style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>{n}</div>
           ))}
-          <details style={{ marginTop: 8, fontSize: 11, color: "var(--muted-foreground)" }}>
+          <details style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)" }}>
             <summary style={{ cursor: "pointer" }}>Fuentes</summary>
             <ul style={{ margin: "6px 0 0", paddingLeft: 16, lineHeight: 1.5 }}>
               {r.sources.map((s) => <li key={s}>{s}</li>)}
@@ -143,7 +143,7 @@ export function FdSizing({
    catálogo: cobertura, porosidad y densidad de poros delante del cuello, y la
    longitud a la que llega la etiqueta. */
 function Trenza({ o }: { o: FdOption }) {
-  const fila = { display: "flex", justifyContent: "space-between", gap: 8, fontSize: 11.5, lineHeight: 1.6 } as const;
+  const fila = { display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12.5, lineHeight: 1.6 } as const;
   const num = { fontFamily: "var(--font-mono)" } as const;
   return (
     <div role="group" aria-label={`Trenza de ${o.name} en este vaso`}

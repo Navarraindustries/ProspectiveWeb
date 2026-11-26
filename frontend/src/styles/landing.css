@@ -1291,7 +1291,7 @@
   stroke-width: 2;
 }
 .landing-stitch .diagrama-saco [data-activa="true"] text {
-  font-weight: 700;
+  font-weight: var(--weight-bold);
   fill: var(--foreground);
 }
 .landing-stitch:is([data-tramo="movil"], [data-tramo="tableta"]) .indices {

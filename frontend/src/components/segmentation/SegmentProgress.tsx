@@ -80,7 +80,7 @@ export function SegmentProgress({
         {rows.map((r, i) => {
           const current = r.phase === currentPhase;
           return (
-            <li key={`${i}-${r.phase}`} style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 11 }}>
+            <li key={`${i}-${r.phase}`} style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 12 }}>
               <span aria-hidden style={{ width: 14, display: "inline-flex", justifyContent: "center", flexShrink: 0 }}>
                 {current ? (
                   <span
@@ -102,21 +102,21 @@ export function SegmentProgress({
                 {r.phase}
               </span>
               {!current && r.message && (
-                <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{r.message}</span>
+                <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{r.message}</span>
               )}
             </li>
           );
         })}
       </ol>
       {remainingS !== null && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 6 }}>
           ≈ {remainingS} s restantes
         </div>
       )}
       {/* Genérico a propósito: bajo el 5 % se está en «carga» o «núcleo», o en
           el umbral clásico, que no calcula tubularidad; culparla ahí era falso. */}
       {slow && pct < 5 && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 6 }}>
           {slowNote}
         </div>
       )}

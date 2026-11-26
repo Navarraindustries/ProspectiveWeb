@@ -376,7 +376,7 @@ export function Studies({
       subtitle={count == null
         ? "Cargando…"
         : count === "error"
-          ? "No se pudo cargar la lista"
+          ? "No se pudo cargar la lista. Vuelve a intentarlo."
           : `${count} ${count === 1 ? "estudio" : "estudios"} de imagen ${count === 1 ? "archivado" : "archivados"}${count > 0 ? " · haz clic en uno para reanudarlo o abrirlo" : ""}`}
     >
       <PageBody className="fade-rise">

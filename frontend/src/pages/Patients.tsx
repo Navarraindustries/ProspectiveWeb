@@ -155,7 +155,7 @@ export function Patients({
   // F1-252: un Médico no ve la base entera, sino los suyos y los que le han
   // compartido (F2-75); «en la base de datos» le hacía creer que estaba vacía.
   // El título es la miga «Pacientes» de la barra; aquí solo queda el recuento.
-  const subtitulo = loading && patients.length === 0 ? "Cargando…" : loadError ? "No se pudo cargar la lista"
+  const subtitulo = loading && patients.length === 0 ? "Cargando…" : loadError ? "No se pudo cargar la lista. Vuelve a intentarlo."
     : `${recuentoPacientes(patients.length)} · ${isAdmin ? "en la base de datos" : "tuyos o compartidos contigo"}`;
 
   return (

@@ -36,7 +36,7 @@ export function loadErrorText(e: unknown): string {
     }
     if (e.message) return e.message;
   }
-  return "No se pudo cargar";
+  return "No se pudo cargar. Vuelve a intentarlo.";
 }
 
 export function LoadState({
@@ -66,7 +66,7 @@ export function LoadState({
           padding: "20px 16px", fontSize: 13, color: "var(--destructive)",
         }}
       >
-        <span>{mensaje || "No se pudo cargar"}</span>
+        <span>{mensaje || "No se pudo cargar. Vuelve a intentarlo."}</span>
         {onRetry && (
           <Button type="button" variant="outline" size="sm" onClick={onRetry}>
             Reintentar

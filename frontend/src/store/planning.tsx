@@ -142,8 +142,6 @@ interface PlanningState {
    *  perdía nada más abrir el visor (F1-248). */
   restoreWl: (w: { wc: number; ww: number } | null) => void;
   takeRestoredWl: () => { wc: number; ww: number } | null;
-  /** Crosshair voxel shared by every MPR view, so navigating in one moves all. */
-  mprVoxel: { x: number; y: number; z: number };
   /** Active pick mode: centreline endpoints, the neck plane, an annotation… */
   pickMode: PickMode;
   clSource: Vec3 | null;
@@ -306,10 +304,6 @@ interface PlanningState {
    *  en franja o ocultas), y qué vista ocupa cada sitio. */
   viewerLayout: ViewerLayout;
   setViewerLayout: (l: ViewerLayout) => void;
-  /** Punto (mm de mundo) en el que se centran todas las vistas cuando
-   *  `syncViews` está activo. El crosshair (`mprVoxel`) se deriva de él. */
-  focusPoint: Vec3 | null;
-  setFocusMm: (mm: Vec3, meta: VolumeMeta) => void;
   syncViews: boolean;
   setSyncViews: (v: boolean) => void;
   /** Orientación fijada a mano para volúmenes sin etiquetas (3DRA). */
@@ -407,7 +401,6 @@ interface PlanningState {
   setCenterlineArcMm: (v: number | null) => void;
   setStentMap: (m: StentMap) => void;
   setMprWl: (w: { wc: number; ww: number } | null) => void;
-  setMprVoxel: (v: { x: number; y: number; z: number }) => void;
   setPickMode: (m: PickMode) => void;
   setClSource: (p: Vec3 | null) => void;
   setClTarget: (p: Vec3 | null) => void;
@@ -588,7 +581,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [pickMiss, setPickMiss] = useState(false);
   const [reportUrls, setReportUrls] = useState<ReportUrls | null>(null);
   const [clipPlan, setClipPlan] = useState<ClipPlanResult | null>(null);
-  const [mprVoxel, setMprVoxel] = useState({ x: 0, y: 0, z: 0 });
+  // FE-18: el cursor de los cortes vive en CursorProvider (abajo).
+  const limpiarCursorRef = useRef<() => void>(() => undefined);
   const [pickMode, _setPickMode] = useState<PickMode>(null);
   const [annotationDraft, setAnnotationDraft] = useState<Vec3[]>([]);
   // WHY: un borrador a medias pertenece al modo que lo empezó; si el modo
@@ -695,7 +689,6 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   }, []);
   const [viewerLayout, _setViewerLayout] = useState<ViewerLayout>(() => loadLayout());
   const setViewerLayout = (l: ViewerLayout) => { _setViewerLayout(l); saveLayout(l); };
-  const [focusPoint, setFocusPoint] = useState<Vec3 | null>(null);
   const [syncViews, setSyncViews] = useState(true);
   const [orientationManual, setOrientationManual] = useState<ManualOrientation | null>(null);
   const [mipMode, setMipMode] = useState<"acumulado" | "lamina">("acumulado");
@@ -725,10 +718,6 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setVolumeVersion((v) => v + 1);
     setMipWindow(null);
     setMipLocal(false);
-  }, []);
-  const setFocusMm = useCallback((mm: Vec3, meta: VolumeMeta) => {
-    setFocusPoint(mm);
-    setMprVoxel(mmToVoxel(mm, meta));
   }, []);
 
   // Every setter that produces a result worth keeping marks the session dirty.
@@ -869,7 +858,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     // Un PDF de otro volumen no describe nada de lo nuevo.
     setReportUrls(null);
     setMorphoOverlay(false);
-    setFocusPoint(null);
+    limpiarCursorRef.current();
     // La orientación fijada a mano NO es «aguas abajo»: es del volumen, no de
     // la malla. Resegmentar o preprocesar la dejaba en null a media sesión y
     // el visor, que siembra una vez por sesión, no la recuperaba. Se limpia en
@@ -966,26 +955,64 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
       value={{
         patient, caseId, caseLabel, imagingStudyId, sessionId, series, previewBand, previewMeshUrl, segmentation, candidates, rejectedCandidates, allCandidates,
         selectedCandidate, morphoInvalidatedNotice, morphometry, aneurysmSite, setAneurysmSite, treatment, deviceMeshes,
-        centerlineMesh, centerline, setCenterline, obliqueWalk, setObliqueWalk, recorridoVaso, setRecorridoVaso, segmentando, setSegmentando, centerlineArcMm, stentMap, setStentMap, mprWl, restoreWl, takeRestoredWl, mprVoxel, pickMode, clSource, clTarget, stentSac, neckOrigin, neckDome,
+        centerlineMesh, centerline, setCenterline, obliqueWalk, setObliqueWalk, recorridoVaso, setRecorridoVaso, segmentando, setSegmentando, centerlineArcMm, stentMap, setStentMap, mprWl, restoreWl, takeRestoredWl, pickMode, clSource, clTarget, stentSac, neckOrigin, neckDome,
         annotations, annotationDraft, selectedAnnotation, annotationsSync, annotationsFlushRef, annotationsLoadedRef, annotationsLoadState, noteFocusRequest, neckRim, scissorsPoints, scissorsPreview, scissorsKeepSide, perforators, visiblePerforators, perforatorZones, clipRehearsal, clipField, showClipField, placedClips, plannedClips, clipPlan, setClipPlan, fieldClips, fieldMeshOnScreen, clipsTabActive, selectedClipKey, clipParts, sacFrame, setSacFrame, cropCenter, lesionMark, setLesionMark, followup, setFollowup, erasePick, boxCut, setBoxCut, cropRadius, cropInvert, trajEntry, trajTarget, trajSaved, setTrajSaved: setTrajSavedConCambios, trajectorySavedAt, setTrajectorySavedAt, pickMiss, setPickMiss, reportUrls, setReportUrls, morphoOverlay, showRejectedIn3d, captureViewport, captureCase, setCaptureCase, viewerRecording, setViewerRecording, centerOnLesion, sceneFramer, dirty,
-        viewerLayout, focusPoint, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion, volumeReady, setVolumeReady,
+        viewerLayout, syncViews, orientationManual, mipMode, mipSlabMm, mipPlane, volumeMode, volumePreset, volumeVersion, volumeReady, setVolumeReady,
         freePlane, clipMode, cutFaceVisible, slices3dMeshVisible, volumeWindows, mipWindow, mipLocal, cine, focusedPane,
         setPatient, setCase, setImagingStudyId, setSession, setSeries, seriesList, setSeriesList, setPreviewBand, setPreviewMeshUrl, setSegmentation,
         setCandidates, setRejectedCandidates, setSelectedCandidate, setMorphometry, setTreatment, treatmentInputs, setTreatmentInputs,
         setMorphoInvalidatedNotice, clearMorphometry,
-        setDeviceMesh, clearDeviceMeshes, restoreDeviceMesh, setCenterlineMesh, setCenterlineArcMm, setMprWl, setMprVoxel,
+        setDeviceMesh, clearDeviceMeshes, restoreDeviceMesh, setCenterlineMesh, setCenterlineArcMm, setMprWl,
         setPickMode, setClSource, setClTarget, setStentSac, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setFieldMeshShown, setFieldMeshUrl, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
         setNeckOrigin, setNeckDome,
         setAnnotations, setAnnotationDraft, setSelectedAnnotation, setAnnotationsSync, setAnnotationsLoaded, setAnnotationsLoadState, clearAnnotations, setNoteFocusRequest, setCropCenter, setErasePick, setCropRadius, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay, setShowRejectedIn3d,
         setCaptureViewport, setCenterOnLesion, registerSceneFramer, markSaved, marcarCambios, registerSaver, saveNow,
-        setViewerLayout, setFocusMm, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,
+        setViewerLayout, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,
         setFreePlane, setClipMode, setCutFaceVisible, setSlices3dMeshVisible, setVolumeWindow, setMipWindow, setMipLocal, setCine, setFocusedPane,
         reset, resetDownstream, olvidarLoDeLaMalla, epoca, epocaActual,
       }}
     >
-      {children}
+      <CursorProvider limpiarRef={limpiarCursorRef}>{children}</CursorProvider>
     </PlanningContext.Provider>
   );
+}
+
+/* FE-18: el cursor de los cortes, en su propio contexto. Recorrer los cortes o
+   mover el punto de foco lo cambia muchas veces por segundo, y dentro del
+   estado general cada cambio repintaba los ~30 componentes que leen el store
+   (paneles, cabecera, dispositivos…) aunque solo cuatro miran el cursor. Aquí
+   su cambio repinta solo a quien llama a useCursor(): `children` es el mismo
+   elemento, así que el resto del árbol no se vuelve a pintar. */
+export interface CursorState {
+  /** Crosshair voxel shared by every MPR view, so navigating in one moves all. */
+  mprVoxel: { x: number; y: number; z: number };
+  setMprVoxel: (v: { x: number; y: number; z: number }) => void;
+  /** Punto (mm de mundo) en el que se centran todas las vistas cuando
+   *  `syncViews` está activo. El crosshair (`mprVoxel`) se deriva de él. */
+  focusPoint: Vec3 | null;
+  setFocusMm: (mm: Vec3, meta: VolumeMeta) => void;
+}
+
+const CursorContext = createContext<CursorState | null>(null);
+
+function CursorProvider({ children, limpiarRef }: { children: ReactNode; limpiarRef: { current: () => void } }) {
+  const [mprVoxel, setMprVoxel] = useState({ x: 0, y: 0, z: 0 });
+  const [focusPoint, setFocusPoint] = useState<Vec3 | null>(null);
+  const setFocusMm = useCallback((mm: Vec3, meta: VolumeMeta) => {
+    setFocusPoint(mm);
+    setMprVoxel(mmToVoxel(mm, meta));
+  }, []);
+  // resetDownstream (otro volumen) olvida el punto de foco, como antes.
+  limpiarRef.current = () => setFocusPoint(null);
+  const valor = useMemo(() => ({ mprVoxel, setMprVoxel, focusPoint, setFocusMm }),
+                        [mprVoxel, focusPoint, setFocusMm]);
+  return <CursorContext.Provider value={valor}>{children}</CursorContext.Provider>;
+}
+
+export function useCursor(): CursorState {
+  const ctx = useContext(CursorContext);
+  if (!ctx) throw new Error("useCursor must be used inside PlanningProvider");
+  return ctx;
 }
 
 export function usePlanning(): PlanningState {

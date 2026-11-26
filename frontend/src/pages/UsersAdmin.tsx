@@ -27,7 +27,7 @@ import { EstadoVacio } from "../components/EstadoVacio";
 import { useAuth } from "../store/auth";
 import { AdminOnlyCard } from "../components/AdminOnly";
 import { ESTILO_FECHA, fechaHora } from "../lib/fecha";
-import { ROLE_LABEL, ROLE_OPTS, ROLE_PERMITE } from "../lib/roles";
+import { ROLE_LABEL, ROLE_OPTS, ROLE_PERMITE, comoRol, type Rol } from "../lib/roles";
 import "../styles/office.css";
 import { PageBody } from "../components/shell/PageBody";
 import { UserAvatar } from "../avatar/UserAvatar";
@@ -92,7 +92,7 @@ function EditUserSheet({
   open, user, onClose, onSaved,
 }: { open: boolean; user: UserAdminInfo | null; onClose: () => void; onSaved: () => void }) {
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState("viewer");
+  const [role, setRole] = useState<Rol>("viewer");
   const [active, setActive] = useState(true);
   const [specialty, setSpecialty] = useState("");
   const [hospital, setHospital] = useState("");
@@ -125,7 +125,7 @@ function EditUserSheet({
     if (!open || !user) return;
     setAskDiscard(false);
     setFullName(user.full_name || "");
-    setRole(user.role || "viewer");
+    setRole(comoRol(user.role));
     setActive(user.is_active);
     setSpecialty(user.specialty || "");
     setHospital(user.hospital || "");
@@ -197,7 +197,7 @@ function EditUserSheet({
           </div>
           <Input label="Nombre completo" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Nombre y apellidos" />
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <Select label="Rol" options={ROLE_OPTS} value={role} onChange={(e) => setRole(e.target.value)} />
+            <Select label="Rol" options={ROLE_OPTS} value={role} onChange={(e) => setRole(comoRol(e.target.value))} />
             <RolePermite role={role} />
           </div>
           <div className="hoja-dos-columnas">
@@ -411,7 +411,7 @@ function UsersAdminPage() {
       setResetPw("");
       setTimeout(() => setResetDone(null), 3000);
     } catch (e) {
-      setResetErr(e instanceof Error ? e.message : "No se pudo restablecer");
+      setResetErr(e instanceof Error ? e.message : "No se pudo restablecer. Vuelve a intentarlo.");
     } finally {
       setResetBusy(false);
     }
@@ -546,7 +546,7 @@ function UsersAdminPage() {
   ];
 
   const activos = rows.filter((u) => estadoCuenta(u) === "Activo").length;
-  const subtitulo = loading && users.length === 0 ? "Cargando…" : loadError ? "No se pudo cargar la lista"
+  const subtitulo = loading && users.length === 0 ? "Cargando…" : loadError ? "No se pudo cargar la lista. Vuelve a intentarlo."
     : `${rows.length} usuario${rows.length === 1 ? "" : "s"} · ${activos} activo${activos === 1 ? "" : "s"}`;
 
   return (

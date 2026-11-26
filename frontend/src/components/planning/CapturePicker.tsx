@@ -77,13 +77,13 @@ export function CapturePicker({
     // evita buscar capturas que no pueden existir.
     if (caseId == null && imagingStudyId == null) {
       return (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
           Adjunta la sesión a un caso para guardar capturas
         </div>
       );
     }
     return (
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
         No hay capturas guardadas en este caso. Se hacen con el botón «Captura» del visor,
         en cualquier paso, y desde aquí se elige cuáles entran en el informe.
       </div>
@@ -93,7 +93,7 @@ export function CapturePicker({
   return (
     <div>
       <SectionLabel>Capturas en el informe ({value.length} de {rows.length})</SectionLabel>
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "2px 0 8px", lineHeight: 1.5 }}>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "2px 0 8px", lineHeight: 1.5 }}>
         Salen en el orden en que las marques, con su rótulo y de dónde se tomaron.
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
@@ -110,7 +110,7 @@ export function CapturePicker({
               }}>
               <input type="checkbox" checked={elegida} onChange={() => alternar(c.id)} />
               <span aria-hidden="true" style={{
-                width: 18, textAlign: "center", fontSize: 11, fontWeight: 700,
+                width: 18, textAlign: "center", fontSize: 12, fontWeight: 600,
                 fontFamily: "var(--font-mono)", color: elegida ? "var(--brand-deep)" : "var(--muted-foreground)",
               }}>
                 {elegida ? pos + 1 : "·"}
@@ -125,7 +125,7 @@ export function CapturePicker({
                 <span style={{ display: "block", fontSize: 12, color: "var(--foreground)", lineHeight: 1.3, wordBreak: "break-word" }}>
                   {c.label}
                 </span>
-                <span style={{ display: "block", fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>
+                <span style={{ display: "block", fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>
                   {STEPS.find((p) => p.key === c.step)?.label ?? c.step} · {fecha(c.created_at)}
                 </span>
               </span>

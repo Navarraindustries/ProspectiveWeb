@@ -82,7 +82,7 @@ export function ColumnaSesiones({
     setRowErrors(({ [s.session_id]: _, ...rest }) => rest);
     api.renameSavedSession(s.session_id, label)
       .then((r) => onRenombrada(s.session_id, r.label))
-      .catch((e) => setRowErrors((r) => ({ ...r, [s.session_id]: e instanceof Error ? e.message : "No se pudo cambiar el nombre" })));
+      .catch((e) => setRowErrors((r) => ({ ...r, [s.session_id]: e instanceof Error ? e.message : "No se pudo cambiar el nombre. Vuelve a intentarlo." })));
   };
 
   const confirmDelete = async () => {
@@ -96,7 +96,7 @@ export function ColumnaSesiones({
     } catch (e) {
       // El 409 («es el origen de una sesión abierta…») dice qué hacer: va
       // literal bajo la fila, no en un aviso genérico.
-      setRowErrors((r) => ({ ...r, [sid]: e instanceof Error ? e.message : "No se pudo borrar la sesión guardada" }));
+      setRowErrors((r) => ({ ...r, [sid]: e instanceof Error ? e.message : "No se pudo borrar la sesión guardada. Vuelve a intentarlo." }));
       setDelSession(null);
     } finally {
       setDelBusy(false);

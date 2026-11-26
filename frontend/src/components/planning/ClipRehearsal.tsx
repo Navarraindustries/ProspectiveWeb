@@ -159,7 +159,7 @@ export function ClipRehearsal({ clipId, clipName }: { clipId: string; clipName: 
       setClipRehearsal(anim);
       setProgress(0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo preparar el ensayo");
+      setError(e instanceof Error ? e.message : "No se pudo preparar el ensayo. Vuelve a intentarlo.");
     } finally {
       setBusy(false);
     }
@@ -204,7 +204,7 @@ export function ClipRehearsal({ clipId, clipName }: { clipId: string; clipName: 
     return (
       <div>
         <SectionLabel>Ensayo de colocación</SectionLabel>
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "4px 0 8px", lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "4px 0 8px", lineHeight: 1.5 }}>
           Muestra cómo entra {activeClip(placedClips, selectedClipKey)?.name ?? clipName} por el corredor de abordaje, abre la mordaza
           y cierra sobre el cuello.
         </div>
@@ -223,13 +223,13 @@ export function ClipRehearsal({ clipId, clipName }: { clipId: string; clipName: 
       <SectionLabel>Ensayo de colocación</SectionLabel>
       <Card style={{ marginTop: 6 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", flex: 1, minWidth: 0 }}>
             {clipRehearsal.clip_name}
           </div>
           {clipRehearsal.approach_is_default && <Badge variant="subtle">corredor por defecto</Badge>}
         </div>
 
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
           {phase} · apertura {clipRehearsal.swing_deg.toFixed(0)}° por hoja
           {clipRehearsal.approach_is_default && (
             <> · sin trayectoria marcada, entra por la normal del cuello desde el lado
@@ -260,7 +260,7 @@ export function ClipRehearsal({ clipId, clipName }: { clipId: string; clipName: 
         {/* La mecánica de apertura no está en el STL: hay que decirlo, no
             insinuar que el movimiento está especificado. */}
         {clipRehearsal.mechanics_assumed && (
-          <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 10, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: "var(--warning)", marginTop: 10, lineHeight: 1.5 }}>
             La apertura ({clipRehearsal.swing_deg.toFixed(0)}° por hoja) está supuesta a
             partir de cómo se comportan los clips comerciales: un STL cerrado no
             registra el mecanismo. El punto de giro sí se mide sobre la pieza.

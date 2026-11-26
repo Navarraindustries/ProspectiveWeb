@@ -312,7 +312,7 @@ export function StepDock({ steps, activeIndex, missingFor, doneFor, avisoFor, on
                 width: lado, height: lado, borderRadius: "50%", flexShrink: 0,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 border: active ? `2px solid var(--tramo-${tramoDePaso(i + 1)})` : "1px solid var(--glass-border)",
-                fontFamily: "var(--font-mono)", fontSize: active ? 18 : 14, fontWeight: 700,
+                fontFamily: "var(--font-mono)", fontSize: active ? 18 : 14, fontWeight: 600,
                 cursor: locked ? "not-allowed" : "pointer", opacity: locked ? 0.6 : 1,   // UX-13: al 40 %, 2,7:1
                 background: active ? "var(--glass-solid)" : done ? "var(--success-bg)" : "var(--glass-hover)",
                 color: done && !active ? "var(--success)" : "var(--foreground)",

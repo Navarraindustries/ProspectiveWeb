@@ -50,6 +50,7 @@ NOT the manufacturing master — that comes from the parametric CAD, and
 """
 from __future__ import annotations
 
+import functools
 import logging
 import math
 import os
@@ -335,16 +336,34 @@ def nearest_variant(angle_deg: float, jaw_mm: float,
 
 # ── Geometry ───────────────────────────────────────────────────────────────── #
 
-def load_mesh(variant: NavarroVariant):
-    """Read one design's STL. Raises if the file is gone or unreadable."""
+@functools.lru_cache(maxsize=256)
+def _stl_leido(ruta: str, _mtime: float):
+    """Un STL leído una vez por versión del fichero (la fecha va en la clave).
+    Leer y parsear el mismo diseño una y otra vez era buena parte del tiempo
+    de la selección de clips y de la batería de tests."""
     import vtk
 
     reader = vtk.vtkSTLReader()
-    reader.SetFileName(str(variant.path))
+    reader.SetFileName(ruta)
     reader.Update()
-    poly = reader.GetOutput()
-    if poly is None or poly.GetNumberOfPoints() == 0:
+    return reader.GetOutput()
+
+
+def load_mesh(variant: NavarroVariant):
+    """Read one design's STL. Raises if the file is gone or unreadable.
+
+    Devuelve una copia: quien la reciba puede transformarla sin tocar la de la
+    caché."""
+    import vtk
+
+    try:
+        leido = _stl_leido(str(variant.path), variant.path.stat().st_mtime)
+    except OSError as exc:
+        raise ValueError(f"No se pudo leer la geometría de {variant.path.name}") from exc
+    if leido is None or leido.GetNumberOfPoints() == 0:
         raise ValueError(f"No se pudo leer la geometría de {variant.path.name}")
+    poly = vtk.vtkPolyData()
+    poly.DeepCopy(leido)
     return poly
 
 

@@ -142,7 +142,7 @@ export function PhasesCalculator({
       {/* Lo que vale la cifra, dicho junto a ella y no solo en el informe: en
           series externas PHASES discrimina mal los aneurismas que se rompen de
           los que no (también ELAPSS y UIATS, serie de un centro, 2025). */}
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 14, lineHeight: 1.5,
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 14, lineHeight: 1.5,
                     padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--glass-hover)" }}>
         Es una referencia poblacional, no una predicción para este paciente: fuera de la
         cohorte en que se desarrolló, PHASES distingue mal los aneurismas que acaban
@@ -189,17 +189,17 @@ export function PhasesCalculator({
             }}
           >
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 34, fontWeight: 800, color: BAND_COLOR[result.risk_band], lineHeight: 1 }}>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 34, fontWeight: 600, color: BAND_COLOR[result.risk_band], lineHeight: 1 }}>
                 {result.total_score}
               </div>
-              <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>PHASES</div>
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>PHASES</div>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: BAND_COLOR[result.risk_band] }}>
+              <div style={{ fontSize: 20, fontWeight: 600, color: BAND_COLOR[result.risk_band] }}>
                 {cifra(result.risk_5yr_pct)} %
               </div>
               {/* El mismo rótulo que Decisión y el PDF, con la tabla de la que sale. */}
-              <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
                 {phasesLabel(result.total_score, result.risk_5yr_pct)}
               </div>
               <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>

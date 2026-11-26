@@ -38,7 +38,7 @@ import vtkMouseCameraTrackballRotateManipulator from "@kitware/vtk.js/Interactio
 import vtkMouseCameraTrackballPanManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
 import type vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import type { VolumeMeta } from "../api/types";
-import { usePlanning } from "../store/planning";
+import { useCursor, usePlanning } from "../store/planning";
 import { cameraHeading, effectiveDirection, sliceCamera, type Orientation, type Plane } from "./geometry";
 import { PLANE_HEX } from "./planeColors";
 import { HudFrame } from "./hud/HudFrame";
@@ -123,10 +123,11 @@ export function MipView({ image, meta, orientation, compact = false, plane, onPl
   lesion: { center: Vec3; diameterMm: number } | null;
 }) {
   const {
-    mprVoxel, setMprVoxel, mipMode, setMipMode, mipSlabMm, setMipSlabMm, previewBand, segmentation,
+    mipMode, setMipMode, mipSlabMm, setMipSlabMm, previewBand, segmentation,
     volumeMode, setVolumeMode, volumePreset, setVolumePreset, volumeWindows, setVolumeWindow, mipWindow, setMipWindow, mipLocal, setMipLocal,
     clipMode, setClipMode, cutFaceVisible, setCutFaceVisible, freePlane, setFreePlane, mprWl,
   } = usePlanning();
+  const { mprVoxel, setMprVoxel } = useCursor();
   const libre = clipMode === "libre";
   // La caja LOCAL solo cabe con el recorte por eje: seis planos son el tope de vtk.js.
   const box: Bounds6 | null = lesion && mipLocal && !libre ? localBox(lesion.center, lesion.diameterMm, image.getBounds() as Bounds6) : null;

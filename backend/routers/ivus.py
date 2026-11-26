@@ -16,6 +16,7 @@ from services.auth_service import get_current_user
 from services.database import get_db
 from services.db_models import User
 from services.sessions import mesh_url, session_exists, session_subdir
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["centerline"])
@@ -192,7 +193,7 @@ async def ivus_virtual(
         raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
         logger.exception("IVUS virtual falló en %s", session_id)
-        raise HTTPException(status_code=500, detail=f"No se pudo calcular el IVUS virtual: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudo calcular el IVUS virtual", exc))
     ramas, suelo = await asyncio.to_thread(ramas_de_la_linea, session_id)
     pila_path = session_subdir(session_id, "meshes") / PILA
     url = f"{mesh_url(session_id, PILA)}?v={int(pila_path.stat().st_mtime * 1000)}"
@@ -288,5 +289,5 @@ async def ivus_compare(
         raise HTTPException(status_code=409, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
         logger.exception("Comparación IVUS falló en %s", session_id)
-        raise HTTPException(status_code=500, detail=f"No se pudo comparar con el estudio anterior: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudo comparar con el estudio anterior", exc))
     return IvusCompareResult(**datos)

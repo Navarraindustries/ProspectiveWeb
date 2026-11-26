@@ -4,7 +4,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { ReactNode } from "react";
-import { PlanningProvider, usePlanning, type Vec3 } from "./planning";
+import { PlanningProvider, useCursor, usePlanning, type Vec3 } from "./planning";
 import type { MorphometryResult, SegmentResult, VolumeMeta } from "../api/types";
 
 const wrapper = ({ children }: { children: ReactNode }) => (
@@ -248,17 +248,37 @@ const meta = {
 
 describe("foco compartido del visor", () => {
   it("setFocusMm sets both the focus point and the crosshair voxel", () => {
-    const { result } = renderHook(() => usePlanning(), { wrapper });
+    const { result } = renderHook(() => useCursor(), { wrapper });
     act(() => result.current.setFocusMm([7.5, 10, 3.5], meta));
     expect(result.current.focusPoint).toEqual([7.5, 10, 3.5]);
     expect(result.current.mprVoxel).toEqual({ x: 30, y: 40, z: 7 });
   });
   it("syncViews defaults to on and resetDownstream keeps it", () => {
-    const { result } = renderHook(() => usePlanning(), { wrapper });
-    expect(result.current.syncViews).toBe(true);
-    act(() => result.current.resetDownstream());
-    expect(result.current.syncViews).toBe(true);
-    expect(result.current.focusPoint).toBeNull();
+    const { result } = renderHook(() => ({ p: usePlanning(), c: useCursor() }), { wrapper });
+    act(() => result.current.c.setFocusMm([1, 1, 1], meta));
+    expect(result.current.p.syncViews).toBe(true);
+    act(() => result.current.p.resetDownstream());
+    expect(result.current.p.syncViews).toBe(true);
+    expect(result.current.c.focusPoint).toBeNull();
+  });
+  it("FE-18: mover el cursor no repinta a quien solo lee el estado general", () => {
+    let pintadasPlanning = 0;
+    let pintadasCursor = 0;
+    const { result } = renderHook(() => {
+      const c = useCursor();
+      return c;
+    }, { wrapper: ({ children }: { children: ReactNode }) => (
+      <PlanningProvider>
+        <SoloPlanning onPintar={() => { pintadasPlanning += 1; }} />
+        <SoloCursor onPintar={() => { pintadasCursor += 1; }} />
+        {children}
+      </PlanningProvider>
+    ) });
+    const antesP = pintadasPlanning, antesC = pintadasCursor;
+    act(() => result.current.setMprVoxel({ x: 1, y: 2, z: 3 }));
+    act(() => result.current.setMprVoxel({ x: 4, y: 5, z: 6 }));
+    expect(pintadasCursor - antesC).toBe(2);
+    expect(pintadasPlanning - antesP).toBe(0);
   });
   it("resegmenting keeps the hand-fixed orientation; a full reset clears it", () => {
     // Es del volumen, no de la malla: resetDownstream no la toca.
@@ -572,3 +592,15 @@ describe("puntos que se suman clic a clic", () => {
     expect(result.current.scissorsPoints).toEqual(p);
   });
 });
+
+function SoloPlanning({ onPintar }: { onPintar: () => void }) {
+  usePlanning();
+  onPintar();
+  return null;
+}
+
+function SoloCursor({ onPintar }: { onPintar: () => void }) {
+  useCursor();
+  onPintar();
+  return null;
+}

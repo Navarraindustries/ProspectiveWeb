@@ -49,7 +49,7 @@ export function useVolumeMeta(sessionId: string | null, volumeVersion = 0): Volu
           }
           setState({
             meta: null, forSession: sessionId, forVersion: volumeVersion,
-            error: e instanceof Error ? e.message : "No se pudo abrir el volumen",
+            error: e instanceof Error ? e.message : "No se pudo abrir el volumen. Vuelve a intentarlo.",
           });
         });
     };

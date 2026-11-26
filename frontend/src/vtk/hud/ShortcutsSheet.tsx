@@ -10,6 +10,7 @@ import { Icon } from "../../components/Icon";
 import { useMediaQuery } from "../../hooks/useEstrecho";
 import { MQ_MOVIL, MQ_TACTIL, OBJETIVO_TACTIL_PX } from "../../pipeline/puntosCorte";
 import { shortcutsByScope, type Shortcut, type ShortcutScope } from "../shortcuts";
+import { destinoCapa } from "../../lib/destinoCapa";
 
 /** Con una línea debajo: «L» (todas las vistas) y «C» (solo la enfocada) no
  *  se distinguían por el título de la columna (auditoría F3). */
@@ -97,6 +98,6 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
         </div>
       </div>
     </div>,
-    document.body,
+    destinoCapa(),
   );
 }

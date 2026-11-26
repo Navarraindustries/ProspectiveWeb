@@ -94,7 +94,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         await refreshUser();
       } catch (e) {
         // Sin red o sin servidor: el flujo sigue; el estado se reintentará en la siguiente escritura.
-        console.warn("No se pudo guardar el estado del recorrido de bienvenida", e);
+        console.warn("No se pudo guardar el estado del recorrido de bienvenida. Vuelve a intentarlo.", e);
       } finally {
         pendientes.current -= 1;
       }

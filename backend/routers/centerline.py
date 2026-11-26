@@ -29,6 +29,7 @@ from services.stent_deployment import deploy_stent_on_centerline
 from services.numero import cifra
 from services.segmentation import read_vtp, write_vtp
 from services.sessions import mesh_url, read_state, session_exists, session_subdir
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["centerline"])
@@ -119,7 +120,7 @@ async def compute_centerline(session_id: str, req: CenterlineRequest) -> Centerl
         raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
         logger.exception("Centerline extraction failed")
-        raise HTTPException(status_code=500, detail=f"Error en línea central: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"Error en línea central", exc))
 
     url = f"{mesh_url(session_id, 'centerline.vtp')}?v={int(time.time() * 1000)}"
     return _to_out(result, url, ends_in_lesion=lesion_path is not None)
@@ -289,7 +290,7 @@ async def compute_cross_section(session_id: str, req: CrossSectionRequest) -> Cr
         raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
         logger.exception("Cross-section analysis failed")
-        raise HTTPException(status_code=500, detail=f"Error en sección transversal: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"Error en sección transversal", exc))
 
     pct = (1.0 - result.stenosis_ratio) * 100.0
     # F1-169: con un perfil de saltos (bifurcaciones) no se pone grado.
@@ -444,7 +445,7 @@ async def deploy_cl_stent(
         raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
         logger.exception("Centreline stent deployment failed")
-        raise HTTPException(status_code=500, detail=f"Error desplegando el stent: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"Error desplegando el stent", exc))
 
     # El diámetro del vaso sale de los radios de la línea central, así que aquí
     # el dimensionado sí se puede juzgar contra la arteria portadora. El aviso

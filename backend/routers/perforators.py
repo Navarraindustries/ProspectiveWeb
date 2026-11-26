@@ -15,6 +15,7 @@ from services.sessions import (measured_candidate_centroid, read_state,
                                session_exists, session_subdir)
 from services.perforator_risk import compute_perforator_risk
 from services.segmentation import read_vtp, write_vtp
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["perforators"])
@@ -93,7 +94,7 @@ async def get_perforators(session_id: str) -> PerforatorsResult:
         )
     except Exception as exc:
         logger.error("Perforators failed for session %s: %s", session_id, exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"La detección de ramas falló: {exc}") from exc
+        raise HTTPException(status_code=500, detail=mensaje_error(f"La detección de ramas falló", exc)) from exc
 
     return result
 

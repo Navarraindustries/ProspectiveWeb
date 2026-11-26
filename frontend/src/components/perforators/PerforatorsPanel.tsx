@@ -241,7 +241,7 @@ export function PerforatorsPanel() {
               </span>
               {/* F1-167: «Medio» solo no decía de qué. P16: tampoco es un
                   riesgo medido: es la zona por distancia al cuello. */}
-              <span style={{ fontSize: 11, fontWeight: 700, color: p.risk_color }}
+              <span style={{ fontSize: 11, fontWeight: 600, color: p.risk_color }}
                 title="Zona por distancia al cuello: cuanto más cerca, más fácil que el clip la alcance. No es una probabilidad de lesionarla.">
                 {`cerca del clip: zona ${ZONA[p.risk_level] ?? p.risk_label.toLowerCase()}`}
               </span>

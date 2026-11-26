@@ -19,7 +19,7 @@ vi.mock("../../api/client", () => ({ api: {
 const crossSection = vi.fn();
 
 let planning: Record<string, unknown> = {};
-vi.mock("../../store/planning", () => ({ usePlanning: () => planning }));
+vi.mock("../../store/planning", () => ({ usePlanning: () => planning, useCursor: () => planning }));
 vi.mock("./DiameterChart", () => ({ DiameterChart: () => null }));
 vi.mock("../../vtk/useVolumeMeta", () => ({ useVolumeMeta: () => ({ meta: null, forSession: null }) }));
 

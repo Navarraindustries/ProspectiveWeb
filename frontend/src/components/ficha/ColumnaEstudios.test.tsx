@@ -143,9 +143,9 @@ describe("«Sesiones sin estudio archivado» (spec §8.9)", () => {
 
   it("si las sesiones no cargaron, lo dice con su «Reintentar»", async () => {
     listStudies.mockResolvedValue([]);
-    abrir({ sesionesError: "No se pudieron leer las sesiones" });
+    abrir({ sesionesError: "No se pudieron leer las sesiones. Vuelve a intentarlo." });
     await screen.findByText("Sin imágenes archivadas todavía.");
-    expect(screen.getByText("No se pudieron leer las sesiones")).toBeTruthy();
+    expect(screen.getByText("No se pudieron leer las sesiones. Vuelve a intentarlo.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
     expect(onReintentarSesiones).toHaveBeenCalled();
   });

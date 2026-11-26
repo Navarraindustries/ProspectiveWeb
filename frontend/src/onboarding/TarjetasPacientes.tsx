@@ -36,7 +36,7 @@ export function TarjetasPacientes() {
     return (
       <section aria-label={LISTO.primerosPasos} data-glass style={{ ...glass("normal"), ...TARJETA }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <h2 style={{ flex: 1, margin: 0, fontSize: 14, fontWeight: 700 }}>{LISTO.primerosPasos}</h2>
+          <h2 style={{ flex: 1, margin: 0, fontSize: 14, fontWeight: 600 }}>{LISTO.primerosPasos}</h2>
           <Button variant="ghost" style={{ minHeight: 44 }} aria-expanded={!plegada} onClick={() => setPlegada((p) => !p)}>
             {plegada ? PISTAS_UI.desplegar : PISTAS_UI.plegar}
           </Button>

@@ -74,6 +74,10 @@ os.environ["AUDIT_DB_PATH"] = str(_TEST_CHAIN)
 # La clave que firma la cadena: fija en los tests, sin escribir en secrets/.
 os.environ.setdefault("AUDIT_HMAC_KEY", "clave-de-pruebas-de-la-cadena")
 
+# bcrypt al mínimo en los tests: a 12 rondas cada cuenta creada o cada login
+# cuesta ~250 ms, y son cientos (producción sigue en 12).
+os.environ.setdefault("PROSPECTIVE_BCRYPT_ROUNDS", "4")
+
 # Los tests registran muchas cuentas desde la misma dirección: el tope de
 # solicitudes por hora se prueba aparte (test_seguridad_media.py).
 os.environ.setdefault("PROSPECTIVE_SIGNUP_PER_HOUR", "100000")

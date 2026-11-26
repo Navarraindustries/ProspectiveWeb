@@ -24,6 +24,7 @@ import { NEEDS_MORPHOMETRY } from "../../pipeline/steps";
 import { TeamDecisionCard } from "./TeamDecisionCard";
 import type { DecisionFactor } from "../../api/types";
 import { cifra } from "../../lib/numero";
+import { Explica } from "../Explica";
 
 /** La primera letra en minúscula, para una frase que sigue a dos puntos. */
 function minuscula(s: string): string {
@@ -38,7 +39,7 @@ function FactorText({ f, showSources }: { f: DecisionFactor; showSources: boolea
       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>{f.name}</div>
       <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{f.detail}</div>
       {showSources && f.source && (
-        <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45, opacity: 0.85 }}>
+        <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45 }}>
           {f.source}
         </div>
       )}
@@ -124,7 +125,7 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
       await api.clearTreatment(sessionId);
       planning.setTreatment(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo limpiar la decisión");
+      setError(err instanceof Error ? err.message : "No se pudo limpiar la decisión. Vuelve a intentarlo.");
     } finally {
       setClearing(false);
     }
@@ -175,11 +176,11 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
       {/* La comorbilidad sigue sin puntuar: no hay estructura publicada que
           trasladar, y un peso inventado sería indistinguible de los umbrales
           que sí tienen fuente. La edad ya no está en ese grupo. */}
-      <div style={{ display: "flex", gap: 6, marginTop: 6, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+      <div style={{ display: "flex", gap: 6, marginTop: 6, fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
         <Icon name="INFO" size={13} color="var(--muted-foreground)" />
-        <span title="En los rotos la cuenta el modelo del Japan Stroke Data Bank (cortes de 72 y 80 años): sumarla también aquí sería contarla dos veces. La comorbilidad se registra y sale en el informe, pero no hay puntuación publicada que trasladar.">
+        <Explica texto="En los rotos la cuenta el modelo del Japan Stroke Data Bank (cortes de 72 y 80 años): sumarla también aquí sería contarla dos veces. La comorbilidad se registra y sale en el informe, pero no hay puntuación publicada que trasladar.">
           La edad puntúa <b>solo en no rotos</b> (en rotos la cuenta el JSDB); la comorbilidad no puntúa.
-        </span>
+        </Explica>
       </div>
 
       {/* Sólo con hemorragia. Es la variable de mayor peso del modelo validado,
@@ -220,7 +221,7 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
               onChange={(e) => setPriorStroke(e.target.value)}
             />
           </div>
-          <div style={{ display: "flex", gap: 6, marginTop: 6, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+          <div style={{ display: "flex", gap: 6, marginTop: 6, fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
             <Icon name="INFO" size={13} color="var(--muted-foreground)" />
             <span>
               Los tres alimentan el modelo del Japan Stroke Data Bank, abajo — ya no
@@ -240,7 +241,7 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
           letra pequeña al final de la tarjeta, después de evaluar. Se avisa
           antes; el botón sigue encendido porque el dato es opcional. */}
       {ruptured && wfns === "" && (
-        <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 6, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: "var(--warning)", marginTop: 6, lineHeight: 1.5 }}>
           Sin WFNS el modelo del Japan Stroke Data Bank pierde su variable de más peso: rellénalo antes de evaluar
         </div>
       )}
@@ -278,26 +279,28 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
                 insignias que no encogen se quedaba sin ancho, y con
                 `overflow-wrap: anywhere` no envolvía por palabras sino por
                 letras: «TRAT / AMIE / NTO / ENDO / VASC / ULAR». */}
-            <div style={{ fontSize: 15, fontWeight: 800, lineHeight: 1.3, color: "var(--brand-subtle-foreground)" }}>
+            <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.3, color: "var(--brand-subtle-foreground)" }}>
               Recomendación: {t.recommendation}
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
               {/* La cobertura al lado de la confianza, porque es lo que la
                   limita: antes la confianza medía cuántos factores había, y un
                   caso con un solo dato salía como «Moderada». */}
-              <Badge variant={t.coverage_pct >= 80 ? "subtle" : "warning"}
-                     title="Parte de los datos del caso que este motor ha podido evaluar">
-                {t.coverage_pct} % de los datos
-              </Badge>
+              <Explica texto="Parte de los datos del caso que este motor ha podido evaluar">
+                <Badge variant={t.coverage_pct >= 80 ? "subtle" : "warning"}>
+                  {t.coverage_pct} % de los datos
+                </Badge>
+              </Explica>
               {/* F1-177: «100 % de los datos» junto a «Confianza baja» parecía
                   una contradicción. La baja tiene dos causas y se dice cuál. */}
               {/* P16: «Confianza» no es una probabilidad; el tooltip dice qué es. */}
-              <Badge variant="subtle" style={{ whiteSpace: "normal" }}
-                     title="Margen entre los puntos que el motor da a cada vía, recortado si faltan datos. No es una probabilidad de acierto.">
-                {t.confidence === "Baja" && t.confidence_reason
-                  ? `Confianza baja: ${t.confidence_reason}`
-                  : `Confianza ${t.confidence.toLowerCase()}`}
-              </Badge>
+              <Explica texto="Margen entre los puntos que el motor da a cada vía, recortado si faltan datos. No es una probabilidad de acierto.">
+                <Badge variant="subtle" style={{ whiteSpace: "normal" }}>
+                  {t.confidence === "Baja" && t.confidence_reason
+                    ? `Confianza baja: ${t.confidence_reason}`
+                    : `Confianza ${t.confidence.toLowerCase()}`}
+                </Badge>
+              </Explica>
             </div>
             {/* Aquí iban dos barras con los puntos de cada vía. Se retiran
                 enteras: una barra ES una puntuación dibujada, y lo que llevaba
@@ -307,7 +310,7 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
                 pantalla se lee como una probabilidad, y no lo es. Lo que queda
                 es lo que se puede sostener: la recomendación, cuánto del caso
                 se ha podido ver, y los factores que la empujan. */}
-            <div style={{ fontSize: 11, color: "var(--brand-subtle-foreground)", marginTop: 10, lineHeight: 1.5, opacity: 0.85 }}>
+            <div style={{ fontSize: 12, color: "var(--brand-subtle-foreground)", marginTop: 10, lineHeight: 1.5, opacity: 0.85 }}>
               Los factores de abajo son el porqué, cada uno con su procedencia.
               No hay puntuación: lo que el motor suma por dentro son pesos
               elegidos a mano, y enseñarlos como cifra aparentaría una precisión
@@ -344,10 +347,10 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
               <Card style={t.jsdb.both_poor ? { borderLeft: "3px solid var(--warning)" } : undefined}>
                 {/* F1-175: el veredicto iba al pie, tras la explicación del
                     modelo y las dos vías; es lo que se busca al abrir la tarjeta. */}
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", lineHeight: 1.45, marginBottom: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", lineHeight: 1.45, marginBottom: 8 }}>
                   {t.jsdb.verdict}
                 </div>
-                <div style={{ fontSize: 11.5, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 10 }}>
+                <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 10 }}>
                   Modelo ajustado sobre 3 547 hemorragias. Estima el riesgo de mal
                   resultado al alta (mRS&nbsp;&gt;&nbsp;2) de <b>cada vía por separado</b>,
                   no cuál elegir. Sus autores no publican bandas ni un AUC, así que
@@ -355,10 +358,10 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
                 </div>
                 {[t.jsdb.clip, t.jsdb.coil].map((arm) => (
                   <div key={arm.arm} style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--foreground)" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>
                       {arm.label}
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45 }}>
+                    <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45 }}>
                       {arm.items.length > 0
                         ? arm.items.map((i) => i.label).join(" · ")
                         : "Nada que penalice esta vía con los datos disponibles."}
@@ -366,14 +369,14 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
                   </div>
                 ))}
                 {t.jsdb.missing.length > 0 && (
-                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45 }}>
+                  <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45 }}>
                     Rellenado el {t.jsdb.known_pct} % del modelo; falta{" "}
                     {t.jsdb.missing.join(", ")}. Una variable desconocida no es una
                     variable en cero.
                   </div>
                 )}
                 {showSources && (
-                  <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45, opacity: 0.85 }}>
+                  <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45 }}>
                     {t.jsdb.source}
                   </div>
                 )}
@@ -387,7 +390,7 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
               onClick={() => setShowSources((v) => !v)}
               style={{
                 background: "transparent", border: "none", cursor: "pointer",
-                padding: 0, fontSize: 11, fontWeight: 600,
+                padding: 0, fontSize: 12, fontWeight: 600,
                 color: "var(--brand-deep)",
               }}
             >
@@ -408,8 +411,8 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
               <div key={f.name} style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: 10, alignItems: "start" }}>
                 <span
                   style={{
-                    fontSize: 10,
-                    fontWeight: 700,
+                    fontSize: 12,
+                    fontWeight: 600,
                     padding: "2px 0",
                     borderRadius: 5,
                     marginTop: 1,
@@ -479,7 +482,7 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
                     {t.perforators.notice}
                   </div>
                 )}
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", lineHeight: 1.4 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", lineHeight: 1.4 }}>
                   {t.perforators.arteries}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
@@ -490,7 +493,7 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
                     {t.perforators.surgical_note}
                   </div>
                 )}
-                <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45, opacity: 0.85 }}>
+                <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45 }}>
                   No es una medida de este paciente: es la anatomía de esa localización,
                   y las variantes son frecuentes. La imagen no resuelve un vaso de
                   0,1–0,5 mm.
@@ -513,7 +516,7 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
             <>
               <SectionLabel style={{ marginTop: 16 }}>Si se opta por la vía endovascular</SectionLabel>
               <Card>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
                   {t.endovascular.technique_label}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
@@ -525,12 +528,12 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
                   </div>
                 )}
                 {t.endovascular.cautions.map((c, i) => (
-                  <div key={i} style={{ fontSize: 11.5, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
+                  <div key={i} style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
                     — {c}
                   </div>
                 ))}
                 {showSources && t.endovascular.sources.length > 0 && (
-                  <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45, opacity: 0.85 }}>
+                  <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.45 }}>
                     {t.endovascular.sources.join(" · ")}
                   </div>
                 )}

@@ -35,6 +35,7 @@ from services.sessions import (
     saved_session_size, size_of_row, live_sessions_from, purge_saved_session,
     live_session_expires_at,
 )
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -245,7 +246,7 @@ def save_session(
         file_size = snapshot_session(req.session_id)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Session snapshot failed")
-        raise HTTPException(status_code=500, detail=f"No se pudo guardar la sesión: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudo guardar la sesión", exc))
     now         = datetime.now(timezone.utc)
 
     # Upsert: update existing record, take over the origin's, or create a new one
@@ -517,7 +518,7 @@ async def restore_session(
         raise HTTPException(status_code=500, detail=RESTORE_FAILED_DETAIL) from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("Session rehydration failed")
-        raise HTTPException(status_code=500, detail=f"No se pudo restaurar la sesión: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudo restaurar la sesión", exc))
 
     # La sesión viva recuerda de cuál salió: así sigue siendo del mismo
     # paciente antes de volver a guardarse (services/access.session_row).

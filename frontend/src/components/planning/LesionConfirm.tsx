@@ -112,7 +112,7 @@ export function LesionConfirm() {
       }
       api.lesionSummary().then(setSummary).catch(() => {});
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo guardar la confirmación");
+      setError(e instanceof Error ? e.message : "No se pudo guardar la confirmación. Vuelve a intentarlo.");
     } finally {
       setBusy(false);
     }
@@ -127,7 +127,7 @@ export function LesionConfirm() {
       setCurrent(null);
       api.lesionSummary().then(setSummary).catch(() => {});
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo retirar");
+      setError(e instanceof Error ? e.message : "No se pudo retirar. Vuelve a intentarlo.");
     } finally {
       setBusy(false);
     }
@@ -144,8 +144,8 @@ export function LesionConfirm() {
         border: "var(--glass-rim) solid var(--glass-border)", background: "var(--glass)",
       }}
     >
-      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>¿Cuál es la lesión?</div>
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 10 }}>
+      <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>¿Cuál es la lesión?</div>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 10 }}>
         Si lo sabes, dilo: no cambia el plan, sirve para medir cómo acierta el detector.
         Queda registrado a tu nombre.
       </div>
@@ -203,19 +203,19 @@ export function LesionConfirm() {
         cómo acierta el detector. Puedes retirarlo después con «Retirar».
       </ConfirmDialog>
 
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 8 }}>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 8 }}>
         {MANUAL_HINT}
       </div>
 
       {/* F1-148: «no se podrá volver a pasar el detector» no decía qué se pierde. */}
       {imagingStudyId == null && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 8 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 8 }}>
           {UNARCHIVED_NOTE}
         </div>
       )}
-      {error && <div style={{ fontSize: 11, color: "var(--destructive)", marginTop: 8 }}>{error}</div>}
+      {error && <div style={{ fontSize: 12, color: "var(--destructive)", marginTop: 8 }}>{error}</div>}
       {resumen && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 10 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 10 }}>
           {resumen}
         </div>
       )}

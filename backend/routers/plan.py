@@ -14,6 +14,7 @@ from models import PlanRequest, PlanResult, StentLibraryItem
 from models.plan import WebSizingResult
 from services.endovascular import stent_bridging
 from services.sessions import read_state, session_exists, session_subdir, mesh_url
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["planning"])
@@ -192,7 +193,7 @@ def compute_plan(
         logger.exception("Stent mesh generation failed")
         raise HTTPException(
             status_code=500,
-            detail=f"No se pudo generar la malla del stent ({exc}). El dispositivo no se ha guardado.",
+            detail=mensaje_error("No se pudo generar la malla del stent; el dispositivo no se ha guardado", exc),
         ) from exc
 
     if follows_centerline:

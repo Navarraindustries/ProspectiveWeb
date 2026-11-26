@@ -17,6 +17,7 @@ from services.db_models import User
 from services.sessions     import create_session, session_exists, session_subdir, session_ttl_hours, write_state
 from services.dicom_loader import scan_series
 from services.numero import cifra
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 
@@ -297,7 +298,7 @@ async def set_active_series(session_id: str, series_id: str) -> SeriesInfo:
         # responder (ni /health) mientras tanto.
         raw_series = await asyncio.to_thread(scan_series, dicom_dir)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=f"No se pudieron leer las series: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudieron leer las series", exc))
 
     series_list = _build_series_list(session_id, raw_series)
     chosen = next((s for s in series_list if s.series_id == series_id), None)

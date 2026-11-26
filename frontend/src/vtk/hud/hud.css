@@ -14,6 +14,10 @@
 .hud-corner.bl { bottom: 6px; left: 6px; border-bottom-width: var(--hud-line); border-left-width: var(--hud-line); }
 .hud-corner.br { bottom: 6px; right: 6px; border-bottom-width: var(--hud-line); border-right-width: var(--hud-line); }
 .hud.active .hud-corner { border-color: var(--hud-text); }
+/* UX-15: la vista con el foco se distinguía solo por el brillo de las esquinas,
+   y en los niveles de texto reducidos las esquinas se ocultan. Un borde fino de
+   color, que ningún nivel quita. */
+.hud.active { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary) 75%, transparent); }
 .hud-label { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-text-dim); }
 .hud-label[data-plane="axial"] { color: var(--plane-axial); }
 .hud-label[data-plane="coronal"] { color: var(--plane-coronal); }

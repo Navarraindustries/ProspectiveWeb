@@ -145,13 +145,13 @@ describe("SliceView en modo anotación", () => {
     const view = container.firstElementChild!.firstElementChild as HTMLElement;
     fireEvent.doubleClick(view, { clientX: 50, clientY: 50 });
     expect(onGrid).not.toHaveBeenCalled();
-    expect(view.title).toContain("Clic: punto");
+    expect(view.getAttribute("aria-label")).toContain("Clic: punto");
 
     // Sin modo anotación sigue llegando, como siempre.
     rerender(<div onDoubleClick={onGrid}><SliceView {...base} /></div>);
     fireEvent.doubleClick(view, { clientX: 50, clientY: 50 });
     expect(onGrid).toHaveBeenCalledTimes(1);
-    expect(view.title).toContain("Clic: centrar");
+    expect(view.getAttribute("aria-label")).toContain("Clic: centrar");
   });
 
   it("una regla junto a su primer punto no se cierra como región", () => {

@@ -202,7 +202,7 @@ function Detail({ order, onChanged, onClose, onOpenSession, enHoja = false }: {
     setBusy(true);
     setError("");
     p.then(() => onChanged())
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo completar la acción"))
+      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo completar la acción. Vuelve a intentarlo."))
       .finally(() => setBusy(false));
   };
 
@@ -339,7 +339,7 @@ function Detail({ order, onChanged, onClose, onOpenSession, enHoja = false }: {
                     onOpenSession(order.session_id, order.patient_id)
                       .catch((e) => {
                         if ((e as { status?: number })?.status === 404) setSessionGone(true);
-                        setError(e instanceof Error ? e.message : "No se pudo abrir el caso");
+                        setError(e instanceof Error ? e.message : "No se pudo abrir el caso. Vuelve a intentarlo.");
                       })
                       .finally(() => setBusy(false));
                   }}>

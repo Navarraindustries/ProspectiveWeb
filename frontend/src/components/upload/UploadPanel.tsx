@@ -195,7 +195,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
       if (planning.caseId == null) planning.setCase(card.case_id, card.dx_principal || card.description);
       setArchived(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar el estudio");
+      setError(err instanceof Error ? err.message : "No se pudo guardar el estudio. Vuelve a intentarlo.");
     } finally {
       setArchiving(false);
     }
@@ -219,7 +219,7 @@ export function UploadPanel({ onNext }: { onNext: () => void }) {
       planning.setSegmentation(null);
       planning.setSeries(s);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo cambiar de serie");
+      setError(err instanceof Error ? err.message : "No se pudo cambiar de serie. Vuelve a intentarlo.");
     } finally {
       setSwitching(false);
     }

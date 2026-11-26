@@ -204,7 +204,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
       planning.setMorphoInvalidatedNotice(false);
       setRan(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudieron limpiar los candidatos");
+      setError(err instanceof Error ? err.message : "No se pudieron limpiar los candidatos. Vuelve a intentarlo.");
     } finally {
       setClearing(false);
     }
@@ -365,7 +365,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
             style={{
               display: "flex", alignItems: "center", gap: 6, width: "100%",
               background: "none", border: "none", padding: "4px 0", cursor: "pointer",
-              fontSize: fs(12), fontWeight: 700, color: "var(--muted-foreground)", textAlign: "left",
+              fontSize: fs(12), fontWeight: 600, color: "var(--muted-foreground)", textAlign: "left",
             }}
           >
             <span aria-hidden style={{ display: "inline-block", width: 10 }}>{showRejected ? "▾" : "▸"}</span>
@@ -473,7 +473,7 @@ export function DetectPanel({ onNext }: { onNext: () => void }) {
             border: "var(--glass-rim) solid var(--glass-border)", background: "var(--glass)",
             fontSize: fs(12), lineHeight: 1.55, color: "var(--muted-foreground)",
           }}>
-            <div style={{ fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>
+            <div style={{ fontWeight: 600, color: "var(--foreground)", marginBottom: 4 }}>
               Por qué no se encontró nada
             </div>
             <div>{reason}</div>

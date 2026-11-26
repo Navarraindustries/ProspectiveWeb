@@ -71,7 +71,7 @@ function ManufactureSheet({
     try {
       setBuilt(await api.clipManufacture(sessionId, caseId));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo generar el STL");
+      setError(e instanceof Error ? e.message : "No se pudo generar el STL. Vuelve a intentarlo.");
     } finally {
       setBusy(false);
     }
@@ -101,18 +101,18 @@ function ManufactureSheet({
   return (
     <Card>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--foreground)", flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", flex: 1, minWidth: 0 }}>
           {shown.piece_label || `Clip a medida · ${shown.label}`}
         </div>
         {shown.part_no && (
-          <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>
+          <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>
             {shown.part_no}
           </span>
         )}
       </div>
 
       {placed?.placed_in_plan && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
           Es el clip que colocaste en Dispositivos: el STL, los dossiers y el
           pedido son de esta pieza, no de la que propondría el selector.
         </div>
@@ -122,7 +122,7 @@ function ManufactureSheet({
           ofrecer uno sería decir que se fabrica algo que no se fabrica. */}
       {shown.source && shown.source !== "navarro" && (
         <div style={{
-          fontSize: 11, lineHeight: 1.5, marginTop: 6, padding: "8px 10px",
+          fontSize: 12, lineHeight: 1.5, marginTop: 6, padding: "8px 10px",
           borderRadius: "var(--radius-sm)",
           background: "color-mix(in srgb, var(--warning) 12%, transparent)",
           color: "var(--warning)",
@@ -134,8 +134,8 @@ function ManufactureSheet({
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "2px 12px", marginTop: 10 }}>
         {rows.map(([k, v]) => (
           <div key={k} style={{ display: "contents" }}>
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{k}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{k}</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
               {v}
             </div>
           </div>
@@ -145,7 +145,7 @@ function ManufactureSheet({
       {shown.reasons.length > 0 && (
         <div style={{ marginTop: 10 }}>
           <SectionLabel>{noStock ? "Por qué se fabrica" : "Por qué no sirve el inventario"}</SectionLabel>
-          <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+          <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
             {shown.reasons.map((r) => <li key={r}>{r}</li>)}
           </ul>
         </div>
@@ -157,7 +157,7 @@ function ManufactureSheet({
       {shown.confidence_notes.length > 0 && (
         <div style={{ marginTop: 10 }}>
           <SectionLabel>A confirmar antes de fabricar</SectionLabel>
-          <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 11, color: "var(--warning)", lineHeight: 1.5 }}>
+          <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 12, color: "var(--warning)", lineHeight: 1.5 }}>
             {shown.confidence_notes.map((n) => <li key={n}>{n}</li>)}
           </ul>
         </div>
@@ -177,7 +177,7 @@ function ManufactureSheet({
           </Button>
         )}
         <Button size="sm" variant="ghost" onClick={copy} aria-live="polite">
-          {copiado === "ok" ? "Especificación copiada ✓" : copiado === "error" ? "No se pudo copiar" : "Copiar especificación"}
+          {copiado === "ok" ? "Especificación copiada ✓" : copiado === "error" ? "No se pudo copiar. Vuelve a intentarlo." : "Copiar especificación"}
         </Button>
       </div>
 
@@ -200,7 +200,7 @@ function ManufactureSheet({
               </Button>
             )}
           </div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
             La copia interna lleva el paciente, el caso y las medidas de las que
             sale el pedido. La del taller no lleva ningún dato de paciente: solo
             cotas, tolerancias, material y las verificaciones a realizar.
@@ -246,7 +246,7 @@ export function ManufacturePanel({ onNext }: { onNext: () => void }) {
     // geométrica contra la malla no aporta y cuesta segundos.
     api.clipSelection(sessionId, caseId, false)
       .then((s) => { if (vivo) setSel(s); })
-      .catch((e) => { if (vivo) setError(e instanceof Error ? e.message : "No se pudo leer la selección de clip"); })
+      .catch((e) => { if (vivo) setError(e instanceof Error ? e.message : "No se pudo leer la selección de clip. Vuelve a intentarlo."); })
       .finally(() => { if (vivo) setLoading(false); });
     return () => { vivo = false; };
   }, [sessionId, caseId, intento]);
@@ -259,7 +259,7 @@ export function ManufacturePanel({ onNext }: { onNext: () => void }) {
       />
 
       <div style={{
-        fontSize: 11, lineHeight: 1.5, color: "var(--muted-foreground)",
+        fontSize: 12, lineHeight: 1.5, color: "var(--muted-foreground)",
         padding: "8px 10px", borderRadius: "var(--radius-md)",
         background: "var(--glass-hover)", marginBottom: 14,
       }}>
@@ -318,7 +318,7 @@ export function ManufacturePanel({ onNext }: { onNext: () => void }) {
               : "Pieza a fabricar"}
           </SectionLabel>
           {sel.outcome === "stock" && (
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "4px 0 6px", lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "4px 0 6px", lineHeight: 1.5 }}>
               Ya hay clips del inventario que cumplen todos los criterios. Esta es
               la pieza que se ajustaría exactamente al cuello, por si se prefiere
               mandarla a fabricar.

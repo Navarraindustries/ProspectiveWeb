@@ -38,7 +38,7 @@ export function FollowupOverlay({ sessionId }: { sessionId: string }) {
       setFollowup({ mapUrl: res.map_url, ghostUrl: res.ghost_url, noise: res.noise_mm, previousSessionId: s.session_id,
                     range: Math.max(res.max_growth_mm, res.max_shrink_mm, res.noise_mm * 2, 0.5) });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo superponer el estudio");
+      setError(e instanceof Error ? e.message : "No se pudo superponer el estudio. Vuelve a intentarlo.");
     } finally {
       setBusy(null);
     }
@@ -81,7 +81,7 @@ export function FollowupOverlay({ sessionId }: { sessionId: string }) {
 
       {r && (
         <div style={{ marginTop: 12, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: crecio ? "var(--warning)" : "var(--foreground)" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: crecio ? "var(--warning)" : "var(--foreground)" }}>
             {crecio
               ? `Ha crecido hasta ${mm(r.max_growth_mm, 2)} en ${r.grew_area_pct.toFixed(0)} % de la lesión`
               : "Sin crecimiento distinguible del ruido"}
@@ -89,10 +89,10 @@ export function FollowupOverlay({ sessionId }: { sessionId: string }) {
           {/* La barra de color, con la franja gris del ruido en medio. */}
           <div aria-hidden style={{ height: 8, borderRadius: 4, margin: "8px 0 2px",
                                     background: degradadoLeyenda(40, 60) }} />
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--muted-foreground)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--muted-foreground)" }}>
             <span>encogió</span><span>± {mm(r.noise_mm, 2)} = ruido</span><span>creció</span>
           </div>
-          <div style={{ fontSize: 11.5, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.6 }}>
             Encaje de los vasos de alrededor: residuo mediano {mm(r.residual_median_mm, 2)}, giro corregido {cifra(r.rotation_deg, 1)}°.
             {r.max_shrink_mm > r.noise_mm && <> Encogió hasta {mm(r.max_shrink_mm, 2)} en algún punto.</>}
             {r.volume_prev_mm3 != null && r.volume_curr_mm3 != null && (

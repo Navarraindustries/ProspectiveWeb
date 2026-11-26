@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import { fundido, fundidoTransition, glide, glideTransition, motion, useReducedMotion } from "../motion";
 import { glass } from "../styles/glass";
 import { Button } from "./Button";
+import { destinoCapa } from "../lib/destinoCapa";
 
 /* Cuántos diálogos de confirmación hay abiertos ahora mismo. Los atajos del
    visor y del flujo (vtk/shortcuts) escuchan en `window` y el diálogo solo se
@@ -138,7 +139,7 @@ export function ConfirmDialog({
         onClick={(e) => e.stopPropagation()}
         style={{ ...glass("dense"), boxShadow: "var(--glass-highlight), var(--shadow-lg)", outline: "none", width: 420, maxWidth: "90%", borderRadius: "var(--radius-xl)", padding: "22px 24px" }}
       >
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--foreground)" }}>{title}</div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "var(--foreground)" }}>{title}</div>
         <div id={idPregunta} style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.55 }}>
           {children}
         </div>
@@ -153,6 +154,6 @@ export function ConfirmDialog({
         </div>
       </motion.div>
     </motion.div>,
-    document.body,
+    destinoCapa(),
   );
 }

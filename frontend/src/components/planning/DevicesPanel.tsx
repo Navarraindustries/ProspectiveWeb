@@ -52,6 +52,7 @@ import { angleReferenceLabel } from "../../vtk/approachView";
 import { usePlanning, type PlacedClip } from "../../store/planning";
 import { neckPlacement, neckRoll, toPlacement, toStoredClip, poseKey, isStale, fieldColoursOnScreen } from "./placedClips";
 import { cifra, cifraCorta } from "../../lib/numero";
+import { Explica } from "../Explica";
 
 // Se mudó a placedClips.ts; se reexporta para quien la importaba de aquí.
 export { neckPlacement };
@@ -72,7 +73,7 @@ const UN_SOLO_STENT = "Un solo stent por sesión: colocar uno sustituye al otro"
 
 function UnSoloStent() {
   return (
-    <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
+    <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
       {UN_SOLO_STENT}
     </div>
   );
@@ -111,7 +112,7 @@ function useClearDevice(kind: DeviceKind) {
       clearDeviceMeshes(kind);
       after?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo limpiar el dispositivo");
+      setError(err instanceof Error ? err.message : "No se pudo limpiar el dispositivo. Vuelve a intentarlo.");
     } finally {
       setBusy(false);
     }
@@ -210,7 +211,7 @@ async function whileClearingClips<T>(clear: () => Promise<T>): Promise<T> {
 function NumField({ label, value, onChange, step = 1, min, max }: { label: string; value: number; onChange: (v: number) => void; step?: number; min?: number; max?: number }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
-      <span style={{ fontSize: 10, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: ".04em" }}>{label}</span>
+      <span style={{ fontSize: 12, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: ".04em" }}>{label}</span>
       <input
         type="number" value={Number.isFinite(value) ? value : 0} step={step} min={min} max={max}
         onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
@@ -351,7 +352,7 @@ function ClipsTab() {
       setCustoms(rest);
       if (sel === clipId) setSel(recs[0]?.clip_id ?? rest[0]?.clip_id ?? "");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo quitar el clip importado");
+      setError(err instanceof Error ? err.message : "No se pudo quitar el clip importado. Vuelve a intentarlo.");
     }
   };
 
@@ -482,7 +483,7 @@ function ClipsTab() {
         setFieldNote(err.message);
         setFieldError(null);
       } else {
-        setFieldError(err instanceof Error ? err.message : "No se pudo calcular el mapa de calor");
+        setFieldError(err instanceof Error ? err.message : "No se pudo calcular el mapa de calor. Vuelve a intentarlo.");
         setFieldNote(null);
       }
     }
@@ -720,7 +721,7 @@ function ClipsTab() {
                   renglones para una pieza. El mismo fallo que el titular de la
                   recomendación en el panel de decisión. */}
               <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Clip elegido</div>
-              <div style={{ fontSize: 12, fontWeight: 700, marginTop: 2, lineHeight: 1.35 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginTop: 2, lineHeight: 1.35 }}>
                 {nameFor(sel)}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
@@ -773,7 +774,7 @@ function ClipsTab() {
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <button type="button" aria-pressed={c.key === activeKey} title="Manejar este clip en el 3D"
                         onClick={(e) => { e.stopPropagation(); setSelectedClipKey(c.key); }}
-                        style={{ all: "unset", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "var(--foreground)", flex: 1 }}>#{i + 1} · {c.name}</button>
+                        style={{ all: "unset", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--foreground)", flex: 1 }}>#{i + 1} · {c.name}</button>
                       <button type="button" aria-expanded={fineOpen.has(c.key)}
                         onClick={() => setFineOpen((cur) => {
                           const next = new Set(cur);
@@ -781,7 +782,7 @@ function ClipsTab() {
                           return next;
                         })}
                         title="Posición y ángulos en números; el asa del 3D hace lo mismo"
-                        style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted-foreground)", fontSize: 11, padding: 2 }}>
+                        style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--muted-foreground)", fontSize: 12, padding: 2 }}>
                         {fineOpen.has(c.key) ? "▾" : "▸"} Ajuste fino
                       </button>
                       <button onClick={(e) => { e.stopPropagation(); setAskingRemove({ key: c.key, rotulo: `#${i + 1} · ${c.name}` }); }} title="Quitar" aria-label={`Quitar el clip #${i + 1}`} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--destructive, #ef4444)", fontSize: 14 }}>✕</button>
@@ -814,9 +815,9 @@ function ClipsTab() {
                   del cuello, no qué parte del cuello queda cerrada: eso lo dice el
                   mapa de calor («Cuello cubierto»). Con el mismo nombre se leían
                   como la misma cifra y se contradecían. */}
-              <div title="Anchura de las hojas en el plano del cuello frente al diámetro del cuello. No mide qué parte del cuello queda cerrada.">
+              <Explica como="div" texto="Anchura de las hojas en el plano del cuello frente al diámetro del cuello. No mide qué parte del cuello queda cerrada.">
                 <Metric wrapLabel label="Extensión de las hojas sobre el cuello" value={cifra(plan.neck_coverage_pct, 1)} unit=" %" badge={plan.neck_coverage_pct >= 95 ? ["Alcanza", "success"] : ["No alcanza", "warning"]} />
-              </div>
+              </Explica>
               {/* «Colisión clip–vaso» a secas se leía como un veredicto sobre la
                   colocación, y era un artefacto: se comprobaba contra la malla
                   entera, cuello incluido, que es justo lo que un clip bien puesto
@@ -840,12 +841,12 @@ function ClipsTab() {
                   longitud lo que decide qué queda dentro de la línea de cierre. */}
               {plan.branches_under_clip.length > 0 && (
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--foreground)", marginBottom: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginBottom: 6 }}>
                     Ramas al alcance de esta mordaza
                   </div>
                   {plan.branches_under_clip.map((b) => (
                     <div key={b.index} style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: 10, alignItems: "baseline", marginTop: 4 }}>
-                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--warning)", textAlign: "center" }}>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--warning)", textAlign: "center" }}>
                         {cifra(b.distance_to_clip_mm, 1)} mm
                       </span>
                       <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
@@ -853,7 +854,7 @@ function ClipsTab() {
                       </span>
                     </div>
                   ))}
-                  <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45, opacity: 0.85 }}>
+                  <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>
                     Orígenes de rama visibles, no perforantes: la angiografía no
                     resuelve un vaso de 0,1–0,5 mm. Comprobar en el ensayo.
                   </div>
@@ -1101,7 +1102,7 @@ function CoilsTab() {
           </div>
         )}
 
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "10px 0 4px", lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "10px 0 4px", lineHeight: 1.5 }}>
           Cambia el modelo o el número de cada coil, añade o quita coils: el
           empaquetamiento se recalcula con lo que quede en la tabla.
         </div>
@@ -1112,7 +1113,7 @@ function CoilsTab() {
             <div key={f.key} style={{ marginTop: 8, paddingTop: 8, borderTop: i ? "1px solid var(--border)" : undefined }}>
               <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 10, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 2 }}>
+                  <div style={{ fontSize: 12, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 2 }}>
                     {m ? (ROL_ES[m.role] ?? m.role) : "Coil"}
                   </div>
                   <Select
@@ -1123,7 +1124,7 @@ function CoilsTab() {
                   />
                 </div>
                 <label style={{ display: "flex", flexDirection: "column", gap: 2, width: 64 }}>
-                  <span style={{ fontSize: 10, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: ".04em" }}>Nº</span>
+                  <span style={{ fontSize: 12, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: ".04em" }}>Nº</span>
                   <input
                     type="number" min={1} max={MAX_POR_FILA} step={1} value={f.count}
                     aria-label={`Cuántos (fila ${n})`}
@@ -1139,12 +1140,12 @@ function CoilsTab() {
                 </Button>
               </div>
               {m && (
-                <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", marginTop: 4 }}>
+                <div style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", marginTop: 4 }}>
                   Ø{cifraCorta(m.diameter_mm)} mm × {cifraCorta(m.length_cm)} cm
                 </div>
               )}
               {f.rationale && f.coil_id === f.sugerido && (
-                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>{f.rationale}</div>
+                <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>{f.rationale}</div>
               )}
             </div>
           );
@@ -1157,7 +1158,7 @@ function CoilsTab() {
         </div>
         {/* Sin esto, un modelo que el dimensionado no propone es inalcanzable,
             aunque la institución lo tenga. Mismo criterio que en los clips. */}
-        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12, color: "var(--muted-foreground)", cursor: "pointer" }}>
           <input type="checkbox" checked={verTodo} onChange={(e) => setVerTodo(e.target.checked)} />
           Ver todo el catálogo, no solo lo dimensionado para este saco
         </label>
@@ -1166,7 +1167,7 @@ function CoilsTab() {
           <div style={{ marginTop: 10 }}>
             <Metric label="Empaquetamiento proyectado" value={(proyectado * 100).toFixed(0)} unit=" %" />
             {editado && preview?.warning && (
-              <div style={{ marginTop: 4, fontSize: 11, color: "var(--warning)" }}>{preview.warning}</div>
+              <div style={{ marginTop: 4, fontSize: 12, color: "var(--warning)" }}>{preview.warning}</div>
             )}
           </div>
         )}
@@ -1177,7 +1178,7 @@ function CoilsTab() {
           {busy ? "Colocando…" : "Colocar el montaje"}
         </Button>
         {construct?.note && (
-          <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted-foreground)" }}>{construct.note}</div>
+          <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)" }}>{construct.note}</div>
         )}
       </Card>
 
@@ -1309,7 +1310,7 @@ function StentsTab() {
             unit=" mm"
           />
           {vaso > 0 && !tocado.current && (
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4 }}>
               Parte de la arteria portadora medida en el cuello ({cifra(vaso, 2)} mm).
             </div>
           )}
@@ -1549,7 +1550,7 @@ export function AppositionSummary({ a }: { a: ClStentApposition }) {
       <SectionLabel>Aposición a la pared</SectionLabel>
       <div aria-hidden style={{ height: 8, borderRadius: 4, margin: "8px 0 2px",
                                 background: degradadoLeyenda(35, 65) }} />
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--muted-foreground)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--muted-foreground)" }}>
         <span>comprimido</span><span>± {cifra(a.noise_mm, 2)} mm = contacto</span><span>separado</span>
       </div>
       <Metric label="Separado de la pared" value={a.gap_area_pct.toFixed(0)} unit=" %"
@@ -1560,7 +1561,7 @@ export function AppositionSummary({ a }: { a: ClStentApposition }) {
               badge={a.proximal_gap_mm > a.noise_mm ? ["Separado", "warning"] : undefined} />
       <Metric label="Extremo distal" value={cifra(a.distal_gap_mm, 2)} unit=" mm"
               badge={a.distal_gap_mm > a.noise_mm ? ["Separado", "warning"] : undefined} />
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 6 }}>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 6 }}>
         Geometría del tubo nominal contra la malla, no una simulación de la trenza.
         {a.neck_excluded ? " Sobre el cuello no hay pared: se deja en gris y no cuenta." : ""}
         {/* Mismo dato que el IVUS, resumido distinto: sin decirlo, las cifras
@@ -1586,7 +1587,7 @@ export function CoverageSummary({ c }: { c: ClStentCoverage }) {
       <SectionLabel>Cobertura metálica · {c.device}</SectionLabel>
       <div aria-hidden style={{ height: 8, borderRadius: 4, margin: "8px 0 2px",
                                 background: degradadoLeyenda(35, 65) }} />
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--muted-foreground)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--muted-foreground)" }}>
         <span>más metal</span><span>≈ catálogo ({c.nominal_coverage_pct.toFixed(0)} %)</span><span>poros abiertos</span>
       </div>
       {cuello !== null && (
@@ -1606,7 +1607,7 @@ export function CoverageSummary({ c }: { c: ClStentCoverage }) {
       ) : (
         <Metric label="Etiqueta que cubre el tramo" value={`≈ ${c.labelled_length_mm.toFixed(0)}`} unit=" mm" />
       )}
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 6 }}>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: 6 }}>
         {c.catalogue_length_mm
           ? <>Sus {c.catalogue_length_mm.toFixed(0)} mm de catálogo se alargan a {c.deployed_length_mm.toFixed(0)} mm en
               este vaso.</>
@@ -1636,7 +1637,7 @@ export function StentMapSwitch() {
   );
   return (
     <div style={{ marginTop: 10 }}>
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Pintar en el visor</div>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 4 }}>Pintar en el visor</div>
       <div style={{ display: "flex", gap: 6 }}>
         {opcion("apposition", "Aposición")}
         {opcion("coverage", "Cobertura")}
@@ -1673,7 +1674,7 @@ function OcclusionReport() {
     try {
       setData(await api.clipOcclusion(sessionId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo medir el resultado");
+      setError(err instanceof Error ? err.message : "No se pudo medir el resultado. Vuelve a intentarlo.");
     } finally {
       setBusy(false);
     }
@@ -1690,7 +1691,7 @@ function OcclusionReport() {
       </div>
 
       {!data && !error && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>
           Parte el saco por la línea de cierre del clip y mide los dos lados: lo
           que sale de la circulación y el muñón que sigue comunicado.
         </div>
@@ -1698,14 +1699,14 @@ function OcclusionReport() {
 
       {data && ui && (
         <>
-          <div style={{ fontSize: 13, fontWeight: 700, color: ui.color, marginTop: 6 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: ui.color, marginTop: 6 }}>
             {ui.label}
           </div>
           <div style={{ fontSize: 12, color: "var(--foreground)", marginTop: 4, lineHeight: 1.5 }}>
             {data.summary}
           </div>
           {data.outcome !== "sin_saco" && (
-            <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", marginTop: 6 }}>
+            <div style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", marginTop: 6 }}>
               saco {data.sac_volume_mm3.toFixed(0)} mm³ · fuera{" "}
               {data.excluded_mm3.toFixed(0)} mm³ · muñón {data.remnant_mm3.toFixed(0)} mm³
               {data.remnant_width_mm > 0 && ` · ancho ${cifra(data.remnant_width_mm, 1)} mm`}
@@ -1716,7 +1717,7 @@ function OcclusionReport() {
               como una simulación mecánica que nadie ha hecho. */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
             {data.cautions.map((c, i) => (
-              <div key={i} style={{ fontSize: 10.5, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+              <div key={i} style={{ fontSize: 12.5, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
                 — {c}
               </div>
             ))}
@@ -1747,7 +1748,7 @@ export function LumenAfterClip({ data }: { data: OcclusionOut }) {
   const tocadas = ramas.filter((r) => r.free_pct < LUZ_INTACTA_PCT);
   return (
     <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--foreground)" }}>Luz que queda</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>Luz que queda</div>
       {data.parent_measured && peor ? (
         <>
           <div style={{ fontSize: 12, marginTop: 4, color: colorLuz(peor.free_pct) }}>
@@ -1756,7 +1757,7 @@ export function LumenAfterClip({ data }: { data: OcclusionOut }) {
               : `Arteria madre: queda el ${cifra(peor.free_pct, 0)} % en la sección más afectada (a ${cifra(peor.arc_mm, 1)} mm de la línea).`}
           </div>
           {peor.free_pct < LUZ_INTACTA_PCT && (
-            <div style={{ fontSize: 11.5, marginTop: 2, color: "var(--foreground)", lineHeight: 1.45 }}>
+            <div style={{ fontSize: 12.5, marginTop: 2, color: "var(--foreground)", lineHeight: 1.45 }}>
               {data.parent_raise_mm == null
                 ? "Subiéndolo hasta 5 mm no queda libre: prueba otro giro u otro clip."
                 : `Subiendo el clip ${cifra(data.parent_raise_mm, 1)} mm hacia el domo queda libre (a costa de más resto de cuello: vuelve a medir).`}
@@ -1765,7 +1766,7 @@ export function LumenAfterClip({ data }: { data: OcclusionOut }) {
           {secciones.length > 1 && <PerfilLuz secciones={secciones} />}
         </>
       ) : (
-        <div style={{ fontSize: 11.5, marginTop: 4, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+        <div style={{ fontSize: 12.5, marginTop: 4, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
           {data.lumen_summary?.split(". ")[0] ?? "Arteria madre: sin medir."}
         </div>
       )}
@@ -1773,18 +1774,18 @@ export function LumenAfterClip({ data }: { data: OcclusionOut }) {
         <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 2 }}>
           {/* Solo las que el clip alcanza: las libres, en una línea (en case 3 eran 8 filas de «origen libre»). */}
           {tocadas.map((r) => (
-            <div key={r.index} style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: colorLuz(r.free_pct) }}>
+            <div key={r.index} style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: colorLuz(r.free_pct) }}>
               {`Rama Ø ${cifra(r.calibre_mm, 1)} mm a ${cifra(r.distance_mm, 1)} mm del clip: conserva el ${cifra(r.free_pct, 0)} %`}
             </div>
           ))}
-          <div style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>
+          <div style={{ fontSize: 12.5, color: "var(--muted-foreground)" }}>
             {tocadas.length === 0
               ? `Ninguna de las ${ramas.length} ramas visibles cercanas queda dentro de la mordaza.`
               : ramas.length > tocadas.length ? `Otras ${ramas.length - tocadas.length} ramas visibles cercanas quedan libres.` : ""}
           </div>
         </div>
       )}
-      <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>
+      <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.45 }}>
         {`— Geometría con el clip cerrado, sin deformar el vaso. Apertura supuesta de la mordaza: ${cifra(data.jaw_aperture_mm ?? 0, 1)} mm (el cuello + 0,5 mm por lado). Las perforantes no se ven en la imagen.`}
       </div>
     </div>
@@ -1827,7 +1828,7 @@ function CorridorReport({ c }: { c: CorridorAssessmentOut }) {
       marginBottom: 10, padding: "10px 12px", borderRadius: "var(--radius-md)",
       background: "var(--glass-hover)", borderLeft: `3px solid ${v.color}`,
     }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: v.color }}>{v.label}</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: v.color }}>{v.label}</div>
       <div style={{ fontSize: 12, color: "var(--foreground)", marginTop: 4, lineHeight: 1.5 }}>
         {c.verdict_reason}
       </div>
@@ -1835,7 +1836,7 @@ function CorridorReport({ c }: { c: CorridorAssessmentOut }) {
       {c.vessels_crossed.length > 0 && (
         <div style={{ marginTop: 8 }}>
           {c.vessels_crossed.map((x, i) => (
-            <div key={i} style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>
+            <div key={i} style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>
               ⌀ {cifra(x.calibre_mm, 1)} mm a {x.distance_from_entry_mm.toFixed(0)} mm de la entrada
               <span style={{ fontFamily: "var(--font-sans)", color: "var(--muted-foreground)" }}>
                 {x.calibre_source === "barrido" ? " · calibre medido" : " · calibre estimado"}
@@ -1846,7 +1847,7 @@ function CorridorReport({ c }: { c: CorridorAssessmentOut }) {
       )}
 
       {c.nearest_branch_mm !== null && c.vessels_crossed.length === 0 && (
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 6 }}>
           Rama más próxima a {cifra(c.nearest_branch_mm, 1)} mm
           {c.nearest_branch_calibre_mm > 0 && ` (⌀ ${cifra(c.nearest_branch_calibre_mm, 1)} mm)`}.
         </div>
@@ -1857,12 +1858,12 @@ function CorridorReport({ c }: { c: CorridorAssessmentOut }) {
       {(c.findings.length > 0 || c.assumptions.length > 0) && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
           {c.findings.map((f, i) => (
-            <div key={`f${i}`} style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+            <div key={`f${i}`} style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
               — {f}
             </div>
           ))}
           {c.assumptions.map((a, i) => (
-            <div key={`a${i}`} style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45, opacity: 0.85 }}>
+            <div key={`a${i}`} style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
               — {a}
             </div>
           ))}
@@ -2047,7 +2048,7 @@ export function TrajectoryTool() {
         <div style={{ marginBottom: 10 }}>
           {sugerencias.proposals.length === 0 ? (
             <div style={{
-              fontSize: 11, lineHeight: 1.5, color: "var(--muted-foreground)",
+              fontSize: 12, lineHeight: 1.5, color: "var(--muted-foreground)",
               padding: "8px 10px", borderRadius: "var(--radius-md)",
               background: "var(--glass-hover)", borderLeft: "3px solid var(--warning)",
             }}>
@@ -2066,18 +2067,18 @@ export function TrajectoryTool() {
                   borderLeft: `3px solid ${p.corridor.verdict === "viable" ? "var(--success)" : "var(--warning)"}`,
                 }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--foreground)", flex: 1 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", flex: 1 }}>
                       {p.description}
                     </span>
-                    <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>
+                    <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>
                       {p.depth_mm.toFixed(0)} mm
                     </span>
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45 }}>
+                  <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.45 }}>
                     {p.corridor.verdict_reason}
                   </div>
                   {!p.entry_on_skin && (
-                    <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.4, opacity: 0.85 }}>
+                    <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.4 }}>
                       La entrada es el borde de lo que el estudio reconstruye, no la
                       piel: esto es la dirección, no el punto de la craneotomía.
                     </div>
@@ -2091,17 +2092,17 @@ export function TrajectoryTool() {
               {/* Con qué criterio se han descartado sectores enteros. Sin esto,
                   una lista de tres direcciones parece un oráculo. */}
               <details style={{ marginTop: 4 }}>
-                <summary style={{ fontSize: 11, color: "var(--muted-foreground)", cursor: "pointer" }}>
+                <summary style={{ fontSize: 12, color: "var(--muted-foreground)", cursor: "pointer" }}>
                   Qué se ha descartado y por qué
                 </summary>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
                   {sugerencias.rules.map((r, i) => (
-                    <div key={i} style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+                    <div key={i} style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
                       — {r}
                     </div>
                   ))}
                   {sugerencias.axes_note && (
-                    <div style={{ fontSize: 11, color: "var(--warning)", lineHeight: 1.45 }}>
+                    <div style={{ fontSize: 12, color: "var(--warning)", lineHeight: 1.45 }}>
                       — {sugerencias.axes_note}
                     </div>
                   )}
@@ -2233,7 +2234,7 @@ function PlacedDevicesBar() {
       clearDeviceMeshes();
       for (const forget of clipReplace.forgetters) forget();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudieron limpiar los dispositivos");
+      setError(err instanceof Error ? err.message : "No se pudieron limpiar los dispositivos. Vuelve a intentarlo.");
     } finally {
       setBusy(false);
     }
@@ -2249,7 +2250,7 @@ function PlacedDevicesBar() {
     } catch (err) {
       // Sin guardar, el informe sigue con la anterior: el selector vuelve a ella.
       setStrategy(before);
-      setError(err instanceof Error ? err.message : "No se pudo guardar la estrategia");
+      setError(err instanceof Error ? err.message : "No se pudo guardar la estrategia. Vuelve a intentarlo.");
     }
   };
 
@@ -2266,7 +2267,7 @@ function PlacedDevicesBar() {
           <Badge key={k} variant="data">{KIND_LABEL[k]}</Badge>
         ))}
       </div>
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
         Estos dispositivos se dibujan en el visor y aparecen en el informe. Límpialos
         para probar otra estrategia sin que se acumulen.
       </div>
@@ -2278,7 +2279,7 @@ function PlacedDevicesBar() {
           value={strategy ?? ""}
           onChange={(e) => void markStrategy((e.target.value || null) as DeviceStrategy | null)}
         />
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
           El informe la pone en «Plan elegido»; las demás salen como alternativas evaluadas.
         </div>
       </div>

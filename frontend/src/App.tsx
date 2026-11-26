@@ -310,7 +310,7 @@ function Router() {
       setToast(null);
       setScreen("workspace");
     } catch (e) {
-      setToast(e instanceof Error ? e.message : "No se pudo abrir el estudio");
+      setToast(e instanceof Error ? e.message : "No se pudo abrir el estudio. Vuelve a intentarlo.");
       setTimeout(() => setToast(null), 3000);
     }
   };
@@ -400,7 +400,7 @@ function Router() {
       }
       await resumeSession(study.resumable_session_id, p);
     } catch (e) {
-      setToast(e instanceof Error ? e.message : "No se pudo reanudar la sesión");
+      setToast(e instanceof Error ? e.message : "No se pudo reanudar la sesión. Vuelve a intentarlo.");
       setTimeout(() => setToast(null), 3000);
     }
   };

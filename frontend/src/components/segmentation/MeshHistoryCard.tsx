@@ -118,7 +118,7 @@ export function MeshHistoryCard({
       );
       onRestored?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo restaurar la malla");
+      setError(err instanceof Error ? err.message : "No se pudo restaurar la malla. Vuelve a intentarlo.");
     } finally {
       setBusy(null);
     }
@@ -134,11 +134,11 @@ export function MeshHistoryCard({
   return (
     <Card style={sinTitulo ? undefined : { marginTop: 12 }}>
       {!sinTitulo && (
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 4 }}>
           Historial de la malla
         </div>
       )}
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 10, lineHeight: 1.5 }}>
         {hist.undo_depth > 0
           ? "Volver atrás no re-segmenta: se recupera la malla guardada antes del paso. Deshacer también es reversible."
           : "Sin pasos que deshacer. En cuanto borres, recortes o vuelvas a segmentar, podrás volver atrás desde aquí."}
@@ -152,7 +152,7 @@ export function MeshHistoryCard({
               style={{
                 display: "flex", alignItems: "baseline", gap: 8, padding: "4px 8px",
                 borderRadius: "var(--radius-sm)", background: "var(--glass-hover)",
-                fontSize: 11, color: "var(--muted-foreground)",
+                fontSize: 12, color: "var(--muted-foreground)",
               }}
             >
               <span style={{ fontFamily: "var(--font-mono)", opacity: 0.7 }}>{i + 1}</span>
@@ -162,7 +162,7 @@ export function MeshHistoryCard({
               </span>
             </div>
           ))}
-          <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>
             Estados guardados, del más antiguo al más reciente. Deshacer vuelve al último de la lista.
           </div>
         </div>
@@ -190,7 +190,7 @@ export function MeshHistoryCard({
         <div
           role="alert"
           style={{
-            marginTop: 10, padding: "8px 10px", fontSize: 11, lineHeight: 1.5,
+            marginTop: 10, padding: "8px 10px", fontSize: 12, lineHeight: 1.5,
             border: "1px solid var(--warning, #c9a227)", borderRadius: "var(--radius-md)",
             color: "var(--foreground)", background: "var(--glass)",
           }}

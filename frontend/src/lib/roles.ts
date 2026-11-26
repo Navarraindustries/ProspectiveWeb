@@ -6,12 +6,21 @@
    routers/patients.py y firma de pedidos en services/clip_orders.py
    (SIGNING_ROLES = médico y administrador). Si el servidor cambia, cambia aquí. */
 
-export const ROLE_OPTS = [
+/** Los roles que acepta el servidor (UserUpdate.role es un Literal allí). */
+export type Rol = "admin" | "medico" | "residente" | "viewer";
+
+export const ROLE_OPTS: { value: Rol; label: string }[] = [
   { value: "admin", label: "Administrador" },
   { value: "medico", label: "Médico" },
   { value: "residente", label: "Residente" },
   { value: "viewer", label: "Observador" },
 ];
+
+/** Un rol que vino como texto (p. ej. de UserAdminInfo), ya acotado; si no es
+ *  ninguno de los cuatro, el de menos permisos. */
+export function comoRol(x: string | null | undefined): Rol {
+  return ROLE_OPTS.some((r) => r.value === x) ? (x as Rol) : "viewer";
+}
 
 export const ROLE_LABEL: Record<string, string> = Object.fromEntries(ROLE_OPTS.map((r) => [r.value, r.label]));
 

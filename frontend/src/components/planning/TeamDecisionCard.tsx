@@ -64,7 +64,7 @@ export function TeamDecisionCard() {
       // FE-8: entra en la sesión guardada con «Guardar progreso».
       else planning.marcarCambios();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar la decisión del equipo");
+      setError(err instanceof Error ? err.message : "No se pudo guardar la decisión del equipo. Vuelve a intentarlo.");
     }
   };
 
@@ -119,7 +119,7 @@ export function TeamDecisionCard() {
           />
         </div>
       )}
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>
         Va primero en el informe, bajo «Plan elegido». La recomendación del
         algoritmo queda como referencia.
       </div>

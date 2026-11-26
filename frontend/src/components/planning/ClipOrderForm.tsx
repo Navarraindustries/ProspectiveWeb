@@ -322,7 +322,7 @@ export function ClipOrderForm({
               value={pre.parent_artery_mm > 0 ? `${cifra(pre.parent_artery_mm, 2)} mm` : "sin medir"}
             />
           </div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 10, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 10, lineHeight: 1.5 }}>
             El cuello está <b>{NECK_SOURCE[pre.neck_source] ?? NECK_ESTIMATED}</b>. Toda la
             pieza se deriva de esa medida: si no es correcta, corrígela en Morfometría
             antes de pedir nada.
@@ -338,7 +338,7 @@ export function ClipOrderForm({
               dejaba la cabecera anunciando una pieza y los controles debajo
               describiendo otra — la misma discrepancia que trajo aquí. */}
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--foreground)", flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", flex: 1 }}>
               {currentLabel}
             </div>
             <Badge variant="subtle">
@@ -346,7 +346,7 @@ export function ClipOrderForm({
             </Badge>
           </div>
           {differs && (
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
               El sistema recomendaba <b>{pre.advised_label}</b>.
             </div>
           )}
@@ -402,7 +402,7 @@ export function ClipOrderForm({
                   min={5} max={30} step={0.5} value={jaw} unit=" mm"
                   onChange={setJaw}
                 />
-                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4 }}>
                   Tallas dibujadas: {pre.stock_sizes_mm.join(" · ")} mm. Se mecaniza sobre
                   la de {nearestDrawn} mm, estirando solo la mordaza.
                 </div>
@@ -419,7 +419,7 @@ export function ClipOrderForm({
                     value: String(x), label: `${x} mm`,
                   }))}
                 />
-                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+                <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
                   La mordaza curva corre por un arco: estirarla cambiaría la curvatura
                   a una que nadie ha diseñado, así que esta serie existe solo en las
                   seis tallas dibujadas.
@@ -429,7 +429,7 @@ export function ClipOrderForm({
           </div>
 
           {outsideRange && jawIsFree && (
-            <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 10, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, color: "var(--warning)", marginTop: 10, lineHeight: 1.5 }}>
               Una mordaza de {cifra(jaw, 1)} mm queda fuera del rango dibujado
               ({Math.min(...pre.stock_sizes_mm)}–{Math.max(...pre.stock_sizes_mm)} mm): el
               perfil se extiende más allá de cualquier talla diseñada, no se interpola
@@ -521,7 +521,7 @@ export function ClipOrderForm({
             </div>
           )}
 
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 10, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 10, lineHeight: 1.5 }}>
             Esterilización y marcado van como <b>supuestos declarados</b> en los dos
             dossiers: nadie ha confirmado todavía cómo se hace aquí, así que el taller
             puede contradecirlos antes de fabricar. El marcado nunca toca la mordaza ni
@@ -568,7 +568,7 @@ export function ClipOrderForm({
                 <Input label="Dirección" value={newWorkshop.address}
                        onChange={(e) => setNewWorkshop({ ...newWorkshop, address: e.target.value })} />
               </div>
-              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8 }}>
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 8 }}>
                 Queda guardado: el próximo pedido lo elige de la lista.
               </div>
             </>
@@ -638,7 +638,7 @@ function Reception({ order, onDone, onCancel }: { order: ClipOrder; onDone: () =
 
   return (
     <Card style={{ marginTop: 8, background: "var(--glass-hover)" }}>
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8, lineHeight: 1.45 }}>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 8, lineHeight: 1.45 }}>
         Aquí la fuerza deja de ser un objetivo: hay que medirla en la pieza que llegó.
       </div>
       <div style={row}>
@@ -706,7 +706,7 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
         <b style={{ fontSize: 12, fontFamily: "var(--font-mono)" }}>{order.part_no}</b>
         <Badge variant={STATUS_VARIANT[order.status]}>{order.status_label}</Badge>
         <span style={{
-          fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)",
+          fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)",
         }}>
           {order.series} {shapeLabel(order.shape, order.angle_deg, order.window_mm)} ·
           mordaza {cifra(order.jaw_mm, 1)} mm · {order.total_pieces} pieza(s)
@@ -715,14 +715,14 @@ function OrderRow({ order, onChange }: { order: ClipOrder; onChange: () => void 
       </div>
 
       {order.override_reason && (
-        <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: "var(--warning)", marginTop: 4 }}>
           Se aparta de lo recomendado ({order.advised_label}): {order.override_reason}
         </div>
       )}
 
       {order.status === "recibida" && (
         <div style={{
-          fontSize: 11, marginTop: 4, fontFamily: "var(--font-mono)",
+          fontSize: 12, marginTop: 4, fontFamily: "var(--font-mono)",
           color: outOfSpec ? "var(--destructive)" : "var(--success)",
         }}>
           Medido: mordaza {cifra(r.measured_jaw_mm, 2)} mm · fuerza {r.measured_force_g?.toFixed(0)} g

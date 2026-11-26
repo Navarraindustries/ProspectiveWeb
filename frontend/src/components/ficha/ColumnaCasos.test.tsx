@@ -276,8 +276,8 @@ describe("vacío, carga y sesiones sin caso", () => {
   });
 
   it("si las sesiones no cargaron, lo dice donde iría su entrada, también sin casos", () => {
-    render(<Arnes casos={[]} nSesionesSinCaso={0} sesionesError="No se pudieron leer las sesiones" />);
-    expect(screen.getByText("No se pudieron leer las sesiones")).toBeTruthy();
+    render(<Arnes casos={[]} nSesionesSinCaso={0} sesionesError="No se pudieron leer las sesiones. Vuelve a intentarlo." />);
+    expect(screen.getByText("No se pudieron leer las sesiones. Vuelve a intentarlo.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
     expect(onReintentarSesiones).toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: /Sesiones sin caso/ })).toBeNull();

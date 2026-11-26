@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 import { Icon } from "./Icon";
 import type { IconName } from "./Icon";
 import { glass } from "../styles/glass";
+import { destinoCapa } from "../lib/destinoCapa";
 
 export interface ItemMenu {
   id: string;
@@ -200,7 +201,7 @@ export function MenuMas({ items, label = "Más acciones", tactil = false }: {
             );
           })}
         </div>,
-        document.body,
+        destinoCapa(),
       )}
     </>
   );

@@ -94,7 +94,7 @@ describe("HudIvus · P4", () => {
   it("enseña Ø por perímetro, Ø inscrito y circularidad de la sección", async () => {
     const p = montar();
     await screen.findByText("7,07 mm²");
-    expect(screen.getByText("Circularidad", { selector: "dt" })).toBeInTheDocument();
+    expect(screen.getByText("Circularidad", { selector: "dt .explica" })).toBeInTheDocument();
     act(() => p.progreso.poner(0.5));
     expect(await screen.findByText("4,20 mm²")).toBeInTheDocument();
     expect(screen.getByText("0,68")).toBeInTheDocument();

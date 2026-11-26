@@ -220,14 +220,14 @@ export function AnnotationsPanel() {
                         }}
                         onBlur={commitEdit}
                         onClick={(e) => e.stopPropagation()}
-                        style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, padding: "2px 6px" }}
+                        style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, padding: "2px 6px" }}
                       />
                     ) : (
                       <span
                         title="Clic para renombrar"
                         onClick={() => startEdit(a)}
                         className="truncate"
-                        style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: "var(--foreground)", cursor: "text" }}
+                        style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: "var(--foreground)", cursor: "text" }}
                       >
                         {a.label}
                       </span>

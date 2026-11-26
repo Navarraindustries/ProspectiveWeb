@@ -43,7 +43,7 @@ export function useGuardarAvatar() {
       await refreshUser();
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo guardar el avatar");
+      setError(e instanceof Error ? e.message : "No se pudo guardar el avatar. Vuelve a intentarlo.");
       return false;
     } finally {
       setBusy(false);

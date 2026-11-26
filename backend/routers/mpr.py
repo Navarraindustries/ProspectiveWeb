@@ -23,6 +23,7 @@ from services.auth_service import get_current_user
 from services.database import get_db
 from services.db_models import User
 from services.sessions import read_state, session_exists, write_state
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["mpr"])
@@ -48,7 +49,7 @@ async def volume_meta(session_id: str) -> dict:
         meta = await loop.run_in_executor(_executor, partial(ensure_volume_cached, session_id))
     except Exception as exc:
         logger.error("Volume meta failed for %s: %s", session_id, exc, exc_info=True)
-        raise HTTPException(status_code=422, detail=f"No se pudo cargar el volumen: {exc}") from exc
+        raise HTTPException(status_code=422, detail=mensaje_error(f"No se pudo cargar el volumen", exc)) from exc
     return meta
 
 
@@ -75,7 +76,7 @@ async def put_orientation(session_id: str, body: ManualOrientation) -> dict:
         return await loop.run_in_executor(_executor, partial(ensure_volume_cached, session_id))
     except Exception as exc:
         logger.error("Volume meta failed for %s: %s", session_id, exc, exc_info=True)
-        raise HTTPException(status_code=422, detail=f"No se pudo cargar el volumen: {exc}") from exc
+        raise HTTPException(status_code=422, detail=mensaje_error(f"No se pudo cargar el volumen", exc)) from exc
 
 
 @router.put(
@@ -152,7 +153,7 @@ async def get_volume_chunk(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.error("Volume chunk failed for %s: %s", session_id, exc, exc_info=True)
-        raise HTTPException(status_code=422, detail=f"No se pudo leer el bloque: {exc}") from exc
+        raise HTTPException(status_code=422, detail=mensaje_error(f"No se pudo leer el bloque", exc)) from exc
     headers = {
         "X-Dims": ",".join(str(d) for d in dims),
         "X-Spacing": ",".join(f"{s:.5f}" for s in spacing),
@@ -212,7 +213,7 @@ async def get_oblique_slice(
         )
     except Exception as exc:
         logger.error("Oblique slice failed %s: %s", session_id, exc, exc_info=True)
-        raise HTTPException(status_code=422, detail=f"No se pudo generar el corte oblicuo: {exc}") from exc
+        raise HTTPException(status_code=422, detail=mensaje_error(f"No se pudo generar el corte oblicuo", exc)) from exc
     return Response(content=png, media_type="image/png", headers={"Cache-Control": "public, max-age=600"})
 
 
@@ -248,7 +249,7 @@ async def get_slice(
         )
     except Exception as exc:
         logger.error("Slice render failed %s/%s/%s: %s", session_id, plane, index, exc, exc_info=True)
-        raise HTTPException(status_code=422, detail=f"No se pudo generar el corte: {exc}") from exc
+        raise HTTPException(status_code=422, detail=mensaje_error(f"No se pudo generar el corte", exc)) from exc
 
     return Response(
         content=png,

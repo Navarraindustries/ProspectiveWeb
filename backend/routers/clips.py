@@ -54,6 +54,7 @@ from services.sessions import (
     export_url, mesh_url, read_state, report_url, session_exists, session_subdir,
     write_state,
 )
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["clips"])
@@ -365,7 +366,7 @@ async def upload_custom_clip(
         f.Update()
         write_vtp(f.GetOutput(), meshes_dir / f"custom_clip_{idx}.vtp")
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=422, detail=f"No se pudo importar el clip: {exc}")
+        raise HTTPException(status_code=422, detail=mensaje_error(f"No se pudo importar el clip", exc))
     finally:
         try:
             _Path(tmp).unlink()
@@ -1072,7 +1073,7 @@ def clip_manufacture_spec(
                 logger.warning("Clip views failed to render: %s", exc)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Custom clip STL generation failed")
-            raise HTTPException(status_code=500, detail=f"No se pudo generar el STL del clip: {exc}")
+            raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudo generar el STL del clip", exc))
 
     patient, case_label = _case_identity(session_id, case_id)
     reports = session_subdir(session_id, "reports")
@@ -1087,7 +1088,7 @@ def clip_manufacture_spec(
                        reports / "dossier_taller.pdf", images=piece_views)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Clip dossier generation failed")
-        raise HTTPException(status_code=500, detail=f"No se pudieron generar los dossiers: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudieron generar los dossiers", exc))
 
     # Cache-busted: the filenames are fixed per session, so a second spec would
     # otherwise be served from the browser's copy of the first.
@@ -1153,7 +1154,7 @@ def build_navarro_clip(
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
         logger.exception("NAVARRO build failed")
-        raise HTTPException(status_code=422, detail=f"No se pudo generar el clip: {exc}")
+        raise HTTPException(status_code=422, detail=mensaje_error(f"No se pudo generar el clip", exc))
 
     meshes  = session_subdir(session_id, "meshes")
     exports = session_subdir(session_id, "exports")
@@ -1165,7 +1166,7 @@ def build_navarro_clip(
         write_stl(mesh, exports / f"{stem}.stl")
     except Exception as exc:  # noqa: BLE001
         logger.exception("NAVARRO export failed")
-        raise HTTPException(status_code=500, detail=f"No se pudo guardar el clip: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"No se pudo guardar el clip", exc))
 
     stamp = int(time.time() * 1000)
     reason = (
@@ -1246,7 +1247,7 @@ def clip_animation(
         raise
     except Exception as exc:  # noqa: BLE001
         logger.exception("Clip animation build failed")
-        raise HTTPException(status_code=422, detail=f"No se pudo preparar la animación: {exc}")
+        raise HTTPException(status_code=422, detail=mensaje_error(f"No se pudo preparar la animación", exc))
 
     stamp = int(time.time() * 1000)
     names = {}

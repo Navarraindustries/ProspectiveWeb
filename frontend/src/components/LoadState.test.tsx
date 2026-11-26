@@ -54,7 +54,7 @@ describe("loadErrorText", () => {
     expect(loadErrorText(new FakeApiError(500, "Error 500", false))).toBe("El servidor no responde");
   });
   it("algo que no es un error da un texto genérico en castellano", () => {
-    expect(loadErrorText(undefined)).toBe("No se pudo cargar");
+    expect(loadErrorText(undefined)).toBe("No se pudo cargar. Vuelve a intentarlo.");
   });
 });
 

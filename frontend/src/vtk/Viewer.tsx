@@ -8,7 +8,7 @@
    axial, coronal, sagital, MIP) leen el mismo volumen del navegador. */
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
-import { ANNOTATION_MODES, kindOfMode, usePlanning, type DestinoCaptura, type PickMode, type PlacedClip, type StentMap } from "../store/planning";
+import { ANNOTATION_MODES, kindOfMode, useCursor, usePlanning, type DestinoCaptura, type PickMode, type PlacedClip, type StentMap } from "../store/planning";
 import { ANNOTATIONS_MAX, centroid, newId, nextLabel, type Annotation } from "./annotations";
 import { addPoint, closeRegion, removeLast } from "./annotationDraft";
 import { mainHintKind, shouldShowHint, type HintKind } from "./hint";
@@ -78,6 +78,7 @@ import { candidateOverlay, nearestCandidate } from "./candidateOverlay";
 import { pasosEntrada, type EntradaCandidatos } from "./candidateReveal";
 import { MAX_RECORDING_MS, captureFileName, startRecording, type FrameSource, type Recording, type RecordingResult } from "./viewerRecorder";
 import { nombreVideoRecorrido } from "./grabarRecorrido";
+import { unaPorCuadro } from "./unaPorCuadro";
 import { downloadBlob } from "../components/RecordButton";
 import { readHeading, readPaneHud } from "./readHud";
 import { readPaneShapes } from "./readShapes";
@@ -275,9 +276,9 @@ export function ViewerWorkspace({ step }: { step: string }) {
     trajEntry, trajTarget, setTrajEntry, setTrajTarget, sacFrame,
     morphometry, morphoOverlay, setMorphoOverlay, setCaptureViewport, perforators, visiblePerforators, perforatorZones,
     clipRehearsal, registerClipParts, clipField, showClipField, setShowClipField,
-    mprWl, mprVoxel, setMprWl, setMprVoxel, takeRestoredWl,
+    mprWl, setMprWl, takeRestoredWl,
     viewerLayout, setViewerLayout, syncViews, setSyncViews, orientationManual, setOrientationManual,
-    focusPoint, setFocusMm, setCenterOnLesion, registerSceneFramer, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
+    setCenterOnLesion, registerSceneFramer, volumeVersion, mipPlane: storeMipPlane, setMipPlane,
     volumeMode, volumePreset, setVolumePreset, freePlane, setFreePlane, clipMode, cutFaceVisible, volumeWindows,
     slices3dMeshVisible, setSlices3dMeshVisible, cine, setCine, focusedPane, setFocusedPane,
     imagingStudyId, setCaptureCase, setViewerRecording,
@@ -285,6 +286,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     centerline, obliqueWalk, setObliqueWalk, setVolumeReady, recorridoVaso, setRecorridoVaso, caseLabel, segmentando,
     pickMiss, setPickMiss,
   } = usePlanning();
+  const { mprVoxel, setMprVoxel, focusPoint, setFocusMm } = useCursor();
   // El recorrido VASO necesita los puntos aunque el panel de la línea central no se abra.
   const lineaSinPuntos = useCenterlineTrack();
 
@@ -839,6 +841,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // Lo que se ve al empezar a arrastrar: Escape vuelve a ello. El gesto entero
   // se calcula desde esta foto (DragStart), no desde la pose que va cambiando.
   const clipDragRef = useRef<{ start: DragStart; before: PlacedClip } | null>(null);
+  // FE-18: una pose por cuadro. El puntero manda más movimientos que cuadros
+  // se pintan (120 Hz o más), y cada uno escribía la lista de clips del store
+  // y repintaba todo el quirófano. Se guarda la última y se aplica en el cuadro.
+  const poses = useMemo(() => unaPorCuadro<PlacedClip>(
+    (pose) => setPlacedClips((p) => p.map((c) => (c.key === pose.key ? pose : c)))), [setPlacedClips]);
+  useEffect(() => () => poses.descartar(), [poses]);
   const onHandleDrag = useCallback((e: HandleDragEvent) => {
     if (!e.id.startsWith("clip:")) return;
     const replace = (pose: PlacedClip) => setPlacedClips((p) => p.map((c) => (c.key === pose.key ? pose : c)));
@@ -857,12 +865,14 @@ export function ViewerWorkspace({ step }: { step: string }) {
     if (e.phase === "move") {
       // Sin corte (el rayo no toca el plano o la esfera) la pose se queda.
       const pose = dragPose(e.id, d.start, e.camera, e.viewport, e.px, e.py, e.shift);
-      if (pose) replace(pose);
+      if (pose) poses.programar(pose);
       return;
     }
-    if (e.phase === "cancel") replace(d.before);
+    // Al soltar, la última pose; al cancelar, la de antes (y nada pendiente).
+    if (e.phase === "cancel") { poses.descartar(); replace(d.before); }
+    else poses.soltar();
     clipDragRef.current = null;
-  }, [setPlacedClips]);
+  }, [setPlacedClips, poses]);
   // Doble clic en la esfera verde: el clip vuelve al centro del cuello, sin
   // inclinar. El giro se respeta: es una decisión aparte de dónde va.
   const onHandleDoubleClick = useCallback((id: string) => {

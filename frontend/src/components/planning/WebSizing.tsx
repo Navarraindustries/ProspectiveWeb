@@ -29,7 +29,7 @@ export function WebSizing({ sessionId }: { sessionId: string }) {
     try {
       setR(await api.webSizing(sessionId));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo dimensionar");
+      setError(e instanceof Error ? e.message : "No se pudo dimensionar. Vuelve a intentarlo.");
     } finally {
       setBusy(false);
     }
@@ -53,25 +53,25 @@ export function WebSizing({ sessionId }: { sessionId: string }) {
         <Card style={{ marginTop: 12 }}>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 6 }}>
             <div>
-              <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>ANCHURA MEDIA</div>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 700 }}>{mm(r.dims.width_mm)}</div>
-              <div style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>ANCHURA MEDIA</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 600 }}>{mm(r.dims.width_mm)}</div>
+              <div style={{ fontSize: 12.5, color: "var(--muted-foreground)" }}>
                 {cifra(r.dims.width_min_mm, 1)}–{cifra(r.dims.width_max_mm, 1)}
               </div>
               {/* El «Domo de 11.7 mm» de los avisos es esta anchura máxima, y
                   no coincide con el Ø máximo de Morfometría: se dice aquí. */}
-              <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", maxWidth: 180, lineHeight: 1.4 }}>
+              <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", maxWidth: 180, lineHeight: 1.4 }}>
                 Domo {mm(r.dims.width_max_mm)}: anchura máxima en el plano del cuello, no el Ø máximo del saco
               </div>
             </div>
             <div>
-              <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>ALTURA</div>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 700 }}>{mm(r.dims.height_mm)}</div>
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>ALTURA</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 600 }}>{mm(r.dims.height_mm)}</div>
             </div>
             <div>
-              <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>CUELLO</div>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 700 }}>{mm(r.neck_mm)}</div>
-              <div style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>domo/cuello {cifra(r.dnr, 2)}</div>
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>CUELLO</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 600 }}>{mm(r.neck_mm)}</div>
+              <div style={{ fontSize: 12.5, color: "var(--muted-foreground)" }}>domo/cuello {cifra(r.dnr, 2)}</div>
             </div>
           </div>
           <div title={INDICACION_WEB} style={{ fontSize: 12, fontWeight: 600, color: r.within_indication ? "var(--success)" : "var(--warning)" }}>
@@ -89,24 +89,24 @@ export function WebSizing({ sessionId }: { sessionId: string }) {
                 border: "1px solid var(--border)", borderRadius: "var(--radius-md)",
               }}>
                 <b style={{ fontFamily: "var(--font-mono)", fontSize: 13 }}>{o.label}</b>
-                <span style={{ fontSize: 11.5, color: "var(--muted-foreground)", flex: 1 }}>
+                <span style={{ fontSize: 12.5, color: "var(--muted-foreground)", flex: 1 }}>
                   {cifra(o.width_mm, 1)} × {cifra(o.height_mm, 1)} mm · +{cifra(o.added_mm, 1)} de anchura,
                   altura buscada {cifra(o.target_height_mm, 1)}
                 </span>
                 {o.dav != null && (
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5 }}>DAV {cifra(o.dav, 2)}</span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12.5 }}>DAV {cifra(o.dav, 2)}</span>
                 )}
                 {o.note && (
-                  <div style={{ width: "100%", fontSize: 11, color: "var(--warning)" }}>{o.note}</div>
+                  <div style={{ width: "100%", fontSize: 12, color: "var(--warning)" }}>{o.note}</div>
                 )}
               </div>
             ))}
           </div>
 
           {r.notes.map((n) => (
-            <div key={n} style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>{n}</div>
+            <div key={n} style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 1.5 }}>{n}</div>
           ))}
-          <details style={{ marginTop: 8, fontSize: 11, color: "var(--muted-foreground)" }}>
+          <details style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)" }}>
             <summary style={{ cursor: "pointer" }}>Fuentes</summary>
             <ul style={{ margin: "6px 0 0", paddingLeft: 16, lineHeight: 1.5 }}>
               {r.sources.map((s) => <li key={s}>{s}</li>)}

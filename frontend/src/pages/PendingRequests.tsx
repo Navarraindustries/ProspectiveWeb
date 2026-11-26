@@ -64,7 +64,7 @@ function History({ tab }: { tab: "Aprobadas" | "Rechazadas" }) {
   useEffect(load, [tab]);
 
   const columnas: ColumnaTabla<UserAdminInfo>[] = [
-    { id: "nombre", titulo: "Nombre", enTarjeta: "titulo", celda: (u) => <span style={{ fontWeight: 700, color: "var(--foreground)" }}>{u.full_name || u.username}</span> },
+    { id: "nombre", titulo: "Nombre", enTarjeta: "titulo", celda: (u) => <span style={{ fontWeight: 600, color: "var(--foreground)" }}>{u.full_name || u.username}</span> },
     { id: "usuario", titulo: "Usuario", celda: (u) => <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }}>@{u.username}</span> },
     { id: "especialidad", titulo: "Especialidad", celda: (u) => u.specialty || "—" },
     ...(tab === "Aprobadas" ? [{ id: "rol", titulo: "Rol", celda: (u: UserAdminInfo) => <Badge variant="muted">{ROLE_LABEL[u.role] || u.role}</Badge> }] : []),
@@ -124,7 +124,7 @@ function PendingAvatar({ user }: { user: PendingUser }) {
   }, [user.id, user.has_photo]);
   const initials = (user.full_name || user.username).slice(0, 2).toUpperCase();
   return (
-    <span style={{ width: 44, height: 44, borderRadius: "50%", flexShrink: 0, overflow: "hidden", background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 15 }}>
+    <span style={{ width: 44, height: 44, borderRadius: "50%", flexShrink: 0, overflow: "hidden", background: "var(--brand-subtle)", color: "var(--brand-subtle-foreground)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 15 }}>
       {url ? <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials}
     </span>
   );
@@ -190,7 +190,7 @@ function PendingRequestsPage() {
       subtitle={
         tab !== "Pendientes"
           ? (tab === "Aprobadas" ? "Cuentas que ya pueden entrar" : "Solicitudes que no se aceptaron")
-          : loading ? "Cargando…" : loadError ? "No se pudo cargar la lista" : `${pending.length} pendiente${pending.length === 1 ? "" : "s"} de aprobación`
+          : loading ? "Cargando…" : loadError ? "No se pudo cargar la lista. Vuelve a intentarlo." : `${pending.length} pendiente${pending.length === 1 ? "" : "s"} de aprobación`
       }
     >
       <ConfirmDialog
@@ -238,7 +238,7 @@ function PendingRequestsPage() {
                   <PendingAvatar user={u} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: "var(--foreground)" }}>{u.full_name || u.username}</span>
+                      <span style={{ fontSize: 15, fontWeight: 600, color: "var(--foreground)" }}>{u.full_name || u.username}</span>
                       <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }}>@{u.username}</span>
                       {u.specialty && <Badge variant="subtle">{u.specialty}</Badge>}
                     </div>

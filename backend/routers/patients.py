@@ -28,6 +28,7 @@ from services.audit import (ACT_CASE_CREATED, ACT_CASE_DELETED, ACT_CASE_EDITED,
 from services.sessions import size_of_row
 from services.db_models import (CaseCapture, ImagingStudy, LesionConfirmation, Patient,
                                 PatientShare, PlanningSession, Study, User)
+from services.errores import mensaje_error
 
 # Patient demographic + history fields copied on create / update.
 _PATIENT_FIELDS = (
@@ -88,7 +89,7 @@ def _quitar_estudios_y_capturas(db: Session, *, patient_id: int | None = None,
     except Exception as exc:  # noqa: BLE001
         logger.exception("Delete archived study objects failed")
         raise HTTPException(status_code=500,
-                            detail=f"No se pudo borrar el DICOM archivado: {exc}") from exc
+                            detail=mensaje_error(f"No se pudo borrar el DICOM archivado", exc)) from exc
 
     cond = [CaseCapture.patient_id == patient_id] if patient_id is not None \
         else [CaseCapture.case_id == case_id]

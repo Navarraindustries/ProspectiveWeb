@@ -474,15 +474,15 @@ describe("PatientPage · casos, estudios y sesiones en cascada", () => {
     listPatients.mockResolvedValue([fila({ study_count: 0 })]);
     patientStudies.mockResolvedValue([]);
     patientSessions.mockReset()
-      .mockRejectedValueOnce(new Error("No se pudieron leer las sesiones"))
+      .mockRejectedValueOnce(new Error("No se pudieron leer las sesiones. Vuelve a intentarlo."))
       .mockResolvedValueOnce([guardada({ session_id: "a" }), guardada({ session_id: "b" })]);
     renderPage();
     const casos = await screen.findByRole("region", { name: "Casos" });
-    expect(await within(casos).findByText("No se pudieron leer las sesiones")).toBeTruthy();
+    expect(await within(casos).findByText("No se pudieron leer las sesiones. Vuelve a intentarlo.")).toBeTruthy();
     fireEvent.click(within(casos).getByRole("button", { name: "Reintentar" }));
     expect(await within(casos).findByRole("button", { name: "Sesiones sin caso · 2" })).toBeTruthy();
     expect(patientSessions).toHaveBeenCalledTimes(2);
-    expect(within(casos).queryByText("No se pudieron leer las sesiones")).toBeNull();
+    expect(within(casos).queryByText("No se pudieron leer las sesiones. Vuelve a intentarlo.")).toBeNull();
   });
 
   it("«Capturas · n» enseña la galería del paciente a la derecha de Datos y oculta Casos; «Casos · n» la recupera", async () => {

@@ -42,7 +42,7 @@ const POSITIONS = [
 
 const GROUP_LABEL: React.CSSProperties = {
   fontSize: 11,
-  fontWeight: 700,
+  fontWeight: 600,
   letterSpacing: "0.06em",
   textTransform: "uppercase",
   color: "var(--muted-foreground)",

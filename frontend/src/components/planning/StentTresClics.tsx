@@ -69,7 +69,7 @@ export function StentTresClics({ onDone }: { onDone: (r: StentTresClicsResult) =
       setDeviceMesh("stent", r.stent?.stent_mesh_url || null);
       onDone(r);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo colocar el stent");
+      setError(err instanceof Error ? err.message : "No se pudo colocar el stent. Vuelve a intentarlo.");
     } finally {
       setBusy(false);
       setActivo(false);

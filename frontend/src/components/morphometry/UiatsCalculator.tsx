@@ -95,7 +95,7 @@ export function UiatsCalculator({
     <label key={k} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, cursor: "pointer" }}>
       <input type="checkbox" checked={sel[grupo]?.has(k) ?? false} onChange={() => toggle(grupo, k)} />
       <span style={{ flex: 1 }}>{label}</span>
-      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted-foreground)" }}>+{pts}</span>
+      <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted-foreground)" }}>+{pts}</span>
     </label>
   ));
 
@@ -132,7 +132,7 @@ export function UiatsCalculator({
         favor de <b style={{ color: "var(--foreground)" }}>vigilar</b> un aneurisma no roto (Etminan et al., <i>Neurology</i> 2015).
         Con 3 puntos o más de diferencia sugiere la mayor; con menos, cualquiera de las dos se puede defender.
       </div>
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 14, lineHeight: 1.5,
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 14, lineHeight: 1.5,
                     padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--glass-hover)" }}>
         Es un consenso de 69 especialistas, no un modelo ajustado a desenlaces, y en series
         externas no discriminó de forma fiable: ordena la conversación, no decide.
@@ -161,7 +161,7 @@ export function UiatsCalculator({
         <InheritedSite site={aneurysmSite} known={siteKnown} />
         {checks("morphology", MORPHOLOGY)}
         {pistaSrAr && !(sel.morphology?.has("sr_ar")) && (
-          <div style={{ fontSize: 11, color: "var(--warning)" }}>
+          <div style={{ fontSize: 12, color: "var(--warning)" }}>
             La morfometría da SR {cifra(m.sr, 2)} y AR {cifra(m.ar, 2)}: revisa si aplica.
           </div>
         )}
@@ -175,7 +175,7 @@ export function UiatsCalculator({
         <Select label="Complejidad del tratamiento" value={complexity}
                 options={[{ value: "low", label: "Baja (0)" }, { value: "high", label: "Alta (+3 vigilar)" }]}
                 onChange={(e) => setComplexity(e.target.value as "high" | "low")} />
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
           Alta si hay cuello más ancho que la arteria madre, lobulaciones importantes, calcificación,
           trombo, tortuosidad o estenosis proximal, una rama en el cuello o el saco, o &lt; 3 mm.
           {pistaComplejo && complexity === "low" && (
@@ -193,20 +193,20 @@ export function UiatsCalculator({
       {r && (
         <div style={{ marginTop: 14, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)" }}>
           <div style={{ display: "flex", gap: 16, alignItems: "baseline" }}>
-            <div><div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>TRATAR</div>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 26, fontWeight: 800 }}>{r.repair}</div></div>
-            <div><div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>VIGILAR</div>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 26, fontWeight: 800 }}>{r.conservative}</div></div>
-            <div style={{ flex: 1, textAlign: "right", fontWeight: 700, color: REC[r.recommendation][1] }}>
+            <div><div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>TRATAR</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 26, fontWeight: 600 }}>{r.repair}</div></div>
+            <div><div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>VIGILAR</div>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 26, fontWeight: 600 }}>{r.conservative}</div></div>
+            <div style={{ flex: 1, textAlign: "right", fontWeight: 600, color: REC[r.recommendation][1] }}>
               {REC[r.recommendation][0]}
-              <div style={{ fontSize: 11, fontWeight: 400, color: "var(--muted-foreground)" }}>diferencia {r.difference > 0 ? "+" : ""}{r.difference}</div>
+              <div style={{ fontSize: 12, fontWeight: 400, color: "var(--muted-foreground)" }}>diferencia {r.difference > 0 ? "+" : ""}{r.difference}</div>
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10, fontSize: 11.5, lineHeight: 1.6 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10, fontSize: 12.5, lineHeight: 1.6 }}>
             <div>{r.repair_items.map((it) => <div key={it.label}>{it.label} <b>+{it.points}</b></div>)}</div>
             <div>{r.conservative_items.map((it) => <div key={it.label}>{it.label} <b>+{it.points}</b></div>)}</div>
           </div>
-          {r.notes.map((n) => <div key={n} style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6 }}>{n}</div>)}
+          {r.notes.map((n) => <div key={n} style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 6 }}>{n}</div>)}
         </div>
       )}
     </div>

@@ -35,6 +35,7 @@ from services.segmentation import (
     voxel_fraction as seg_voxel_fraction,
     level_to_smooth_iters, level_to_cleanup_mm3,
 )
+from services.errores import mensaje_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["segmentation"])
@@ -983,7 +984,7 @@ async def segment(
         if not isinstance(exc, Exception):
             raise
         logger.error("Segmentation failed for session %s: %s", req.session_id, exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"La segmentación falló: {exc}") from exc
+        raise HTTPException(status_code=500, detail=mensaje_error(f"La segmentación falló", exc)) from exc
 
     progress.finish(req.session_id, ok=True)
     _audit_segmentation(req.session_id, result, req.method, usuario)
@@ -1162,7 +1163,7 @@ async def segment_preview(session_id: str, req: PreviewRequest) -> PreviewResult
         raise HTTPException(status_code=409, detail="No hay volumen en la sesión. Sube un DICOM primero.")
     except Exception as exc:  # noqa: BLE001
         logger.exception("Segment preview failed")
-        raise HTTPException(status_code=500, detail=f"Error en la vista previa: {exc}")
+        raise HTTPException(status_code=500, detail=mensaje_error(f"Error en la vista previa", exc))
     return result
 
 

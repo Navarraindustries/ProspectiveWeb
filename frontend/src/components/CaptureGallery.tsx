@@ -83,7 +83,7 @@ export function CaptureGallery({
       setError(null);
       setRows(await api.listCaptures({ imagingStudyId, caseId, patientId }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudieron cargar las capturas");
+      setError(e instanceof Error ? e.message : "No se pudieron cargar las capturas. Vuelve a intentarlo.");
       setRows([]);
     }
   }, [imagingStudyId, caseId, patientId]);
@@ -122,7 +122,7 @@ export function CaptureGallery({
       setUrls((u) => ({ ...u, [c.id]: url }));
       return url;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cargar el video");
+      setError(e instanceof Error ? e.message : "No se pudo cargar el video. Vuelve a intentarlo.");
       return null;
     } finally {
       setCargandoVideo(null);
@@ -146,7 +146,7 @@ export function CaptureGallery({
       const actualizada = await api.renameCapture(c.id, label);
       setRows((rs) => (rs ?? []).map((r) => (r.id === c.id ? actualizada : r)));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo renombrar");
+      setError(e instanceof Error ? e.message : "No se pudo renombrar. Vuelve a intentarlo.");
     }
   };
 
@@ -158,7 +158,7 @@ export function CaptureGallery({
       setUrls((u) => { const { [c.id]: _, ...resto } = u; return resto; });
       setRows((rs) => (rs ?? []).filter((r) => r.id !== c.id));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo borrar");
+      setError(e instanceof Error ? e.message : "No se pudo borrar. Vuelve a intentarlo.");
     }
   };
 

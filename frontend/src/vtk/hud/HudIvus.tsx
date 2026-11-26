@@ -21,6 +21,7 @@ import {
 import { coloresDe, pintarCorte, pintarGrafico, pintarL, seccionDe } from "./dibujoIvus";
 import type { ProgresoRecorrido } from "./HudRecorrido";
 import { pintarPanel, textoStentAqui, textosDelPanel, type CtxPanel } from "./ivusVideo";
+import { Explica } from "../../components/Explica";
 
 interface Pullback { datos: IvusResult; pila: Uint8Array }
 
@@ -126,7 +127,7 @@ export function HudIvus({ sessionId, claveLinea, claveMedida = "", progreso, onI
     setPb(null); setError(null);
     cargar(sessionId, claveLinea)
       .then((r) => { if (vivo) setPb(r); })
-      .catch((e: unknown) => { if (vivo) setError(e instanceof Error ? e.message : "No se pudo calcular el IVUS virtual"); });
+      .catch((e: unknown) => { if (vivo) setError(e instanceof Error ? e.message : "No se pudo calcular el IVUS virtual. Vuelve a intentarlo."); });
     return () => { vivo = false; };
   }, [sessionId, claveLinea]);
   // El plan solo hace falta si no hay stent desplegado (con stent se ve el real).
@@ -253,9 +254,9 @@ export function HudIvus({ sessionId, claveLinea, claveMedida = "", progreso, onI
               <dt>Área</dt><dd>{mm2(s.area_mm2)}</dd>
               <dt>Ø mín · máx</dt><dd><span className="hud-ivus-min">{mm1(s.d_min_mm)}</span>{` · ${mm1(s.d_max_mm)} mm`}</dd>
               <dt>Excentricidad</dt><dd>{s.eccentricity == null ? "—" : cifra(s.eccentricity, 2)}</dd>
-              <dt title="Ø por perímetro (P/π) y Ø del mayor círculo que cabe en la luz">Ø perím. · inscrito</dt>
+              <dt><Explica texto="Ø por perímetro (P/π) y Ø del mayor círculo que cabe en la luz">Ø perím. · inscrito</Explica></dt>
               <dd>{`${mm1(s.d_perimeter_mm)} · `}<span className="hud-ivus-min">{mm1(s.d_inscribed_mm)}</span>{" mm"}</dd>
-              <dt title="4πA/P²: 1 es un círculo; baja si la luz está aplastada o tiene entrantes">Circularidad</dt>
+              <dt><Explica texto="4πA/P²: 1 es un círculo; baja si la luz está aplastada o tiene entrantes">Circularidad</Explica></dt>
               <dd>{s.circularity == null ? "—" : cifra(s.circularity, 2)}</dd>
               {comp && (
                 <>

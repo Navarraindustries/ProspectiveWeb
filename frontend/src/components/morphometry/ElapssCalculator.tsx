@@ -86,7 +86,7 @@ export function ElapssCalculator({
         et al., <i>Neurology</i> 2017). No es riesgo de rotura: sirve para decidir cada
         cuánto repetir la imagen. El tamaño se rellena desde la morfometría.
       </div>
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 14, lineHeight: 1.5,
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 14, lineHeight: 1.5,
                     padding: "8px 10px", borderRadius: "var(--radius-md)", background: "var(--glass-hover)" }}>
         Es una referencia poblacional, no una predicción para este paciente: fuera de sus
         cohortes discrimina mal, como PHASES. Otras poblaciones (p. ej. Latinoamérica) no
@@ -115,7 +115,7 @@ export function ElapssCalculator({
             es un aviso con la cifra. El corte es el «irregular» de la insignia
             (UI_HIGH); la casilla no se marca sola, la forma la decide quien mira. */}
         {measuredUi != null && measuredUi >= UI_HIGH && !irregular && (
-          <div role="alert" style={{ fontSize: 11, color: "var(--warning)", lineHeight: 1.5, marginTop: -6 }}>
+          <div role="alert" style={{ fontSize: 12, color: "var(--warning)", lineHeight: 1.5, marginTop: -6 }}>
             La forma elegida (regular) contradice el UI medido ({cifra(measuredUi, 2)}): revisa el contorno en el visor
           </div>
         )}
@@ -134,10 +134,10 @@ export function ElapssCalculator({
             display: "flex", alignItems: "center", gap: 16,
           }}>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 34, fontWeight: 800, lineHeight: 1 }}>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: 34, fontWeight: 600, lineHeight: 1 }}>
                 {result.total_score}
               </div>
-              <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>ELAPSS · {result.score_band}</div>
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>ELAPSS · {result.score_band}</div>
             </div>
             <div style={{ flex: 1, fontSize: 13, lineHeight: 1.6 }}>
               <div><b>{cifra(result.growth_3yr_pct, 1)} %</b> de crecimiento a 3 años</div>
@@ -153,7 +153,7 @@ export function ElapssCalculator({
           <Metric label="Tamaño" value={`+${result.size_pts}`} />
           <Metric label="Forma" value={`+${result.shape_pts}`} />
           {result.notes.map((n) => (
-            <div key={n} style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>{n}</div>
+            <div key={n} style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 6, lineHeight: 1.5 }}>{n}</div>
           ))}
         </>
       )}

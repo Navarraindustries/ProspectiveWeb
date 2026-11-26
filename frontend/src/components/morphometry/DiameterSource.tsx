@@ -3,9 +3,9 @@
 import { crossedCut } from "./diameterCut";
 import { cifra } from "../../lib/numero";
 
-const NOTE = { fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: -4 } as const;
+const NOTE = { fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, marginTop: -4 } as const;
 export const CUT_WARN = {
-  fontSize: 11, lineHeight: 1.5, color: "var(--warning)", background: "var(--warning-bg)",
+  fontSize: 12, lineHeight: 1.5, color: "var(--warning)", background: "var(--warning-bg)",
   borderRadius: "var(--radius-md)", padding: "6px 10px",
 } as const;
 

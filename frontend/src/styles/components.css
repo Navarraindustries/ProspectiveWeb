@@ -82,3 +82,18 @@ input[type="range"] { accent-color: var(--primary); }
   .plegable__cabecera { transition: background var(--dur-1) var(--ease-out); }
   .plegable__cabecera:hover { background: var(--glass-hover) !important; }
 }
+
+/* UX-16: explicación desplegable (components/Explica.tsx). */
+.explica-boton {
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-left: 4px; padding: 0 2px; min-width: 18px; min-height: 18px;
+  border: none; background: none; color: var(--muted-foreground);
+  font: inherit; font-size: 12px; line-height: 1; cursor: pointer; border-radius: var(--radius-sm, 4px);
+  vertical-align: middle;
+}
+.explica-boton:hover { color: var(--foreground); }
+.explica-boton:focus-visible { outline: 2px solid var(--ring, var(--primary)); outline-offset: 1px; }
+.explica-texto {
+  display: block; margin-top: 4px; font-size: 12px; line-height: 1.45;
+  color: var(--foreground); white-space: normal;
+}

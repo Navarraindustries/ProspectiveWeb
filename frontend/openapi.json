@@ -655,6 +655,120 @@
     "title": "AvatarUpdate",
     "type": "object"
    },
+   "BifurcacionRequest": {
+    "description": "Ángulo de bifurcación guiado: los tres clics.",
+    "properties": {
+     "hija_1": {
+      "$ref": "#/components/schemas/Position3D",
+      "description": "Point on the first daughter branch, past the bifurcation (mm)"
+     },
+     "hija_2": {
+      "$ref": "#/components/schemas/Position3D",
+      "description": "Point on the second daughter branch, past the bifurcation (mm)"
+     },
+     "madre": {
+      "$ref": "#/components/schemas/Position3D",
+      "description": "Point on the parent artery, before the bifurcation (mm)"
+     }
+    },
+    "required": [
+     "madre",
+     "hija_1",
+     "hija_2"
+    ],
+    "title": "BifurcacionRequest",
+    "type": "object"
+   },
+   "BifurcacionResult": {
+    "description": "Ángulos de la bifurcación medidos sobre dos líneas centrales (madre → cada hija).",
+    "properties": {
+     "angulo_hija1_deg": {
+      "description": "Daughter 1 against the parent's straight continuation (0 = straight on)",
+      "title": "Angulo Hija1 Deg",
+      "type": "number"
+     },
+     "angulo_hija2_deg": {
+      "description": "Daughter 2 against the parent's straight continuation",
+      "title": "Angulo Hija2 Deg",
+      "type": "number"
+     },
+     "angulo_hijas_deg": {
+      "description": "Angle between the two daughter branches (degrees)",
+      "title": "Angulo Hijas Deg",
+      "type": "number"
+     },
+     "diametro_hija1_mm": {
+      "description": "Daughter 1 diameter just after the bifurcation",
+      "title": "Diametro Hija1 Mm",
+      "type": "number"
+     },
+     "diametro_hija2_mm": {
+      "description": "Daughter 2 diameter just after the bifurcation",
+      "title": "Diametro Hija2 Mm",
+      "type": "number"
+     },
+     "diametro_madre_mm": {
+      "description": "Parent diameter just before the bifurcation",
+      "title": "Diametro Madre Mm",
+      "type": "number"
+     },
+     "hija_1": {
+      "$ref": "#/components/schemas/Position3D"
+     },
+     "hija_2": {
+      "$ref": "#/components/schemas/Position3D"
+     },
+     "linea_1": {
+      "description": "Parent → daughter 1 centreline (mm)",
+      "items": {
+       "$ref": "#/components/schemas/Position3D"
+      },
+      "title": "Linea 1",
+      "type": "array"
+     },
+     "linea_2": {
+      "description": "Parent → daughter 2 centreline (mm)",
+      "items": {
+       "$ref": "#/components/schemas/Position3D"
+      },
+      "title": "Linea 2",
+      "type": "array"
+     },
+     "madre": {
+      "$ref": "#/components/schemas/Position3D"
+     },
+     "medido_a_mm": {
+      "description": "Distance from the bifurcation at which the directions were taken (2 parent diameters)",
+      "title": "Medido A Mm",
+      "type": "number"
+     },
+     "punto": {
+      "$ref": "#/components/schemas/Position3D",
+      "description": "Where the two centrelines separate (mm)"
+     },
+     "sin_saco": {
+      "description": "True when the centrelines were traced with the measured sac kept out",
+      "title": "Sin Saco",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "punto",
+     "angulo_hijas_deg",
+     "angulo_hija1_deg",
+     "angulo_hija2_deg",
+     "diametro_madre_mm",
+     "diametro_hija1_mm",
+     "diametro_hija2_mm",
+     "medido_a_mm",
+     "sin_saco",
+     "madre",
+     "hija_1",
+     "hija_2"
+    ],
+    "title": "BifurcacionResult",
+    "type": "object"
+   },
    "Body_add_library_clip_api_clip_library_post": {
     "properties": {
      "closing_force_g": {
@@ -15340,6 +15454,117 @@
      }
     ],
     "summary": "Extract the vessel centreline between two points",
+    "tags": [
+     "centerline"
+    ]
+   }
+  },
+  "/api/centerline/{session_id}/bifurcacion": {
+   "get": {
+    "operationId": "leer_angulo_bifurcacion_api_centerline__session_id__bifurcacion_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "anyOf": [
+          {
+           "$ref": "#/components/schemas/BifurcacionResult"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "title": "Response Leer Angulo Bifurcacion Api Centerline  Session Id  Bifurcacion Get"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "The bifurcation angles measured in this session, if any",
+    "tags": [
+     "centerline"
+    ]
+   },
+   "post": {
+    "description": "Traces two centrelines from the parent point to each daughter (with the deep part of the measured sac kept out of the mask, so they do not cut through it), finds where they separate and returns the angle between the daughters and of each daughter against the parent's straight continuation, measured two parent diameters from the bifurcation. Saved with the session (meshes/bifurcacion.json).",
+    "operationId": "medir_angulo_bifurcacion_api_centerline__session_id__bifurcacion_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BifurcacionRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BifurcacionResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Bifurcation angles from three clicks (parent, daughter 1, daughter 2)",
     "tags": [
      "centerline"
     ]

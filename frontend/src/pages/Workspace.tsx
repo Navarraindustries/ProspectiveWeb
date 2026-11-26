@@ -28,6 +28,7 @@ import { MorphometryPanel } from "../components/morphometry/MorphometryPanel";
 import { etiquetaFormaMedida } from "../components/morphometry/MorphoRiskBadge";
 import { PerforatorsPanel } from "../components/perforators/PerforatorsPanel";
 import { CenterlinePanel } from "../components/vessels/CenterlinePanel";
+import { BifurcationPanel } from "../components/vessels/BifurcationPanel";
 import { TreatmentPanel } from "../components/planning/TreatmentPanel";
 import { DevicesPanel } from "../components/planning/DevicesPanel";
 import { ManufacturePanel } from "../components/planning/ManufacturePanel";
@@ -402,6 +403,13 @@ export function Workspace({
           badge={centerlineMesh ? <Badge variant="success">Extraída</Badge> : undefined}
         >
           <CenterlinePanel />
+        </Collapsible>
+        <Collapsible
+          title="Ángulo de bifurcación"
+          subtitle="Madre y dos ramas junto al aneurisma · tres clics"
+          storageKey="ws.morpho.bifurcation"
+        >
+          <BifurcationPanel />
         </Collapsible>
       </MorphometryPanel>
     ),

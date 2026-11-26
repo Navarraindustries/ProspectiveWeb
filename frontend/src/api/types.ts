@@ -2683,6 +2683,31 @@ export interface AnnotationWire {
 export interface AnnotationsResult { annotations: AnnotationWire[] }
 
 /** P10: los tres clics del stent virtual (POST /api/stent-tres-clics). */
+/** Ángulo de bifurcación guiado (POST /api/centerline/{id}/bifurcacion): los tres clics. */
+export interface BifurcacionRequest {
+  madre: Position3D;
+  hija_1: Position3D;
+  hija_2: Position3D;
+}
+
+/** Ángulos de la bifurcación medidos sobre dos líneas centrales (madre → cada hija). */
+export interface BifurcacionResult {
+  punto: Position3D;
+  angulo_hijas_deg: number;
+  angulo_hija1_deg: number;
+  angulo_hija2_deg: number;
+  diametro_madre_mm: number;
+  diametro_hija1_mm: number;
+  diametro_hija2_mm: number;
+  medido_a_mm: number;
+  sin_saco: boolean;
+  madre: Position3D;
+  hija_1: Position3D;
+  hija_2: Position3D;
+  linea_1: Position3D[];
+  linea_2: Position3D[];
+}
+
 export interface StentTresClicsRequest {
   source: Position3D;
   target: Position3D;

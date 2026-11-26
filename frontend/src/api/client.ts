@@ -45,7 +45,7 @@ import type {
   ClipShapeSuggestion,
   ClStentRequest,
   ClStentResult,
-  StentTresClicsRequest,
+  StentTresClicsRequest, BifurcacionRequest, BifurcacionResult,
   StentTresClicsResult,
   CoilConstructResult,
   CoilLibraryItem,
@@ -747,6 +747,12 @@ export const api = {
   /** Calibre de los anclajes y medida de cada flow-diverter del catálogo. */
   fdSizing: (sessionId: string) =>
     post<FdSizingResult>(`/api/centerline/${sessionId}/fd-sizing`),
+  /** Ángulo de bifurcación a partir de tres clics (madre y dos hijas). */
+  medirBifurcacion: (sessionId: string, req: BifurcacionRequest) =>
+    post<BifurcacionResult>(`/api/centerline/${sessionId}/bifurcacion`, req, 120_000),
+  /** El ángulo de bifurcación ya medido en esta sesión, o null. */
+  leerBifurcacion: (sessionId: string) =>
+    get<BifurcacionResult | null>(`/api/centerline/${sessionId}/bifurcacion`),
   /** P10: línea central, dimensionado y despliegue a partir de tres clics. */
   stentTresClics: (sessionId: string, req: StentTresClicsRequest) =>
     post<StentTresClicsResult>(`/api/stent-tres-clics/${sessionId}`, req),

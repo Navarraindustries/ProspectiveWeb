@@ -188,6 +188,11 @@ const CENTERLINE_RADIUS_MM = 0.3;
 const NECK_MARK_SCALE = 0.6;
 const SOURCE_COLOR: Vector3 = [0.25, 0.73, 0.31];     // green — picked source endpoint
 const TARGET_COLOR: Vector3 = [0.97, 0.32, 0.29];     // red — picked target endpoint
+/** Ángulo de bifurcación: las hijas marcadas y las dos líneas madre → hija. */
+const BIF_HIJA_COLOR: Vector3 = [0.75, 0.45, 1.0];
+const BIF_LINEA_1_COLOR: Vector3 = [0.3, 0.95, 0.45];
+const BIF_LINEA_2_COLOR: Vector3 = [0.85, 0.45, 1.0];
+const BIF_LINEA_MM = 0.15;
 /** El marcador del final de la línea central, algo menor que los de marcar. */
 const FIN_LINEA_SCALE = 0.8;
 const STENT_SAC_COLOR: Vector3 = [0.98, 0.75, 0.14];  // ámbar — el saco del stent en tres clics (P10)
@@ -279,6 +284,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     centerlineMesh, pickMode, clSource, clTarget, setPickMode, setClSource, setClTarget,
     stentSac, setStentSac,
     neckOrigin, neckDome, setNeckOrigin, setNeckDome, neckRim, setNeckRim,
+    bifPuntos, setBifPunto, bifResultado,
     scissorsPoints, setScissorsPoints, scissorsPreview,
     annotations, setAnnotations, annotationDraft, setAnnotationDraft, selectedAnnotation, setSelectedAnnotation, setNoteFocusRequest, previewBand, previewMeshUrl,
     cropCenter, setCropCenter, setErasePick, lesionMark, setLesionMark, followup,
@@ -1477,6 +1483,12 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // línea se paraba en el cuello.
     const finLinea = showCenterline && !marcandoLinea ? centerline?.points[centerline.points.length - 1] : undefined;
     if (finLinea) out.push({ pos: finLinea, color: TARGET_COLOR, scale: FIN_LINEA_SCALE, encima: true });
+    // Ángulo de bifurcación: madre (verde) y las dos hijas (violeta); medida, la
+    // bifurcación (blanco) encima de la malla: cae en la base del saco.
+    if (bifPuntos.madre) out.push({ pos: bifPuntos.madre, color: SOURCE_COLOR });
+    if (bifPuntos.hija1) out.push({ pos: bifPuntos.hija1, color: BIF_HIJA_COLOR });
+    if (bifPuntos.hija2) out.push({ pos: bifPuntos.hija2, color: BIF_HIJA_COLOR });
+    if (bifResultado) out.push({ pos: [bifResultado.punto.x, bifResultado.punto.y, bifResultado.punto.z], color: [1, 1, 1], scale: FIN_LINEA_SCALE, encima: true });
     for (const p of annotationDraft) out.push({ pos: p, color: PENDING_COLOR });
     for (const a of annotations) {
       if (!a.visible || a.kind !== "marcador" || a.points.length === 0) continue;
@@ -1512,7 +1524,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       });
     }
     return out;
-  }, [clSource, clTarget, stentSac, centerlineMesh, showCenterline, centerline, pickMode, step, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators, ver]);
+  }, [clSource, clTarget, stentSac, centerlineMesh, showCenterline, centerline, bifPuntos, bifResultado, pickMode, step, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators, ver]);
 
   const trazoLinea = useMemo<MeshTrazo | null>(
     () => (showCenterline && centerline
@@ -1566,11 +1578,20 @@ export function ViewerWorkspace({ step }: { step: string }) {
                  radiusMm: CORRIDOR_RADIUS_MM, opacity: 0.22 });
     }
     if (overlay) out.push(...overlay.lines);
+    // Ángulo de bifurcación: las dos líneas centrales madre → hija, finas.
+    if (bifResultado) {
+      for (const [linea, color] of [[bifResultado.linea_1, BIF_LINEA_1_COLOR], [bifResultado.linea_2, BIF_LINEA_2_COLOR]] as const) {
+        for (let i = 1; i < linea.length; i++) {
+          const a = linea[i - 1], b = linea[i];
+          out.push({ a: [a.x, a.y, a.z], b: [b.x, b.y, b.z], color, radiusMm: BIF_LINEA_MM, beads: false });
+        }
+      }
+    }
     if (overlay && step === "morpho" && morphometry?.reliable) {
       out.push(...measureDial(overlay.dial.center, overlay.dial.axis, overlay.dial.radius, dialProgress));
     }
     return out;
-  }, [annotationDraft, annotations, selectedAnnotation, trajEntry, trajTarget, overlay, step, dialProgress, morphometry?.reliable]);
+  }, [annotationDraft, annotations, selectedAnnotation, trajEntry, trajTarget, overlay, step, dialProgress, morphometry?.reliable, bifResultado]);
 
   // Entrada de los candidatos (candidateReveal): una por cada lista nueva que
   // llega a Detección. Volver a Detección con la misma lista no la repite.
@@ -2020,6 +2041,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
       else if (pickMode === "neck_dome") { setNeckDome(xyz); setPickMode(null); }
       else if (pickMode === "crop_center") { setCropCenter(xyz); setPickMode(null); }
       else if (pickMode === "lesion_mark") { setLesionMark(xyz); setPickMode(null); }
+      // Ángulo de bifurcación: los tres clics se encadenan solos.
+      else if (pickMode === "bif_madre") { setBifPunto("madre", xyz); setPickMode("bif_hija1"); }
+      else if (pickMode === "bif_hija1") { setBifPunto("hija1", xyz); setPickMode("bif_hija2"); }
+      else if (pickMode === "bif_hija2") { setBifPunto("hija2", xyz); setPickMode(null); }
       // Sigue armado: borrar una pieza y tener que rearmar para la siguiente
       // convierte una limpieza de diez clics en veinte.
       else if (pickMode === "erase_piece") { setErasePick(xyz); }
@@ -2036,7 +2061,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // Todo lo que lee va aquí: con una dependencia de menos, la función se
     // queda con valores de un render anterior (así se perdían los puntos del
     // borde y la elección de candidato veía la lista de antes de re-detectar).
-    [morphometry, pickMode, candidatePick, allCandidates, showRejectedIn3d, candidates.length, selectedCandidate, setSelectedCandidate, addAnnotationPoint, setClSource, setClTarget, setStentSac, setNeckOrigin, setNeckDome, setCropCenter, setLesionMark, setErasePick, setTrajEntry, setTrajTarget, setNeckRim, setScissorsPoints, setPickMode, focusFromMm, syncViews, meta],
+    [morphometry, pickMode, candidatePick, allCandidates, showRejectedIn3d, candidates.length, selectedCandidate, setSelectedCandidate, addAnnotationPoint, setClSource, setClTarget, setStentSac, setBifPunto, setNeckOrigin, setNeckDome, setCropCenter, setLesionMark, setErasePick, setTrajEntry, setTrajTarget, setNeckRim, setScissorsPoints, setPickMode, focusFromMm, syncViews, meta],
   );
 
   // Un marcado se hace sobre la malla: si la escena es una vista lateral, sube
@@ -2715,6 +2740,9 @@ function pickText(mode: NonNullable<PickMode>, draftCount: number, rimCount: num
     case "anot_angulo": return `Ángulo: clic en el ${["primer punto", "vértice", "tercer punto"][Math.min(draftCount, 2)]}`;
     case "anot_region": return `Región: clic en un corte alrededor del hallazgo (${draftCount} punto${draftCount === 1 ? "" : "s"}) · Intro o el primer punto cierra`;
     case "anot_marcador": return "Marcador: clic donde quieras la nota";
+    case "bif_madre": return "Bifurcación · 1 de 3: clic en la arteria MADRE, antes de la bifurcación";
+    case "bif_hija1": return "Bifurcación · 2 de 3: clic en una rama HIJA, pasada la bifurcación";
+    case "bif_hija2": return "Bifurcación · 3 de 3: clic en la otra rama HIJA";
   }
 }
 

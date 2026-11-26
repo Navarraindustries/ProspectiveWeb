@@ -642,6 +642,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/centerline/{session_id}/bifurcacion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The bifurcation angles measured in this session, if any */
+        get: operations["leer_angulo_bifurcacion_api_centerline__session_id__bifurcacion_get"];
+        put?: never;
+        /**
+         * Bifurcation angles from three clicks (parent, daughter 1, daughter 2)
+         * @description Traces two centrelines from the parent point to each daughter (with the deep part of the measured sac kept out of the mask, so they do not cut through it), finds where they separate and returns the angle between the daughters and of each daughter against the parent's straight continuation, measured two parent diameters from the bifurcation. Saved with the session (meshes/bifurcacion.json).
+         */
+        post: operations["medir_angulo_bifurcacion_api_centerline__session_id__bifurcacion_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/centerline/{session_id}/fd-sizing": {
         parameters: {
             query?: never;
@@ -3550,6 +3571,79 @@ export interface components {
              * @enum {string}
              */
             modo: "avatar" | "foto";
+        };
+        /**
+         * BifurcacionRequest
+         * @description Ángulo de bifurcación guiado: los tres clics.
+         */
+        BifurcacionRequest: {
+            /** @description Point on the first daughter branch, past the bifurcation (mm) */
+            hija_1: components["schemas"]["Position3D"];
+            /** @description Point on the second daughter branch, past the bifurcation (mm) */
+            hija_2: components["schemas"]["Position3D"];
+            /** @description Point on the parent artery, before the bifurcation (mm) */
+            madre: components["schemas"]["Position3D"];
+        };
+        /**
+         * BifurcacionResult
+         * @description Ángulos de la bifurcación medidos sobre dos líneas centrales (madre → cada hija).
+         */
+        BifurcacionResult: {
+            /**
+             * Angulo Hija1 Deg
+             * @description Daughter 1 against the parent's straight continuation (0 = straight on)
+             */
+            angulo_hija1_deg: number;
+            /**
+             * Angulo Hija2 Deg
+             * @description Daughter 2 against the parent's straight continuation
+             */
+            angulo_hija2_deg: number;
+            /**
+             * Angulo Hijas Deg
+             * @description Angle between the two daughter branches (degrees)
+             */
+            angulo_hijas_deg: number;
+            /**
+             * Diametro Hija1 Mm
+             * @description Daughter 1 diameter just after the bifurcation
+             */
+            diametro_hija1_mm: number;
+            /**
+             * Diametro Hija2 Mm
+             * @description Daughter 2 diameter just after the bifurcation
+             */
+            diametro_hija2_mm: number;
+            /**
+             * Diametro Madre Mm
+             * @description Parent diameter just before the bifurcation
+             */
+            diametro_madre_mm: number;
+            hija_1: components["schemas"]["Position3D"];
+            hija_2: components["schemas"]["Position3D"];
+            /**
+             * Linea 1
+             * @description Parent → daughter 1 centreline (mm)
+             */
+            linea_1?: components["schemas"]["Position3D"][];
+            /**
+             * Linea 2
+             * @description Parent → daughter 2 centreline (mm)
+             */
+            linea_2?: components["schemas"]["Position3D"][];
+            madre: components["schemas"]["Position3D"];
+            /**
+             * Medido A Mm
+             * @description Distance from the bifurcation at which the directions were taken (2 parent diameters)
+             */
+            medido_a_mm: number;
+            /** @description Where the two centrelines separate (mm) */
+            punto: components["schemas"]["Position3D"];
+            /**
+             * Sin Saco
+             * @description True when the centrelines were traced with the measured sac kept out
+             */
+            sin_saco: boolean;
         };
         /** Body_add_library_clip_api_clip_library_post */
         Body_add_library_clip_api_clip_library_post: {
@@ -12898,6 +12992,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CenterlineClearResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    leer_angulo_bifurcacion_api_centerline__session_id__bifurcacion_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BifurcacionResult"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    medir_angulo_bifurcacion_api_centerline__session_id__bifurcacion_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BifurcacionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BifurcacionResult"];
                 };
             };
             /** @description Validation Error */

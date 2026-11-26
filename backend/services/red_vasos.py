@@ -363,13 +363,24 @@ def _quitar_solapes(tramos: list[Tramo], dist: DistanciaFirmada) -> list[Tramo]:
     return [t for t in salida if t is not None]
 
 
-def extraer_red(poly: vtk.vtkPolyData, voxel_mm: float = VOXEL_MM) -> Red:
+def extraer_red(poly: vtk.vtkPolyData, voxel_mm: float = VOXEL_MM,
+                caja: tuple[float, ...] | None = None,
+                excluir: vtk.vtkPolyData | None = None) -> Red:
+    """`caja` (xmin, xmax, ymin, ymax, zmin, zmax) limita la red a esa zona;
+    `excluir` (una malla cerrada, p. ej. el saco) saca su interior de la
+    máscara: la red de un aneurisma de bifurcación se traza así por el vaso,
+    no por dentro del saco (por dentro iba por caminos arbitrarios)."""
     t0 = time.perf_counter()
     b = poly.GetBounds()
+    if caja is not None:
+        b = tuple(max(b[i], caja[i]) if i % 2 == 0 else min(b[i], caja[i]) for i in range(6))
     vs = voxel_mm
     while ((b[1] - b[0]) / vs) * ((b[3] - b[2]) / vs) * ((b[5] - b[4]) / vs) > _MAX_VOXELES:
         vs *= 1.25
     mask, origin, vs = voxelizar(poly, b, vs)
+    if excluir is not None and excluir.GetNumberOfCells():
+        fuera, _, _ = voxelizar(excluir, b, vs)
+        mask &= ~fuera
     if not mask.any():
         raise ValueError("La malla no encierra volumen (¿superficie abierta?): no hay red que extraer.")
     lab, n = ndimage.label(mask, structure=np.ones((3, 3, 3)))

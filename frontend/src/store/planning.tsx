@@ -152,6 +152,9 @@ interface PlanningState {
   /** Semi-automatic neck plane: a point on the neck and the dome apex (click on the mesh). */
   neckOrigin: Vec3 | null;
   neckDome: Vec3 | null;
+  /** Ángulo de bifurcación: los tres clics y la medida (se guarda con la sesión). */
+  bifPuntos: BifPuntos;
+  bifResultado: import("../api/types").BifurcacionResult | null;
   /** Anotaciones del estudio (reglas, ángulos, regiones, marcadores); se guardan con la sesión. */
   annotations: Annotation[];
   /** Puntos ya pinchados de la anotación en curso, a la espera de los que faltan. */
@@ -406,6 +409,9 @@ interface PlanningState {
   setClTarget: (p: Vec3 | null) => void;
   setStentSac: (p: Vec3 | null) => void;
   setNeckOrigin: (p: Vec3 | null) => void;
+  setBifPunto: (cual: keyof BifPuntos, p: Vec3 | null) => void;
+  setBifPuntos: (b: BifPuntos) => void;
+  setBifResultado: (r: import("../api/types").BifurcacionResult | null) => void;
   setNeckDome: (p: Vec3 | null) => void;
   setAnnotations: (a: Annotation[] | ((prev: Annotation[]) => Annotation[])) => void;
   setAnnotationDraft: (p: Vec3[] | ((prev: Vec3[]) => Vec3[])) => void;
@@ -500,7 +506,12 @@ export type PickMode =
   | "scissors"
   | "crop_center" | "erase_piece" | "traj_entry" | "traj_target"
   | "lesion_mark"
-  | "anot_regla" | "anot_angulo" | "anot_region" | "anot_marcador" | null;
+  | "anot_regla" | "anot_angulo" | "anot_region" | "anot_marcador"
+  | "bif_madre" | "bif_hija1" | "bif_hija2" | null;
+
+/** Ángulo de bifurcación guiado: los tres puntos marcados (madre y dos hijas). */
+export interface BifPuntos { madre: Vec3 | null; hija1: Vec3 | null; hija2: Vec3 | null }
+export const SIN_BIF: BifPuntos = { madre: null, hija1: null, hija2: null };
 
 export const ANNOTATION_MODES: Record<AnnotationKind, PickMode> = {
   regla: "anot_regla", angulo: "anot_angulo", region: "anot_region", marcador: "anot_marcador",
@@ -600,6 +611,9 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const [stentSac, setStentSac] = useState<Vec3 | null>(null);
   const [neckOrigin, setNeckOrigin] = useState<Vec3 | null>(null);
   const [neckDome, setNeckDome] = useState<Vec3 | null>(null);
+  const [bifPuntos, setBifPuntos] = useState<BifPuntos>(SIN_BIF);
+  const setBifPunto = useCallback((cual: keyof BifPuntos, punto: Vec3 | null) => setBifPuntos((b) => ({ ...b, [cual]: punto })), []);
+  const [bifResultado, setBifResultado] = useState<import("../api/types").BifurcacionResult | null>(null);
   const [annotations, _setAnnotations] = useState<Annotation[]>([]);
   const [selectedAnnotation, setSelectedAnnotation] = useState<string | null>(null);
   const [annotationsSync, setAnnotationsSync] = useState<"guardado" | "guardando" | "error">("guardado");
@@ -833,6 +847,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setStentSac(null);
     setNeckOrigin(null);
     setNeckDome(null);
+    setBifPuntos(SIN_BIF);
+    setBifResultado(null);
     setNeckRim([]);
     setClipRehearsal(null);
     // Un campo de otra sesión no describe los clips de la nueva.
@@ -886,6 +902,8 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     setStentSac(null);
     setNeckOrigin(null);
     setNeckDome(null);
+    setBifPuntos(SIN_BIF);
+    setBifResultado(null);
     setNeckRim([]);
     setClipRehearsal(null);
     setClipField(null);
@@ -964,7 +982,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
         setMorphoInvalidatedNotice, clearMorphometry,
         setDeviceMesh, clearDeviceMeshes, restoreDeviceMesh, setCenterlineMesh, setCenterlineArcMm, setMprWl,
         setPickMode, setClSource, setClTarget, setStentSac, setNeckRim, setScissorsPoints, setScissorsPreview, setScissorsKeepSide, setPerforators, togglePerforator, setVisiblePerforators, setClipRehearsal, setClipField, setShowClipField, setFieldMeshShown, setFieldMeshUrl, setClipsTabActive, setPlacedClips, setPlannedClips, setSelectedClipKey, registerClipParts,
-        setNeckOrigin, setNeckDome,
+        setNeckOrigin, setNeckDome, bifPuntos, bifResultado, setBifPunto, setBifPuntos, setBifResultado,
         setAnnotations, setAnnotationDraft, setSelectedAnnotation, setAnnotationsSync, setAnnotationsLoaded, setAnnotationsLoadState, clearAnnotations, setNoteFocusRequest, setCropCenter, setErasePick, setCropRadius, setCropInvert, setTrajEntry, setTrajTarget, setMorphoOverlay, setShowRejectedIn3d,
         setCaptureViewport, setCenterOnLesion, registerSceneFramer, markSaved, marcarCambios, registerSaver, saveNow,
         setViewerLayout, setSyncViews, setOrientationManual, setMipMode, setMipSlabMm, setMipPlane, setVolumeMode, setVolumePreset, bumpVolumeVersion,

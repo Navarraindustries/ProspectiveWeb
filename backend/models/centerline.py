@@ -395,3 +395,30 @@ class StentTresClicsResult(BaseModel):
     deploy_arc_mm: list[float] | None = None
     stent: ClStentResult | None = Field(None, description="Null when no catalogue option fits")
     message: str = Field(..., description="What was done, in one sentence, or why nothing was deployed")
+
+
+class BifurcacionRequest(BaseModel):
+    """Ángulo de bifurcación guiado: los tres clics."""
+
+    madre: Position3D = Field(..., description="Point on the parent artery, before the bifurcation (mm)")
+    hija_1: Position3D = Field(..., description="Point on the first daughter branch, past the bifurcation (mm)")
+    hija_2: Position3D = Field(..., description="Point on the second daughter branch, past the bifurcation (mm)")
+
+
+class BifurcacionResult(BaseModel):
+    """Ángulos de la bifurcación medidos sobre dos líneas centrales (madre → cada hija)."""
+
+    punto: Position3D = Field(..., description="Where the two centrelines separate (mm)")
+    angulo_hijas_deg: float = Field(..., description="Angle between the two daughter branches (degrees)")
+    angulo_hija1_deg: float = Field(..., description="Daughter 1 against the parent's straight continuation (0 = straight on)")
+    angulo_hija2_deg: float = Field(..., description="Daughter 2 against the parent's straight continuation")
+    diametro_madre_mm: float = Field(..., description="Parent diameter just before the bifurcation")
+    diametro_hija1_mm: float = Field(..., description="Daughter 1 diameter just after the bifurcation")
+    diametro_hija2_mm: float = Field(..., description="Daughter 2 diameter just after the bifurcation")
+    medido_a_mm: float = Field(..., description="Distance from the bifurcation at which the directions were taken (2 parent diameters)")
+    sin_saco: bool = Field(..., description="True when the centrelines were traced with the measured sac kept out")
+    madre: Position3D
+    hija_1: Position3D
+    hija_2: Position3D
+    linea_1: list[Position3D] = Field(default_factory=list, description="Parent → daughter 1 centreline (mm)")
+    linea_2: list[Position3D] = Field(default_factory=list, description="Parent → daughter 2 centreline (mm)")

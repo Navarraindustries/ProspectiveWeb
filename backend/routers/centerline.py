@@ -20,6 +20,7 @@ from models.centerline import (
     CenterlineClearResult, CenterlinePoints, CenterlineRequest, CenterlineResult,
     CrossSectionRequest, CrossSectionResult, ClStentApposition, ClStentCoverage, ClStentRequest, ClStentResult,
     FdSizingResult, StentTresClicsRequest, StentTresClicsResult,
+    BifurcacionRequest, BifurcacionResult,
 )
 from models.detection import Position3D
 from services.centerline import extract_centerline, voxel_linea
@@ -759,3 +760,70 @@ async def clear_centerline(session_id: str) -> CenterlineClearResult:
 
     logger.info("Cleared centreline for session=%s (%s)", session_id, removed or "nothing")
     return CenterlineClearResult(removed=removed, had_centerline=had)
+
+
+# ── Ángulo de bifurcación guiado ──────────────────────────────────────────── #
+
+_BIFURCACION = "bifurcacion.json"
+
+
+def _run_bifurcacion(session_id: str, meshes_dir: Path, req: BifurcacionRequest) -> BifurcacionResult:
+    from services.angulo_bifurcacion import medir_bifurcacion
+    malla = read_vtp(meshes_dir / "vessel_tree.vtp")
+    saco_path = meshes_dir / (read_state(session_id, "morpho.sac_vtp_name", "") or "aneurysm_sac.vtp")
+    saco = read_vtp(saco_path) if saco_path.exists() else None
+    p = lambda q: (q.x, q.y, q.z)  # noqa: E731
+    r = medir_bifurcacion(malla, p(req.madre), p(req.hija_1), p(req.hija_2), saco=saco)
+    pos = lambda v: Position3D(x=float(v[0]), y=float(v[1]), z=float(v[2]))  # noqa: E731
+    out = BifurcacionResult(
+        punto=pos(r.punto), angulo_hijas_deg=round(r.angulo_hijas_deg, 1),
+        angulo_hija1_deg=round(r.angulo_hija1_deg, 1), angulo_hija2_deg=round(r.angulo_hija2_deg, 1),
+        diametro_madre_mm=round(r.diametro_madre_mm, 2), diametro_hija1_mm=round(r.diametro_hija1_mm, 2),
+        diametro_hija2_mm=round(r.diametro_hija2_mm, 2), medido_a_mm=round(r.medido_a_mm, 1),
+        sin_saco=r.sin_saco, madre=req.madre, hija_1=req.hija_1, hija_2=req.hija_2,
+        linea_1=[pos(v) for v in r.linea1], linea_2=[pos(v) for v in r.linea2])
+    (meshes_dir / _BIFURCACION).write_text(out.model_dump_json(), encoding="utf-8")
+    return out
+
+
+@router.post(
+    "/centerline/{session_id}/bifurcacion",
+    response_model=BifurcacionResult,
+    summary="Bifurcation angles from three clicks (parent, daughter 1, daughter 2)",
+    description=(
+        "Traces two centrelines from the parent point to each daughter (with the deep part of the "
+        "measured sac kept out of the mask, so they do not cut through it), finds where they "
+        "separate and returns the angle between the daughters and of each daughter against the "
+        "parent's straight continuation, measured two parent diameters from the bifurcation. "
+        "Saved with the session (meshes/bifurcacion.json)."
+    ),
+)
+async def medir_angulo_bifurcacion(session_id: str, req: BifurcacionRequest) -> BifurcacionResult:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
+    meshes_dir = session_subdir(session_id, "meshes")
+    if not (meshes_dir / "vessel_tree.vtp").exists():
+        raise HTTPException(status_code=409, detail="No hay malla vascular. Ejecuta la segmentación primero.")
+    try:
+        return await asyncio.to_thread(_run_bifurcacion, session_id, meshes_dir, req)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=mensaje_error("No se pudo medir el ángulo de bifurcación", exc))
+
+
+@router.get(
+    "/centerline/{session_id}/bifurcacion",
+    response_model=BifurcacionResult | None,
+    summary="The bifurcation angles measured in this session, if any",
+)
+async def leer_angulo_bifurcacion(session_id: str) -> BifurcacionResult | None:
+    if not session_exists(session_id):
+        raise HTTPException(status_code=404, detail=f"Sesión '{session_id}' no encontrada: puede haber caducado; vuelve a cargar el estudio")
+    f = session_subdir(session_id, "meshes") / _BIFURCACION
+    if not f.exists():
+        return None
+    try:
+        return BifurcacionResult.model_validate_json(f.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 — un fichero dañado es como no haber medido
+        return None

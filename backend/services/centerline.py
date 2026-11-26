@@ -106,6 +106,10 @@ def voxelizar(poly_data: vtk.vtkPolyData, bds, vs: float):
     return np.ascontiguousarray(mask), origin, vs
 
 
+#: Al excluir una malla (el saco) se deja libre esta franja junto a su superficie.
+_MARGEN_EXCLUIR_MM = 1.2
+
+
 class CenterlineExtractor:
     """Extract the medial-axis centreline of a vessel mesh between two points."""
 
@@ -140,12 +144,18 @@ class CenterlineExtractor:
         source_mm: tuple[float, float, float],
         target_mm: tuple[float, float, float] | None = None,
         target_region: vtk.vtkPolyData | None = None,
+        excluir: vtk.vtkPolyData | None = None,
     ) -> CenterlineResult:
         """`target_region` (el saco medido, cerrado, o la zona del candidato,
         abierta) pone el destino DENTRO de la lesión, en su punto más hondo, en
         vez de pegarlo al eje del vaso más grueso de alrededor: junto a la
         basilar de case 3 el destino caía en la arteria madre, a 1,7 mm del
-        saco, y el recorrido por dentro nunca entraba en él (17-11)."""
+        saco, y el recorrido por dentro nunca entraba en él (17-11).
+
+        `excluir` (una malla cerrada, el saco) saca su interior de la máscara:
+        la línea va por el vaso y no ataja por el saco, que es ancho y por eso
+        barato para el camino de mínimo coste (en case 3, dos de tres líneas
+        de la madre a las ramas cruzaban el saco)."""
         region_pts = None
         if target_region is not None and target_region.GetNumberOfPoints() > 0:
             region_pts = vtk_to_numpy(target_region.GetPoints().GetData()).astype(np.float64)
@@ -164,6 +174,12 @@ class CenterlineExtractor:
             self._clamp_voxel_size(bounds)
             self._progress(0.05)
             mask, origin, vs = self._voxelise(poly_data, bounds)
+            if excluir is not None and excluir.GetNumberOfCells():
+                # Solo lo hondo del saco: su tapa del cuello está DENTRO de la
+                # luz de la bifurcación (Zenodo 089) y, quitado entero, la línea
+                # a una hija daba un rodeo de 47 mm por otro camino.
+                fuera = voxelizar(excluir, bounds, vs)[0]
+                mask &= ~(distance_transform_edt(fuera) * vs > _MARGEN_EXCLUIR_MM)
             if not mask.any():
                 continue
             self._progress(0.25)
@@ -198,7 +214,14 @@ class CenterlineExtractor:
             pts_smooth = llevar_extremos_a_lo_marcado(
                 pts_smooth, dist_pared, source_mm,
                 None if region_pts is not None else target_mm)
+        antes = pts_smooth.copy()
         pts_smooth = centrar_en_malla(pts_smooth, poly_data, dist_pared)
+        if excluir is not None and excluir.GetNumberOfCells():
+            # El centrado busca el centro de la luz de la malla, y para ella el
+            # saco ES luz: los puntos que meta en lo hondo del saco vuelven.
+            d_ex = DistanciaFirmada(excluir)
+            hondo = np.array([d_ex.EvaluateFunction(*q) < -_MARGEN_EXCLUIR_MM for q in pts_smooth])
+            pts_smooth[hondo] = antes[hondo]
         pts_final, radii = self._resample_with_radii(pts_smooth, dt, origin, vs, mask.shape, dist_pared)
 
         self._progress(0.95)
@@ -775,9 +798,10 @@ def extract_centerline(
     voxel_size_mm: float = 0.8,
     progress_cb: Callable[[float], None] | None = None,
     target_region: vtk.vtkPolyData | None = None,
+    excluir: vtk.vtkPolyData | None = None,
 ) -> CenterlineResult:
     """Convenience wrapper around :class:`CenterlineExtractor`."""
     return CenterlineExtractor(
         voxel_size_mm=voxel_size_mm,
         progress_cb=progress_cb,
-    ).extract(poly_data, source_mm, target_mm, target_region=target_region)
+    ).extract(poly_data, source_mm, target_mm, target_region=target_region, excluir=excluir)

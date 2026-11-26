@@ -9,7 +9,7 @@
 <p align="center">
   <img alt="Pruebas de backend" src="https://img.shields.io/badge/pruebas%20backend-2601-2ea44f">
   <img alt="Archivos de pruebas de frontend" src="https://img.shields.io/badge/pruebas%20frontend-312%20archivos-2ea44f">
-  <img alt="API" src="https://img.shields.io/badge/API-182%20operaciones-1f6feb">
+  <img alt="API" src="https://img.shields.io/badge/API-184%20operaciones-1f6feb">
   <img alt="Python" src="https://img.shields.io/badge/python-3.11%2B-3776ab">
   <img alt="React" src="https://img.shields.io/badge/react-19-61dafb">
   <img alt="IA" src="https://img.shields.io/badge/detector%20de%20IA-en%20desarrollo-f59e0b">
@@ -101,7 +101,7 @@ Al 20 de noviembre de 2026.
 |---|---|
 | Pruebas de backend | **2601** recogidas (`pytest`, 194 archivos) |
 | Pruebas de frontend | **312** archivos de pruebas (`vitest`) · `tsc -b` limpio · build de producción limpio |
-| Endpoints REST | **182** operaciones (32 routers), todas autenticadas salvo login/signup/logout; `/docs` y `/openapi.json` también piden sesión |
+| Endpoints REST | **184** operaciones (32 routers), todas autenticadas salvo login/signup/logout; `/docs` y `/openapi.json` también piden sesión |
 | Paridad con la aplicación de escritorio | **Completa** |
 | Modelos de IA | **En desarrollo**: datos preparados y código de entrenamiento escrito |
 
@@ -2802,7 +2802,7 @@ their back. Delete the captures from the gallery, then the study.
 
 ## API Reference
 
-182 operations under `/api`. Full spec in `frontend/openapi.json` or at `/docs` (requires a session).
+184 operations under `/api`. Full spec in `frontend/openapi.json` or at `/docs` (requires a session).
 
 **Everything except `POST /api/auth/login`, `/signup` and `/logout` requires a
 token.** It travels as `Authorization: Bearer …` or as the `prospective_token`
@@ -2913,6 +2913,7 @@ answer 429 until the oldest expires (`services/login_throttle.py`).
 | `POST` | `/api/morphometry/{sid}/neck-plane` | Neck plane from two clicks, or fitted to points marked around the rim |
 | `GET` | `/api/perforators/{sid}` | Perforator risk candidates, with the risk-zone radii used |
 | `POST` `DELETE` | `/api/centerline/{sid}` | Medial axis · discard it and any stent deployed along it |
+| `POST` `GET` | `/api/centerline/{sid}/bifurcacion` | Bifurcation angles from three clicks (parent, two daughters): two centrelines kept out of the deep sac, angle between daughters and of each against the parent · read the saved one |
 | `POST` | `/api/mesh/{sid}/smooth` | Smoothed copy of a mesh, for display only (`<name>.suave.vtp`) |
 | `POST` | `/api/mesh/{sid}/red` | Vessel network: centreline of every vessel of the tree and its bifurcations, in seconds (`<name>.red.vtp`, thin tubes with direct RGB field `colores`) and its summary; the viewer's RED toggle |
 | `POST` | `/api/mesh/{sid}/calibre` | Calibre map: local vessel diameter at every vertex (`<name>.calibre.vtp`, field `calibre_mm`) and its summary; the viewer's CALIBRE toggle |

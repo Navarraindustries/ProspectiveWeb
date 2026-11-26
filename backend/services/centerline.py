@@ -2,7 +2,7 @@
 
 Algorithm
 ---------
-1. **Voxelise** the vessel mesh with ``vtkSelectEnclosedPoints`` at a
+1. **Voxelise** the vessel mesh with ``vtkPolyDataToImageStencil`` at a
    configurable resolution (default 0.8 mm/voxel).
 2. **Euclidean Distance Transform** (scipy EDT) on the binary mask → local
    vessel radius at every interior voxel.
@@ -81,7 +81,7 @@ class CenterlineExtractor:
     # ------------------------------------------------------------------ #
 
     # Cap the probe grid so a large mesh at a fine voxel size can't blow up
-    # memory / the vtkSelectEnclosedPoints pass. If exceeded, the voxel size is
+    # memory / the voxelisation pass. If exceeded, the voxel size is
     # raised (coarser but bounded).
     _MAX_VOXELS = 12_000_000
 
@@ -125,10 +125,10 @@ class CenterlineExtractor:
             dt = distance_transform_edt(mask).astype(np.float32) * vs   # mm
             src_idx = self._world_to_idx(source_mm, origin, vs, mask.shape)
             tgt_idx = self._world_to_idx(target_mm, origin, vs, mask.shape)
-            src_idx = self._snap_to_best_center(src_idx, mask, dt)
+            src_idx = self._snap_to_best_center(src_idx, mask, dt, vs)
             dentro = (self._lesion_center(mask, dt, origin, vs, target_region, region_pts)
                       if region_pts is not None else None)
-            tgt_idx = dentro if dentro is not None else self._snap_to_best_center(tgt_idx, mask, dt)
+            tgt_idx = dentro if dentro is not None else self._snap_to_best_center(tgt_idx, mask, dt, vs)
             self._progress(0.35)
             raw_path = self._dijkstra(dt, mask, src_idx, tgt_idx)
             if len(raw_path) >= 2:
@@ -140,17 +140,21 @@ class CenterlineExtractor:
                 "No se puede extraer la línea central."
             )
         if not raw_path or len(raw_path) < 2:
-            raise ValueError(
-                "No se encontró un camino entre los puntos indicados. "
-                "Verifique que ambos puntos estén dentro del mismo vaso."
-            )
+            raise ValueError(_sin_camino(poly_data, source_mm, target_mm, vs))
 
         self._progress(0.80)
         pts_world  = self._path_to_world(raw_path, origin, vs)
         pts_smooth = self._smooth_path(pts_world)
         self._progress(0.85)
-        pts_smooth = centrar_en_malla(pts_smooth, poly_data)
-        pts_final, radii = self._resample_with_radii(pts_smooth, dt, origin, vs, mask.shape)
+        dist_pared = DistanciaFirmada(poly_data) if poly_data.GetNumberOfCells() else None
+        if dist_pared is not None:
+            # Antes de centrar: así el centrado arregla también los puntos de
+            # al lado del extremo, que venían del vóxel de la punta.
+            pts_smooth = llevar_extremos_a_lo_marcado(
+                pts_smooth, dist_pared, source_mm,
+                None if region_pts is not None else target_mm)
+        pts_smooth = centrar_en_malla(pts_smooth, poly_data, dist_pared)
+        pts_final, radii = self._resample_with_radii(pts_smooth, dt, origin, vs, mask.shape, dist_pared)
 
         self._progress(0.95)
         n_portador = None
@@ -196,6 +200,15 @@ class CenterlineExtractor:
             logger.info("Centerline: grid too large, voxel size raised to %.2f mm", self.voxel_size_mm)
 
     def _voxelise(self, poly_data: vtk.vtkPolyData, bds):
+        """Máscara del interior de la malla en la rejilla de `bds`.
+
+        Relleno por cortes (`vtkPolyDataToImageStencil`), como
+        `branch_origins._rasterise`. `vtkSelectEnclosedPoints` fallaba en
+        mallas reales: en la de case 3 marcaba «dentro» 16 cm³ para un vaso de
+        5,6 (vóxeles a 24 mm de la pared, con 0 cortes de rayo en los seis
+        ejes), y la línea central pasaba por fuera del vaso hasta 7 mm. Además
+        tardaba casi un minuto en la malla entera; esto, menos de un segundo.
+        """
         vs  = self.voxel_size_mm
         pad = vs * 2
 
@@ -204,26 +217,31 @@ class CenterlineExtractor:
         ny = max(4, int((bds[3] - bds[2] + 2 * pad) / vs) + 1)
         nz = max(4, int((bds[5] - bds[4] + 2 * pad) / vs) + 1)
 
-        xi = origin[0] + np.arange(nx) * vs
-        yi = origin[1] + np.arange(ny) * vs
-        zi = origin[2] + np.arange(nz) * vs
-        gx, gy, gz = np.meshgrid(xi, yi, zi, indexing="ij")
-        pts_arr = np.column_stack([gx.ravel(), gy.ravel(), gz.ravel()]).astype(np.float32)
+        img = vtk.vtkImageData()
+        img.SetDimensions(nx, ny, nz)
+        img.SetOrigin(*origin)
+        img.SetSpacing(vs, vs, vs)
+        img.AllocateScalars(vtk.VTK_UNSIGNED_CHAR, 1)
+        img.GetPointData().GetScalars().Fill(1)
 
-        vtk_pts = vtk.vtkPoints()
-        vtk_pts.SetData(numpy_to_vtk(pts_arr, deep=True))
-        probe_pd = vtk.vtkPolyData()
-        probe_pd.SetPoints(vtk_pts)
+        stencil = vtk.vtkPolyDataToImageStencil()
+        stencil.SetInputData(poly_data)
+        stencil.SetOutputOrigin(img.GetOrigin())
+        stencil.SetOutputSpacing(img.GetSpacing())
+        stencil.SetOutputWholeExtent(img.GetExtent())
+        stencil.Update()
 
-        enc = vtk.vtkSelectEnclosedPoints()
-        enc.SetInputData(probe_pd)
-        enc.SetSurfaceData(poly_data)
-        enc.SetTolerance(0.001)
-        enc.Update()
+        cut = vtk.vtkImageStencil()
+        cut.SetInputData(img)
+        cut.SetStencilData(stencil.GetOutput())
+        cut.ReverseStencilOff()
+        cut.SetBackgroundValue(0)
+        cut.Update()
 
-        inside = vtk_to_numpy(enc.GetOutput().GetPointData().GetArray("SelectedPoints"))
-        mask = inside.reshape((nx, ny, nz)).astype(bool)
-        return mask, origin, vs
+        flat = vtk_to_numpy(cut.GetOutput().GetPointData().GetScalars())
+        # VTK entrega el volumen con el eje X variando más rápido.
+        mask = flat.reshape((nz, ny, nx)).astype(bool).transpose(2, 1, 0)
+        return np.ascontiguousarray(mask), origin, vs
 
     # ------------------------------------------------------------------ #
     # Coordinate helpers                                                   #
@@ -240,8 +258,15 @@ class CenterlineExtractor:
         return (i, j, k)
 
     @staticmethod
-    def _snap_to_best_center(idx, mask, dt):
-        """Snap *idx* to the interior voxel closest to the vessel axis."""
+    def _snap_to_best_center(idx, mask, dt, vs: float = 1.0):
+        """Lleva *idx* al eje del vaso, a la altura de lo marcado.
+
+        Se elige el vóxel cuya esfera inscrita (radio = su distancia a la pared,
+        `dt`, en mm) CONTIENE el punto marcado y, de esos, el más hondo; a
+        igualdad, el más cercano. Así el punto solo se mueve de lado, hasta el
+        eje. Antes se elegía «lo más hondo de un cubo de ±8 vóxeles»: cerca de
+        la punta de un vaso eso queda vaso adentro, y el extremo se corría hasta
+        7,85 mm (o hacia otra rama más gruesa); la longitud salía mal."""
         inside = np.argwhere(mask)
         if len(inside) == 0:
             raise ValueError("Interior de la malla vacío — revise la calidad de la malla.")
@@ -253,11 +278,13 @@ class CenterlineExtractor:
             if len(candidates) == 0:
                 continue
             dt_vals = dt[candidates[:, 0], candidates[:, 1], candidates[:, 2]]
-            max_dt  = dt_vals.max()
-            near_max = candidates[dt_vals >= max_dt * 0.90]
-            nm_arr   = near_max.astype(np.float64)
-            sq_dists = np.sum((nm_arr - idx_arr) ** 2, axis=1)
-            return tuple(near_max[np.argmin(sq_dists)])
+            d_mm = np.linalg.norm(candidates - idx_arr, axis=1) * vs
+            contiene = d_mm <= dt_vals + 0.5 * vs
+            if not contiene.any():
+                continue
+            c, dv, dd = candidates[contiene], dt_vals[contiene], d_mm[contiene]
+            hondos = dv >= dv.max() * 0.98
+            return tuple(c[hondos][np.argmin(dd[hondos])])
 
         dists = np.sum((inside - idx_arr) ** 2, axis=1)
         return tuple(inside[np.argmin(dists)])
@@ -385,7 +412,7 @@ class CenterlineExtractor:
         smoothed[-1] = pts[-1]
         return smoothed
 
-    def _resample_with_radii(self, pts, dt, origin, vs, shape):
+    def _resample_with_radii(self, pts, dt, origin, vs, shape, dist_pared=None):
         spacing = self.resample_spacing_mm
         diffs   = np.diff(pts, axis=0)
         segs    = np.linalg.norm(diffs, axis=1)
@@ -401,17 +428,26 @@ class CenterlineExtractor:
         ])
 
         radii = np.zeros(n_out, dtype=np.float32)
-        for idx, pt in enumerate(resampled):
-            vi = max(0, min(int(round((pt[0] - origin[0]) / vs)), shape[0] - 1))
-            vj = max(0, min(int(round((pt[1] - origin[1]) / vs)), shape[1] - 1))
-            vk = max(0, min(int(round((pt[2] - origin[2]) / vs)), shape[2] - 1))
-            radii[idx] = dt[vi, vj, vk]
+        if dist_pared is not None:
+            # La distancia exacta a la pared (la malla, no la rejilla). La de la
+            # transformada en vóxeles iba a saltos de vóxel: con 0,8 mm, un
+            # vaso de Ø 2 mm salía de Ø 1,6.
+            for idx, pt in enumerate(resampled):
+                radii[idx] = max(0.0, -dist_pared.EvaluateFunction(*pt))
+            minimo = 0.05
+        else:
+            for idx, pt in enumerate(resampled):
+                vi = max(0, min(int(round((pt[0] - origin[0]) / vs)), shape[0] - 1))
+                vj = max(0, min(int(round((pt[1] - origin[1]) / vs)), shape[1] - 1))
+                vk = max(0, min(int(round((pt[2] - origin[2]) / vs)), shape[2] - 1))
+                radii[idx] = dt[vi, vj, vk]
+            minimo = vs * 0.5
 
         nonzero = radii > 0.0
         if nonzero.any() and not nonzero.all():
             idxs = np.arange(n_out, dtype=float)
             radii = np.interp(idxs, idxs[nonzero], radii[nonzero])
-        radii = np.maximum(radii, vs * 0.5)
+        radii = np.maximum(radii, minimo)
         return resampled, radii
 
     # ------------------------------------------------------------------ #
@@ -528,7 +564,8 @@ def _meter_dentro(p: np.ndarray, dist: DistanciaFirmada) -> None:
             p[i] -= np.array(g) / n * (d + _MARGEN_DENTRO_MM + 0.05)
 
 
-def centrar_en_malla(pts: np.ndarray, poly_data: vtk.vtkPolyData) -> np.ndarray:
+def centrar_en_malla(pts: np.ndarray, poly_data: vtk.vtkPolyData,
+                     dist: "DistanciaFirmada | None" = None) -> np.ndarray:
     """Lleva cada punto interior de la línea al centro del vaso en la malla.
 
     Cada punto sube por la profundidad dentro de su plano transversal (la
@@ -543,7 +580,8 @@ def centrar_en_malla(pts: np.ndarray, poly_data: vtk.vtkPolyData) -> np.ndarray:
         return p
     base = p.copy()
     extremos = p[[0, -1]].copy()
-    dist = DistanciaFirmada(poly_data)   # no vtkImplicitPolyDataDistance: services/distancia_malla.py
+    if dist is None:
+        dist = DistanciaFirmada(poly_data)   # no vtkImplicitPolyDataDistance: services/distancia_malla.py
     # Centrar y suavizar poco, alternados, unas cuantas rondas: en cada una se
     # vuelve al centro desde la línea ya suavizada. Solo empujar hacia dentro
     # entre suavizados encogía la línea hacia la cara interior de las curvas
@@ -571,6 +609,100 @@ def centrar_en_malla(pts: np.ndarray, poly_data: vtk.vtkPolyData) -> np.ndarray:
     p = p + ajuste
     _meter_dentro(p, dist)
     return p
+
+
+def misma_pieza(poly_data: vtk.vtkPolyData, a, b) -> bool:
+    """Si los vértices más cercanos a `a` y a `b` están en la misma pieza
+    conexa de la malla."""
+    con = vtk.vtkPolyDataConnectivityFilter()
+    con.SetInputData(poly_data)
+    con.SetExtractionModeToAllRegions()
+    con.ColorRegionsOn()
+    con.Update()
+    salida = con.GetOutput()
+    region = vtk_to_numpy(salida.GetPointData().GetArray("RegionId"))
+    loc = vtk.vtkStaticPointLocator()
+    loc.SetDataSet(salida)
+    loc.BuildLocator()
+    return bool(region[loc.FindClosestPoint(a)] == region[loc.FindClosestPoint(b)])
+
+
+def _sin_camino(poly_data: vtk.vtkPolyData, a, b, vs: float) -> str:
+    """Por qué no hay camino, distinguiendo vasos separados de un paso fino.
+
+    En la malla de case 3 (una sola pieza), el camino hasta el vaso más lejano
+    pasaba por un estrechamiento de ~0,18 mm de diámetro: la rejilla de 0,8 mm
+    no lo ve y la máscara queda partida. Afinar la rejilla lo conecta, pero la
+    línea se salía del vaso hasta 3,9 mm en ese tramo y tardaba de 2 a 5 min;
+    un paso así en una 3DRA suele ser un puente de la segmentación (25-11)."""
+    if misma_pieza(poly_data, a, b):
+        return (
+            "No se encontró un camino por dentro del vaso entre los dos puntos. "
+            "Están en la misma pieza de la malla, pero se unen por un paso de menos "
+            f"de {vs:.1f} mm, que suele ser un puente de la segmentación y no un vaso. "
+            "Marca el origen y el destino en el mismo vaso, más cerca uno del otro."
+        )
+    return (
+        "No se encontró un camino entre los dos puntos: están en piezas separadas "
+        "de la malla. Marca el origen y el destino en el mismo vaso."
+    )
+
+
+#: Un punto marcado que, llevado al eje, queda más lejos que esto del extremo
+#: de la línea no es del mismo vaso: se deja el extremo que dio la rejilla.
+_EXTREMO_MAX_MM = 4.0
+#: Tramo de la punta de la línea en el que se busca la altura de lo marcado.
+_TRAMO_EXTREMO_MM = 10.0
+
+
+def _empezar_en(p: np.ndarray, e: np.ndarray) -> np.ndarray:
+    """La línea `p` empezando en `e`: se corta donde `e` cae sobre ella (en
+    su tramo inicial) o, si `e` queda antes del principio, se alarga hasta él."""
+    largo = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(p, axis=0), axis=1))])
+    mejor = (math.inf, 0, 0.0)
+    for i in range(len(p) - 1):
+        if largo[i] > _TRAMO_EXTREMO_MM:
+            break
+        a, b = p[i], p[i + 1]
+        ab = b - a
+        n2 = float(ab @ ab)
+        s = 0.0 if n2 < 1e-12 else float((e - a) @ ab) / n2
+        s_lim = min(1.0, s) if i == 0 else min(1.0, max(0.0, s))
+        d = float(np.linalg.norm(a + ab * s_lim - e))
+        if d < mejor[0]:
+            mejor = (d, i, s)
+    _, i, s = mejor
+    if i == 0 and s <= 0.0:
+        return np.vstack([e, p])
+    return np.vstack([e, p[i + 1:]])
+
+
+def llevar_extremos_a_lo_marcado(pts: np.ndarray, dist: DistanciaFirmada,
+                                 origen, destino=None) -> np.ndarray:
+    """Pone los extremos de la línea en el eje del vaso A LA ALTURA de lo
+    marcado: el punto marcado sube al centro dentro de su plano transversal
+    (como el resto de la línea) y la línea se recorta o alarga hasta él.
+
+    Los extremos que da la rejilla son centros de vóxel de 0,8 mm elegidos
+    entre los más hondos de alrededor: caían hasta 2 mm vaso adentro o
+    afuera, la longitud salía mal y el radio de la punta, bajo. `destino`
+    None deja el final como está (el destino dentro de una lesión ya es su
+    punto más hondo, no un punto del eje de un vaso)."""
+    p = np.asarray(pts, dtype=np.float64)
+    if len(p) < 3:
+        return p
+    for marcado, al_final in ((origen, False), (destino, True)):
+        if marcado is None:
+            continue
+        q = p[::-1] if al_final else p
+        t = q[min(2, len(q) - 1)] - q[0]
+        t = t / max(float(np.linalg.norm(t)), 1e-9)
+        e = _al_centro(np.asarray(marcado, dtype=np.float64), t, dist)
+        if dist.EvaluateFunction(*e) >= 0.0 or np.linalg.norm(e - q[0]) > _EXTREMO_MAX_MM:
+            continue
+        q = _empezar_en(q, e)
+        p = q[::-1] if al_final else q
+    return np.ascontiguousarray(p)
 
 
 # ──────────────────────────────────────────────────────────────────────────── #

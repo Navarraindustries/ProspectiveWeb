@@ -20,7 +20,7 @@ import type { ViewerLayout } from "./layout";
 import type { Capa, EstadoCapa } from "./capas";
 import { CapasControl } from "./hud/CapasControl";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
-import { REFERENCIAS_TITLE, bandTier } from "./mainOptions";
+import { REFERENCIAS_TITLE, CALIBRE_TITULO_OFF, CALIBRE_TITULO_ON, bandTier } from "./mainOptions";
 import { ViewerHeaderIconos } from "./ViewerHeaderIconos";
 import { ViewerLayoutControls } from "./ViewerLayoutControls";
 import { HUD_LEVELS, type HudLevel } from "./viewerPrefs";
@@ -51,6 +51,11 @@ export interface ViewerHeaderProps {
   showClipField: boolean;
   clipRehearsal: boolean;
   onShowClipFieldChange: (on: boolean) => void;
+  /** CALIBRE: el árbol pintado según el Ø local (mapaCalibre). Solo con la
+   *  malla segmentada; sin `hasCalibre` no se pinta el conmutador. */
+  hasCalibre?: boolean;
+  showCalibre?: boolean;
+  onShowCalibreChange?: (on: boolean) => void;
   /** «?» al final de la banda: abre la hoja de atajos (la misma que la tecla). */
   onHelp?: () => void;
   /** Aviso de nivel del volumen («Vista previa en baja resolución…»): una sola vez,
@@ -69,7 +74,7 @@ export function ViewerHeader(props: ViewerHeaderProps) {
     hudLevel, onHudLevelChange,
     syncViews, onSyncViewsChange,
     hasClipField, showClipField, clipRehearsal, onShowClipFieldChange, onHelp,
-    levelNote, capas, onCapaChange,
+    levelNote, capas, onCapaChange, hasCalibre, showCalibre, onShowCalibreChange,
   } = props;
   // Ancho de la banda para elegir el nivel y abreviar sus rótulos.
   const [bandWidth, setBandWidth] = useState(Number.POSITIVE_INFINITY);
@@ -144,6 +149,11 @@ export function ViewerHeader(props: ViewerHeaderProps) {
                                         ? "Durante el ensayo de cierre se ve el saco que se deforma; el mapa de calor vuelve al terminar"
                                         : showClipField ? "Ver el saco sin el mapa de calor del clip" : "Pintar el saco según el clip colocado" }]}
             value={calorOn ? "calor" : ""} onChange={() => onShowClipFieldChange(!showClipField)} />
+        )}
+        {hasCalibre && onShowCalibreChange && (
+          <HudToggleGroup options={[{ key: "calibre", label: `${compact ? "Ø" : "CALIBRE"} ${showCalibre ? "●" : "○"}`,
+                                      title: showCalibre ? CALIBRE_TITULO_ON : CALIBRE_TITULO_OFF }]}
+            value={showCalibre ? "calibre" : ""} onChange={() => onShowCalibreChange(!showCalibre)} />
         )}
         {/* El aviso no tiene forma corta: o va entero (nivel ancho) o es un ⚠
             que despliega el texto. En el nivel ancho no se recorta con elipsis

@@ -39,3 +39,7 @@ export function bandTier(bandWidth: number, touch: boolean): BandTier {
   if (bandWidth >= ICON_HEADER_PX) return "estrecho";
   return "iconos";
 }
+
+/** Título del conmutador CALIBRE (mapa de calibre del árbol), en las dos bandas. */
+export const CALIBRE_TITULO_OFF = "Pintar el árbol según el diámetro local del vaso (de violeta, fino, a amarillo, grueso)";
+export const CALIBRE_TITULO_ON = "Ver el árbol sin el mapa de calibre";

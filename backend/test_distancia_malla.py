@@ -37,6 +37,22 @@ def test_distancia_y_signo_de_una_esfera(invertida):
     assert d.EvaluateFunction((0.0, 0.0, 9.0)) > 0          # también con una terna
 
 
+def test_normales_de_la_malla_que_contradicen_los_triangulos():
+    """El signo sale del orden de los triángulos, no de un arreglo de normales
+    que traiga la malla: con las normales al revés (marching cubes con las del
+    gradiente) el centro de la esfera daba «fuera»."""
+    from vtk.util.numpy_support import numpy_to_vtk, vtk_to_numpy
+    malla = _esfera()
+    n = vtk_to_numpy(malla.GetPointData().GetNormals())
+    al_reves = numpy_to_vtk(-n, deep=True)
+    al_reves.SetName("Normals")
+    malla.GetPointData().SetNormals(al_reves)
+    d = DistanciaFirmada(malla)
+    assert d.EvaluateFunction(0.0, 0.0, 0.0) == pytest.approx(-R, abs=0.02)
+    assert d.EvaluateFunction(0.0, 0.0, 9.0) > 0
+    assert vtk_to_numpy(malla.GetPointData().GetNormals())[0] @ n[0] < 0   # la malla no se toca
+
+
 def test_gradiente_hacia_fuera():
     d = DistanciaFirmada(_esfera())
     g = [0.0, 0.0, 0.0]

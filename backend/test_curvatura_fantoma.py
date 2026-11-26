@@ -141,11 +141,38 @@ def test_fantoma_longitud_y_tortuosidad(extraido):
     assert res.tortuosity == pytest.approx(largo / cuerda, rel=0.01)
 
 
-def test_fantoma_diametro_inscrito(extraido):
-    """El Ø inscrito sale de la transformada de distancia en vóxeles de 0,8 mm:
-    va a saltos de vóxel (Ø 2 mm → 1,6). Tolerancia de medio vóxel."""
+def test_fantoma_extremos_donde_se_marcaron(extraido):
+    """Los extremos de la línea caen en el eje a la altura de lo marcado. El
+    ajuste a la rejilla los corría vaso adentro hasta 7,85 mm (la profundidad
+    máxima de un cubo de ±8 vóxeles queda lejos de la punta), y la longitud
+    medida salía corta sin que el test de arriba lo viera: compara con donde
+    caen los extremos, no con donde se marcaron."""
     f, res = extraido
-    assert res.mean_radius_mm * 2 == pytest.approx(2 * f.radio_mm, abs=0.45)
+    k = int(round(3.0 / 0.05))
+    _, idx = cKDTree(f.eje).query(res.points[[0, -1]])
+    assert abs(idx[0] - k) * 0.05 < 0.6
+    assert abs(idx[1] - (len(f.eje) - 1 - k)) * 0.05 < 0.6
+
+
+def test_fantoma_longitud_entre_lo_marcado(extraido):
+    f, res = extraido
+    k = int(round(3.0 / 0.05))
+    entre = (len(f.eje) - 1 - 2 * k) * 0.05
+    assert res.arc_length_mm == pytest.approx(entre, rel=0.02)
+
+
+def test_fantoma_diametro_inscrito(extraido):
+    """El radio sale de la distancia exacta a la pared (DistanciaFirmada), no
+    de la transformada de distancia en vóxeles de 0,8 mm, que iba a saltos de
+    vóxel (Ø 2 mm → 1,6). Se compara con el radio de la propia malla medido
+    desde el eje analítico (el marching cubes la deja 4-10 milésimas por
+    dentro del nominal); en las curvas la línea se desvía ~0,02 mm del eje."""
+    from services.distancia_malla import DistanciaFirmada
+    f, res = extraido
+    dist = DistanciaFirmada(f.malla)
+    real = float(np.median([-dist.EvaluateFunction(*q) for q in f.eje[60:-60:20]]))
+    assert res.mean_radius_mm == pytest.approx(real, abs=0.025)
+    assert float(np.min(res.radii)) > real - 0.06          # también junto a los extremos
 
 
 def test_fantoma_curvatura_y_torsion(extraido):

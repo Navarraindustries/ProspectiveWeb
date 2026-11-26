@@ -7,7 +7,7 @@ import type {
   ElapssRequest, ElapssResult,
   DicomSegResult,
   AttachRequest, AttachResult, SessionIdentity,
-  GlbExportResult,
+  GlbExportResult, CalibreMeshResult,
   WebSizingResult,
   FdSizingResult,
   LesionConfirmIn, LesionConfirmation, LesionSummary,
@@ -727,6 +727,10 @@ export const api = {
   /** Copia suavizada de una malla de la sesión, solo para verla (picos y aristas fuera). */
   smoothMesh: (sessionId: string, name: string) =>
     post<{ url: string }>(`/api/mesh/${sessionId}/smooth?name=${encodeURIComponent(name)}`),
+  /** Mapa de calibre: la copia suave con el diámetro local por vértice y su
+   *  resumen (la primera vez se calcula: unos segundos en un árbol real). */
+  calibreMesh: (sessionId: string, name: string) =>
+    post<CalibreMeshResult>(`/api/mesh/${sessionId}/calibre?name=${encodeURIComponent(name)}`, undefined, 120_000),
   /** Discard the centreline, its cached points and any stent built along it. */
   clearCenterline: (sessionId: string) =>
     request<CenterlineClearResult>(`/api/centerline/${sessionId}`, { method: "DELETE" }),

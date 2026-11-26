@@ -311,6 +311,30 @@ describe("ViewerHeader — modo iconos (táctil ≤ 1024, móvil ≤ 640)", () =
     expect(props.onHudLevelChange).toHaveBeenLastCalledWith("completo");
   });
 
+  it("CALIBRE solo con la malla segmentada, y dice qué hace al pulsarlo", () => {
+    const { props, rerender } = setup();
+    expect(screen.queryByRole("button", { name: /CALIBRE/ })).toBeNull();
+    const onShowCalibreChange = vi.fn();
+    rerender(<ViewerHeader {...props} hasCalibre showCalibre={false} onShowCalibreChange={onShowCalibreChange} />);
+    const boton = screen.getByRole("button", { name: /CALIBRE ○/ });
+    expect(boton).toHaveAttribute("title", expect.stringContaining("diámetro local"));
+    fireEvent.click(boton);
+    expect(onShowCalibreChange).toHaveBeenCalledWith(true);
+    rerender(<ViewerHeader {...props} hasCalibre showCalibre onShowCalibreChange={onShowCalibreChange} />);
+    expect(screen.getByRole("button", { name: /CALIBRE ●/ })).toHaveAttribute("title", "Ver el árbol sin el mapa de calibre");
+  });
+
+  it("en iconos, CALIBRE es «Ø» con aria-pressed y nombre entero", () => {
+    simularPantalla(390); stubBandWidth(anchoBanda(390));
+    const onShowCalibreChange = vi.fn();
+    setup({ hasCalibre: true, showCalibre: true, onShowCalibreChange });
+    const calibre = screen.getByRole("button", { name: "Mapa de calibre del árbol" });
+    expect(calibre).toHaveAttribute("aria-pressed", "true");
+    expect(calibre).toHaveTextContent("Ø ●");
+    fireEvent.click(calibre);
+    expect(onShowCalibreChange).toHaveBeenCalledWith(false);
+  });
+
   it("en iconos, REFERENCIAS, VINCULAR y CALOR dicen su estado con aria-pressed y avisan del contrario", () => {
     simularPantalla(390); stubBandWidth(anchoBanda(390));
     const { props } = setup({ planesHidden: true, syncViews: true, hasClipField: true, showClipField: true });

@@ -48,6 +48,7 @@ import { duracionEntrada, progresoEntrada, type EntradaCandidatos } from "./cand
 import type { CenterlineTrack } from "./centerlineWalk";
 import { frenteBarrido, superiorEnMalla, tramoBarrido } from "./meshSweep";
 import { urlSuave } from "./mallaSuave";
+import { esCapaCalibre, MAPA_SECUENCIAL, pedirCalibre } from "./mapaCalibre";
 import {
   ANGULO_ENDOSCOPIO, ARRANQUE_TECLAS_S, GIRO_MS, MIRADA_AL_FRENTE, MM_POR_RUEDA, PAUSA_REBOBINADO_MS, RAPIDO_X, SIN_TECLAS, ZAMBULLIDA_MS,
   finDeLinea, girarMirada, giroFinal, pasoPaseo, poseConMirada, velocidadObjetivo, walkPose,
@@ -194,11 +195,14 @@ export interface MeshLayer {
    *    (negativo) · gris (0) · rojo (positivo) que satura en ±`range`. Lo usan
    *    los mapas de cambio del seguimiento, aposición y cobertura. Por debajo
    *    de `deadband` en valor absoluto se pinta gris: es ruido de la
-   *    comparación, no cambio. */
+   *    comparación, no cambio.
+   *  - `{ name, secuencial }`: un campo de puntos por la escala secuencial
+   *    (mapaCalibre) entre los dos valores; fuera, el color del extremo. Lo
+   *    usa el mapa de calibre del árbol. */
   scalars?: { array: string } | {
     name: string; range: number; deadband?: number;
     /** Rojo para lo negativo y azul para lo positivo. */
-    invert?: boolean };
+    invert?: boolean } | { name: string; secuencial: readonly [number, number] };
   /** Matriz de usuario 4×4 (16 números, la convención de vtk.js) que mueve el
    *  actor sin recargar la malla: el clip colocado sigue al arrastre así.
    *  undefined = identidad. Solo la admiten las capas con `id`, que son las
@@ -1416,7 +1420,10 @@ export function MeshView({
       for (const layer of layers) {
         try {
           let reader = vtkXMLPolyDataReader.newInstance();
-          const verUrl = layer.suavizar ? await urlSuave(layer.url) : layer.url;
+          // El árbol con el mapa de calibre (`#calibre`) se lee de su copia con
+          // el campo; si el servidor no la da, el árbol de siempre.
+          const calibre = esCapaCalibre(layer.url) ? await pedirCalibre(layer.url) : null;
+          const verUrl = calibre?.url ?? (layer.suavizar ? await urlSuave(layer.url) : layer.url);
           if (cancelled) return;
           try {
             await reader.setUrl(verUrl, { binary: true });
@@ -1439,7 +1446,9 @@ export function MeshView({
             mapper.setScalarVisibility(true);
             mapper.setColorModeToDirectScalars();
           } else if (layer.scalars && poly.getPointData().getArrayByName(layer.scalars.name)) {
-            mapper.setLookupTable(divergingLut(layer.scalars.range, layer.scalars.deadband ?? 0, layer.scalars.invert));
+            mapper.setLookupTable("secuencial" in layer.scalars
+              ? sequentialLut(layer.scalars.secuencial)
+              : divergingLut(layer.scalars.range, layer.scalars.deadband ?? 0, layer.scalars.invert));
             mapper.setUseLookupTableScalarRange(true);
             mapper.setScalarModeToUsePointFieldData();
             mapper.setColorByArrayName(layer.scalars.name);
@@ -2447,6 +2456,16 @@ export function MeshView({
 
 
 /** Azul → gris → rojo, con una franja gris de ±`deadband` alrededor de 0. */
+/** Escala secuencial (mapaCalibre) de `desde` a `hasta`; fuera, el color del extremo. */
+export function sequentialLut([desde, hasta]: readonly [number, number]) {
+  const lut = vtkColorTransferFunction.newInstance();
+  const n = MAPA_SECUENCIAL.length;
+  MAPA_SECUENCIAL.forEach((c, i) => lut.addRGBPoint(desde + (hasta - desde) * (i / (n - 1)), ...c));
+  lut.setMappingRange(desde, hasta);
+  lut.updateRange();
+  return lut;
+}
+
 export function divergingLut(range: number, deadband: number, invert = false) {
   const r = Math.max(range, 1e-3);
   const d = Math.min(Math.max(deadband, 0), r * 0.9);

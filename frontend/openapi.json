@@ -1081,6 +1081,50 @@
     "title": "BrokenBlock",
     "type": "object"
    },
+   "CalibreMeshResult": {
+    "properties": {
+     "campo": {
+      "default": "calibre_mm",
+      "description": "Name of the point field: local diameter in mm",
+      "title": "Campo",
+      "type": "string"
+     },
+     "maximo_mm": {
+      "description": "Largest local diameter",
+      "title": "Maximo Mm",
+      "type": "number"
+     },
+     "mediana_mm": {
+      "description": "Median local diameter",
+      "title": "Mediana Mm",
+      "type": "number"
+     },
+     "p5_mm": {
+      "description": "5th percentile of the local diameter over the vertices",
+      "title": "P5 Mm",
+      "type": "number"
+     },
+     "p95_mm": {
+      "description": "95th percentile of the local diameter",
+      "title": "P95 Mm",
+      "type": "number"
+     },
+     "url": {
+      "description": "URL of the smoothed copy carrying the `calibre_mm` point field (.vtp)",
+      "title": "Url",
+      "type": "string"
+     }
+    },
+    "required": [
+     "url",
+     "p5_mm",
+     "mediana_mm",
+     "p95_mm",
+     "maximo_mm"
+    ],
+    "title": "CalibreMeshResult",
+    "type": "object"
+   },
    "CaptureCreate": {
     "description": "Lo que el visor manda al pulsar el botón.",
     "properties": {
@@ -18984,6 +19028,65 @@
     "summary": "Seccionar un vaso por un anillo de puntos marcados",
     "tags": [
      "mesh-edit"
+    ]
+   }
+  },
+  "/api/mesh/{session_id}/calibre": {
+   "post": {
+    "description": "Inward ray from every vertex of the smoothed copy to the opposite wall of the mesh, with chords running along the vessel corrected and a two-pass neighbour median. Cached next to the mesh as `<name>.calibre.vtp` (the smoothed copy plus the `calibre_mm` point field) and rebuilt when the mesh is newer. Display only.",
+    "operationId": "calibre_mesh_api_mesh__session_id__calibre_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     },
+     {
+      "description": "File name inside the session's meshes folder",
+      "in": "query",
+      "name": "name",
+      "required": true,
+      "schema": {
+       "description": "File name inside the session's meshes folder",
+       "title": "Name",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CalibreMeshResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Local vessel diameter at every vertex, for the calibre colour map",
+    "tags": [
+     "mesh-display"
     ]
    }
   },

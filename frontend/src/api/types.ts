@@ -279,6 +279,17 @@ export interface IvusSummary {
   area_stenosis_pct?: number | null;
 }
 
+/** Mapa de calibre (POST /api/mesh/{id}/calibre): la copia suave de la malla
+ *  con el diámetro local de cada vértice en el campo `campo`, y su resumen. */
+export interface CalibreMeshResult {
+  url: string;
+  campo: string;
+  p5_mm: number;
+  mediana_mm: number;
+  p95_mm: number;
+  maximo_mm: number;
+}
+
 export interface IvusResult {
   n_sections: number;
   size_px: number;

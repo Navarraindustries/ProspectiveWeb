@@ -87,6 +87,8 @@ import { HudReadout, type HudLine } from "./hud/HudReadout";
 import { HudToggleGroup } from "./hud/HudToggleGroup";
 import { ViewerHeader } from "./ViewerHeader";
 import { conCapa, estadoCapas, type Capa } from "./capas";
+import { CAMPO_CALIBRE, conCalibre, pedirCalibre, RANGO_CALIBRE_MM } from "./mapaCalibre";
+import { LeyendaCalibre, type EstadoCalibre } from "./hud/LeyendaCalibre";
 import { legendLines } from "./clipFieldLegend";
 import { HudHeadingSlot } from "./hud/HudHeadingSlot";
 import { OrientationSheet } from "./OrientationSheet";
@@ -171,6 +173,9 @@ const SIN_ROTULOS: MeshLabel[] = [];
 const SIN_PLANOS: PlaneOutline[] = [];
 const SIN_ASAS: Handle[] = [];
 const CENTERLINE_COLOR: Vector3 = [0.25, 0.50, 1.00]; // azul — trazo de la línea central
+/** Sobre el mapa de calibre el azul se perdía entre los violetas y azules de la
+ *  escala: blanco, que no está en ella. */
+const CENTERLINE_SOBRE_CALIBRE: Vector3 = [0.97, 0.97, 0.97];
 /** Radio fijo del trazo de la línea central. El tubo de antes seguía el
  *  calibre del vaso y lo llenaba entero: un eje se lee como una línea, y
  *  dentro de la pared translúcida se ve por dónde va sin taparla. */
@@ -407,6 +412,23 @@ export function ViewerWorkspace({ step }: { step: string }) {
   // even after a mesh has been segmented — so navigating back to it from a later
   // step shows the study's DICOM views, not the leftover 3D mesh.
   const meshVisible = !!displayMeshUrl && step !== "upload" && !previewActive;
+  // Mapa de calibre (CALIBRE en la cabecera): el árbol pintado según el Ø
+  // local. Solo sobre la malla segmentada, no sobre la vista previa del umbral
+  // ni mientras se segmenta (el barrido de la malla nueva va con su URL).
+  const [showCalibre, setShowCalibre] = useState(false);
+  const hayCalibre = !!meshUrl && displayMeshUrl === meshUrl && !segmentando;
+  const calibreOn = showCalibre && hayCalibre;
+  const vesselUrl = displayMeshUrl && calibreOn ? conCalibre(displayMeshUrl) : displayMeshUrl;
+  const [calibreDe, setCalibreDe] = useState<{ url: string; estado: EstadoCalibre } | null>(null);
+  useEffect(() => {
+    if (!calibreOn || !meshUrl) return;
+    let vivo = true;
+    void pedirCalibre(meshUrl).then((r) => {
+      if (vivo) setCalibreDe({ url: meshUrl, estado: r ? { estado: "listo", resumen: r } : { estado: "error" } });
+    });
+    return () => { vivo = false; };
+  }, [calibreOn, meshUrl]);
+  const estadoCalibre: EstadoCalibre = calibreDe?.url === meshUrl ? calibreDe.estado : { estado: "cargando" };
   const candidate = allCandidates[selectedCandidate];
 
   // What the markers should be sized against. The candidate's own diameter is
@@ -897,12 +919,18 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // Pero el picker de vtk.js no mira la opacidad: con un modo de marcado
     // activo la malla vuelve a verse, o el cuello, el ápice o una medida
     // caerían sobre una superficie que nadie ve.
+    // Con el mapa de calibre el color ES el dato: translúcido al 0,45 se leía
+    // apagado. Opaco, salvo que dentro haya algo que ver (la línea, un
+    // dispositivo, lo que se está marcando): entonces casi opaco.
+    const dentroQueVer = showDevice || pickMode !== null || showCenterline;
     const vesselOpacity = viewMode === "slices3d"
       ? ((slices3dMeshVisible || pickMode !== null) ? SLICES3D_MESH_OPACITY : 0)
+      : calibreOn ? (dentroQueVer ? 0.7 : 1)
       : vesselDim ? 0.45 : 1;
     // La segmentada se ve suavizada; la vista previa del umbral cambia a cada
     // ajuste y se ve tal cual.
-    const out: MeshLayer[] = [{ url: displayMeshUrl, color: VESSEL_COLOR, opacity: vesselOpacity, suavizar: displayMeshUrl === meshUrl }];
+    const out: MeshLayer[] = [{ url: vesselUrl ?? displayMeshUrl, color: VESSEL_COLOR, opacity: vesselOpacity, suavizar: displayMeshUrl === meshUrl,
+                                ...(calibreOn ? { scalars: { name: CAMPO_CALIBRE, secuencial: RANGO_CALIBRE_MM } } : {}) }];
     // En Morfometría se marcan el cuello y el ápice PINCHANDO la superficie, y
     // una mancha opaca encima tapa justo el sitio donde hay que pinchar. Así
     // que ahí el resalte se vuelve translúcido: sigue diciendo dónde está, y
@@ -964,7 +992,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     // Con los puntos cargados la línea va como trazo fino (`trazoLinea`); el
     // tubo del servidor queda solo para una línea sin puntos (no mientras cargan).
     if (showCenterline && centerlineMesh && lineaSinPuntos) {
-      out.push({ url: centerlineMesh, color: CENTERLINE_COLOR, opacity: 1 });
+      out.push({ url: centerlineMesh, color: calibreOn ? CENTERLINE_SOBRE_CALIBRE : CENTERLINE_COLOR, opacity: 1 });
     }
     // Lo que se llevaría la tijera, en rojo y encima: el profesional decide
     // mirando esto, no leyendo un número de vértices.
@@ -980,7 +1008,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
       if (followup.ghostUrl) out.push({ url: followup.ghostUrl, color: FOLLOWUP_GHOST_COLOR, opacity: 0.3, id: "saco-anterior" });
     }
     return out;
-  }, [followup, stentMap, displayMeshUrl, meshUrl, candidate?.dome_mesh_url, candidates, rejectedCandidates, selectedCandidate, showRejectedIn3d, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, lineaSinPuntos, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible, ver]);
+  }, [followup, stentMap, displayMeshUrl, vesselUrl, calibreOn, meshUrl, candidate?.dome_mesh_url, candidates, rejectedCandidates, selectedCandidate, showRejectedIn3d, morphometry?.sac_mesh_url, step, showDevice, devices, showCenterline, centerlineMesh, lineaSinPuntos, pickMode, clipRehearsal, sacFrame, scissorsPreview, showField, clipField, fieldStale, clipsMatrix, viewMode, slices3dMeshVisible, ver]);
 
   // ── Recorrido por dentro del vaso (vesselWalk) ─────────────────────── #
   // Lo pide el panel de la línea central (o DENTRO en la cinta DESDE) por el
@@ -1007,7 +1035,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
     camera.recorrer({
       track: centerline, desdeMm, llegada,
       ocultar: centerlineMesh ? [centerlineMesh] : [],
-      opacas: displayMeshUrl ? [displayMeshUrl] : [],
+      opacas: vesselUrl ? [vesselUrl] : [],
       marcar: [candidate?.dome_mesh_url, morphometry?.sac_mesh_url, ...candidates.map((c) => c.dome_mesh_url)].filter((u): u is string => !!u),
       alAvanzar: (mm) => progresoRecorrido.poner(mm),
       alEstado: (e) => {
@@ -1447,8 +1475,10 @@ export function ViewerWorkspace({ step }: { step: string }) {
   }, [clSource, clTarget, stentSac, centerlineMesh, pickMode, step, annotationDraft, annotations, selectedAnnotation, neckOrigin, neckDome, neckRim, scissorsPoints, cropCenter, lesionMark, trajEntry, trajTarget, overlay, perforators, visiblePerforators, ver]);
 
   const trazoLinea = useMemo<MeshTrazo | null>(
-    () => (showCenterline && centerline ? { points: centerline.points, color: CENTERLINE_COLOR, radiusMm: CENTERLINE_RADIUS_MM } : null),
-    [showCenterline, centerline],
+    () => (showCenterline && centerline
+      ? { points: centerline.points, color: calibreOn ? CENTERLINE_SOBRE_CALIBRE : CENTERLINE_COLOR, radiusMm: CENTERLINE_RADIUS_MM }
+      : null),
+    [showCenterline, centerline, calibreOn],
   );
 
   // El punto compartido de los cortes, con radio fijo en mm (no depende de la
@@ -2389,6 +2419,8 @@ export function ViewerWorkspace({ step }: { step: string }) {
           </HudFrame>
         )}
 
+        {!compact && isMesh && calibreOn && !recorrido && <LeyendaCalibre calibre={estadoCalibre} />}
+
         {!compact && isMesh && recorrido && centerline && (
           <HudRecorrido progreso={progresoRecorrido} totalMm={longitudRecorrido(centerline)} diametroEn={(mm) => diameterAtArc(centerline, mm)}
             estado={recorrido.estado}
@@ -2511,6 +2543,7 @@ export function ViewerWorkspace({ step }: { step: string }) {
         syncViews={syncViews} onSyncViewsChange={setSyncViews}
         hasClipField={!!clipField} showClipField={showClipField} clipRehearsal={!!clipRehearsal}
         onShowClipFieldChange={setShowClipField} onHelp={openSheet}
+        hasCalibre={hayCalibre} showCalibre={showCalibre} onShowCalibreChange={setShowCalibre}
         levelNote={levelNote}
         capas={estadoCapas(capasOcultas, {
           cuello: (step === "morpho" || pickMode === "neck_origin" || pickMode === "neck_dome" || pickMode === "neck_rim")

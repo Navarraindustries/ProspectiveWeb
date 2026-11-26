@@ -37,8 +37,17 @@ class DistanciaFirmada:
             self.SetInput(malla)
 
     def SetInput(self, malla: vtk.vtkPolyData) -> None:  # noqa: N802 — interfaz de VTK
+        # Sin las normales que traiga la malla: vtkPolyDataNormals las conserva
+        # y el signo saldría de ellas aunque contradigan el orden de los
+        # triángulos (marching cubes con normales del gradiente las deja hacia
+        # dentro: el eje de un tubo daba +1,5 mm, «fuera», y el centrado
+        # sacaba la línea del vaso). Las normales salen de los triángulos.
+        copia = vtk.vtkPolyData()
+        copia.ShallowCopy(malla)
+        copia.GetPointData().SetNormals(None)
+        copia.GetCellData().SetNormals(None)
         tri = vtk.vtkTriangleFilter()
-        tri.SetInputData(malla)
+        tri.SetInputData(copia)
         tri.PassVertsOff(); tri.PassLinesOff()
         nf = vtk.vtkPolyDataNormals()
         nf.SetInputConnection(tri.GetOutputPort())

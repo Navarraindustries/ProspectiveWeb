@@ -1944,6 +1944,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mesh/{session_id}/calibre": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Local vessel diameter at every vertex, for the calibre colour map
+         * @description Inward ray from every vertex of the smoothed copy to the opposite wall of the mesh, with chords running along the vessel corrected and a two-pass neighbour median. Cached next to the mesh as `<name>.calibre.vtp` (the smoothed copy plus the `calibre_mm` point field) and rebuilt when the mesh is newer. Display only.
+         */
+        post: operations["calibre_mesh_api_mesh__session_id__calibre_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/mesh/{session_id}/smooth": {
         parameters: {
             query?: never;
@@ -3768,6 +3788,40 @@ export interface components {
             iso_ts: string;
             /** Reason */
             reason: string;
+        };
+        /** CalibreMeshResult */
+        CalibreMeshResult: {
+            /**
+             * Campo
+             * @description Name of the point field: local diameter in mm
+             * @default calibre_mm
+             */
+            campo: string;
+            /**
+             * Maximo Mm
+             * @description Largest local diameter
+             */
+            maximo_mm: number;
+            /**
+             * Mediana Mm
+             * @description Median local diameter
+             */
+            mediana_mm: number;
+            /**
+             * P5 Mm
+             * @description 5th percentile of the local diameter over the vertices
+             */
+            p5_mm: number;
+            /**
+             * P95 Mm
+             * @description 95th percentile of the local diameter
+             */
+            p95_mm: number;
+            /**
+             * Url
+             * @description URL of the smoothed copy carrying the `calibre_mm` point field (.vtp)
+             */
+            url: string;
         };
         /**
          * CaptureCreate
@@ -15043,6 +15097,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScissorsResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    calibre_mesh_api_mesh__session_id__calibre_post: {
+        parameters: {
+            query: {
+                /** @description File name inside the session's meshes folder */
+                name: string;
+            };
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalibreMeshResult"];
                 };
             };
             /** @description Validation Error */

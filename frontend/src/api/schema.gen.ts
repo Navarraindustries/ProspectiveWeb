@@ -2641,6 +2641,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sessions/{session_id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reopen a live session after reloading the page
+         * @description FE-9: the browser lost its store (a reload), but the live session is still on the server. Returns the same payload as `restore` for THAT session, without copying anything. `step` is the step the browser was on (it is not stored server-side for a session never saved). 404 when the session was purged.
+         */
+        post: operations["reopen_session_api_sessions__session_id__reopen_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/sessions/{session_id}/restore": {
         parameters: {
             query?: never;
@@ -16336,6 +16356,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttachResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reopen_session_api_sessions__session_id__reopen_post: {
+        parameters: {
+            query?: {
+                step?: number | null;
+            };
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionRestoreResult"];
                 };
             };
             /** @description Validation Error */

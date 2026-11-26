@@ -1010,6 +1010,9 @@ export const api = {
    *  para siempre (F1-25); pasado el límite es un ApiError 0. */
   restoreSession: (sessionId: string) =>
     request<SessionRestoreResult>(`/api/sessions/${sessionId}/restore`, { method: "POST" }, RESTORE_TIMEOUT_MS),
+  /** FE-9: vuelve a abrir la sesión viva de esta pestaña tras recargar, en el paso en que estaba. */
+  reopenSession: (sessionId: string, step: number) =>
+    request<SessionRestoreResult>(`/api/sessions/${sessionId}/reopen?step=${step}`, { method: "POST" }, RESTORE_TIMEOUT_MS),
   /** Cambia el nombre de una sesión guardada (spec §6.2). */
   renameSavedSession: (sessionId: string, label: string) =>
     request<SessionListItem>(`/api/sessions/saved/${encodeURIComponent(sessionId)}`, { method: "PATCH", body: JSON.stringify({ label } satisfies SavedSessionRenameIn), headers: { "Content-Type": "application/json" } }),

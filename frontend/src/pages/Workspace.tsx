@@ -43,6 +43,8 @@ import { useStoredFlag } from "../vtk/viewerPrefs";
 import { useRegisterCommands } from "../lib/commands";
 import { useThemeContext } from "../store/theme";
 import { usePlanning } from "../store/planning";
+import { useAuth } from "../store/auth";
+import { recordarSesionViva } from "../lib/sesionViva";
 import { useSessionLog } from "../pipeline/sessionLog";
 import { SessionLog } from "../components/planning/SessionLog";
 
@@ -89,6 +91,13 @@ export function Workspace({
     return () => { annotationsFlushRef.current = null; };
   }, [flushAnnotations, annotationsFlushRef]);
   const [stepIdx, setStepIdx] = useState(initialStep);
+  // FE-9: la sesión y el paso de esta pestaña, para volver a ellos al recargar.
+  const { user } = useAuth();
+  useEffect(() => {
+    if (!planning.sessionId || !user) return;
+    recordarSesionViva({ sessionId: planning.sessionId, paso: stepIdx,
+                         patientId: planning.patient?.id ?? null, userId: user.id });
+  }, [planning.sessionId, planning.patient?.id, stepIdx, user]);
   // Cuántas veces se restauró la malla desde un paso posterior. Es la clave del
   // panel de Detección: al cambiar, se vuelve a montar y detecta solo sobre la
   // malla restaurada, también si ya se estaba en Detección.

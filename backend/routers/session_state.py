@@ -526,16 +526,32 @@ async def restore_session(
     if current_user is not None:
         set_session_owner(new_sid, current_user.id)
 
-    # Inspect the rehydrated dir to build a payload the frontend can hydrate from.
-    meshes = session_subdir(new_sid, "meshes")
+    logger.info(
+        "Session restored — original=%s  new=%s  step=%d  has_seg=%s",
+        session_id, new_sid, ps.current_step,
+        (session_subdir(new_sid, "meshes") / "vessel_tree.vtp").exists(),
+    )
+    from services.audit import ACT_SESSION_RESTORED
+    audit_append(ACT_SESSION_RESTORED, {"session_id": session_id, "new_session_id": new_sid},
+                 username=current_user.username if current_user else "",
+                 **(audit_patient(db.get(Patient, ps.patient_id)) if ps.patient_id else {}))
+
+    return _armar_resultado(new_sid, ps, db, current_step=ps.current_step, label=ps.label or "",
+                            has_morpho=ps.max_diameter_mm is not None)
+
+
+def _armar_resultado(sid: str, ps: "PlanningSession | None", db: Session, *,
+                     current_step: int, label: str, has_morpho: bool) -> SessionRestoreResult:
+    """Lo que el frontend necesita para rellenar el store desde una sesión viva:
+    la recién restaurada («Reanudar») o la que ya estaba abierta y se reabre
+    tras recargar la página (FE-9). `ps` es su fila guardada, si la tiene."""
+    meshes = session_subdir(sid, "meshes")
     vessel = meshes / "vessel_tree.vtp"
     has_seg = vessel.exists()
     has_det = (meshes / "aneurysm_cand_001.vtp").exists()
-    has_morpho = ps.max_diameter_mm is not None
-    has_plan   = ps.current_step >= 4
 
     def _int_state(key: str) -> int:
-        raw = read_state(new_sid, key, "")
+        raw = read_state(sid, key, "")
         try:
             return int(float(raw)) if raw else 0
         except ValueError:
@@ -543,7 +559,7 @@ async def restore_session(
 
     def _float_state(key: str) -> float | None:
         """None si no está o no es un número finito (sesiones de antes)."""
-        raw = read_state(new_sid, key, "")
+        raw = read_state(sid, key, "")
         try:
             v = float(raw) if raw else None
         except ValueError:
@@ -551,55 +567,81 @@ async def restore_session(
         return v if v is not None and math.isfinite(v) else None
 
     stamp = int(datetime.now().timestamp() * 1000)
-    mesh_url = f"{mesh_url_for(new_sid, 'vessel_tree.vtp')}?v={stamp}" if has_seg else ""
-
+    mesh_url = f"{mesh_url_for(sid, 'vessel_tree.vtp')}?v={stamp}" if has_seg else ""
     # The centreline files travel in the snapshot, but the frontend store starts
     # empty — without this the «Stent CL» tab keeps asking to extract a
     # centreline that is already on disk. Arc length is recomputed from the
     # points so sessions saved before this existed restore correctly too.
-    cl_url, cl_arc = _restored_centerline(new_sid, stamp)
-
-    logger.info(
-        "Session restored — original=%s  new=%s  step=%d  has_seg=%s",
-        session_id, new_sid, ps.current_step, has_seg,
-    )
-    from services.audit import ACT_SESSION_RESTORED
-    audit_append(ACT_SESSION_RESTORED, {"session_id": session_id, "new_session_id": new_sid},
-                 username=current_user.username if current_user else "",
-                 **(audit_patient(db.get(Patient, ps.patient_id)) if ps.patient_id else {}))
-
+    cl_url, cl_arc = _restored_centerline(sid, stamp)
     return SessionRestoreResult(
-        session_id=new_sid,
-        current_step=ps.current_step,
-        label=ps.label or "",
+        session_id=sid,
+        current_step=current_step,
+        label=label,
         has_segmentation=has_seg,
         has_detection=has_det,
         has_morphometry=has_morpho,
-        has_plan=has_plan,
+        has_plan=current_step >= 4,
         restored_at=datetime.now(timezone.utc),
         mesh_url=mesh_url,
         n_vertices=_int_state("seg.n_vertices"),
         n_faces=_int_state("seg.n_faces"),
         downsample_factor=_int_state("seg.downsample_factor"),
-        method=read_state(new_sid, "seg.method", "") or "",
-        fallback_note=read_state(new_sid, "seg.fallback_note", "") or "",
+        method=read_state(sid, "seg.method", "") or "",
+        fallback_note=read_state(sid, "seg.fallback_note", "") or "",
         threshold_lower=_float_state("seg.threshold_lower") if has_seg else None,
-        modality=read_state(new_sid, "dicom.modality", "") or "",
-        patient_id=ps.patient_id,
-        study_id=ps.study_id,
+        modality=read_state(sid, "dicom.modality", "") or "",
+        patient_id=ps.patient_id if ps else None,
+        study_id=ps.study_id if ps else None,
         # Carry the case and the acquisition through the resume, otherwise the
         # rehydrated session forgets what it was planning and the next "Guardar
         # progreso" would have to ask for the case again.
-        study_label=_case_label(ps.study),
-        imaging_study_id=ps.imaging_study_id,
-        series=_restored_series(new_sid),
+        study_label=_case_label(ps.study) if ps else "",
+        imaging_study_id=ps.imaging_study_id if ps else None,
+        series=_restored_series(sid),
         centerline_mesh_url=cl_url,
         centerline_arc_mm=cl_arc,
-        **_restored_work(new_sid, ps, db),
+        **_restored_work(sid, ps, db),
     )
 
 
-def _restored_work(session_id: str, ps: PlanningSession, db: Session) -> dict:
+#: Pasos del pipeline (frontend/src/pipeline/steps.ts): 0 … 7.
+_ULTIMO_PASO = 7
+
+
+@router.post(
+    "/{session_id}/reopen",
+    response_model=SessionRestoreResult,
+    summary="Reopen a live session after reloading the page",
+    description=(
+        "FE-9: the browser lost its store (a reload), but the live session is "
+        "still on the server. Returns the same payload as `restore` for THAT "
+        "session, without copying anything. `step` is the step the browser was "
+        "on (it is not stored server-side for a session never saved). 404 when "
+        "the session was purged."
+    ),
+)
+async def reopen_session(
+    session_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
+    step: int | None = None,
+) -> SessionRestoreResult:
+    if not session_exists(session_id):
+        raise HTTPException(
+            status_code=404,
+            detail="La sesión en curso ya no está en el servidor: caduca tras un tiempo sin uso. "
+                   "Si la guardaste, reanúdala desde la ficha del paciente.",
+        )
+    ps = session_row(db, session_id)
+    if ps is not None:
+        require_patient(db, current_user, ps.patient_id)
+    paso = step if step is not None else (ps.current_step if ps else 0)
+    paso = max(0, min(_ULTIMO_PASO, int(paso)))
+    tiene_medida = bool(read_state(session_id, "morpho.max_diameter_mm", ""))
+    return _armar_resultado(session_id, ps, db, current_step=paso,
+                            label=(ps.label or "") if ps else "", has_morpho=tiene_medida)
+
+def _restored_work(session_id: str, ps: "PlanningSession | None", db: Session) -> dict:
     """Lo hecho después de detectar, leído del estado copiado (familia S).
 
     Todo esto ya viajaba en la instantánea —el estado se copia entero— pero no
@@ -627,7 +669,7 @@ def _restored_work(session_id: str, ps: PlanningSession, db: Session) -> dict:
         except Exception as exc:  # noqa: BLE001 — una parte no tumba las demás
             logger.warning("No se pudo restaurar %s de %s: %s", key, session_id, exc)
             out[key] = None
-    out["lesion_confirmed"] = _lesion_confirmed(db, session_id, ps.imaging_study_id)
+    out["lesion_confirmed"] = _lesion_confirmed(db, session_id, ps.imaging_study_id if ps else None)
     return out
 
 

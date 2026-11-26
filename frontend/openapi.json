@@ -21065,6 +21065,70 @@
     ]
    }
   },
+  "/api/sessions/{session_id}/reopen": {
+   "post": {
+    "description": "FE-9: the browser lost its store (a reload), but the live session is still on the server. Returns the same payload as `restore` for THAT session, without copying anything. `step` is the step the browser was on (it is not stored server-side for a session never saved). 404 when the session was purged.",
+    "operationId": "reopen_session_api_sessions__session_id__reopen_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "session_id",
+      "required": true,
+      "schema": {
+       "title": "Session Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "step",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Step"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SessionRestoreResult"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Reopen a live session after reloading the page",
+    "tags": [
+     "sessions"
+    ]
+   }
+  },
   "/api/sessions/{session_id}/restore": {
    "post": {
     "description": "Creates a fresh temporary session and re-populates its state from the database record identified by `session_id`. Returns the new session_id to use for subsequent API calls.",

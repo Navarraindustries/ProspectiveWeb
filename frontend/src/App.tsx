@@ -30,6 +30,7 @@ import { ClipOrdersPage } from "./pages/ClipOrders";
 import { WorkshopsPage } from "./pages/Workshops";
 import type { Screen } from "./store/nav";
 import { rehydrateSession } from "./resume";
+import { leerSesionViva, olvidarSesionViva, type SesionViva } from "./lib/sesionViva";
 import { restoreFailure } from "./restoreFailure";
 import { ServerDownBanner } from "./components/ServerDownBanner";
 import { MORPHO_INVALIDATED } from "./components/planning/detectCopy";
@@ -82,7 +83,7 @@ function Router() {
   // caduque y vuelva a entrar la misma cuenta NO limpia: su trabajo sin guardar
   // sigue ahí para guardarlo.
   const limpiarRef = useRef<() => void>(() => undefined);
-  limpiarRef.current = () => { planning.reset(); clearReportDrafts(); olvidarIvus(); };
+  limpiarRef.current = () => { planning.reset(); clearReportDrafts(); olvidarIvus(); olvidarSesionViva(); };
   useEffect(() => alCerrarSesion(() => limpiarRef.current()), []);
   const ultimoUsuario = useRef<number | null>(null);
   useEffect(() => {
@@ -230,6 +231,48 @@ function Router() {
       hint: bloqueoPipeline, disabled: !!bloqueoPipeline, run: startWithoutPatient,
     },
   ] : []);
+
+  // FE-9: al recargar en el quirófano, el store está vacío pero la sesión de
+  // esta pestaña sigue viva en el servidor: se vuelve a abrir en el paso en que
+  // estaba, sin copiarla. Si ya no está (caducó), se dice y se va a Pacientes.
+  const reabriendo = useRef(false);
+  const reabrirSesion = useCallback(async (viva: SesionViva) => {
+    setToast("Recuperando la sesión en curso…");
+    try {
+      const [r, pacientes] = await Promise.all([
+        api.reopenSession(viva.sessionId, viva.paso),
+        viva.patientId !== null ? api.listPatients().catch(() => []) : Promise.resolve([]),
+      ]);
+      planning.reset();
+      const epoca = planning.epocaActual();
+      setReanudandoEpoca(epoca);
+      planning.setAnnotationsLoadState("pendiente");
+      planning.setPatient(pacientes.find((x) => x.id === (r.patient_id ?? viva.patientId)) ?? null);
+      const { step, faltan = [] } = await rehydrateSession(planning, r);
+      if (planning.epocaActual() !== epoca) return;
+      setResumeStep(step);
+      setReanudandoEpoca(null);
+      if (faltan.length) {
+        setToast(`No se pudo cargar ${faltan.join(" ni ")} de esta sesión. Vuelve a ese paso para repetirlo.`);
+        setTimeout(() => setToast(null), 8000);
+      } else {
+        setToast(null);
+      }
+    } catch (e) {
+      olvidarSesionViva();
+      setReanudandoEpoca(null);
+      setToast(e instanceof Error && e.message ? e.message : "No se pudo recuperar la sesión en curso.");
+      setTimeout(() => setToast(null), 8000);
+      setScreen("patients");
+    }
+  }, [planning, setScreen]);
+  useEffect(() => {
+    if (!ready || !user || screen !== "workspace" || planning.sessionId || reabriendo.current) return;
+    const viva = leerSesionViva();
+    if (!viva || viva.userId !== user.id) return;
+    reabriendo.current = true;
+    void reabrirSesion(viva);
+  }, [ready, user, screen, planning.sessionId, reabrirSesion]);
 
   if (!ready) return null; // restoring stored token
   // Con la contraseña inicial el servidor responde 403 a todo: una sola

@@ -128,6 +128,22 @@ describe("una sola vía de coils (decisión nº 24)", () => {
     expect(enviados).toEqual(["otro-9", "relleno-7", "relleno-7", "acabado-3"]);
   });
 
+  // Ensayo del 27-11: tras colocar, editar la tabla dejaba la densidad colocada
+  // como si fuera la de la tabla nueva.
+  it("lo colocado avisa que es de otro montaje si la tabla cambia, y deja de avisar al volver", async () => {
+    const AVISO = "Colocado con otro montaje: vuelve a colocar para ver el de la tabla.";
+    await abrirCoils();
+    fireEvent.click(screen.getByRole("button", { name: "Colocar el montaje" }));
+    await screen.findByText("Densidad de empaque");
+    expect(screen.queryByText(AVISO)).toBeNull();
+
+    fireEvent.change(cuantos(2), { target: { value: "2" } });
+    expect(screen.getByText(AVISO)).toBeInTheDocument();
+
+    fireEvent.change(cuantos(2), { target: { value: "4" } });
+    expect(screen.queryByText(AVISO)).toBeNull();
+  });
+
   it("se añade y se quita un coil", async () => {
     await abrirCoils();
     fireEvent.click(screen.getByRole("button", { name: "Añadir coil" }));

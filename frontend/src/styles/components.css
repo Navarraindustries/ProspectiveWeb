@@ -14,8 +14,20 @@
 /* Desplegable: nativo por dentro (teclado, lector de pantalla, móvil) y de cristal por
    fuera donde el navegador deja dibujar la lista. Donde no, la lista la pinta el sistema. */
 .campo-select { appearance: none; -webkit-appearance: none; }
+/* Una línea siempre: con base-select el texto elegido se partía en tres o cuatro
+   en una columna estrecha y se salía de la caja, encima de lo de abajo (los
+   modelos de coil, la localización; ensayo del 27-11). Se corta con «…». */
+.campo-select { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* El texto lo pinta por dentro un botón que no respeta el relleno: se recorta
+   en el borde del contenido para que no pase bajo la flecha. */
+.campo-select { overflow: clip; overflow-clip-margin: content-box; }
+.campo-select option { white-space: normal; }
 @supports (appearance: base-select) {
   .campo-select, .campo-select::picker(select) { appearance: base-select; }
+  /* Con base-select el texto elegido subía al borde de arriba de la caja, y como
+     elemento flexible no encogía: se metía bajo la flecha. En bloque, centrado
+     por la altura de línea, se corta con «…» donde empieza el relleno. */
+  .campo-select { display: block; line-height: calc(var(--field-h) - 2px); }
   .campo-select::picker-icon { display: none; }
   .campo-select::picker(select) {
     margin-block: 6px;

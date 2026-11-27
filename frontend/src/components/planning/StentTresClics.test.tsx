@@ -106,4 +106,20 @@ describe("el stent en tres clics", () => {
     expect(await screen.findByText(/no pasa por delante de ese saco/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /tres clics en el visor/ })).toBeEnabled();
   });
+
+  // Ensayo del 27-11: Esc en el visor apagaba el marcado y el panel seguía con
+  // «Cancelar», como si quedaran clics por dar.
+  it("si el marcado se apaga desde el visor, el panel vuelve a ofrecer empezar", () => {
+    const { rerender } = render(<StentTresClics onDone={vi.fn()} />);
+    empezar();
+    planning.pickMode = "stent_prox";
+    rerender(<StentTresClics onDone={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Cancelar" })).toBeInTheDocument();
+
+    planning.pickMode = null; // Esc
+    rerender(<StentTresClics onDone={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Cancelar" })).toBeNull();
+    expect(screen.getByRole("button", { name: /tres clics en el visor/ })).toBeEnabled();
+    expect(stentTresClics).not.toHaveBeenCalled();
+  });
 });

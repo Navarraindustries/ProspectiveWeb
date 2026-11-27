@@ -521,6 +521,26 @@ def level_to_cleanup_verts(level: int) -> int:
 
 # ── Mesh I/O ───────────────────────────────────────────────────────────────── #
 
+def _sin_tiras(poly_data: vtk.vtkPolyData) -> vtk.vtkPolyData:
+    """Las tiras de triángulos, en triángulos sueltos.
+
+    vtk.js (36.x) no sabe construir las celdas de una malla con polígonos Y
+    tiras a la vez —`PolyData.buildCells` suma un array donde debía asignarlo—
+    y el selector de puntos del visor lanza una excepción al cruzar el rayo con
+    ella. Un tubo con tapas (stent, línea central, corredor) es justo eso: con
+    un stent desplegado, los clics sobre la arteria no marcaban nada y no
+    avisaban (ensayo del 27-11). Las mallas sin tiras salen tal cual.
+    """
+    if poly_data.GetNumberOfStrips() == 0:
+        return poly_data
+    tri = vtk.vtkTriangleFilter()
+    tri.SetInputData(poly_data)
+    tri.PassLinesOn()
+    tri.PassVertsOn()
+    tri.Update()
+    return tri.GetOutput()
+
+
 def write_vtp(poly_data: vtk.vtkPolyData, path: str | Path) -> None:
     """Write *poly_data* to an XML VTP file (vtk.js compatible, binary mode).
 
@@ -538,6 +558,8 @@ def write_vtp(poly_data: vtk.vtkPolyData, path: str | Path) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+
+    poly_data = _sin_tiras(poly_data)
 
     writer = vtk.vtkXMLPolyDataWriter()
     writer.SetFileName(str(tmp))

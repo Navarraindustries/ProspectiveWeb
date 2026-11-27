@@ -193,6 +193,25 @@ class TestTheMarkedPointsSurvive:
         sid = _session_with_sac()
         assert client.get(f"/api/morphometry/{sid}").json()["rim_points"] == []
 
+    def test_a_one_click_plane_after_a_rim_fit_is_not_called_a_rim_fit(self):
+        # Ensayo del 27-11: tras medir con siete puntos del borde, volver a
+        # medir con un clic de cuello seguía diciendo «ajustado al borde, a 26°».
+        sid = _session_with_sac()
+        rim = [(2.0, 0.0, 1.4), (-2.0, 0.0, 1.4), (0.0, 2.0, 1.4), (0.0, -2.0, 1.4)]
+        assert _neck_plane(sid, rim=rim, apex=(0.0, 0.0, 5.0)).json()["neck_source"] == "rim"
+
+        body = client.post(f"/api/morphometry/{sid}/neck-plane", json={
+            "origin": {"x": 0.0, "y": 0.0, "z": 1.4},
+            "normal": [0.0, 0.0, 1.0],
+            "dome_seed": {"x": 0.0, "y": 0.0, "z": 5.0},
+            "rim_points": [],
+        }).json()
+        assert body["neck_source"] == "manual"
+        assert body["neck_tilt_deg"] == 0.0
+        # Ni los puntos de aquel borde vuelven con esta medida.
+        assert body["rim_points"] == []
+        assert client.get(f"/api/morphometry/{sid}").json()["rim_points"] == []
+
 
 # ── El plano se reintenta antes de rendirse ──────────────────────────────── #
 

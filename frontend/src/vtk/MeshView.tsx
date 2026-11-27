@@ -955,7 +955,16 @@ export function MeshView({
       if (!pickModeRef.current || !onPickRef.current) return;
       if (callData.pokedRenderer !== renderer) return;
       const pos = callData.position;
-      picker.pick([pos.x, pos.y, 0], renderer);
+      // vtk.js lanza al cruzar una malla con polígonos y tiras a la vez (el
+      // servidor ya no las manda así). Si vuelve a pasar con otra, el clic no
+      // puede morir callado: se dice como un clic fuera de la malla.
+      try {
+        picker.pick([pos.x, pos.y, 0], renderer);
+      } catch (err) {
+        console.warn("Selección de punto fallida", err);
+        onPickMissRef.current?.();
+        return;
+      }
       const hits = picker.getPickedPositions();
       if (hits && hits.length > 0) {
         const [x, y, z] = hits[0];

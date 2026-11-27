@@ -339,6 +339,42 @@ describe("«Limpiar decisión y PHASES»", () => {
   });
 });
 
+/* Ensayo del 27-11: calcular el PHASES en «Escalas de riesgo» borra la
+   recomendación, y la tarjeta desaparecía sin decir por qué. */
+describe("la recomendación que quita un PHASES nuevo", () => {
+  const AVISO = "El PHASES cambió y la recomendación anterior se quitó: vuelve a evaluar.";
+
+  it("lo dice junto al botón hasta volver a evaluar", async () => {
+    const { rerender } = render(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.queryByText(AVISO)).not.toBeInTheDocument();
+
+    stored = null; // lo que hace PhasesCalculator al calcular
+    rerender(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.getByText(AVISO)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Evaluar CLIP vs ENDOVASCULAR" }));
+    await vi.waitFor(() => expect(treatmentDecision).toHaveBeenCalled());
+    await vi.waitFor(() => expect(stored).not.toBeNull());
+    rerender(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.queryByText(AVISO)).not.toBeInTheDocument();
+  });
+
+  it("no lo dice cuando se limpió a mano", async () => {
+    const { rerender } = render(<TreatmentPanel onNext={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar decisión y PHASES" }));
+    fireEvent.click(screen.getByRole("button", { name: "Limpiar" }));
+    await vi.waitFor(() => expect(stored).toBeNull());
+    rerender(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.queryByText(AVISO)).not.toBeInTheDocument();
+  });
+
+  it("no lo dice al entrar en un paso que nunca tuvo recomendación", () => {
+    stored = null;
+    render(<TreatmentPanel onNext={() => {}} />);
+    expect(screen.queryByText(AVISO)).not.toBeInTheDocument();
+  });
+});
+
 /* F1-176: la pantalla solo tenía la recomendación del algoritmo. El equipo
    registra aquí lo que decide, y eso es lo que va primero en el informe. */
 describe("«Decisión del equipo»", () => {

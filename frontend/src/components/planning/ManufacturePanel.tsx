@@ -51,7 +51,11 @@ function ManufactureSheet({
   const shown = built ?? spec;
 
   const rows: [string, string][] = [
-    ["Forma", `${shown.shape}${shown.angle_deg ? ` · ${shown.angle_deg.toFixed(0)}°` : ""}`],
+    // Con el acodado real, el de la clase del selector sobra: una pieza de 15°
+    // salía como «Angulado 45° · 15°» (ensayo del 27-11).
+    ["Forma", shown.angle_deg
+      ? `${shown.shape.startsWith("Angulado") ? "Angulado" : shown.shape} · ${shown.angle_deg.toFixed(0)}°`
+      : shown.shape],
     ["Longitud de hoja", `${cifra(shown.blade_length_mm, 1)} mm`],
     ["Anchura de hoja", `${cifra(shown.blade_width_mm, 2)} mm`],
     ["Altura de hoja", `${cifra(shown.blade_height_mm, 2)} mm`],

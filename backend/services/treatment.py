@@ -359,7 +359,8 @@ def _small_aneurysm(diameter_mm: float, phases: dict[str, Any] | None,
     if not band:
         notes.append(
             "No se ha estimado el riesgo de rotura: esta recomendación descansa "
-            "solo en el diámetro. Calcula el PHASES en Morfometría para que la "
+            "solo en el diámetro. Calcula el PHASES en «Escalas de riesgo», en "
+            "este mismo paso, y vuelve a evaluar para que la "
             "comparación entre riesgo de rotura y riesgo del procedimiento —que "
             "es como plantea la decisión la guía ESO 2022— se pueda hacer."
         )
@@ -815,8 +816,9 @@ def compute_decision(
             notes.append(
                 "Esta recomendación contesta POR QUÉ VÍA, no SI HAY QUE TRATAR. "
                 "Al no estar roto, la segunda pregunta existe y aquí no está "
-                "contestada: calcula el PHASES en Morfometría para tener al "
-                "menos el riesgo de rotura con el que compararla."
+                "contestada: calcula el PHASES en «Escalas de riesgo», en este "
+                "mismo paso, y vuelve a evaluar para tener al menos el riesgo "
+                "de rotura con el que compararla."
             )
         else:
             notes.append(

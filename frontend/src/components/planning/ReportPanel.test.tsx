@@ -1,6 +1,6 @@
 /* Paso de informe: la exportación de la escena a GLB. */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -100,6 +100,34 @@ describe("enlaces del informe tras reanudar", () => {
     expect(await screen.findByText("Regenerar informe PDF")).toBeInTheDocument();
     expect(screen.getByText(/El plan cambió desde que se generó este archivo/)).toBeInTheDocument();
     expect(screen.queryByText(/Descargar PDF/)).toBeNull();
+  });
+
+  // Ensayo del 27-11: el PDF generado en esta sesión se perdía al salir del
+  // paso, y al volver tras mover el clip no había ni enlace ni aviso.
+  it("el PDF generado aquí sobrevive a salir del paso y, si el plan cambió, ofrece regenerarlo", async () => {
+    vi.mocked(api.report).mockResolvedValue({ pdf_url: "/data/sessions/s1/reports/nuevo_report.pdf?v=2" } as never);
+    let ctl: ReturnType<typeof usePlanning> | null = null;
+    function Seed({ children, ver }: { children: ReactNode; ver: boolean }) {
+      const p = usePlanning();
+      ctl = p;
+      useEffect(() => { if (!p.sessionId) p.setSession("s1"); }, [p]);
+      return p.sessionId && ver ? <>{children}</> : null;
+    }
+    const arbol = (ver: boolean) => (
+      <PlanningProvider><Seed ver={ver}><ReportPanel onFinish={() => {}} /></Seed></PlanningProvider>
+    );
+    const { rerender } = render(arbol(true));
+    fireEvent.change(await screen.findByLabelText("Cirujano responsable"), { target: { value: "Dr. Prueba" } });
+    fireEvent.click(screen.getByText("Generar informe PDF"));
+    await screen.findByText(/Descargar PDF/);
+
+    rerender(arbol(false));                       // a Dispositivos
+    await waitFor(() => expect(ctl).not.toBeNull());
+    act(() => { ctl!.setDeviceMesh("clips", "/data/sessions/s1/meshes/clips.vtp?v=9"); });   // se mueve el clip
+    rerender(arbol(true));                        // de vuelta al Informe
+
+    expect(await screen.findByText("Regenerar informe PDF")).toBeInTheDocument();
+    expect(screen.getByText(/El plan cambió desde que se generó este archivo/)).toBeInTheDocument();
   });
 
   it("un PDF generado con el plan guardado sale al día", async () => {

@@ -612,6 +612,38 @@ describe("DevicesPanel · la selección recalculada deja fuera el clip elegido",
   });
 });
 
+// 27-11: guardar el corredor reordena la lista (el de 15° pasó delante del de
+// 30°) y el menú seguía con el primero de antes, que nadie había elegido.
+describe("DevicesPanel · la preselección sigue al primero de la lista nueva", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  const reordenada = { ...SELECCION, recommended: [SELECCION.recommended[1], SELECCION.recommended[0]] };
+
+  async function montar() {
+    render(<PlanningProvider><Seed><DevicesPanel onNext={() => {}} /></Seed></PlanningProvider>);
+    const addBtn = () => screen.getByRole("button", { name: /Añadir al plan y colocar/ });
+    await waitFor(() => expect(addBtn()).not.toBeDisabled());
+    return () => screen.getByLabelText(/Recomendados/) as HTMLSelectElement;
+  }
+
+  it("sin elegir nada, el menú pasa al nuevo primero", async () => {
+    const menu = await montar();
+    expect(menu().value).toBe("navarro:t1:0:10.0");
+    vi.mocked(api.clipSelection).mockResolvedValueOnce(reordenada as never);
+    fireEvent.click(screen.getByRole("button", { name: /Recalcular/ }));
+    await waitFor(() => expect(menu().value).toBe("aesculap-recto-7"));
+  });
+
+  it("lo elegido a mano se queda aunque la lista cambie de orden", async () => {
+    const menu = await montar();
+    fireEvent.change(menu(), { target: { value: "aesculap-recto-7" } });
+    fireEvent.click(screen.getByRole("button", { name: /Recalcular/ }));
+    await waitFor(() => expect(api.clipSelection).toHaveBeenCalledTimes(2));
+    await act(async () => { await Promise.resolve(); });
+    expect(menu().value).toBe("aesculap-recto-7");
+  });
+});
+
 // 26-11: al añadir un segundo clip, «Cómo queda el aneurisma» seguía enseñando
 // lo medido con uno solo, sin decir que era de otra colocación.
 describe("DevicesPanel · el resultado medido con otra colocación", () => {

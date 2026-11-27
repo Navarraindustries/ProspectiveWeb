@@ -76,6 +76,16 @@ export function StentTresClics({ onDone }: { onDone: (r: StentTresClicsResult) =
     }
   };
 
+  // Esc en el visor, u otra herramienta armada a mitad, apaga el marcado sin
+  // pasar por «Cancelar»: el panel se quedaba en curso, con «Cancelar» y sin
+  // nada que marcar (ensayo del 27-11).
+  const armado = useRef(false);
+  useEffect(() => {
+    if (!activo) { armado.current = false; return; }
+    if (paso >= 0) { armado.current = true; return; }
+    if (armado.current && !stentSac && !busy && !lanzado.current) setActivo(false);
+  }, [activo, paso, stentSac, busy]);
+
   // El tercer clic lanza el cálculo sin otro botón: son tres clics, no cuatro.
   useEffect(() => {
     if (activo && stentSac && clSource && clTarget) void lanzar(stentSac);

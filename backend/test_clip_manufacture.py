@@ -382,3 +382,13 @@ class TestUnaSolaFuerza:
                               "(sin caracterizar; se mide en la pieza)")
         assert st["short"] == "120 g · banda 120–200 g"
         assert navarro.force_statement(90.0)["target_g"] == 120.0
+
+
+# Ensayo del 27-11: un T3 de 15° salía como «Angulado 45° · 15°» en la ficha y
+# en los dossiers, con el ángulo de la clase del selector delante del real.
+def test_la_forma_lleva_el_acodado_real_sin_el_de_la_clase():
+    from services.clip_manufacture import forma_con_angulo
+    assert forma_con_angulo("Angulado 45°", 15) == "Angulado · 15°"
+    assert forma_con_angulo("Angulado 90°", 75) == "Angulado · 75°"
+    assert forma_con_angulo("Curvo", 0) == "Curvo"
+    assert forma_con_angulo("Recto", None) == "Recto"

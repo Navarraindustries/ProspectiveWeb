@@ -253,6 +253,18 @@ describe("la pieza colocada en Dispositivos manda", () => {
     expect(await screen.findByText("8,0 mm")).toBeInTheDocument();
     expect(screen.queryByText(/Es el clip que colocaste/)).toBeNull();
   });
+
+  // Ensayo del 27-11: un T3 de 15° salía como «Angulado 45° · 15°», con el
+  // ángulo de la clase del selector delante del real.
+  it("la forma dice el acodado real, sin el de la clase", async () => {
+    const t3 = { ...spec, shape: "Angulado 45°", angle_deg: 15, blade_length_mm: 7,
+                 label: "Angulado 15° de 7.0 mm", piece_label: "", part_no: "" };
+    clipSelection.mockResolvedValue(result({ outcome: "stock", manufacture: t3 }));
+    clipOrderPrefill.mockResolvedValue({ can_order: false, reason: "", placed_in_plan: false } as never);
+    draw();
+    expect(await screen.findByText("Angulado · 15°")).toBeInTheDocument();
+    expect(screen.queryByText(/45°/)).toBeNull();
+  });
 });
 
 

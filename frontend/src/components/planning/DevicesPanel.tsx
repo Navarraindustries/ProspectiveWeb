@@ -265,6 +265,7 @@ function ClipsTab() {
   // «todo el catálogo» dice que no hay catálogo (F1-197).
   const [stockCount, setStockCount] = useState<number | undefined>(undefined);
   const [selElegido, setSel] = useState<string>("");
+  const elegidoAMano = useRef(false);
   // Cuál de las dos preguntas se está respondiendo.
   const [step, setStep] = useState<string>(CLIP_STEPS[0]);
   // Qué clips tienen abiertos sus números. X, Y, Z y los tres ángulos a la
@@ -332,9 +333,17 @@ function ClipsTab() {
     setRecs(r.recommended);
     setRecsLoaded(true);
     // Functional update, and it matters: a pick made from a card WHILE the
-    // selection was being recomputed must survive it. The preselection is a
-    // default for an empty box, never a correction.
-    if (r.recommended.length > 0) setSel((cur) => cur || r.recommended[0].clip_id);
+    // selection was being recomputed must survive it. Lo que no sobrevive es la
+    // preselección: guardar el corredor reordena la lista (en el ensayo del
+    // 27-11 el de 15° pasó delante) y el menú seguía con el primero de antes.
+    if (r.recommended.length > 0) {
+      setSel((cur) => (elegidoAMano.current && cur ? cur : r.recommended[0].clip_id));
+    }
+  };
+  /** Elegido por el usuario (menú, tarjeta, importación), no preseleccionado. */
+  const elegirAMano = (clipId: string) => {
+    elegidoAMano.current = true;
+    setSel(clipId);
   };
 
   useEffect(() => {
@@ -351,7 +360,10 @@ function ClipsTab() {
     try {
       const rest = await api.deleteCustomClip(sessionId, clipId);
       setCustoms(rest);
-      if (sel === clipId) setSel(recs[0]?.clip_id ?? rest[0]?.clip_id ?? "");
+      if (sel === clipId) {
+        elegidoAMano.current = false;
+        setSel(recs[0]?.clip_id ?? rest[0]?.clip_id ?? "");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo quitar el clip importado. Vuelve a intentarlo.");
     }
@@ -445,7 +457,7 @@ function ClipsTab() {
     try {
       const info = await api.uploadCustomClip(sessionId, file);
       setCustoms((c) => [...c, info]);
-      setSel(info.clip_id);
+      elegirAMano(info.clip_id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error importando el clip");
     } finally {
@@ -641,7 +653,7 @@ function ClipsTab() {
                 sessionId={sessionId}
                 caseId={caseId}
                 selectedClipId={sel}
-                onPick={(clipId, clipName) => { setPicked({ id: clipId, name: clipName }); setSel(clipId); }}
+                onPick={(clipId, clipName) => { setPicked({ id: clipId, name: clipName }); elegirAMano(clipId); }}
                 onLoaded={onSelectionLoaded}
                 reloadKey={trajectorySavedAt}
               />
@@ -660,7 +672,7 @@ function ClipsTab() {
             label={verTodo
               ? `Todo el catálogo (${nModels})`
               : recsLoaded ? `Recomendados + personalizados (${nModels})` : "Recomendados + personalizados (evaluando…)"}
-            options={options} value={sel} onChange={(e) => { if (esModelo(e.target.value)) setSel(e.target.value); }} />
+            options={options} value={sel} onChange={(e) => { if (esModelo(e.target.value)) elegirAMano(e.target.value); }} />
           {/* Sin esto, un modelo que el recomendador no propone es inalcanzable
               desde la interfaz, aunque la institución lo tenga. */}
           <CatalogueToggle stockCount={stockCount} checked={verTodo} onChange={setVerTodo} />
@@ -968,6 +980,9 @@ function CoilsTab() {
   const [preview, setPreview] = useState<CoilPreviewResult | null>(null);
   const [verTodo, setVerTodo] = useState(false);
   const [plan, setPlan] = useState<CoilPlanResult | null>(null);
+  // Con qué tabla se colocó: editarla después dejaba la densidad colocada como
+  // si fuera la de la tabla nueva (ensayo del 27-11), igual que pasaba en clips.
+  const [colocadoCon, setColocadoCon] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const keyRef = useRef(0);
@@ -1061,6 +1076,8 @@ function CoilsTab() {
   }, [sessionId, editado, filas]);
 
   const proyectado = editado ? preview?.projected_packing : construct?.projected_packing;
+  const claveFilas = filas.map((f) => `${f.coil_id}×${f.count}`).join("|");
+  const desfasado = plan !== null && colocadoCon !== null && colocadoCon !== claveFilas;
 
   /** Coloca el montaje tal como está en la tabla: cada fila con su modelo y su
    *  número, en orden, que es la secuencia real. */
@@ -1079,6 +1096,7 @@ function CoilsTab() {
       );
       const res = await api.planCoils(sessionId, placements);
       setPlan(res);
+      setColocadoCon(claveFilas);
       setDeviceMesh("coils", res.coils_mesh_url || null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error en el plan de coils");
@@ -1117,8 +1135,10 @@ function CoilsTab() {
           const n = i + 1;
           return (
             <div key={f.key} style={{ marginTop: 8, paddingTop: 8, borderTop: i ? "1px solid var(--border)" : undefined }}>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
+              {/* El modelo en su propia línea: al lado de «Nº» y «Quitar», en el
+                  panel de 1366 px le quedaban 104 px y solo se leía «Relleno». */}
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 8 }}>
+                <div style={{ flex: "1 1 100%", minWidth: 0 }}>
                   <div style={{ fontSize: 12, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 2 }}>
                     {m ? (ROL_ES[m.role] ?? m.role) : "Coil"}
                   </div>
@@ -1188,8 +1208,13 @@ function CoilsTab() {
         )}
       </Card>
 
+      {plan && desfasado && (
+        <div style={{ marginTop: 14, fontSize: 12, color: "var(--warning)" }}>
+          Colocado con otro montaje: vuelve a colocar para ver el de la tabla.
+        </div>
+      )}
       {plan && (
-        <Card style={{ marginTop: 14 }}>
+        <Card style={{ marginTop: desfasado ? 6 : 14, opacity: desfasado ? 0.5 : 1 }}>
           <Metric
             label="Densidad de empaque"
             value={cifra(plan.total_packing_density * 100, 1)}

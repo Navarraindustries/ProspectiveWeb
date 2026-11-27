@@ -5,7 +5,7 @@
    rotos) y el sumatorio heurístico «¿por qué vía?», que aporta la geometría
    — lo único que ninguno de los otros dos mira. */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
@@ -123,6 +123,7 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
     setError(null);
     try {
       await api.clearTreatment(sessionId);
+      limpiandoAMano.current = true;
       planning.setTreatment(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo limpiar la decisión. Vuelve a intentarlo.");
@@ -132,6 +133,19 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
   };
 
   const t = treatment;
+
+  // Un PHASES calculado más abajo, en «Escalas de riesgo», borra la
+  // recomendación (depende de él). Sin decirlo, la tarjeta desaparecía y
+  // parecía un fallo; ahora queda dicho junto al botón hasta volver a evaluar.
+  const [quitadaPorPhases, setQuitadaPorPhases] = useState(false);
+  const habiaRecomendacion = useRef(t !== null);
+  const limpiandoAMano = useRef(false);
+  useEffect(() => {
+    if (t) setQuitadaPorPhases(false);
+    else if (habiaRecomendacion.current && !limpiandoAMano.current) setQuitadaPorPhases(true);
+    habiaRecomendacion.current = t !== null;
+    limpiandoAMano.current = false;
+  }, [t]);
 
   // Geometría que el panel ya tiene (morfometría): solo lo que se midió.
   const m = planning.morphometry;
@@ -234,6 +248,11 @@ export function TreatmentPanel({ onNext, onChangeSite }: {
         </>
       )}
 
+      {quitadaPorPhases && !t && (
+        <div style={{ fontSize: 12, color: "var(--warning)", marginTop: 14, lineHeight: 1.5 }}>
+          El PHASES cambió y la recomendación anterior se quitó: vuelve a evaluar.
+        </div>
+      )}
       <Button style={{ marginTop: 14, width: "100%" }} variant={t ? "outline" : "default"} onClick={() => void run()} disabled={busy || clearing || !sessionId || edadInvalida}>
         {busy ? "Evaluando…" : t ? "Re-evaluar" : "Evaluar CLIP vs ENDOVASCULAR"}
       </Button>

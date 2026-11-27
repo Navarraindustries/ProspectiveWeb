@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 import time
 from dataclasses import dataclass
@@ -134,8 +135,13 @@ def _pop(session_id: str, which: str) -> bool:
     if not files:
         return False
     newest = files[-1]
+    dst = _meshes(session_id) / _MESH_NAME
     try:
-        shutil.copy2(newest, _meshes(session_id) / _MESH_NAME)
+        shutil.copy2(newest, dst)
+        # Con la fecha de ahora, no la de la copia guardada: las copias que se
+        # rehacen cuando la malla es más nueva (la suave del visor, calibre,
+        # red) seguían con la del corte, y la zona cortada no volvía a verse.
+        os.utime(dst, None)
     except OSError as exc:  # noqa: BLE001
         logger.warning("Could not restore mesh for %s: %s", session_id, exc)
         return False

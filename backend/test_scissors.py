@@ -378,6 +378,24 @@ class TestElEndpoint:
         r = client.post(f"/api/mesh-restore/{sid}", json={"scope": "undo"})
         assert r.status_code == 200 and r.json()["vertices"] == antes
 
+    def test_deshacer_el_corte_vuelve_a_la_vista(self):
+        # El visor enseña la copia suave de la malla, que se rehace solo si la
+        # malla es más nueva. Deshacer restauraba con la fecha de la copia
+        # guardada, más vieja que la suave del corte: la zona cortada no volvía.
+        from services.mesh_smooth import copia_suave
+        sid = _sesion_con_arbol()
+        ruta = session_subdir(sid, "meshes") / "vessel_tree.vtp"
+        antes = read_vtp(ruta).GetNumberOfPoints()
+        copia_suave(ruta)
+        client.post(f"/api/mesh-scissors/{sid}", json=_cuerpo(_anillo(20.0), apply=True))
+        assert read_vtp(copia_suave(ruta)).GetNumberOfPoints() < antes
+        r = client.post(f"/api/mesh-restore/{sid}", json={"scope": "undo"})
+        assert r.status_code == 200
+        assert read_vtp(copia_suave(ruta)).GetNumberOfPoints() == antes
+        r = client.post(f"/api/mesh-restore/{sid}", json={"scope": "redo"})
+        assert r.status_code == 200
+        assert read_vtp(copia_suave(ruta)).GetNumberOfPoints() < antes
+
     def test_el_otro_lado_conserva_la_punta(self):
         sid = _sesion_con_arbol()
         d = client.post(f"/api/mesh-scissors/{sid}",

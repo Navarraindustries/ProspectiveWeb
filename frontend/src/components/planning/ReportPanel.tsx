@@ -91,7 +91,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
   const planning = usePlanning();
   const {
     sessionId, patient, caseId, imagingStudyId, morphometry, treatment,
-    captureViewport, saveNow, reportUrls,
+    captureViewport, saveNow, reportUrls, setReportUrls,
   } = planning;
   // Lo escrito aquí sobrevive a cambiar de paso (ver reportDraft): se lee al
   // montar y se apunta en cada cambio.
@@ -145,9 +145,11 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
   // «Regenerar…». Antes se daban siempre por actuales, aunque el plan hubiera
   // cambiado después de generarlos.
   const restoredFrom = (current: boolean | undefined) => (current && !planning.dirty ? planSignature : "desfasado");
+  // Generado en esta sesión, la firma de entonces: volver al paso tras mover
+  // un clip lo da por desfasado (ensayo del 27-11: se perdía y no avisaba).
   const generatedFrom = useRef<Record<string, string>>({
-    ...(reportUrls?.pdf_url ? { pdf: restoredFrom(reportUrls.pdf_current) } : {}),
-    ...(reportUrls?.dicom_sr_url ? { sr: restoredFrom(reportUrls.sr_current) } : {}),
+    ...(reportUrls?.pdf_url ? { pdf: reportUrls.pdf_signature ?? restoredFrom(reportUrls.pdf_current) } : {}),
+    ...(reportUrls?.dicom_sr_url ? { sr: reportUrls.sr_signature ?? restoredFrom(reportUrls.sr_current) } : {}),
   });
   const pdfUrl = report?.pdf_url ?? reportUrls?.pdf_url ?? null;
   const srUrl = sr?.dicom_sr_url ?? reportUrls?.dicom_sr_url ?? null;
@@ -169,7 +171,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
           if (dataUrl && dataUrl.startsWith("data:image")) shotB64 = dataUrl.split(",")[1] ?? null;
         } catch { /* screenshot is best-effort */ }
       }
-      setReport(
+      const r = (
         await api.report({
           session_id: sessionId,
           patient_name: patient?.full_name ?? "",
@@ -184,7 +186,10 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
           screenshot_png_b64: shotB64 ?? undefined,
         })
       );
+      setReport(r);
       generatedFrom.current.pdf = planSignature;
+      // En el store, para que sobreviva a salir del paso y volver.
+      if (r.pdf_url) setReportUrls({ ...reportUrls, pdf_url: r.pdf_url, pdf_signature: planSignature });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error generando el informe");
     } finally {
@@ -239,7 +244,7 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
     setBusy("sr");
     setError(null);
     try {
-      setSr(await api.dicomSr({
+      const r = await api.dicomSr({
         session_id: sessionId,
         patient_name: patient?.full_name ?? "",
         patient_dob: patient?.dob ?? "",
@@ -247,8 +252,10 @@ export function ReportPanel({ onFinish }: { onFinish: () => void }) {
         hospital_id: patient?.hospital_id ?? "",
         surgeon_name: surgeon,
         institution: patient?.institution ?? user?.institution ?? "",
-      }));
+      });
+      setSr(r);
       generatedFrom.current.sr = planSignature;
+      if (r.dicom_sr_url) setReportUrls({ ...reportUrls, dicom_sr_url: r.dicom_sr_url, sr_signature: planSignature });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error generando el DICOM SR");
     } finally {

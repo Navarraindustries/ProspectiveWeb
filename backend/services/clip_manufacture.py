@@ -306,10 +306,24 @@ def build_manufacture_mesh(perfect: PerfectClip):
 
 # ── Dossiers ──────────────────────────────────────────────────────────────── #
 
+def forma_con_angulo(forma: str, angle_deg: float | None) -> str:
+    """La forma con el acodado REAL de la pieza.
+
+    Las clases del selector llevan su ángulo en el nombre («Angulado 45°») y
+    agrupan una franja entera: una pieza de 15° salía como «Angulado 45° · 15°»
+    en la ficha y en los dos dossiers (ensayo del 27-11). Con el ángulo real,
+    el de la clase sobra.
+    """
+    if not angle_deg:
+        return forma
+    base = forma.split(" ", 1)[0] if forma.startswith("Angulado") else forma
+    return f"{base} · {angle_deg:.0f}°"
+
+
 def _dimension_rows(spec: ManufactureSpec, perfect: PerfectClip) -> list[tuple[str, str, str]]:
     """(dimension, value, tolerance) — the table both dossiers share."""
     rows = [
-        ("Forma", spec.shape.value + (f" · {spec.angle_deg:.0f}°" if spec.angle_deg else ""), "—"),
+        ("Forma", forma_con_angulo(spec.shape.value, spec.angle_deg), "—"),
         ("Longitud de mordaza (agarre útil)", f"{cifra(spec.blade_length_mm)} mm",
          f"± {cifra(TOL_JAW_MM, 2)} mm"),
         ("Anchura de hoja", f"{cifra(spec.blade_width_mm, 2)} mm", f"± {cifra(TOL_OTHER_MM, 2)} mm"),

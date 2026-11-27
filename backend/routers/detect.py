@@ -1731,6 +1731,48 @@ class _SacInputs:
         return self._edited
 
 
+def _toca_la_esfera(poly, seed, bound_r: float) -> bool:
+    """¿Llega el saco aislado al borde de la esfera que lo acota?"""
+    if poly is None or poly.GetNumberOfPoints() == 0:
+        return False
+    from vtkmodules.util.numpy_support import vtk_to_numpy
+    pts = vtk_to_numpy(poly.GetPoints().GetData()).astype(np.float64)
+    reach = float(np.max(np.linalg.norm(pts - np.asarray(seed, dtype=float), axis=1)))
+    return reach >= bound_r * 0.97
+
+
+#: Cuánto se agranda la esfera para ver si el saco se cierra solo.
+AMPLIACION_ESFERA = 1.5
+
+
+def _ampliar_si_toca(aislar, primero, seed, bound_r: float, crop_half: float):
+    """El saco, sin el recorte de la esfera cuando era el saco y no arteria.
+
+    La esfera sale de la distancia cuello-ápice, y en un saco más ancho que alto,
+    o con el ápice fuera del eje (cuello inclinado), corta la pared del lado
+    opuesto: el aviso de «vaso padre» salía por mucho que se volviera a marcar el
+    cuello (Case 3: esfera de 7,6 mm, saco que se cierra solo a 8,8). Se repite
+    con una esfera mayor: si el saco se cierra antes de su borde, era el saco
+    entero; si sigue hasta el borde, entra vaso padre y se avisa.
+
+    `aislar(bound_r, crop_half)` devuelve `(saco, cuello)` o lanza `ValueError`.
+    Devuelve `(saco, cuello, toca)`.
+    """
+    saco, cuello = primero
+    if not _toca_la_esfera(saco, seed, bound_r):
+        return saco, cuello, False
+    mayor = bound_r * AMPLIACION_ESFERA
+    try:
+        saco2, cuello2 = aislar(mayor, max(crop_half, mayor + 4.0))
+    except ValueError:
+        return saco, cuello, True
+    if saco2 is None or saco2.GetNumberOfPoints() < 50 or cuello2 <= 0.0:
+        return saco, cuello, True
+    if _toca_la_esfera(saco2, seed, mayor):
+        return saco, cuello, True
+    return saco2, cuello2, False
+
+
 def _isolate_sac(
     inputs:    _SacInputs,
     origin:    tuple[float, float, float],
@@ -1851,8 +1893,10 @@ def _morfometria_sin_cerrojo(
                     base_shift = 0.0
             # Replaying a saved plane: the stored origin/normal ARE the fitted
             # ones, so a rim fit must not be relabelled as the coarser method
-            # just because the rim points are not resent.
-            if read_state(session_id, "morpho.neck_source", "") == "rim":
+            # just because the rim points are not resent. Only when replaying:
+            # a fresh one-click plane after a rim fit kept the rim label and
+            # its tilt, and the panel described a fit that had not been made.
+            if replay and read_state(session_id, "morpho.neck_source", "") == "rim":
                 neck_source = "rim"
                 try:
                     neck_tilt_deg = float(read_state(session_id, "morpho.neck_tilt_deg", "0") or 0)
@@ -1919,6 +1963,10 @@ def _morfometria_sin_cerrojo(
                 "Verifica que el punto de cuello esté sobre el cuello y el ápice sobre la cúpula del domo."
             ) from last_error
         shift, sac_mesh, neck_diam, origin = best
+        sac_mesh, neck_diam, sac_hit_crop = _ampliar_si_toca(
+            lambda b, c: _isolate_sac(inputs, origin, normal, seed, b, c),
+            (sac_mesh, neck_diam), seed, bound_r, crop_half,
+        )
         neck_shift_mm = base_shift + shift
         write_state(session_id, "morpho.neck_shift_mm", str(neck_shift_mm))
         if shift:
@@ -1961,19 +2009,16 @@ def _morfometria_sin_cerrojo(
         # max diameter, the volume and every index describe artery as much as
         # aneurysm. Without this the failure surfaces only as a 14 mm "aneurysm"
         # on a candidate detected at 4 mm — reported with a green OK badge.
-        try:
-            import numpy as _np
-            pts = _np.asarray([poly.GetPoint(i) for i in range(poly.GetNumberOfPoints())])
-            if pts.size:
-                reach = float(_np.max(_np.linalg.norm(pts - _np.asarray(seed, dtype=float), axis=1)))
-                sac_hit_crop = reach >= bound_r * 0.97
-        except Exception as exc:  # noqa: BLE001 — a diagnostic must never break the measurement
-            logger.warning("Sac crop-bound check skipped: %s", exc)
+        # (sac_hit_crop viene de _ampliar_si_toca, arriba.)
         # The marked points themselves, so a resumed session can put them back
         # in the scene instead of showing a plane with nothing behind it.
         if rim:
             write_state(session_id, "morpho.rim_points",
                         ";".join(f"{p.x},{p.y},{p.z}" for p in rim))
+        elif not replay:
+            # Una medida nueva sin borde no es de aquellos puntos: se quedaban y
+            # volvían a la escena al reanudar, junto a un plano que no los usó.
+            write_state(session_id, "morpho.rim_points", "")
         write_state(session_id, "morpho.plane_seed_x",   str(seed[0]))
         write_state(session_id, "morpho.plane_seed_y",   str(seed[1]))
         write_state(session_id, "morpho.plane_seed_z",   str(seed[2]))

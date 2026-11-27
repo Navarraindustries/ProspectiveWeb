@@ -57,13 +57,17 @@ import type {
   VolumeMeta,
 } from "../api/types";
 
-/** Los documentos ya generados que volvieron con una sesión reanudada. */
+/** Los documentos ya generados: los que volvieron con una sesión reanudada y
+ *  los generados en esta, que el paso Informe perdía al cambiar de paso. */
 export interface ReportUrls {
   pdf_url?: string | null;
   dicom_sr_url?: string | null;
   /** Se generó con el plan guardado; false = hay que regenerarlo. */
   pdf_current?: boolean;
   sr_current?: boolean;
+  /** Generado en esta sesión: con qué plan (la firma del paso Informe). */
+  pdf_signature?: string;
+  sr_signature?: string;
 }
 
 interface PlanningState {

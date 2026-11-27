@@ -588,3 +588,48 @@ describe("DevicesPanel · el separador de la lista no es un clip", () => {
     expect(ids).toEqual(["navarro:t1:0:10.0"]);
   });
 });
+
+// 26-11: guardar el corredor recalcula la selección y el clip elegido podía
+// quedar fuera de la lista nueva. El menú enseñaba el primero, pero el botón
+// seguía con el anterior y se quedaba deshabilitado.
+describe("DevicesPanel · la selección recalculada deja fuera el clip elegido", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("el botón sigue activo y añade el primero de la lista nueva", async () => {
+    render(<PlanningProvider><Seed><DevicesPanel onNext={() => {}} /></Seed></PlanningProvider>);
+    const addBtn = () => screen.getByRole("button", { name: /Añadir al plan y colocar/ });
+    await waitFor(() => expect(addBtn()).not.toBeDisabled());
+    vi.mocked(api.clipSelection).mockResolvedValueOnce({ ...SELECCION, recommended: [SELECCION.recommended[1]] } as never);
+    fireEvent.click(screen.getByRole("button", { name: /Recalcular/ }));
+    const menu = await screen.findByLabelText(/Recomendados/);
+    await waitFor(() => expect([...(menu as HTMLSelectElement).options].map((o) => o.value)).toEqual(["aesculap-recto-7"]));
+    expect(addBtn()).not.toBeDisabled();
+    fireEvent.click(addBtn());
+    fireEvent.click(screen.getByRole("button", { name: "Colocar y verificar (1 clip)" }));
+    await waitFor(() => expect(api.planClips).toHaveBeenCalledTimes(1));
+    const ids = vi.mocked(api.planClips).mock.calls[0][0].placements.map((p: { clip_id: string }) => p.clip_id);
+    expect(ids).toEqual(["aesculap-recto-7"]);
+  });
+});
+
+// 26-11: al añadir un segundo clip, «Cómo queda el aneurisma» seguía enseñando
+// lo medido con uno solo, sin decir que era de otra colocación.
+describe("DevicesPanel · el resultado medido con otra colocación", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("dice que está desfasado al cambiar los clips, y deja de decirlo al volver a medir", async () => {
+    vi.mocked(api.clipOcclusion).mockResolvedValue({
+      outcome: "completa", sac_volume_mm3: 85, excluded_mm3: 83, remnant_mm3: 1, remnant_fraction_pct: 1,
+      remnant_width_mm: 0, summary: "Sin muñón.", cautions: [], remnant_mesh_url: null, clip_name: "x",
+    } as never);
+    await colocar();
+    fireEvent.click(await screen.findByRole("button", { name: "Medir" }));
+    expect(await screen.findByText("Oclusión completa")).toBeInTheDocument();
+    expect(screen.queryByText(/Medido con otra colocación/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Añadir otro clip/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Colocar y verificar (2 clips)" }));
+    expect(await screen.findByText(/Medido con otra colocación/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Volver a medir" }));
+    await waitFor(() => expect(screen.queryByText(/Medido con otra colocación/)).toBeNull());
+  });
+});

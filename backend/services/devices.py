@@ -369,8 +369,43 @@ def clip_neck_coverage(
     NAVARRO de 13 mm), así que el radio del cuello no basta."""
     if neck_mm <= 0.1:
         return 0.0
-    span = plane_span(clips_world, neck_origin, neck_axis, radio_mm=neck_mm + 3.0)
+    radio = neck_mm + 3.0
+    origen = np.asarray(neck_origin, dtype=float)
+    eje = np.asarray(neck_axis, dtype=float)
+    ln = float(np.linalg.norm(eje))
+    if ln > 1e-9:
+        eje = eje / ln
+        altura = _altura_de_la_hoja(clips_world, origen, eje, radio)
+        if altura is not None and 0.0 < altura <= HOLGURA_HOJA_MM:
+            origen = origen + eje * (altura + _CORTE_DENTRO_MM)
+    span = plane_span(clips_world, tuple(origen), neck_axis, radio_mm=radio)
     return float(min(100.0, span / neck_mm * 100.0))
+
+
+#: Holgura (mm) entre el canto inferior de la hoja y el plano del cuello que aún
+#: cuenta como «apoyada en él». El panel sube el clip lo que baja ese canto, para
+#: que la hoja quede en el plano y no dentro de la arteria madre, y queda unas
+#: décimas por encima: cortado justo en el plano no tocaba nada, y la extensión
+#: salía 0 % con el mapa de calor dando el cuello cubierto entero.
+HOLGURA_HOJA_MM = 1.0
+#: Cuánto entra el corte en la hoja por encima de su canto inferior (mm).
+_CORTE_DENTRO_MM = 0.25
+
+
+def _altura_de_la_hoja(device_world: vtk.vtkPolyData, origen: np.ndarray, eje: np.ndarray,
+                       radio_mm: float) -> float | None:
+    """Altura sobre el plano del cuello del punto más bajo del clip junto al cuello.
+
+    Solo los puntos a menos de `radio_mm` del eje. None si no hay ninguno."""
+    if device_world is None or device_world.GetNumberOfPoints() == 0:
+        return None
+    pts = vtk_to_numpy(device_world.GetPoints().GetData()).astype(np.float64) - origen
+    d = pts @ eje
+    radial = np.linalg.norm(pts - np.outer(d, eje), axis=1)
+    cerca = radial <= radio_mm
+    if not np.any(cerca):
+        return None
+    return float(d[cerca].min())
 
 
 def pasa_por_el_cuello(device_world: vtk.vtkPolyData, neck_origin: Vec3, neck_mm: float) -> bool:

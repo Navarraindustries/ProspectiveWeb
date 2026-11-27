@@ -20,7 +20,7 @@ describe("LumenAfterClip", () => {
     expect(screen.getByText(/queda el 82 % en la sección más afectada \(a 12,0 mm/)).toBeInTheDocument();
     expect(screen.getByText(/Subiendo el clip 1,8 mm hacia el domo queda libre/)).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /Luz libre de la arteria madre/ })).toBeInTheDocument();
-    expect(screen.getByText(/Rama Ø 1,4 mm a 2,1 mm del clip: conserva el 40 %/)).toBeInTheDocument();
+    expect(screen.getByText(/Rama Ø 1,4 mm a 2,1 mm del centro de la mordaza: conserva el 40 %/)).toBeInTheDocument();
     expect(screen.getByText(/Apertura supuesta de la mordaza: 5,0 mm/)).toBeInTheDocument();
   });
 

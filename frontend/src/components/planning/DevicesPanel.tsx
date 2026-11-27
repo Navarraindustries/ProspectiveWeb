@@ -213,7 +213,8 @@ function NumField({ label, value, onChange, step = 1, min, max }: { label: strin
     <label style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
       <span style={{ fontSize: 12, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: ".04em" }}>{label}</span>
       <input
-        type="number" value={Number.isFinite(value) ? value : 0} step={step} min={min} max={max}
+        // Centésimas en pantalla: la posición llega del 3D con 15 decimales.
+        type="number" value={Number.isFinite(value) ? Math.round(value * 100) / 100 : 0} step={step} min={min} max={max}
         onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
         style={{ width: "100%", fontSize: 12, fontFamily: "var(--font-mono)", padding: "4px 6px", borderRadius: "var(--radius-sm)", border: "1px solid var(--input)", background: "var(--field-bg)", color: "var(--foreground)" }}
       />
@@ -263,7 +264,7 @@ function ClipsTab() {
   // Cuántos clips de inventario juzgó la selección: con cero, la casilla de
   // «todo el catálogo» dice que no hay catálogo (F1-197).
   const [stockCount, setStockCount] = useState<number | undefined>(undefined);
-  const [sel, setSel] = useState<string>("");
+  const [selElegido, setSel] = useState<string>("");
   // Cuál de las dos preguntas se está respondiendo.
   const [step, setStep] = useState<string>(CLIP_STEPS[0]);
   // Qué clips tienen abiertos sus números. X, Y, Z y los tres ángulos a la
@@ -408,6 +409,11 @@ function ClipsTab() {
   // «── Otros del catálogo ──» (13-11: forzado desde fuera llegó al plan como
   // un clip llamado «__otros__» y el servidor dibujó una caja genérica).
   const esModelo = (v: string) => options.some((o) => o.value === v && !o.disabled);
+  // El modelo que se usa: el elegido mientras siga en la lista. Recalcular la
+  // selección (al guardar el corredor, por ejemplo) puede dejarlo fuera; el menú
+  // enseñaba entonces el primero, pero el botón seguía con el anterior y se
+  // quedaba deshabilitado sin decir por qué. Ahora manda el primero de la lista.
+  const sel = esModelo(selElegido) ? selElegido : (options.find((o) => !o.disabled)?.value ?? "");
 
   const addClip = () => {
     if (!sel || !esModelo(sel)) return;
@@ -1662,17 +1668,25 @@ const OCCLUSION_UI: Record<OcclusionOut["outcome"],
  *  qué validarla— pero la pregunta clínica detrás sí tiene respuesta: cuánto
  *  aneurisma queda. Eso es geometría sobre el saco aislado y el clip colocado. */
 function OcclusionReport() {
-  const { sessionId } = usePlanning();
+  const { sessionId, plannedClips } = usePlanning();
   const [data, setData] = useState<OcclusionOut | null>(null);
+  // Para qué colocación se midió. El servidor mide los clips del último plan;
+  // al añadir, quitar o mover uno, el resultado anterior seguía en pantalla
+  // como si fuera el del montaje nuevo.
+  const [medidoPara, setMedidoPara] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const claveActual = plannedClips ? poseKey(plannedClips) : null;
+  const desfasado = data !== null && medidoPara !== claveActual;
 
   const medir = async () => {
     if (!sessionId) return;
+    const clave = claveActual;
     setBusy(true);
     setError(null);
     try {
       setData(await api.clipOcclusion(sessionId));
+      setMedidoPara(clave);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo medir el resultado. Vuelve a intentarlo.");
     } finally {
@@ -1697,8 +1711,13 @@ function OcclusionReport() {
         </div>
       )}
 
+      {data && ui && desfasado && (
+        <div role="status" style={{ fontSize: 12, fontWeight: 600, color: "var(--warning)", marginTop: 6 }}>
+          Medido con otra colocación de los clips: vuelve a medir.
+        </div>
+      )}
       {data && ui && (
-        <>
+        <div style={desfasado ? { opacity: 0.5 } : undefined}>
           <div style={{ fontSize: 13, fontWeight: 600, color: ui.color, marginTop: 6 }}>
             {ui.label}
           </div>
@@ -1722,7 +1741,7 @@ function OcclusionReport() {
               </div>
             ))}
           </div>
-        </>
+        </div>
       )}
       <ErrorNote>{error}</ErrorNote>
     </Card>
@@ -1775,7 +1794,7 @@ export function LumenAfterClip({ data }: { data: OcclusionOut }) {
           {/* Solo las que el clip alcanza: las libres, en una línea (en case 3 eran 8 filas de «origen libre»). */}
           {tocadas.map((r) => (
             <div key={r.index} style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: colorLuz(r.free_pct) }}>
-              {`Rama Ø ${cifra(r.calibre_mm, 1)} mm a ${cifra(r.distance_mm, 1)} mm del clip: conserva el ${cifra(r.free_pct, 0)} %`}
+              {`Rama Ø ${cifra(r.calibre_mm, 1)} mm a ${cifra(r.distance_mm, 1)} mm del centro de la mordaza: conserva el ${cifra(r.free_pct, 0)} %`}
             </div>
           ))}
           <div style={{ fontSize: 12.5, color: "var(--muted-foreground)" }}>

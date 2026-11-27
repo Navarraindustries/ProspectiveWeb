@@ -36,7 +36,7 @@ import type {
 const candidate = (over: Partial<ClipCandidateOut> = {}): ClipCandidateOut => ({
   clip_id: "yasargil-recto-9mm",
   clip_name: "Yasargil Recto 9mm",
-  manufacturer: "Yasargil/KS",
+  manufacturer: "Aesculap/Yasargil",
   shape: "Recto",
   blade_length_mm: 9,
   closing_force_g: 110,

@@ -84,6 +84,20 @@ class TestCoberturas:
         hoja.SetZLength(0.4); hoja.Update()
         assert clip_neck_coverage(hoja.GetOutput(), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0), 4.0) > 95.0
 
+    def test_la_hoja_apoyada_justo_encima_del_plano_cubre(self):
+        # El panel sube el clip lo que baja el canto de la hoja: queda unas
+        # décimas por encima del plano del cuello, y cortado justo en él daba 0 %.
+        from services.devices import clip_neck_coverage
+        hoja = vtk.vtkCubeSource(); hoja.SetCenter(0, 0.33 + 0.5, 0); hoja.SetXLength(5.5)
+        hoja.SetYLength(1.0); hoja.SetZLength(0.4); hoja.Update()
+        assert clip_neck_coverage(hoja.GetOutput(), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0), 4.0) > 95.0
+
+    def test_la_hoja_que_no_llega_al_cuello_no_cubre(self):
+        from services.devices import clip_neck_coverage
+        hoja = vtk.vtkCubeSource(); hoja.SetCenter(0, 3.0 + 0.5, 0); hoja.SetXLength(5.5)
+        hoja.SetYLength(1.0); hoja.SetZLength(0.4); hoja.Update()
+        assert clip_neck_coverage(hoja.GetOutput(), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0), 4.0) == 0.0
+
     def test_el_stent_lejos_del_cuello_no_lo_cubre(self):
         from services.devices import pasa_por_el_cuello
         stent = _cilindro(1.5, 10.0, centro=(20.0, 0.0, 0.0))

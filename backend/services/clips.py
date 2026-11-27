@@ -117,35 +117,36 @@ OFFER_COMMERCIAL_CLIPS = False
 CLIP_CATALOGUE: list[ClipSpec] = [
 
     # ══════════════════════════════════════════════════════════════════════
-    # Yasargil (Karl Storz) — gold standard in cerebrovascular surgery
+    # Yasargil (Aesculap, B. Braun) — gold standard in cerebrovascular surgery
+    # Yasargil is Aesculap's aneurysm clip line, not a maker of its own.
     # ══════════════════════════════════════════════════════════════════════
 
-    ClipSpec("Yasargil Mini recto",        ClipShape.STRAIGHT,    5.0, 1.0, 0.8,  5.5,  75,  "Yasargil/KS"),
-    ClipSpec("Yasargil Recto 7mm",         ClipShape.STRAIGHT,    7.0, 1.1, 0.9,  6.5, 100,  "Yasargil/KS"),
-    ClipSpec("Yasargil Recto 9mm",         ClipShape.STRAIGHT,    9.0, 1.3, 1.0,  7.0, 120,  "Yasargil/KS"),
-    ClipSpec("Yasargil Recto 11mm",        ClipShape.STRAIGHT,   11.0, 1.4, 1.0,  7.5, 140,  "Yasargil/KS"),
-    ClipSpec("Yasargil Recto 14mm",        ClipShape.STRAIGHT,   14.0, 1.5, 1.1,  8.0, 160,  "Yasargil/KS"),
-    ClipSpec("Yasargil Recto 19mm",        ClipShape.STRAIGHT,   19.0, 1.5, 1.1,  9.0, 190,  "Yasargil/KS"),
+    ClipSpec("Yasargil Mini recto",        ClipShape.STRAIGHT,    5.0, 1.0, 0.8,  5.5,  75,  "Aesculap/Yasargil"),
+    ClipSpec("Yasargil Recto 7mm",         ClipShape.STRAIGHT,    7.0, 1.1, 0.9,  6.5, 100,  "Aesculap/Yasargil"),
+    ClipSpec("Yasargil Recto 9mm",         ClipShape.STRAIGHT,    9.0, 1.3, 1.0,  7.0, 120,  "Aesculap/Yasargil"),
+    ClipSpec("Yasargil Recto 11mm",        ClipShape.STRAIGHT,   11.0, 1.4, 1.0,  7.5, 140,  "Aesculap/Yasargil"),
+    ClipSpec("Yasargil Recto 14mm",        ClipShape.STRAIGHT,   14.0, 1.5, 1.1,  8.0, 160,  "Aesculap/Yasargil"),
+    ClipSpec("Yasargil Recto 19mm",        ClipShape.STRAIGHT,   19.0, 1.5, 1.1,  9.0, 190,  "Aesculap/Yasargil"),
 
-    ClipSpec("Yasargil Curvo 7mm",         ClipShape.CURVED,      7.0, 1.1, 0.9,  6.5, 100,  "Yasargil/KS"),
-    ClipSpec("Yasargil Curvo 9mm",         ClipShape.CURVED,      9.0, 1.3, 1.0,  7.0, 120,  "Yasargil/KS"),
-    ClipSpec("Yasargil Curvo 11mm",        ClipShape.CURVED,     11.0, 1.4, 1.0,  7.5, 140,  "Yasargil/KS"),
-    ClipSpec("Yasargil Curvo 14mm",        ClipShape.CURVED,     14.0, 1.5, 1.1,  8.0, 160,  "Yasargil/KS"),
+    ClipSpec("Yasargil Curvo 7mm",         ClipShape.CURVED,      7.0, 1.1, 0.9,  6.5, 100,  "Aesculap/Yasargil"),
+    ClipSpec("Yasargil Curvo 9mm",         ClipShape.CURVED,      9.0, 1.3, 1.0,  7.0, 120,  "Aesculap/Yasargil"),
+    ClipSpec("Yasargil Curvo 11mm",        ClipShape.CURVED,     11.0, 1.4, 1.0,  7.5, 140,  "Aesculap/Yasargil"),
+    ClipSpec("Yasargil Curvo 14mm",        ClipShape.CURVED,     14.0, 1.5, 1.1,  8.0, 160,  "Aesculap/Yasargil"),
 
-    ClipSpec("Yasargil Angulado 45° 7mm",  ClipShape.ANGLED_45,   7.0, 1.1, 0.9,  6.5, 100,  "Yasargil/KS"),
-    ClipSpec("Yasargil Angulado 45° 9mm",  ClipShape.ANGLED_45,   9.0, 1.3, 1.0,  7.0, 120,  "Yasargil/KS"),
-    ClipSpec("Yasargil Angulado 45° 11mm", ClipShape.ANGLED_45,  11.0, 1.4, 1.0,  7.5, 140,  "Yasargil/KS"),
+    ClipSpec("Yasargil Angulado 45° 7mm",  ClipShape.ANGLED_45,   7.0, 1.1, 0.9,  6.5, 100,  "Aesculap/Yasargil"),
+    ClipSpec("Yasargil Angulado 45° 9mm",  ClipShape.ANGLED_45,   9.0, 1.3, 1.0,  7.0, 120,  "Aesculap/Yasargil"),
+    ClipSpec("Yasargil Angulado 45° 11mm", ClipShape.ANGLED_45,  11.0, 1.4, 1.0,  7.5, 140,  "Aesculap/Yasargil"),
 
-    ClipSpec("Yasargil Angulado 90° 7mm",  ClipShape.ANGLED,      7.0, 1.1, 0.9,  6.5, 100,  "Yasargil/KS"),
-    ClipSpec("Yasargil Angulado 90° 9mm",  ClipShape.ANGLED,      9.0, 1.3, 1.0,  7.0, 120,  "Yasargil/KS"),
+    ClipSpec("Yasargil Angulado 90° 7mm",  ClipShape.ANGLED,      7.0, 1.1, 0.9,  6.5, 100,  "Aesculap/Yasargil"),
+    ClipSpec("Yasargil Angulado 90° 9mm",  ClipShape.ANGLED,      9.0, 1.3, 1.0,  7.0, 120,  "Aesculap/Yasargil"),
 
-    ClipSpec("Yasargil Bayoneta 7mm",      ClipShape.BAYONET,     7.0, 1.1, 0.9,  8.0, 105,  "Yasargil/KS"),
-    ClipSpec("Yasargil Bayoneta 11mm",     ClipShape.BAYONET,    11.0, 1.4, 1.0, 10.0, 145,  "Yasargil/KS"),
-    ClipSpec("Yasargil Bayoneta 14mm",     ClipShape.BAYONET,    14.0, 1.5, 1.1, 11.0, 165,  "Yasargil/KS"),
+    ClipSpec("Yasargil Bayoneta 7mm",      ClipShape.BAYONET,     7.0, 1.1, 0.9,  8.0, 105,  "Aesculap/Yasargil"),
+    ClipSpec("Yasargil Bayoneta 11mm",     ClipShape.BAYONET,    11.0, 1.4, 1.0, 10.0, 145,  "Aesculap/Yasargil"),
+    ClipSpec("Yasargil Bayoneta 14mm",     ClipShape.BAYONET,    14.0, 1.5, 1.1, 11.0, 165,  "Aesculap/Yasargil"),
 
-    ClipSpec("Yasargil Fenestrado 7mm",    ClipShape.FENESTRATED,  7.0, 1.1, 0.9,  7.0, 105,  "Yasargil/KS"),
-    ClipSpec("Yasargil Fenestrado 9mm",    ClipShape.FENESTRATED,  9.0, 1.3, 1.0,  7.5, 125,  "Yasargil/KS"),
-    ClipSpec("Yasargil Fenestrado 11mm",   ClipShape.FENESTRATED, 11.0, 1.4, 1.0,  8.0, 145,  "Yasargil/KS"),
+    ClipSpec("Yasargil Fenestrado 7mm",    ClipShape.FENESTRATED,  7.0, 1.1, 0.9,  7.0, 105,  "Aesculap/Yasargil"),
+    ClipSpec("Yasargil Fenestrado 9mm",    ClipShape.FENESTRATED,  9.0, 1.3, 1.0,  7.5, 125,  "Aesculap/Yasargil"),
+    ClipSpec("Yasargil Fenestrado 11mm",   ClipShape.FENESTRATED, 11.0, 1.4, 1.0,  8.0, 145,  "Aesculap/Yasargil"),
 
     # ══════════════════════════════════════════════════════════════════════
     # Sugita (Mizuho) — widely used in Asia and Latin America
@@ -448,7 +449,7 @@ _SHAPE_ANGLE: dict[ClipShape, float] = {
 }
 
 _APPLIER: dict[str, str] = {
-    "Yasargil/KS": "Yasargil Standard",
+    "Aesculap/Yasargil": "Yasargil Standard",
     "Sugita":      "Sugita Standard",
     "Aesculap":    "Aesculap Standard",
     "Codman":      "Codman Standard",

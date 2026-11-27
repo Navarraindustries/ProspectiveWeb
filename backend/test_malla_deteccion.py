@@ -87,7 +87,8 @@ class TestPorLaApi:
     """La segmentaciÃ³n de TC deja la malla de detecciÃ³n; otra segmentaciÃ³n la quita."""
 
     @pytest.fixture(scope="class")
-    def serie(self):
+    @classmethod
+    def serie(cls):
         from services.sessions import create_session
         from test_cta_vessels import _cabeza
         from test_volume_chunks import _write_classic_ct_series

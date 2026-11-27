@@ -104,9 +104,7 @@ def _write_classic_ct_series(
             if nz // 4 <= i < nz // 4 + nz // 2:
                 pixels[ny // 4: ny // 4 + ny // 2, nx // 4: nx // 4 + nx // 2] = bright_cube
         ds.PixelData = pixels.tobytes()
-        ds.is_little_endian = True
-        ds.is_implicit_VR = False
-        pydicom.dcmwrite(dicom_dir / f"slice_{i:03d}.dcm", ds, write_like_original=False)
+        pydicom.dcmwrite(dicom_dir / f"slice_{i:03d}.dcm", ds, enforce_file_format=True)
 
 
 class TestMeta:

@@ -60,7 +60,7 @@ def _triangles(poly: vtk.vtkPolyData) -> tuple[np.ndarray, np.ndarray, np.ndarra
         return np.zeros((0, 3), np.float32), np.zeros((0, 3), np.float32), np.zeros(0, np.uint32)
     pos = vtk_to_numpy(out.GetPoints().GetData()).astype(np.float32)
     nor = vtk_to_numpy(out.GetPointData().GetNormals()).astype(np.float32)
-    cells = vtk_to_numpy(out.GetPolys().GetData()).reshape(-1, 4)[:, 1:]
+    cells = vtk_to_numpy(out.GetPolys().GetConnectivityArray()).reshape(-1, 3)
     return pos, nor, cells.astype(np.uint32).ravel()
 
 

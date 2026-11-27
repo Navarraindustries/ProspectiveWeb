@@ -180,10 +180,11 @@ class TestPorLaApi:
     SHAPE1 = (56, 68, 68)
 
     @pytest.fixture(scope="class")
-    def serie(self):
+    @classmethod
+    def serie(cls):
         from services.sessions import create_session
         from test_volume_chunks import _write_classic_ct_series
-        h = _cabeza(self.SP1, self.SHAPE1)
+        h = _cabeza(cls.SP1, cls.SHAPE1)
         vals = np.clip(np.round(h["vol"]), -1024, 3000).astype(np.int16)
 
         def nueva():

@@ -183,9 +183,7 @@ def _session_with_dicom(nz=4, ny=16, nx=16) -> str:
         ds.RescaleIntercept = 0
         ds.RescaleSlope = 1
         ds.PixelData = rng.integers(0, 800, size=(ny, nx), dtype=np.int16).tobytes()
-        ds.is_little_endian = True
-        ds.is_implicit_VR = False
-        pydicom.dcmwrite(dicom_dir / f"slice_{i:03d}.dcm", ds, write_like_original=False)
+        pydicom.dcmwrite(dicom_dir / f"slice_{i:03d}.dcm", ds, enforce_file_format=True)
 
     # Prime the MPR cache the way an upload would, so preprocessing has a volume.
     from services.mpr import ensure_volume_cached
